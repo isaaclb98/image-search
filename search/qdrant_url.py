@@ -1,0 +1,58 @@
+"""
+search/qdrant_url.py
+
+Tiny helper for building QdrantClient kwargs from a URL.
+
+qdrant-client 1.18 has a footgun: when given a URL like
+`https://host` with no explicit port, it falls back to its
+hard-coded default of 6333 regardless of scheme. That breaks
+deployments behind an HTTPS reverse proxy on :443 (which is
+exactly the case for `https://qdrant.aizaku.ca` — Caddy listens
+on 443, not 6333). curl works because the user-supplied URL
+has no port and curl honors the scheme default; the Python
+client doesn't.
+
+This module fixes it by parsing the URL and passing `port=`
+explicitly when the URL omits it. Behavior:
+  https://host        -> port=443
+  https://host:8443   -> port=8443 (URL wins)
+  http://host         -> port=6333
+  http://host:6333    -> port=6333
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from urllib.parse import urlparse
+
+
+def client_kwargs(url: str, api_key: str | None = None, timeout: float | None = None) -> dict[str, Any]:
+    """
+    Build kwargs for `QdrantClient(...)`.
+
+    Args:
+        url: Full URL including scheme, e.g. `https://qdrant.aizaku.ca`.
+        api_key: Optional API key. None for unauthenticated Qdrant.
+        timeout: Optional timeout in seconds. None for qdrant-client default.
+
+    Returns:
+        A dict suitable for `QdrantClient(**kwargs)`.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"QDRANT_URL must be http:// or https://, got {url!r}"
+        )
+    if not parsed.hostname:
+        raise ValueError(f"QDRANT_URL has no host: {url!r}")
+
+    port = parsed.port
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 6333
+
+    kwargs: dict[str, Any] = {"url": url, "port": port}
+    if api_key:
+        kwargs["api_key"] = api_key
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return kwargs

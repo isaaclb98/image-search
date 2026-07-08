@@ -1,0 +1,59 @@
+# Search-side container. Built on a slim Python image; pulls the
+# SigLIP2 model at build time so cold-start is fast.
+#
+# Build:  docker build -f docker/Dockerfile.search -t isaac-image-search .
+# Run:    docker run --rm -p 8000:8000 \
+#             -e QDRANT_URL=http://qdrant:6333 \
+#             -e NAS_IMAGES_BASE=/nas \
+#             -v /path/to/nas:/nas:ro \
+#             isaac-image-search
+
+FROM python:3.12-slim
+
+# System deps for pillow + pillow-heif
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libjpeg-dev zlib1g-dev libpng-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps first (cached separately from source)
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir \
+        "fastapi>=0.110" \
+        "uvicorn[standard]>=0.27" \
+        "jinja2>=3.1" \
+        "python-multipart>=0.0.9" \
+        "qdrant-client>=1.7" \
+        "transformers>=4.40" \
+        "torch>=2.1" \
+        "torchvision>=0.16" \
+        "pillow>=10" \
+        "pillow-heif>=0.16" \
+        "tqdm>=4.66"
+
+# Pre-download the SigLIP2 model so cold-start is fast.
+# Loaded via open_clip from the HuggingFace hub. We run a tiny
+# `import open_clip; create_model_from_pretrained(...)` to warm
+# the HF cache and pre-fetch the model weights.
+# (Skippable in CI by overriding MODEL_NAME / removing this line.)
+ARG MODEL_NAME=hf-hub:timm/ViT-gopt-16-SigLIP2-384
+RUN python -c "import open_clip; \
+    open_clip.create_model_from_pretrained('${MODEL_NAME}'); \
+    open_clip.get_tokenizer('${MODEL_NAME}')"
+
+# Copy source
+COPY search ./search
+COPY indexer ./indexer
+COPY README.md DESIGN.md ./
+
+ENV MODEL_NAME=${MODEL_NAME} \
+    MODEL_DIR=/root/.cache/huggingface \
+    DEVICE=cpu \
+    NAS_IMAGES_BASE=/nas \
+    WEB_UI_URL=http://localhost:8000 \
+    LOG_LEVEL=INFO
+
+EXPOSE 8000
+
+CMD ["python", "-m", "search.app"]

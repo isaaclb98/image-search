@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Random — Isaac Image Search{% endblock %}
+
+{% block content %}
+<section class="random-page">
+  <header class="random-header">
+    <h1>Random</h1>
+    <p class="random-tagline">
+      {% if collections %}
+        Random sample from {{ collections|join(', ') }}.
+      {% else %}
+        Random sample from the whole collection.
+      {% endif %}
+    </p>
+    {# View toggle: grid (default) or feed (single-column phone-style).
+       Same UI shape as the search page so the muscle memory transfers. #}
+    <div class="view-toggle" role="group" aria-label="Result view">
+      <button
+        type="button"
+        class="view-toggle-btn {% if view == 'grid' %}view-toggle-btn--active{% endif %}"
+        data-view="grid"
+        aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
+      >grid</button>
+      <button
+        type="button"
+        class="view-toggle-btn {% if view == 'feed' %}view-toggle-btn--active{% endif %}"
+        data-view="feed"
+        aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
+      >feed</button>
+    </div>
+  </header>
+
+  {% if error %}
+    <p class="state state-error">{{ error }}</p>
+  {% elif results %}
+    {# has_more=True keeps the sentinel rendered so the
+       IntersectionObserver in random.js can append the next random
+       sample when the user scrolls to the bottom. The sentinel is
+       removed client-side once an API call returns fewer than
+       `limit` rows, signalling "collection exhausted". #}
+    {% with
+       offset=0,
+       has_more=True,
+       max_results_total=results|length,
+       search_query_string="from=random",
+       q="",
+       positives=[],
+       negatives=[]
+    %}
+      {% include "_result_grid.html" %}
+    {% endwith %}
+    {# SSR data block: lets the client-side view toggle re-render the
+       current sample without an extra API call. tojson emits proper
+       JSON-safe values; results is a list of SearchResult pydantic
+       models that Jinja serialises via .__dict__ on attribute access. #}
+    <script id="random-initial-results" type="application/json">{{ results|tojson }}</script>
+  {% else %}
+    <p class="state state-idle">
+      No photos indexed yet, or your collection filter matched nothing.
+    </p>
+  {% endif %}
+</section>
+
+<script type="module" src="/static/js/random.js?v={{ static_assets_version }}"></script>
+{% endblock %}

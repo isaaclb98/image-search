@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}discover — Isaac Image Search{% endblock %}
+
+{% block content %}
+<div class="discover" data-discover-root>
+  <header class="discover-header">
+    <p class="discover-tagline">Pick the one you like. After 5 rounds the feed will start to converge on your taste.</p>
+    <a class="discover-done-link" href="#" data-discover-done>done →</a>
+  </header>
+
+  {# The current pair. Left/right are two large clickable
+     images. JS swaps the entire pair on every pick. #}
+  <div class="discover-pair" data-discover-pair>
+    <p class="discover-loading" data-discover-loading>loading the first pair…</p>
+  </div>
+
+  <footer class="discover-footer">
+    <span class="discover-round" data-discover-round>round 1</span>
+    <span class="discover-liked-count" data-discover-liked-count>0 picked</span>
+  </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/discover.js?v={{ static_assets_version }}"></script>
+{% endblock %}

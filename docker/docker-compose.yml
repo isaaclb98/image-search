@@ -1,0 +1,50 @@
+# Local dev: search container + Qdrant.
+# Run:    docker compose -f docker/docker-compose.yml up
+# Then:  open http://localhost:8000
+#
+# Note: the indexer is NOT in this compose. Run it on the host (or
+# another compose service in v1.1) where the NAS is mounted and
+# the GPU lives.
+
+version: "3.9"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: isaac-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  search:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.search
+    container_name: isaac-image-search
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: images
+      # QDRANT_API_KEY: replace-with-your-key  # Required if your Qdrant has auth enabled
+      NAS_IMAGES_BASE: /nas
+      WEB_UI_URL: http://localhost:8000
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount your NAS / image folder read-only at /nas.
+      # On Windows, this could be a Z:\ drive or a bind mount.
+      - ${NAS_IMAGES_PATH:-./_fixtures}:/nas:ro
+
+volumes:
+  qdrant_data:

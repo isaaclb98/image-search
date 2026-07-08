@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}discovery picks — Isaac Image Search{% endblock %}
+
+{% block content %}
+<div class="discover-liked">
+  <header class="discover-liked-header">
+    <h1>your picks</h1>
+    {% if session_gone %}
+      <p class="state state-warn">
+        That discovery session is no longer active (sessions are ephemeral — they end when the server restarts or after 30 minutes of inactivity).
+        <a href="/discover">start a new one →</a>
+      </p>
+    {% elif images %}
+      <p class="discover-liked-tagline">
+        {{ images|length }} {{ 'pick' if images|length == 1 else 'picks' }} in order of selection. This list is ephemeral — copy the paths if you want to keep it.
+      </p>
+      <div class="discover-liked-actions">
+        <button type="button" class="discover-copy-paths-btn" data-discover-copy-paths>copy paths to clipboard</button>
+        {# View toggle: grid (default) vs feed (phone-style single column).
+           Same component the search page uses — CSS classes are
+           shared, only the URL we navigate to differs. #}
+        <div class="view-toggle" role="group" aria-label="Result view">
+          <button
+            type="button"
+            class="view-toggle-btn {% if view == 'grid' %}view-toggle-btn--active{% endif %}"
+            data-view="grid"
+            aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
+          >grid</button>
+          <button
+            type="button"
+            class="view-toggle-btn {% if view == 'feed' %}view-toggle-btn--active{% endif %}"
+            data-view="feed"
+            aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
+          >feed</button>
+        </div>
+        <a class="discover-new-link" href="/discover">start a new discovery →</a>
+      </div>
+    {% else %}
+      <p class="state state-idle">No picks in this session.</p>
+      <p><a href="/discover">start a new discovery →</a></p>
+    {% endif %}
+  </header>
+
+  {% if images %}
+    <ul
+      class="{{ 'feed' if view == 'feed' else 'grid' }}"
+      id="discover-liked-grid"
+    >
+      {% for img in images %}
+        <li
+          class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}"
+          data-id="{{ img.id }}"
+          data-path="{{ img.path }}"
+        >
+          <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }}">#{{ img.picked_round }}</span>
+          <a href="/photo/{{ img.id }}">
+            <img
+              src="{{ img.url }}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onerror="this.classList.add('img-error')"
+            >
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/discover_liked.js?v={{ static_assets_version }}"></script>
+{% endblock %}

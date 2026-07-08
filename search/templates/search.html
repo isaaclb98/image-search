@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if source_photo_id %}most similar to {{ source_photo_id[:8] }}…{% elif q %}{{ q }} — search{% else %}search{% endif %}
+{% endblock %}
+
+{% block content %}
+{# Centroid blend indicator. When one or more ?centroid= values are
+   active, the text-input + prompt-composition rows are mutually
+   exclusive with the centroid anchor (enforced server-side). The
+   chip stack makes the full blend visible — each chip is removable
+   by clicking its ×, which navigates to the URL with that centroid
+   stripped (other params preserved). The "switch to text search"
+   link clears all centroids and all other search params. #}
+{% if active_centroids %}
+  <div class="centroid-mode-indicator" role="status" aria-live="polite">
+    <span class="centroid-mode-label">
+      {% if active_centroids|length == 1 %}
+        Searching with centroid
+      {% else %}
+        Blending {{ active_centroids|length }} centroids
+      {% endif %}
+    </span>
+    <ul class="centroid-chip-list" aria-label="Active centroids">
+      {% for c in active_centroids %}
+        <li class="centroid-chip">
+          <span class="centroid-chip-name">{{ c }}</span>
+          <a
+            class="centroid-chip-remove"
+            href="{{ request.url | strip_query_param('centroid', c) }}"
+            aria-label="Remove centroid {{ c }} from blend"
+            title="Remove from blend"
+          >&times;</a>
+        </li>
+      {% endfor %}
+    </ul>
+    <a class="centroid-mode-switch" href="/">use text search instead</a>
+  </div>
+{% endif %}
+
+<form class="search-form" method="get" action="/">
+  <div class="search-controls">
+    <input
+      type="search"
+      name="q"
+      value="{{ q }}"
+      placeholder="search images…"
+      {% if not q and not results %}autofocus{% endif %}
+      {% if error or active_centroids %}disabled{% endif %}
+    >
+    {# Filename/path-substring filter. Optional, single token,
+       supports an optional trailing `*` for prefix match. Placeholder
+       hints at both forms. Disabled in centroid mode (the mutex is
+       enforced server-side; dimming is just UI honesty). #}
+    <input
+      type="search"
+      name="filename"
+      value="{{ filename or '' }}"
+      placeholder="filename filter"
+      class="filename-input"
+      aria-label="Filter by filename or path substring"
+      title="Restrict results to photos whose path matches this token (FTS5 substring or prefix)."
+      {% if error or active_centroids %}disabled{% endif %}
+    >
+    <button type="submit" {% if error or active_centroids %}disabled{% endif %}>Search</button>
+  </div>
+  <div class="search-meta">
+    {# View toggle: grid (default) vs feed (phone-style single column).
+       Server-rendered with the current view selected so the first paint
+       already shows the right state — no flash on hydration. The JS
+       handles the click and re-renders in place. #}
+    <button
+      type="button"
+      class="view-toggle-btn {% if view == 'grid' %}view-toggle-btn--active{% endif %}"
+      data-view="grid"
+      aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
+      {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}
+    >☐ Grid</button>
+    <button
+      type="button"
+      class="view-toggle-btn {% if view == 'feed' %}view-toggle-btn--active{% endif %}"
+      data-view="feed"
+      aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
+      {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}
+    >☰ Feed</button>
+    <button
+      type="button"
+      class="diverse-btn {% if diverse %}diverse-btn--active{% endif %}"
+      data-diverse
+      aria-pressed="{{ 'true' if diverse else 'false' }}"
+      {% if random_picks %}disabled title="Type a query to use the diversity toggle"{% endif %}
+    >↔ Diverse</button>
+    {% if random_picks %}
+    <button
+      type="button"
+      class="surprise-btn"
+      data-surprise
+    >🔀 Surprise</button>
+    {% endif %}
+    {% if q or positives or negatives or collections or filename %}
+      <a class="clear-link" href="/">clear</a>
+    {% endif %}
+  </div>
+</form>
+
+{# Prompt composition is hidden in centroid mode — the input above is
+   disabled and prompts would be misleading. The mutex is enforced
+   server-side; the dim/hide is just to keep the UI honest. #}
+{% if not active_centroids %}
+<section class="prompt-composition" aria-label="Prompt composition">
+  <div class="saved-search-bar" data-saved-bar>
+    <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
+    <select
+      id="saved-search-select"
+      class="saved-search-select"
+      data-saved-select
+      aria-label="Apply a saved search"
+    >
+      <option value="" data-saved-default-option>— pick a saved search —</option>
+      {% for s in saved_searches %}
+        <option
+          value="{{ s.id }}"
+          data-saved-positives='{{ s.positives|tojson }}'
+          data-saved-negatives='{{ s.negatives|tojson }}'
+        >{{ s.name }}</option>
+      {% endfor %}
+    </select>
+    <button
+      type="button"
+      class="saved-search-save"
+      data-saved-save
+      disabled
+      title="Type at least one prompt to save"
+    >Save current</button>
+    <span class="saved-search-error" role="alert" data-saved-error hidden></span>
+  </div>
+  <div class="prompt-row" data-prompt-row="positives">
+    <span class="prompt-row-label">include</span>
+    <div class="prompt-chip-list" data-prompt-chips="positives">
+      {% for prompt in positive_chips %}
+        <button class="prompt-chip prompt-chip--positive" type="button" data-prompt-chip="{{ prompt }}">
+          <span>{{ prompt }}</span>
+          <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
+        </button>
+      {% endfor %}
+    </div>
+    <div class="prompt-add">
+      <input type="text" data-prompt-input="positives" placeholder="add prompt">
+      <button type="button" data-prompt-add="positives" aria-label="Add include prompt">+</button>
+    </div>
+    <span class="prompt-hint">prompts to search toward</span>
+  </div>
+  <div class="prompt-row prompt-row--negatives" data-prompt-row="negatives">
+    <span class="prompt-row-label">exclude</span>
+    <div class="prompt-chip-list" data-prompt-chips="negatives">
+      {% for prompt in negative_chips %}
+        <button class="prompt-chip prompt-chip--negative" type="button" data-prompt-chip="{{ prompt }}">
+          <span>{{ prompt }}</span>
+          <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
+        </button>
+      {% endfor %}
+    </div>
+    <div class="prompt-add">
+      <input type="text" data-prompt-input="negatives" placeholder="add prompt">
+      <button type="button" data-prompt-add="negatives" aria-label="Add exclude prompt">+</button>
+    </div>
+    <span class="prompt-hint">prompts to subtract</span>
+  </div>
+  <p class="prompt-error" role="alert" hidden></p>
+</section>
+{% endif %}
+
+{# Library chip filter. The container is always rendered (even empty)
+   so the JS can target it by id and populate it from /api/collections
+   on page load. Chips are toggleable — clicking a chip adds or removes
+   its `?collection=` from the URL and re-runs the search. No chip
+   active = no filter = search all libraries. #}
+<nav id="category-bar" class="category-bar" aria-label="Filter by library"></nav>
+
+{% if error %}
+  <p class="state state-error" role="alert">
+    {{ error }}
+    <a href="/?q={{ q|urlencode }}">retry</a>
+  </p>
+{% elif source_photo_id %}
+  {# "Most similar to this photo" mode. Driven by the /photo/{id}/similar
+     route. The source photo is always at #1 (score ~1.0) by design. #}
+  <p class="result-count">
+    {% if results %}
+      {{ results|length }} most similar images to
+      <a href="/photo/{{ source_photo_id }}">{{ source_photo_id[:8] }}…</a>
+      <span class="took">({{ took_ms }} ms)</span>
+    {% else %}
+      No similar images found.
+    {% endif %}
+  </p>
+  <p class="similar-back-link">
+    <a href="/photo/{{ source_photo_id }}">← Back to photo</a>
+  </p>
+  {% include "_result_grid.html" %}
+{% elif positives or active_centroids or filename %}
+  <p class="result-count">
+    {% if results %}
+      Showing {{ offset + 1 }}–{{ offset + results|length }}
+      {% if has_more %}(of more than {{ offset + results|length }}){% endif %}
+      {% if active_centroids %}
+        {% if active_centroids|length == 1 %}
+          for centroid &ldquo;{{ active_centroids[0] }}&rdquo;
+        {% else %}
+          for centroid blend &ldquo;{{ active_centroids|join(' + ') }}&rdquo;
+        {% endif %}
+      {% else %}
+        for &ldquo;{{ q if q else positives|join(", ") }}&rdquo;
+      {% endif %}
+      {% if filename %}
+        in paths matching &ldquo;{{ filename }}&rdquo;
+      {% endif %}
+      <span class="took">({{ took_ms }} ms)</span>
+    {% else %}
+      No results
+      {% if active_centroids %}
+        {% if active_centroids|length == 1 %}
+          for centroid &ldquo;{{ active_centroids[0] }}&rdquo;
+        {% else %}
+          for centroid blend &ldquo;{{ active_centroids|join(' + ') }}&rdquo;
+        {% endif %}
+      {% else %}
+        for &ldquo;{{ q if q else positives|join(", ") }}&rdquo;
+      {% endif %}
+      {% if filename %}
+        in paths matching &ldquo;{{ filename }}&rdquo;
+      {% endif %}.
+    {% endif %}
+  </p>
+
+  {% include "_result_grid.html" %}
+{% elif random_picks %}
+  {# Default landing page state: no query, no centroid, no error.
+     Surface a small random sample below the form so the page isn't
+     a dead-end. Reuses the same _result_grid.html partial as
+     /search and /random so layout is consistent. Server-side only,
+     no shuffle button — refreshing the page is the way to get a
+     different sample. #}
+  <section class="random-picks">
+    <header class="random-picks-header">
+    </header>
+    {% with
+       results=random_picks,
+       view="grid",
+       offset=0,
+       limit=random_picks_count,
+       has_more=False,
+       max_results_total=random_picks_count,
+       search_query_string="from=home",
+       q="",
+       positives=[],
+       negatives=[]
+    %}
+      {% include "_result_grid.html" %}
+    {% endwith %}
+  </section>
+{% else %}
+  <p class="state state-idle">Enter a query to search.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not error %}
+<script type="module" src="/static/js/search.js?v={{ static_assets_version }}"></script>
+{% endif %}
+{% endblock %}

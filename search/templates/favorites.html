@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Favourites — Isaac Image Search{% endblock %}
+
+{% block content %}
+<section class="favorites-page">
+  <header class="favorites-header">
+    <h1>Favourites</h1>
+    <p class="result-count">
+      {{ total }} {{ 'photo' if total == 1 else 'photos' }}
+    </p>
+    {% if total %}
+      <a class="favorites-download" href="/favorites/download.zip" download>
+        Download .zip
+      </a>
+    {% endif %}
+  </header>
+
+  {% if results %}
+    {% include "_result_grid.html" %}
+  {% else %}
+    <p class="state state-idle">No favourites yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/favorites.js?v={{ static_assets_version }}"></script>
+{% endblock %}

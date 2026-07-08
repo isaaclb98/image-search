@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Albums — Isaac Image Search{% endblock %}
+
+{% block content %}
+<section class="albums-page">
+  <header class="albums-header">
+    <h1>Albums</h1>
+    <p class="hint">User-curated collections. The favourites list is the default album.</p>
+  </header>
+
+  {# Create form — POST handled by the API endpoint below; the
+     form submits via JS so we can stay on the page and show
+     the new album immediately. #}
+  <form class="album-create" data-album-create>
+    <label class="album-create__field">
+      <span>Name</span>
+      <input
+        type="text"
+        name="name"
+        required
+        maxlength="200"
+        placeholder="e.g. studio portraits"
+        autocomplete="off"
+      >
+    </label>
+    <label class="album-create__field">
+      <span>Description (optional)</span>
+      <input
+        type="text"
+        name="description"
+        maxlength="500"
+        placeholder=""
+        autocomplete="off"
+      >
+    </label>
+    <button type="submit" class="btn btn-primary">Create album</button>
+    <p class="album-create__error" data-album-error hidden></p>
+  </form>
+
+  {% if albums %}
+    <ul class="album-list">
+      {% for a in albums %}
+        <li class="album-card">
+          <a class="album-card__link" href="/albums/{{ a.id }}">
+            <div class="album-card__cover" data-album-cover="{{ a.id }}">
+              {# Cover = the chronologically first photo added to
+                 the album (album_memberships.added_at ASC LIMIT 1).
+                 Falls back to cover_favorite_id only when the album
+                 is empty (no first member yet) but a cover was set
+                 explicitly. Otherwise placeholder. #}
+              {% if a.first_member_id %}
+                <img
+                  src="/photo/{{ a.first_member_id }}/raw"
+                  alt=""
+                  loading="lazy"
+                  onerror="this.parentElement.classList.add('cover-missing')"
+                >
+              {% elif a.cover_favorite_id %}
+                <img
+                  src="/photo/{{ a.cover_favorite_id }}/raw"
+                  alt=""
+                  loading="lazy"
+                  onerror="this.parentElement.classList.add('cover-missing')"
+                >
+              {% else %}
+                <span class="album-card__cover-placeholder" aria-hidden="true">▦</span>
+              {% endif %}
+            </div>
+            <div class="album-card__meta">
+              <h2 class="album-card__name">{{ a.name }}</h2>
+              {% if a.description %}
+                <p class="album-card__description">{{ a.description }}</p>
+              {% endif %}
+              <p class="album-card__count">
+                {{ a.member_count }} {{ 'photo' if a.member_count == 1 else 'photos' }}
+              </p>
+            </div>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="state state-idle">No albums yet. Create one above.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/albums.js?v={{ static_assets_version }}"></script>
+{% endblock %}

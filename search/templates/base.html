@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Isaac Image Search{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/site.css?v={{ static_assets_version }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">Isaac Image Search</a>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="site-nav-link" href="/centroids">Centroids</a>
+      <a class="site-nav-link" href="/discover">Discover</a>
+      <a class="site-nav-link" href="/random">Random</a>
+      <a class="site-nav-link" href="/favorites">Favourites</a>
+      <a class="site-nav-link" href="/saved">Saved</a>
+      <a class="site-nav-link" href="/albums">Albums</a>
+      {# Cache refresh lives at POST /api/cache/refresh. Intentionally
+         not surfaced in the nav — the operator runs it from a curl /
+         script after indexing, not from the UI. #}
+    </nav>
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  {# Return-to-top button. Fixed position bottom-right, fades in
+     after the user has scrolled past ~300px. Kept inline (script
+     and markup) because it's <20 lines, used on every page, and
+     doesn't need its own cache-bust URL. The button is in the
+     markup from the start so it works without FOUC even before
+     the inline script runs. #}
+  <button
+    type="button"
+    class="scroll-to-top"
+    aria-label="Return to top"
+    title="Return to top"
+  >↑</button>
+  <script>
+    (function () {
+      var btn = document.querySelector(".scroll-to-top");
+      if (!btn) return;
+      var visible = false;
+      function update() {
+        var shouldShow = window.scrollY > 300;
+        if (shouldShow !== visible) {
+          btn.classList.toggle("scroll-to-top--visible", shouldShow);
+          visible = shouldShow;
+        }
+      }
+      // Passive listener so we don't block scroll perf.
+      window.addEventListener("scroll", update, { passive: true });
+      btn.addEventListener("click", function () {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      update();
+    })();
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

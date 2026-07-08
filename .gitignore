@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project
+*.log
+.env
+.env.local
+config.local.yaml
+
+# Large model artifacts (do not commit — pull from HF at runtime)
+models/
+*.pt
+*.safetensors
+*.bin
+
+# Local Qdrant data
+qdrant_data/
+
+# Indexer cache (per-collection JSON of "what's already indexed").
+# Lives next to the indexer, rebuilt on demand via --refresh-cache.
+state/
+
+# Test fixtures
+tests/fixtures/images/
+
+# Codex spec scratch (regenerated per task)
+.multi-prompt-spec.md
+
+# Ad-hoc debug output (debug scripts drop test files here).
+photos/

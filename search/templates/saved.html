@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Saved searches — Isaac Image Search{% endblock %}
+
+{% block content %}
+<section class="saved-page">
+  <header class="saved-header">
+    <h1>Saved searches</h1>
+    <p class="result-count">
+      {{ total }} {{ 'search' if total == 1 else 'searches' }}
+    </p>
+    <p class="saved-help">
+      Saved searches are named prompt presets — pick one from the
+      <code>Saved</code> dropdown on the search bar to re-apply it.
+    </p>
+  </header>
+
+  {% if saved_searches %}
+    <ul class="saved-list">
+      {% for s in saved_searches %}
+        <li class="saved-item" data-saved-item="{{ s.id }}">
+          <div class="saved-item-name">{{ s.name }}</div>
+          <div class="saved-item-prompts">
+            {% if s.positives %}
+              <span class="saved-prompt-side">include</span>
+              {% for p in s.positives %}<span class="saved-prompt saved-prompt--positive">{{ p }}</span>{% endfor %}
+            {% endif %}
+            {% if s.negatives %}
+              <span class="saved-prompt-side">exclude</span>
+              {% for p in s.negatives %}<span class="saved-prompt saved-prompt--negative">{{ p }}</span>{% endfor %}
+            {% endif %}
+          </div>
+          <div class="saved-item-meta">
+            <span class="saved-item-date">saved {{ s.created_at }}</span>
+            <button
+              type="button"
+              class="saved-item-delete"
+              data-saved-delete="{{ s.id }}"
+              aria-label="Delete saved search {{ s.name }}"
+            >delete</button>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="state state-idle">No saved searches yet. Build a query on the search bar and click <code>Save current</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-saved-delete]");
+    if (!btn) return;
+    const id = btn.dataset.savedDelete;
+    const item = btn.closest("[data-saved-item]");
+    const name = item?.querySelector(".saved-item-name")?.textContent || "this saved search";
+    if (!confirm(`Delete "${name}"?`)) return;
+    try {
+      const resp = await fetch(`/api/saved-searches/${id}`, { method: "DELETE" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      item?.remove();
+    } catch (err) {
+      alert(`Failed to delete: ${err.message}`);
+    }
+  });
+</script>
+{% endblock %}

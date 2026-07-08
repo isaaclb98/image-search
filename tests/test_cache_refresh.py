@@ -1,0 +1,169 @@
+"""Tests for the POST /api/cache/refresh endpoint."""
+from __future__ import annotations
+
+import pytest
+
+from indexer import upsert
+from indexer.upsert import VECTOR_DIM
+
+
+@pytest.fixture
+def refresh_app(tmp_path):
+    """A FastAPI app wired to an in-memory Qdrant with three seeded
+    points and a SQLite cache. Mirrors the search_api fixture shape
+    so the refresh path is exercised end-to-end.
+    """
+    import sqlite3
+    from fastapi.testclient import TestClient
+    from search.app import create_app
+    from search.config import Config
+    from search.qdrant_client import QdrantSearch
+
+    cfg = Config(
+        qdrant_url="memory://",
+        qdrant_collection="images_test_refresh",
+        qdrant_api_key=None,
+        model_name="mock",
+        model_revision="",
+        device="cpu",
+        top_k_default=50,
+        top_k_max=200,
+        query_timeout_ms=2000,
+        nas_images_base=str(tmp_path),
+        path_prefix="",
+        web_ui_url="http://localhost:8000",
+        log_level="WARNING",
+        index_db_path=str(tmp_path / "images.db"),
+        test_mode=True,
+    )
+
+    # Seed three points in Qdrant. Qdrant in-memory requires UUID
+    # point ids, so generate one per row instead of using "a"/"b"/"c".
+    import uuid
+    from qdrant_client import QdrantClient
+    client = QdrantClient(location=":memory:")
+    upsert.ensure_collection(client, cfg.qdrant_collection, dim=VECTOR_DIM)
+    seed_ids = {
+        "a": str(uuid.uuid4()),
+        "b": str(uuid.uuid4()),
+        "c": str(uuid.uuid4()),
+        "d": str(uuid.uuid4()),
+    }
+    seed = [
+        (seed_ids["a"], {"id": seed_ids["a"], "path": "/photos/a.jpg",
+                          "collection": "kpop", "indexed_at": "2026-01-01T00:00:00Z"}),
+        (seed_ids["b"], {"id": seed_ids["b"], "path": "/photos/b.jpg",
+                          "collection": "kpop", "indexed_at": "2026-01-01T00:00:00Z"}),
+        (seed_ids["c"], {"id": seed_ids["c"], "path": "/photos/c.jpg",
+                          "collection": "portrait", "indexed_at": "2026-01-01T00:00:00Z"}),
+    ]
+    from search.text_encoder import _mock_embed
+    upsert.upsert_batch(
+        client, cfg.qdrant_collection,
+        [(pid, _mock_embed(pid), payload) for pid, payload in seed],
+        wait=True,
+    )
+
+    qdrant = QdrantSearch(
+        client=client, collection=cfg.qdrant_collection, timeout_ms=2000,
+    )
+
+    app = create_app(cfg=cfg, qdrant=qdrant)
+    # Make seed_ids and the raw QdrantClient discoverable to tests
+    # via app state. Tests that add points mid-test reach in via
+    # app.state.qdrant_client; tests that target a UUID reach in via
+    # app.state.test_seed_ids.
+    app.state.test_seed_ids = seed_ids
+    app.state.qdrant_client = client
+    app.state.qdrant_collection = cfg.qdrant_collection
+    return TestClient(app)
+
+
+@pytest.fixture
+def refresh_app_state(refresh_app):
+    """Exposes the in-memory seed_id mapping to tests that need to
+    target a specific UUID (e.g. to favourite one).
+    """
+    return {"seed_ids": refresh_app.app.state.test_seed_ids}
+
+
+def test_api_cache_refresh_rebuilds_index(refresh_app):
+    """First call: cache is empty, refresh returns 3 rows (the seeded
+    Qdrant collection).
+    """
+    resp = refresh_app.post("/api/cache/refresh")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["count"] == 3
+
+
+def test_api_cache_refresh_picks_up_new_qdrant_points(refresh_app, refresh_app_state):
+    """Cache rebuilt, then a new point is added to Qdrant directly,
+    then refresh picks it up.
+    """
+    seed_ids = refresh_app_state["seed_ids"]
+    refresh_app.post("/api/cache/refresh")
+    first = refresh_app.get("/api/random?limit=10").json()
+    assert {r["id"] for r in first["results"]} == {seed_ids["a"], seed_ids["b"], seed_ids["c"]}
+
+    # Add a fourth point to Qdrant without going through the cache.
+    from indexer import upsert
+    from search.text_encoder import _mock_embed
+    # Reach into the app's raw QdrantClient (stored on app.state by
+    # the fixture) and upsert a fourth point directly.
+    client = refresh_app.app.state.qdrant_client
+    collection = refresh_app.app.state.qdrant_collection
+    upsert.upsert_batch(
+        client, collection,
+        [(
+            seed_ids["d"],
+            _mock_embed("d"),
+            {"id": seed_ids["d"], "path": "/photos/d.jpg",
+             "collection": "portrait", "indexed_at": "2026-01-02T00:00:00Z"},
+        )],
+        wait=True,
+    )
+
+    # Before refresh: cache still shows only the original 3.
+    stale = refresh_app.get("/api/random?limit=10").json()
+    assert seed_ids["d"] not in {r["id"] for r in stale["results"]}
+
+    # After refresh: d is included.
+    refresh_app.post("/api/cache/refresh")
+    fresh = refresh_app.get("/api/random?limit=10").json()
+    assert {r["id"] for r in fresh["results"]} == {
+        seed_ids["a"], seed_ids["b"], seed_ids["c"], seed_ids["d"],
+    }
+
+
+def test_api_cache_refresh_preserves_favourites(refresh_app, refresh_app_state):
+    """The whole point of the persistence refactor: refresh
+    shouldn't wipe a favourite.
+    """
+    refresh_app.post("/api/cache/refresh")
+    # Mark a favourite (use one of the seeded UUIDs).
+    fav_id = refresh_app_state["seed_ids"]["a"]
+    refresh_app.post(f"/api/favorites/{fav_id}")
+    assert refresh_app.get("/api/favorites").json()["total"] == 1
+
+    # Force a refresh.
+    resp = refresh_app.post("/api/cache/refresh")
+    assert resp.status_code == 200
+    assert resp.json()["count"] == 3
+
+    # Favourite is still there.
+    assert refresh_app.get("/api/favorites").json()["total"] == 1
+
+
+def test_cache_refresh_no_nav_button(refresh_app):
+    """The nav intentionally has no Refresh button — the endpoint
+    is curl-driven, not UI-driven. Sanity-check the form is gone
+    from every page so a future refactor that adds it back
+    consciously is a one-line change.
+    """
+    for path in ("/", "/random", "/favorites"):
+        resp = refresh_app.get(path)
+        assert resp.status_code == 200
+        assert "Refresh cache" not in resp.text
+        assert "site-nav-form" not in resp.text

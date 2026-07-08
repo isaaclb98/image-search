@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ album.name }} — Album — Isaac Image Search{% endblock %}
+
+{% block content %}
+<section class="album-detail-page">
+  <nav class="album-nav">
+    <a href="/albums">← Back to albums</a>
+  </nav>
+
+  <header class="album-detail-header">
+    <h1>{{ album.name }}</h1>
+    {% if album.description %}
+      <p class="album-detail-description">{{ album.description }}</p>
+    {% endif %}
+    <p class="result-count">
+      {{ total }} {{ 'photo' if total == 1 else 'photos' }}
+    </p>
+
+    {% if total %}
+      <a
+        class="album-download"
+        href="/albums/{{ album.id }}/download.zip"
+        download
+      >
+        Download .zip
+      </a>
+    {% endif %}
+
+    <div class="album-detail-actions">
+      {# Edit form — inline rename + description. PATCH
+         /api/albums/{id} handles the submission. #}
+      <form
+        class="album-edit"
+        data-album-edit="{{ album.id }}"
+      >
+        <label class="album-edit__field">
+          <span>Rename</span>
+          <input
+            type="text"
+            name="name"
+            value="{{ album.name }}"
+            maxlength="200"
+            required
+          >
+        </label>
+        <label class="album-edit__field">
+          <span>Description</span>
+          <input
+            type="text"
+            name="description"
+            value="{{ album.description or '' }}"
+            maxlength="500"
+          >
+        </label>
+        <button type="submit" class="btn">Save</button>
+        <p class="album-edit__status" data-album-edit-status hidden></p>
+      </form>
+
+      <form
+        class="album-delete"
+        data-album-delete="{{ album.id }}"
+        data-album-name="{{ album.name }}"
+      >
+        <button type="submit" class="btn btn-danger">Delete album</button>
+      </form>
+    </div>
+  </header>
+
+  {% if results %}
+    {% include "_result_grid.html" %}
+  {% else %}
+    <p class="state state-idle">
+      No photos in this album yet. Add some from a photo's detail page
+      (look for the album pills) or from your favourites list.
+    </p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/album_detail.js?v={{ static_assets_version }}"></script>
+{% endblock %}
