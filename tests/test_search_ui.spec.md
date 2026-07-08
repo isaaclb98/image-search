@@ -376,7 +376,7 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 
 ### Group H — accessibility & usability (basic)
 
-These are minimum-viable; the design is single-user and `DESIGN.md` says "mobile/web deploy" is out of scope, so we don't go deep.
+These are minimum-viable; the design is single-user, so we don't go deep into mobile/web deploy.
 
 #### UI-X-001 — form is keyboard-accessible `[AUTO]`
 

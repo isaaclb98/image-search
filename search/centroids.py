@@ -29,7 +29,7 @@ with a clear warning. The store never serves a mismatched centroid
 and the routes 404 on lookup, but the user can still see *that* it
 exists in the directory via the file path (handy for debugging).
 
-Design reference: DESIGN.md §"Custom centroids" (added in this commit).
+
 """
 
 from __future__ import annotations

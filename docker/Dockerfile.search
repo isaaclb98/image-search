@@ -45,7 +45,7 @@ RUN python -c "import open_clip; \
 # Copy source
 COPY search ./search
 COPY indexer ./indexer
-COPY README.md DESIGN.md ./
+COPY README.md ./
 
 ENV MODEL_NAME=${MODEL_NAME} \
     MODEL_DIR=/root/.cache/huggingface \

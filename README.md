@@ -76,6 +76,3 @@ pytest tests/ -v
 
 Tests use an in-memory Qdrant and a deterministic mock text encoder. No GPU or model download required.
 
-## Design
-
-See `DESIGN.md` for the architecture, scope boundaries, and what's intentionally out of scope.
