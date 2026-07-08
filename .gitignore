@@ -60,3 +60,6 @@ tests/fixtures/images/
 
 # Ad-hoc debug output (debug scripts drop test files here).
 photos/
+
+# Local benchmark artifacts
+.benchmarks/

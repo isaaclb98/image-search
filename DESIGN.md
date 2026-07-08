@@ -1,4 +1,4 @@
-# Design — `isaac-image-search`
+# Design — `image-search`
 
 > Big-picture design document. Implementation details live elsewhere; this file describes the *shape* of the system, the *why*, and the boundaries.
 
@@ -146,7 +146,7 @@ A single collection holds all image vectors. Payload fields are kept minimal at 
 
 These are sibling tools, not parent-child.
 
-| | `isaac-image-scoring` | `isaac-image-search` |
+| | `isaac-image-scoring` | `image-search` |
 |---|---|---|
 | **Question it answers** | "Does this match my taste centroid?" | "What images match this query?" |
 | **Embedding direction** | Taste centroid ↔ image | Image ↔ image, text ↔ image |
@@ -157,7 +157,7 @@ These are sibling tools, not parent-child.
 
 **Shared code:** `load_image`, `letterbox_resize`, and the SigLIP2 model loader. These live in `isaac-image-scoring` and are imported from it. The shared code is <100 lines and stable; making `isaac-image-scoring` pip-installable is the right move over copying or vendoring.
 
-**Coupling direction:** `isaac-image-search` depends on `isaac-image-scoring` (for utilities). `isaac-image-scoring` does not depend on `isaac-image-search`. If `isaac-image-search` disappears tomorrow, `isaac-image-scoring` is unaffected.
+**Coupling direction:** `image-search` depends on `isaac-image-scoring` (for utilities). `isaac-image-scoring` does not depend on `image-search`. If `image-search` disappears tomorrow, `isaac-image-scoring` is unaffected.
 
 **Down the road:** `isaac-image-scoring` could *consume* from Qdrant instead of recomputing embeddings. That's a future optimization, not a current coupling.
 
@@ -221,7 +221,7 @@ Custom centroids are pre-computed embedding vectors (typically a
 "taste mean" across a curated set of photos) that the search side
 loads from disk and uses as a query anchor. The point is to bridge
 [`isaac-image-scoring`](../isaac-image-scoring) (which produces
-centroids) with `isaac-image-search` (which queries by them) so
+centroids) with `image-search` (which queries by them) so
 the curated taste models become reusable search primitives.
 
 ### How they get here
@@ -266,7 +266,7 @@ on disk, not in Qdrant — and turns the search side into
 something that *reads* additional state. The justification is
 that centroids are not "what's indexed" (which is owned by
 Qdrant); they are an external artifact that the search side
-reads. Same shape as `isaac-image-search` reading utilities
+reads. Same shape as `image-search` reading utilities
 from `isaac-image-scoring`: shared code, one-way dependency.
 
 ### What's deferred

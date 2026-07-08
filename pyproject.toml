@@ -1,7 +1,7 @@
 [project]
-name = "isaac-image-search"
+name = "image-search"
 version = "0.1.0"
-description = "Personal image search engine. NAS -> SigLIP2 -> Qdrant -> text/image queries."
+description = "Self-hosted semantic image search. SigLIP2 embeddings → Qdrant → text/image queries."
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "MIT" }
