@@ -59,6 +59,7 @@ class QdrantSearch:
         self, vector: list[float], limit: int, offset: int = 0,
         collections: list[str] | None = None,
         allowed_ids: list[str] | None = None,
+        exclude_ids: list[str] | None = None,
     ) -> tuple[list[SearchHit], bool]:
         """
         Top-K search with optional offset and collection filter.
@@ -78,6 +79,17 @@ class QdrantSearch:
         over-fetch. AND'd into the existing filter (a query that
         sets both `collections` and `allowed_ids` returns only
         points matching BOTH). Empty / None skips the filter.
+
+        `exclude_ids` is an optional blacklist of point ids,
+        applied via a `must_not` `HasIdCondition` so any hit whose
+        id is in the list is dropped server-side. Used by the
+        dynamic-centroid search route (Layer 1 of the
+        near-duplicate exclusion) to remove exact-id matches to
+        the seed set before the candidate set ever leaves Qdrant.
+        Empty / None skips the filter. AND'd into the existing
+        filter — `exclude_ids` and `allowed_ids` together
+        naturally yield an empty result set when the seed ids
+        are the only things that would match.
 
         Pass None or an empty list to skip filtering (search all
         collections / all points, which is the default behavior).
@@ -106,10 +118,17 @@ class QdrantSearch:
             must_conditions.append(
                 qmodels.HasIdCondition(has_id=allowed_ids)
             )
-        query_filter = (
-            qmodels.Filter(must=must_conditions)
-            if must_conditions else None
-        )
+        must_not_conditions: list[Any] = []
+        if exclude_ids:
+            must_not_conditions.append(
+                qmodels.HasIdCondition(has_id=exclude_ids)
+            )
+        query_filter = None
+        if must_conditions or must_not_conditions:
+            query_filter = qmodels.Filter(
+                must=must_conditions or None,
+                must_not=must_not_conditions or None,
+            )
 
         response = self.client.query_points(
             collection_name=self.collection,
@@ -269,6 +288,7 @@ class QdrantSearch:
         self, vector: list[float], limit: int, offset: int = 0,
         collections: list[str] | None = None,
         allowed_ids: list[str] | None = None,
+        exclude_ids: list[str] | None = None,
     ) -> tuple[list[tuple[SearchHit, list[float]]], bool]:
         """
         Like ``search()`` but returns ``(hit, vector)`` pairs so the
@@ -277,6 +297,14 @@ class QdrantSearch:
         The vector is the stored embedding (always a unit-norm
         ``list[float]``). ``has_more`` has the same semantics as
         ``search()`` — True when the result count equals the limit.
+
+        ``exclude_ids`` mirrors ``search()``: server-side
+        ``must_not`` `HasIdCondition` so any hit whose id is in the
+        list is dropped before the result ever leaves Qdrant. Used
+        by the dynamic-centroid search route's Layer 2 (over-fetch
+        + numpy post-pass) so the over-fetch round-trip doesn't
+        waste bandwidth shipping vectors we're going to drop on
+        the python side anyway. Empty / None skips.
         """
         from qdrant_client.http import models as qmodels
 
@@ -292,10 +320,17 @@ class QdrantSearch:
             must_conditions.append(
                 qmodels.HasIdCondition(has_id=allowed_ids)
             )
-        query_filter = (
-            qmodels.Filter(must=must_conditions)
-            if must_conditions else None
-        )
+        must_not_conditions: list[Any] = []
+        if exclude_ids:
+            must_not_conditions.append(
+                qmodels.HasIdCondition(has_id=exclude_ids)
+            )
+        query_filter = None
+        if must_conditions or must_not_conditions:
+            query_filter = qmodels.Filter(
+                must=must_conditions or None,
+                must_not=must_not_conditions or None,
+            )
 
         response = self.client.query_points(
             collection_name=self.collection,

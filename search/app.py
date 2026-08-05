@@ -57,7 +57,9 @@ from search.centroids import (
     DynamicCentroidRegistry,
     DynamicCentroidSpec,
     blend_centroids,
+    calibrate_near_dup_threshold,
     composite_centroid_name,
+    filter_near_duplicates,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,7 +140,7 @@ def _make_favourites_centroid_spec(
     """
     import numpy as np
 
-    def compute() -> tuple[list[float], int] | None:
+    def compute() -> tuple[list[float], int, list[str]] | None:
         # Snapshot the favourite ids first so a concurrent toggle
         # mid-compute doesn't give us a torn view.
         fav_ids = index_db.list_favorite_ids()
@@ -162,7 +164,15 @@ def _make_favourites_centroid_spec(
         if norm == 0:
             return None
         centroid = (centroid / norm).tolist()
-        return (centroid, len(vectors))
+        # Seed ids: the ids that actually returned vectors from
+        # Qdrant (pairs holds `(id, vec)`). Using `pairs` rather
+        # than the raw `fav_ids` strips out orphan ids whose
+        # photo is gone from Qdrant — those would generate a
+        # no-op exclusion at best and clutter the filter at
+        # worst. The third tuple element feeds the dynamic-
+        # centroid search route's near-duplicate exclusion.
+        seed_ids = [pid for pid, _ in pairs]
+        return (centroid, len(vectors), seed_ids)
 
     return DynamicCentroidSpec(
         name="favourites",
@@ -218,7 +228,7 @@ def _make_album_centroid_spec(
     """
     import numpy as np
 
-    def compute() -> tuple[list[float], int] | None:
+    def compute() -> tuple[list[float], int, list[str]] | None:
         # Snapshot ids first so a concurrent membership change
         # doesn't give us a torn view.
         ids = index_db.list_album_member_ids(album_id)
@@ -237,7 +247,11 @@ def _make_album_centroid_spec(
         if norm == 0:
             return None
         centroid = (centroid / norm).tolist()
-        return (centroid, len(vectors))
+        # Same orphan-stripping pattern as favourites: seed ids
+        # are the ids that actually returned vectors. See
+        # `_make_favourites_centroid_spec` for the rationale.
+        seed_ids = [pid for pid, _ in pairs]
+        return (centroid, len(vectors), seed_ids)
 
     # The static `label` is set at registration time; if the user
     # renames the album, the label goes stale until re-registration.
@@ -2734,8 +2748,16 @@ def create_app(
         # `centroid_name` echoes the canonical form back to the client
         # (static centroids are stored lowercased, dynamic use the
         # registered name as-is).
+        # `seed_ids` is the list of source point ids that fed the
+        # centroid (favourite ids / album member ids). Empty for
+        # static `.pt` centroids. Drives the two-layer near-dup
+        # exclusion below: Layer 1 is the `exclude_ids` server-side
+        # filter; Layer 2 is the numpy post-pass on candidate
+        # vectors. Both no-op when `seed_ids` is empty (the static
+        # case).
         vector: list[float] | None = None
         centroid_name = name
+        seed_ids: list[str] = []
         static_spec = _centroid_store.get(name)
         if static_spec is not None:
             vector = static_spec.vector
@@ -2744,7 +2766,7 @@ def create_app(
             dyn = _dynamic_centroids.get_vector(name)
             dyn_spec = _dynamic_centroids.get_spec(name)
             if dyn is not None:
-                vector, _ = dyn
+                vector, _, seed_ids = dyn
                 if dyn_spec is not None:
                     centroid_name = dyn_spec.name
             else:
@@ -2810,12 +2832,117 @@ def create_app(
             hits: list = []
             has_more = False
         else:
+            # Two-layer near-duplicate exclusion when we have a
+            # dynamic centroid (seed_ids is non-empty).
+            #
+            # Layer 1 — exact-id `must_not` at Qdrant (cheap): kills
+            #   exact-seed matches at the filter level so the
+            #   over-fetch doesn't waste bandwidth on results we'd
+            #   drop on the Python side.
+            #
+            # Layer 2 — numpy post-pass (the real ask): for each
+            #   candidate hit we compute its cosine distance to the
+            #   NEAREST seed vector and drop hits tighter than a
+            #   threshold calibrated from the seed set's OWN
+            #   intra-cluster pairwise distances (the
+            #   "how-close-do-two-versions-of-the-same-photo-get"
+            #   scale for THIS centroid). Threshold = 1st-percentile
+            #   of intra-seed pairwise cosine distances — a
+            #   conservative cutoff that only drops things tighter
+            #   than the tightest typical seed-seed pair.
+            #
+            # Over-fetch: ask Qdrant for `effective_limit * 3`
+            #   candidates (capped at MAX_RESULTS_TOTAL) so that
+            #   after Layer 2 drops near-dups we still have enough
+            #   to trim back to `effective_limit`. When the seed set
+            #   is tight (typical for albums), the 3x headroom is
+            #   usually enough; for an extreme case where > 2/3 of
+            #   the top results are near-dups of the seeds we'd
+            #   under-fill the page. That's accepted: the user
+            #   already has <effective_limit distinct results, so
+            #   the alternative (refetching with a larger limit
+            #   until we have enough) introduces a separate failure
+            #   mode for a rare edge.
+            #
+            # `has_more` policy post-Layer-2: if anything was
+            #   dropped, we say `has_more=True` even if we already
+            #   trimmed to `effective_limit` — there may be more
+            #   distinct results beyond the offset. If nothing was
+            #   dropped, fall through to the regular
+            #   "result_count == limit" heuristic.
+            over_fetch_limit = min(
+                effective_limit * 3, MAX_RESULTS_TOTAL - offset
+            )
             try:
-                hits, has_more = qdrant.search(
-                    vector, limit=effective_limit, offset=offset,
-                    collections=collections or None,
-                    allowed_ids=allowed_ids,
-                )
+                if seed_ids:
+                    # Need vectors for the Layer 2 post-pass, so go
+                    # through `search_with_vectors` (one extra
+                    # `with_vectors=True` per hit, no second
+                    # round-trip). The same `exclude_ids` Layer 1
+                    # filter rides along.
+                    pairs, _ = qdrant.search_with_vectors(
+                        vector, limit=over_fetch_limit, offset=offset,
+                        collections=collections or None,
+                        allowed_ids=allowed_ids,
+                        exclude_ids=seed_ids,
+                    )
+                    # Fetch the seed vectors themselves for the
+                    # calibration + post-pass. Orphans (ids whose
+                    # photo is gone from Qdrant) are silently
+                    # dropped here — `retrieve_batch_with_vectors`
+                    # omits missing ids from the response.
+                    seed_pairs = qdrant.retrieve_batch_with_vectors(seed_ids)
+                    seed_vecs: list[list[float]] = [v for _, v in seed_pairs]
+                    if seed_vecs:
+                        threshold = calibrate_near_dup_threshold(seed_vecs)
+                        cand_vecs = [vec for _, vec in pairs]
+                        keep_mask = filter_near_duplicates(
+                            cand_vecs, seed_vecs, threshold,
+                        )
+                        before_count = len(pairs)
+                        kept_pairs = [
+                            p for p, keep in zip(pairs, keep_mask) if keep
+                        ]
+                        dropped = before_count - len(kept_pairs)
+                        # Trim back to what the user asked for.
+                        hits = [h for h, _ in kept_pairs[:effective_limit]]
+                        # If anything was dropped, signal `has_more`
+                        # so the user knows there might be more
+                        # distinct results if they paginate. Also
+                        # if we filled the limit and there were more
+                        # candidates kept than what we returned.
+                        if dropped > 0 or len(kept_pairs) > effective_limit:
+                            has_more = True
+                        else:
+                            # Nothing dropped AND we filled the page
+                            # — but Qdrant only gave us `before_count`
+                            # candidates, not `over_fetch_limit`, so
+                            # we can't use the over-fetched limit
+                            # for the standard "hit the limit means
+                            # more" heuristic. Use the user's
+                            # `effective_limit`: if we filled it,
+                            # there may be more; if we didn't, there
+                            # isn't.
+                            has_more = len(hits) >= effective_limit
+                    else:
+                        # Seed vectors weren't retrievable (all
+                        # orphans) — skip Layer 2 and just trim.
+                        # Don't apply exclude_ids post-hoc because
+                        # Layer 1 already excluded them server-side.
+                        hits = [h for h, _ in pairs[:effective_limit]]
+                        has_more = (
+                            len(pairs) > effective_limit
+                            or len(pairs) >= effective_limit
+                        )
+                else:
+                    # Static centroid (or empty dynamic): no
+                    # near-dup exclusion. Original single-shot
+                    # search path.
+                    hits, has_more = qdrant.search(
+                        vector, limit=effective_limit, offset=offset,
+                        collections=collections or None,
+                        allowed_ids=allowed_ids,
+                    )
             except (ConnectionError, OSError) as e:
                 logger.warning("Qdrant unreachable for centroid search: %s", e)
                 return _qdrant_unreachable(str(e))
