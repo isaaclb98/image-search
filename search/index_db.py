@@ -142,6 +142,17 @@ class IndexDB:
 
                 CREATE INDEX IF NOT EXISTS idx_saved_searches_created_at
                   ON saved_searches(created_at DESC);
+
+                -- One-shot migration flags. Keyed by an
+                -- identifier (e.g. 'fts_v1'); value is the
+                -- timestamp the migration completed. Lets
+                -- additive migrations run exactly once per DB
+                -- instead of every open. Idempotent because
+                -- callers use INSERT OR IGNORE.
+                CREATE TABLE IF NOT EXISTS schema_meta (
+                  key   TEXT PRIMARY KEY,
+                  value TEXT NOT NULL
+                );
                 """
             )
             self._conn.commit()
@@ -360,52 +371,48 @@ class IndexDB:
             self._conn.commit()
 
     def _migrate_images_fts(self) -> None:
-        """One-shot migration for pre-existing DBs.
+        """One-shot FTS5 backfill for pre-existing DBs.
 
-        The schema upgrade path:
-
-          * `_create_images_fts()` (called earlier in `_init_schema`)
-            adds the FTS5 virtual table + the three sync triggers
-            (ai/au/ad). Idempotent — `CREATE VIRTUAL TABLE IF NOT
-            EXISTS` and `CREATE TRIGGER IF NOT EXISTS` are no-ops
-            on subsequent opens.
-
-          * If the FTS table is empty but `images` already has rows
-            (legacy DB case), force a one-time cache rebuild. The
-            rebuild calls `init_from_qdrant(force=True)` which
-            DELETE/INSERTs every row through the existing flow;
-            the AFTER DELETE and AFTER INSERT triggers fire as
-            part of the rebuild and populate `images_fts` as a
-            side effect. Single code path, source-of-truth is
-            Qdrant, not the cached `images` table.
+        Idempotent across re-opens via a `schema_meta` flag
+        (`fts_v1`). On a legacy / partial DB (images has rows,
+        FTS is empty or under-populated), backfill FTS by
+        copying `(rowid, path)` from `images` into
+        `images_fts` — the AI/AU/AD triggers handle
+        steady-state sync from here on.
 
         Designed to be cheap to call on every open:
 
-          * Fresh DB (no images yet) → no-op.
-          * Fresh DB after a normal init_from_qdrant → no-op
-            (FTS is already populated by triggers during the
-            rebuild that happened on this very open).
-          * Legacy DB → forces one rebuild on the first open
-            after the schema upgrade; subsequent opens are
-            no-ops because FTS rowcount matches `images`.
+          * Already-migrated DB → one-row lookup, return.
+          * Fresh DB (no `images` rows yet) → mark done, return.
+          * In sync (FTS rowcount ≥ images rowcount) → mark
+            done, return.
+          * Legacy / partial → DELETE FROM images_fts,
+            backfill from `images`, mark done.
 
-        The forced refresh goes through `init_from_qdrant(force=True)`
-        so the entire rebuild path (locking, batching, error
-        handling, `_last_refresh` bookkeeping) is reused as-is.
-        We deliberately don't poke at the FTS rowcount guard
-        from inside `init_from_qdrant` itself — the AI/AD/AU
-        triggers handle FTS upkeep automatically, so the
-        rebuild code stays unaware of FTS.
-
-        Note for production rollout: the forced refresh is
-        one-shot and runs synchronously inside `__init__`. On
-        a 1.5M-row live cache this is a few seconds — same
-        cost as the existing `init_from_qdrant` call in the
-        FastAPI lifespan hook. Operators who want to control
-        timing can run `POST /api/cache/refresh` instead, but
-        the default behaviour is self-healing on first open.
+        The backfill is non-destructive: we never touch the
+        `images` table, so test fixtures that seed SQLite
+        directly to bypass Qdrant still see their data on the
+        next read. The previous implementation called
+        `init_from_qdrant(force=True)` for the legacy case,
+        which is correct for production (Qdrant has the
+        authoritative data) but wipes test fixtures (Qdrant is
+        empty in those tests). The backfill is the right call
+        in both cases: production images are already in sync
+        with Qdrant (the FTS gets populated from those rows);
+        fixture images are preserved (FTS gets populated from
+        those rows). Operators who need a full rebuild from
+        Qdrant (e.g. to recover from divergent state) can use
+        `POST /api/cache/refresh`, which still calls
+        `init_from_qdrant(force=True)` on demand.
         """
+        MIGRATION_KEY = "fts_v1"
         with self._lock:
+            flag = self._conn.execute(
+                "SELECT 1 FROM schema_meta WHERE key = ?",
+                (MIGRATION_KEY,),
+            ).fetchone()
+            if flag is not None:
+                return
             fts_count = int(
                 self._conn.execute(
                     f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"
@@ -416,25 +423,51 @@ class IndexDB:
                     "SELECT COUNT(*) AS n FROM images"
                 ).fetchone()["n"]
             )
-        if fts_count >= images_count and images_count > 0:
-            # Already in sync. Trigger-driven upkeep handles the
-            # steady-state case from here on.
-            return
-        if images_count == 0:
-            # Fresh DB. The lifespan hook's init_from_qdrant will
-            # populate both images and images_fts (via triggers)
-            # on the first request.
-            return
-        # Legacy DB: images has rows, FTS is empty. Force one
-        # rebuild so the triggers populate FTS as a side effect.
-        # The rebuild goes through init_from_qdrant(force=True)
-        # — single code path, no special-case FTS bulk copy.
-        logger.info(
-            "images_fts schema upgrade detected (%d images, %d fts rows); "
-            "forcing cache rebuild to populate FTS via triggers",
-            images_count, fts_count,
-        )
-        self.init_from_qdrant(force=True)
+            if images_count == 0:
+                # Fresh DB. The lifespan hook's init_from_qdrant
+                # will populate both images and images_fts (via
+                # triggers) on the first request. Mark done so we
+                # don't re-check on every open.
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO schema_meta (key, value) "
+                    "VALUES (?, ?)",
+                    (MIGRATION_KEY, _utc_now()),
+                )
+                self._conn.commit()
+                return
+            if fts_count >= images_count:
+                # Already in sync (e.g., triggers populated FTS
+                # during a subsequent init_from_qdrant). Mark
+                # done.
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO schema_meta (key, value) "
+                    "VALUES (?, ?)",
+                    (MIGRATION_KEY, _utc_now()),
+                )
+                self._conn.commit()
+                return
+            # Legacy / partial: images has rows, FTS is empty or
+            # under-populated. Backfill by copying (rowid, path)
+            # from images. The triggers listen to DML on `images`;
+            # this direct INSERT into images_fts is the one-time
+            # migration path. The leading DELETE clears any
+            # partial state from a previous failed migration.
+            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")
+            self._conn.execute(
+                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "
+                f"SELECT rowid, path FROM images"
+            )
+            self._conn.execute(
+                "INSERT OR IGNORE INTO schema_meta (key, value) "
+                "VALUES (?, ?)",
+                (MIGRATION_KEY, _utc_now()),
+            )
+            self._conn.commit()
+            logger.info(
+                "backfilled images_fts from existing images "
+                "(%d rows); flagged fts_v1 as done",
+                images_count,
+            )
 
     def path_token_ids(self, pattern: str) -> list[str] | None:
         """Resolve a filename/path-substring pattern to image ids.
