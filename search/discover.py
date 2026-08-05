@@ -5,13 +5,13 @@ Discovery rabbithole: a read-only, ephemeral, two-image pick flow
 that uses the Qdrant Recommend API to gradually converge on a
 user's taste without any text input.
 
-  - Rounds 1-SEED_ROUNDS use random pairs (no signal yet).
-  - From round SEED_ROUNDS+1 onward, the rabbithole runs in
-    bursts of RABBITHOLE_BURST_SIZE rounds each. Every burst
+  - Rounds 1-session.opts.seed_rounds use random pairs (no signal yet).
+  - From round session.opts.seed_rounds+1 onward, the rabbithole runs in
+    bursts of session.opts.burst_size rounds each. Every burst
     starts with one fresh recommend(positive=liked,
-    negative=disliked) over the top RECOMMEND_OVERFETCH
+    negative=disliked) over the top session.opts.recommend_overfetch
     unseen, re-ranks that pool with Maximal Marginal
-    Relevance (MMR) to pick a diverse subset of MMR_POOL_SIZE
+    Relevance (MMR) to pick a diverse subset of session.opts.mmr_pool_size
     ids to cache as the burst pool, then draws 2 unseen per
     round from that cached pool using stratified sampling (1
     from the top third, 1 from the bottom third) for the rest
@@ -72,62 +72,76 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Rounds 1-SEED_ROUNDS are random; from round SEED_ROUNDS+1
-# onward, pair source is recommend-based. The seed phase
-# accumulates SEED_ROUNDS positives + SEED_ROUNDS implicit
-# negatives so the first recommend call has real signal.
-SEED_ROUNDS: int = 10
+@dataclass(frozen=True)
+class DiscoverOptions:
+    """Snapshot of the discover burst timeline + session-TTL knobs.
 
-# Sample this many from the top of recommend and pick 2 unseen. The
-# burst sampler then picks 1 from the top third and 1 from the
-# bottom third of the pool, so each pair has one tight match and
-# one looser match (rather than 2 from the same tight top). The
-# previous 20 was too narrow on a real NAS — the top 20 of
-# thousands of images is essentially the same cluster. Now this
-# value is the INPUT to MMR; the actual burst pool is the much
-# smaller MMR-filtered subset. Bumped to 200 so MMR has real
-# headroom to diversify — at 50, every candidate is so close in
-# the embedding that the relevance term barely distinguishes
-# them.
-RECOMMEND_OVERFETCH: int = 200
+    Captured per-session at creation time so a config change doesn't
+    affect in-flight sessions. Defaults match the values previously
+    hardcoded as module-level constants; the operational knobs now
+    live on `Config` (env-driven) and are passed in by the discover
+    routes at session start.
 
-# Maximal Marginal Relevance trade-off: the burst pool picks
-# candidates that maximise
-#     relevance_to_query - LAMBDA * max_similarity_to_already_picked
-# LAMBDA=0  -> pure relevance (the original clustered behavior).
-# LAMBDA=1  -> pure diversity (essentially random).
-# LAMBDA=0.5 balances the two. The score the recommend call returns
-# is already cosine similarity to the liked-mean vector, so we use
-# it directly as the relevance term rather than re-computing it.
-RECOMMEND_DIVERSIFY_LAMBDA: float = 0.5
+    Rounds 1..seed_rounds are random; from round seed_rounds+1
+    onward, pair source is recommend-based. The seed phase
+    accumulates seed_rounds positives + seed_rounds implicit
+    negatives so the first recommend call has real signal.
 
-# How many ids to cache as the burst pool after MMR re-ranking.
-# Sized to feed one full burst without re-recommending mid-burst:
-# 2 ids per round x RABBITHOLE_BURST_SIZE rounds = 10 ids.
-MMR_POOL_SIZE: int = 10
+    recommend_overfetch is the input to MMR; the actual burst
+    pool is the much smaller mmr_pool_size. Bumped to 200 so MMR
+    has real headroom to diversify — at 50, every candidate is so
+    close in the embedding that the relevance term barely
+    distinguishes them.
 
-# How many rabbithole rounds share the same recommend() query.
-# A burst starts with a fresh recommend (top-OVER_FETCH unseen is
-# cached as the burst pool); the next RABBITHOLE_BURST_SIZE - 1
-# rounds draw 2 unseen from that same pool, so the user explores
-# more of one cluster before the recommend is refined. The first
-# round of the next burst then runs a fresh recommend with all
-# accumulated likes/dislikes. The previous "1 round = 1 fresh
-# recommend" behavior over-narrowed the cluster on every pick.
-# Timeline: seed (10 random) -> burst (5) -> burst (5) -> ...
-RABBITHOLE_BURST_SIZE: int = 5
+    diversify_lambda is the MMR trade-off: 0 = pure relevance
+    (original clustered behavior), 1 = pure diversity (essentially
+    random), 0.5 balances. The score from recommend is already
+    cosine similarity to the liked-mean vector, so we use it
+    directly as the relevance term rather than re-computing it.
 
-# A session is dropped after this many seconds of inactivity. Pure
-# garbage collection — not a "you should finalize" hint. A user who
-# is actively swiping will never hit this; a user who walks away
-# from the tab loses their session, which is the intended behavior
-# of the "ephemeral" contract.
-SESSION_TTL_SECONDS: int = 30 * 60
+    burst_size is the number of rabbithole rounds per recommend.
+    Timeline: seed (10 random) -> burst (5) -> burst (5) -> ...
+
+    session_ttl_seconds is pure garbage collection, not a "you
+    should finalize" hint. A user who is actively swiping will
+    never hit this; a user who walks away from the tab loses their
+    session, which is the intended behavior of the "ephemeral"
+    contract.
+    """
+    seed_rounds: int
+    recommend_overfetch: int
+    diversify_lambda: float
+    mmr_pool_size: int
+    burst_size: int
+    session_ttl_seconds: int
+
+    @classmethod
+    def from_config(cls, cfg) -> "DiscoverOptions":
+        """Build a DiscoverOptions snapshot from the search-side Config.
+
+        The discover routes use this once per session at creation time
+        so a config change doesn't affect in-flight sessions. Tests
+        use it to build a realistic DiscoverOptions from the test
+        fixture's Config.
+
+        `cfg` is typed loosely (`Any`-equivalent) to avoid an import
+        cycle with `search.config`. The duck-type is documented: any
+        object with the 6 `discover_*` fields works.
+        """
+        return cls(
+            seed_rounds=cfg.discover_seed_rounds,
+            recommend_overfetch=cfg.discover_recommend_overfetch,
+            diversify_lambda=cfg.discover_diversify_lambda,
+            mmr_pool_size=cfg.discover_mmr_pool_size,
+            burst_size=cfg.discover_burst_size,
+            session_ttl_seconds=cfg.discover_session_ttl_seconds,
+        )
 
 
 @dataclass
 class DiscoverySession:
     id: str
+    opts: DiscoverOptions
     round: int = 0
     liked: list[str] = field(default_factory=list)        # in order of picking
     disliked: list[str] = field(default_factory=list)     # the OTHER image in each pair
@@ -162,7 +176,7 @@ class DiscoverySession:
     # Size of the CURRENT burst (rounds per recommend). 0 when
     # no burst is active. Set when a fresh recommend succeeds
     # and the new burst starts. Every burst uses
-    # RABBITHOLE_BURST_SIZE — there is no first-burst special
+    # session.opts.burst_size — there is no first-burst special
     # case (timeline is uniform: seed then burst then burst ...).
     current_burst_size: int = 0
 
@@ -177,11 +191,11 @@ _sessions: dict[str, DiscoverySession] = {}
 _lock = threading.Lock()
 
 
-def _gc_expired(now: float) -> None:
-    """Drop sessions idle for longer than SESSION_TTL_SECONDS. Caller holds the lock."""
+def _gc_expired(now: float, ttl_seconds: int) -> None:
+    """Drop sessions idle for longer than `ttl_seconds`. Caller holds the lock."""
     expired = [
         sid for sid, s in _sessions.items()
-        if now - s.last_active > SESSION_TTL_SECONDS
+        if now - s.last_active > ttl_seconds
     ]
     for sid in expired:
         del _sessions[sid]
@@ -194,6 +208,7 @@ def _gc_expired(now: float) -> None:
 
 def start_session(
     qdrant: "QdrantSearch",
+    opts: DiscoverOptions,
     index_db: "IndexDB | None" = None,
 ) -> tuple[str, DiscoveryPair]:
     """
@@ -201,12 +216,12 @@ def start_session(
 
     The first pair is always random — no signal exists yet, so a
     recommend() call would be meaningless. The user is implicitly
-    starting fresh; the seed is just 10 random images presented 2
-    at a time.
+    starting fresh; the seed is just `opts.seed_rounds` random
+    images presented 2 at a time.
     """
-    session = DiscoverySession(id=str(uuid.uuid4()))
+    session = DiscoverySession(id=str(uuid.uuid4()), opts=opts)
     with _lock:
-        _gc_expired(time.time())
+        _gc_expired(time.time(), opts.session_ttl_seconds)
         _sessions[session.id] = session
     pair = _next_pair(qdrant, session, index_db)
     return session.id, pair
@@ -216,6 +231,7 @@ def submit_pick(
     qdrant: "QdrantSearch",
     session_id: str,
     picked_id: str,
+    opts: DiscoverOptions,
     index_db: "IndexDB | None" = None,
 ) -> DiscoveryPair | None:
     """
@@ -319,13 +335,13 @@ def _next_pair(
     start_session/submit_pick on it).
 
     Pair source:
-      - rounds 1..SEED_ROUNDS  -> random (from session.random_pool,
+      - rounds 1..session.opts.seed_rounds  -> random (from session.random_pool,
         refilled via IndexDB.pick_unseen when empty)
-      - round SEED_ROUNDS+1+   -> recommend, in bursts of
-        RABBITHOLE_BURST_SIZE rounds each. The first round of a
+      - round session.opts.seed_rounds+1+   -> recommend, in bursts of
+        session.opts.burst_size rounds each. The first round of a
         burst runs a fresh recommend(positive, negative), re-ranks
         the top-OVER_FETCH unseen with MMR, and caches the
-        diversified MMR_POOL_SIZE ids as the burst pool.
+        diversified session.opts.mmr_pool_size ids as the burst pool.
         Subsequent rounds in the burst draw 2 unseen from the
         cached pool using stratified sampling (1 from the top
         third, 1 from the bottom third) so each pair has one
@@ -341,7 +357,7 @@ def _next_pair(
         user never gets stuck on "no new images."
     """
     # Decide source.
-    use_recommend = session.round >= SEED_ROUNDS and bool(session.liked)
+    use_recommend = session.round >= session.opts.seed_rounds and bool(session.liked)
 
     if use_recommend:
         # A fresh recommend is needed when:
@@ -349,14 +365,14 @@ def _next_pair(
         #    rabbithole round), or
         #  - we've already shown current_burst_size rounds in the
         #    current burst and need to refresh the query. Every
-        #    burst uses RABBITHOLE_BURST_SIZE — no first-burst
+        #    burst uses session.opts.burst_size — no first-burst
         #    special case.
         if not session.burst_pool or session.burst_rounds_shown >= session.current_burst_size:
-            new_burst_size = RABBITHOLE_BURST_SIZE
+            new_burst_size = session.opts.burst_size
             hits = qdrant.recommend(
                 positive=session.liked,
                 negative=session.disliked,
-                limit=RECOMMEND_OVERFETCH,
+                limit=session.opts.recommend_overfetch,
             )
             unseen_hits = [h for h in hits if h.id not in session.seen]
             if len(unseen_hits) < 2:
@@ -401,12 +417,12 @@ def _next_pair(
                         len(unseen_hits) - len(pool_candidates),
                         len(unseen_hits),
                     )
-                    pool = [h.id for h in unseen_hits][:MMR_POOL_SIZE]
+                    pool = [h.id for h in unseen_hits][:session.opts.mmr_pool_size]
                 else:
                     pool = _mmr_select(
                         pool_candidates,
-                        k=min(MMR_POOL_SIZE, len(pool_candidates)),
-                        lambda_=RECOMMEND_DIVERSIFY_LAMBDA,
+                        k=min(session.opts.mmr_pool_size, len(pool_candidates)),
+                        lambda_=session.opts.diversify_lambda,
                     )
                 # Cache the diversified pool for the new burst. The
                 # size is what we just computed (FIRST for burst 1,
@@ -474,9 +490,9 @@ def _next_pair(
                     break
 
                 if index_db is not None:
-                    new_pool = index_db.pick_unseen(RECOMMEND_OVERFETCH, session.seen)
+                    new_pool = index_db.pick_unseen(session.opts.recommend_overfetch, session.seen)
                 else:
-                    window = qdrant.random_window(limit=RECOMMEND_OVERFETCH)
+                    window = qdrant.random_window(limit=session.opts.recommend_overfetch)
                     new_pool = [h.id for h in window if h.id not in session.seen]
                 new_pool = [pid for pid in new_pool if pid not in chosen]
                 random.shuffle(new_pool)
@@ -527,8 +543,8 @@ def _mmr_select(
 
     selected: list[int] = []
     # Pre-compute the full pairwise sim matrix once — k is small
-    # (≤ MMR_POOL_SIZE) but candidates can be up to
-    # RECOMMEND_OVERFETCH (200). One matmul vs O(k*n) per pick.
+    # (≤ session.opts.mmr_pool_size) but candidates can be up to
+    # session.opts.recommend_overfetch (200). One matmul vs O(k*n) per pick.
     sim = vecs @ vecs.T  # (n, n) cosine similarities
 
     while len(selected) < k:

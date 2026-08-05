@@ -64,48 +64,6 @@ from search.centroids import (
 
 logger = logging.getLogger(__name__)
 
-# Hard cap on total cumulative results served across all pages. Once
-# the user scrolls past this, has_more is False even if more exist.
-# Why a cap at all: results are sorted by cosine similarity, so
-# result #N for large N is effectively random noise. The user should
-# refine their query, not browse past the top matches. Server-side
-# cost (Qdrant HNSW with offset) also climbs with N. 5000 is the
-# sweet spot for a 100K-point collection; bump to 10000 if you want
-# to push it. Beyond that, virtual scrolling on the frontend is the
-# real fix (browser can't hold the DOM).
-MAX_RESULTS_TOTAL: int = 5000
-
-# Bump this when you change any static asset (CSS, JS, images).
-# It's appended as ?v=N in the templates to force browsers to
-# re-fetch instead of serving a stale cache. Renamed from
-# STATIC_JS_VERSION: it now covers CSS too (the cache-bust on the
-# CSS link is what made the dark-mode commit work, instead of
-# leaving the user staring at a stale light theme). Bump to 10:
-# the no-cache middleware now handles the per-file caching, but
-# the version still matters for "?v=N" busting when the entry
-# point (search.html, base.html) changes.
-STATIC_ASSETS_VERSION: int = 22
-
-MAX_PROMPT_CHARS: int = 512
-MAX_PROMPTS_TOTAL: int = 16
-
-# Result view: 'grid' (default) or 'feed' (single-column, full-width, natural
-# aspect ratio per image — "phone-style" scroll). The same /api/search payload
-# is rendered both ways; the frontend dispatches on this value. Unknown values
-# silently fall back to 'grid' so old/malformed URLs never 400.
-VALID_VIEWS: tuple[str, ...] = ("grid", "feed")
-DEFAULT_VIEW: str = "grid"
-
-# Filename/path-substring filter cardinality guard. When the
-# matching set covers more than this fraction of the total cache,
-# the Qdrant `HasId` filter is dropped — semantic ranking does its
-# job better without the narrowing constraint, and the
-# filter-serialisation cost on the wire is avoided. 0.5 (50%) is
-# the empirical sweet spot from prior search-side work: below it,
-# the filter strictly improves both latency and relevance; above
-# it, the filter competes with HNSW scoring for the same points.
-FILENAME_CARDINALITY_GUARD: float = 0.5
-
 # Module-level state for the dynamic centroid registry. Initialised
 # by `create_app` (or reset by `reset_for_tests`). Tests reach in
 # to inspect cache state and to force invalidation; the
@@ -115,9 +73,9 @@ _dynamic_centroids = None  # type: DynamicCentroidRegistry | None
 
 def _coerce_view(raw: str | None) -> str:
     """Return 'grid' or 'feed' from a query-param value; fallback to default."""
-    if raw and raw in VALID_VIEWS:
+    if raw and raw in _cfg.valid_views:
         return raw
-    return DEFAULT_VIEW
+    return _cfg.default_view
 
 
 def _make_favourites_centroid_spec(
@@ -899,7 +857,7 @@ def create_app(
         total = await asyncio.to_thread(index_db.count_images)
         if total > 0:
             coverage = len(ids) / total
-            if coverage > FILENAME_CARDINALITY_GUARD:
+            if coverage > _cfg.filename_cardinality_guard:
                 logger.info(
                     "filename filter %r matched %d/%d (%.1f%%); "
                     "skipping HasId per cardinality guard",
@@ -929,7 +887,7 @@ def create_app(
         def add_positive(text: str) -> None:
             prompt = text.strip()
             key = prompt.lower()
-            if not prompt or len(prompt) > MAX_PROMPT_CHARS or key in positive_keys:
+            if not prompt or len(prompt) > _cfg.max_prompt_chars or key in positive_keys:
                 return
             positive_keys.add(key)
             positive_entries.append((prompt, True))
@@ -937,7 +895,7 @@ def create_app(
         def add_negative(text: str) -> None:
             prompt = text.strip()
             key = prompt.lower()
-            if not prompt or len(prompt) > MAX_PROMPT_CHARS or key in negative_keys:
+            if not prompt or len(prompt) > _cfg.max_prompt_chars or key in negative_keys:
                 return
             negative_keys.add(key)
             negative_entries.append((prompt, True))
@@ -947,13 +905,13 @@ def create_app(
         if effective_q:
             prompt = effective_q
             key = prompt.lower()
-            if len(prompt) <= MAX_PROMPT_CHARS and key not in positive_keys:
+            if len(prompt) <= _cfg.max_prompt_chars and key not in positive_keys:
                 positive_keys.add(key)
                 positive_entries.append((prompt, False))
         for prompt in negatives_raw:
             add_negative(prompt)
 
-        remaining = MAX_PROMPTS_TOTAL
+        remaining = _cfg.max_prompts_total
         capped_positive_entries = positive_entries[:remaining]
         remaining -= len(capped_positive_entries)
         capped_negative_entries = negative_entries[:remaining]
@@ -976,7 +934,7 @@ def create_app(
         positives: list[str],
         negatives: list[str],
         collections: list[str],
-        view: str = DEFAULT_VIEW,
+        view: str = _cfg.default_view,
         centroid: str | None = None,
         favorites: bool = False,
         centroids: list[str] | None = None,
@@ -1023,7 +981,7 @@ def create_app(
             params.append(("favorites", "true"))
         if filename.strip():
             params.append(("filename", filename.strip()))
-        if view and view != DEFAULT_VIEW:
+        if view and view != _cfg.default_view:
             params.append(("view", view))
         if diverse:
             params.append(("diverse", "true"))
@@ -1065,7 +1023,7 @@ def create_app(
         ]
 
     async def _favorite_ids_for_filter() -> set[str]:
-        rows = await asyncio.to_thread(index_db.list_favorites, MAX_RESULTS_TOTAL, 0)
+        rows = await asyncio.to_thread(index_db.list_favorites, _cfg.max_results_total, 0)
         return {str(row["id"]) for row in rows}
 
     @app.get("/", response_class=HTMLResponse)
@@ -1074,7 +1032,7 @@ def create_app(
         q: str = Query("", description="text query"),
         limit: int = Query(_cfg.top_k_default, description="max results"),
         offset: int = Query(0, description="offset into the full result set"),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
         favorites: bool = Query(False, description="restrict results to favourites"),
         diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
@@ -1093,8 +1051,8 @@ def create_app(
             offset = 0
         # Hard cap on total cumulative results served. Once the user
         # scrolls past this, has_more is False even if more exist.
-        if offset >= MAX_RESULTS_TOTAL:
-            offset = MAX_RESULTS_TOTAL
+        if offset >= _cfg.max_results_total:
+            offset = _cfg.max_results_total
             limit = 0
 
         collections = _parse_collections(request)
@@ -1152,7 +1110,7 @@ def create_app(
                     "limit": limit,
                     "offset": offset,
                     "has_more": False,
-                    "max_results_total": MAX_RESULTS_TOTAL,
+                    "max_results_total": _cfg.max_results_total,
                     "results": [],
                     "error": (
                         f"Centroid search is exclusive — cannot combine ?centroid="
@@ -1163,7 +1121,7 @@ def create_app(
                     "active_centroid": None,
                     "active_centroids": [],
                     "active_weights": active_weights,
-                    "static_assets_version": STATIC_ASSETS_VERSION,
+                    "static_assets_version": _cfg.static_assets_version,
                 },
             )
 
@@ -1222,11 +1180,11 @@ def create_app(
                 else:
                     try:
                         # Don't let one page exceed the total cap.
-                        effective_limit = min(limit, MAX_RESULTS_TOTAL - offset)
+                        effective_limit = min(limit, _cfg.max_results_total - offset)
                         if favorites:
                             favorite_ids = await _favorite_ids_for_filter()
                             hits_all, _ = qdrant.search(
-                                vec, limit=MAX_RESULTS_TOTAL, offset=0,
+                                vec, limit=_cfg.max_results_total, offset=0,
                                 collections=collections or None,
                                 allowed_ids=allowed_ids,
                             )
@@ -1357,7 +1315,7 @@ def create_app(
                 "limit": limit,
                 "offset": offset,
                 "has_more": has_more,
-                "max_results_total": MAX_RESULTS_TOTAL,
+                "max_results_total": _cfg.max_results_total,
                 "results": results,
                 "random_picks": random_picks,
                 "random_picks_count": len(random_picks),
@@ -1368,7 +1326,7 @@ def create_app(
                 "active_centroids": active_centroids,
                 "active_weights": active_weights,
                 "saved_searches": saved_searches_for_template,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -1377,7 +1335,7 @@ def create_app(
         request: Request,
         point_id: str,
         q: str = Query("", description="originating query string for back link"),
-        view: str = Query(DEFAULT_VIEW, description="originating view for back link"),
+        view: str = Query(_cfg.default_view, description="originating view for back link"),
         favorites: bool = Query(False, description="originating favourites filter"),
         from_favorites: bool = Query(False, description="return to favourites page"),
     ) -> HTMLResponse:
@@ -1453,7 +1411,7 @@ def create_app(
                 "is_favorite": is_favorite,
                 "all_albums": all_albums,
                 "photo_album_ids": photo_album_ids,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -1484,7 +1442,7 @@ def create_app(
     async def photo_similar(
         request: Request,
         point_id: str,
-        view: str = Query(DEFAULT_VIEW, description="result view for grid"),
+        view: str = Query(_cfg.default_view, description="result view for grid"),
     ) -> HTMLResponse:
         """
         Render the top-K most similar images to the given photo.
@@ -1560,7 +1518,7 @@ def create_app(
                 "source_photo_path": hit.path,
                 "search_query_string": "",  # back button goes to /photo/{id}, not /?...
                 "active_centroid": None,  # this route is text/photo-anchored, never centroid
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -1570,7 +1528,7 @@ def create_app(
         q: str = Query("", description="text query"),
         limit: int = Query(_cfg.top_k_default, description="max results"),
         offset: int = Query(0, description="offset into the full result set"),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
         favorites: bool = Query(False, description="restrict results to favourites"),
         diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
@@ -1617,7 +1575,7 @@ def create_app(
         if offset < 0:
             return _bad_request("offset must be >= 0")
         # Hard cap on total cumulative results served.
-        if offset >= MAX_RESULTS_TOTAL:
+        if offset >= _cfg.max_results_total:
             return SearchResponse(
                 query=prompt_state.q,
                 positives=prompt_state.positives,
@@ -1628,7 +1586,7 @@ def create_app(
                 weights=active_weights,
                 results=[], took_ms=0, offset=offset, limit=0, has_more=False,
             )
-        effective_limit = min(limit, MAX_RESULTS_TOTAL - offset)
+        effective_limit = min(limit, _cfg.max_results_total - offset)
 
         collections = _parse_collections(request)
 
@@ -1660,7 +1618,7 @@ def create_app(
                 if favorites:
                     favorite_ids = await _favorite_ids_for_filter()
                     hits_all, _ = qdrant.search(
-                        vec, limit=MAX_RESULTS_TOTAL, offset=0,
+                        vec, limit=_cfg.max_results_total, offset=0,
                         collections=collections or None,
                         allowed_ids=allowed_ids,
                     )
@@ -1863,7 +1821,7 @@ def create_app(
                 query="",
                 positives=[],
                 negatives=[],
-                view=DEFAULT_VIEW,
+                view=_cfg.default_view,
                 centroid=None,
                 results=_favorite_rows_to_results(rows),
                 took_ms=0,
@@ -2139,7 +2097,7 @@ def create_app(
         request: Request,
         limit: int = Query(70, description="max favourites"),
         offset: int = Query(0, description="offset into favourites"),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> HTMLResponse:
         view = _coerce_view(view)
         try:
@@ -2168,7 +2126,7 @@ def create_app(
                 "positives": [],
                 "negatives": [],
                 "search_query_string": "from_favorites=true",
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -2188,7 +2146,7 @@ def create_app(
             "albums.html",
             {
                 "albums": rows,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -2297,7 +2255,7 @@ def create_app(
             {
                 "saved_searches": rows,
                 "total": total,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -2307,7 +2265,7 @@ def create_app(
         album_id: int,
         limit: int = Query(70, description="max members to render"),
         offset: int = Query(0, description="offset into members"),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> HTMLResponse:
         view = _coerce_view(view)
         album = await asyncio.to_thread(index_db.get_album, album_id)
@@ -2340,7 +2298,7 @@ def create_app(
                 "has_more": offset + len(results) < total,
                 "max_results_total": total,
                 "view": view,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -2549,7 +2507,7 @@ def create_app(
         collections: list[str] = Query(
             [], description="restrict to one or more collections; empty = whole set"
         ),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> SearchResponse:
         view = _coerce_view(view)
         try:
@@ -2602,7 +2560,7 @@ def create_app(
         collections: list[str] = Query(
             [], description="restrict to one or more collections; empty = whole set"
         ),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> HTMLResponse:
         view = _coerce_view(view)
         try:
@@ -2632,7 +2590,7 @@ def create_app(
                     "collections": clean_collections,
                     "limit": limit,
                     "error": "Could not sample photos right now.",
-                    "static_assets_version": STATIC_ASSETS_VERSION,
+                    "static_assets_version": _cfg.static_assets_version,
                 },
                 status_code=500,
             )
@@ -2651,7 +2609,7 @@ def create_app(
                 "collections": clean_collections,
                 "limit": limit,
                 "error": None,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -2805,16 +2763,16 @@ def create_app(
             return _bad_request("offset must be an integer")
         if offset < 0:
             return _bad_request("offset must be >= 0")
-        if offset >= MAX_RESULTS_TOTAL:
+        if offset >= _cfg.max_results_total:
             return SearchResponse(
                 query="",
                 positives=[],
                 negatives=[],
-                view=DEFAULT_VIEW,
+                view=_cfg.default_view,
                 centroid=centroid_name,
                 results=[], took_ms=0, offset=offset, limit=0, has_more=False,
             )
-        effective_limit = min(limit, MAX_RESULTS_TOTAL - offset)
+        effective_limit = min(limit, _cfg.max_results_total - offset)
         collections = _parse_collections(request)
         filename_pattern = _parse_filename(request)
         allowed_ids, fname_err = await _resolve_filename_filter(
@@ -2852,7 +2810,7 @@ def create_app(
             #   than the tightest typical seed-seed pair.
             #
             # Over-fetch: ask Qdrant for `effective_limit * 3`
-            #   candidates (capped at MAX_RESULTS_TOTAL) so that
+            #   candidates (capped at _cfg.max_results_total) so that
             #   after Layer 2 drops near-dups we still have enough
             #   to trim back to `effective_limit`. When the seed set
             #   is tight (typical for albums), the 3x headroom is
@@ -2871,7 +2829,7 @@ def create_app(
             #   dropped, fall through to the regular
             #   "result_count == limit" heuristic.
             over_fetch_limit = min(
-                effective_limit * 3, MAX_RESULTS_TOTAL - offset
+                effective_limit * 3, _cfg.max_results_total - offset
             )
             try:
                 if seed_ids:
@@ -2957,7 +2915,7 @@ def create_app(
             query="",
             positives=[],
             negatives=[],
-            view=DEFAULT_VIEW,
+            view=_cfg.default_view,
             centroid=centroid_name,
             results=[
                 SearchResult(
@@ -3043,7 +3001,7 @@ def create_app(
                 "preselected_centroids": _parse_centroids(request),
                 "expected_model": _cfg.centroid_expected_model if _cfg else None,
                 "expected_feature_dim": _cfg.centroid_expected_feature_dim if _cfg else None,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -3067,7 +3025,7 @@ def create_app(
             request,
             "discover.html",
             {
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -3090,7 +3048,9 @@ def create_app(
     async def discover_start() -> DiscoveryStartResponse:
         """Create a new discovery session and return the first pair."""
         try:
-            session_id, pair = discover.start_session(qdrant, index_db)
+            session_id, pair = discover.start_session(
+                qdrant, discover.DiscoverOptions.from_config(_cfg), index_db,
+            )
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/discover/start: %s", e)
             raise HTTPException(status_code=502, detail="Qdrant unreachable")
@@ -3111,7 +3071,10 @@ def create_app(
         "session ended, start over" and redirects to /discover.
         """
         try:
-            next_pair = discover.submit_pick(qdrant, session_id, image_id, index_db)
+            next_pair = discover.submit_pick(
+                qdrant, session_id, image_id,
+                discover.DiscoverOptions.from_config(_cfg), index_db,
+            )
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/discover/pick: %s", e)
             raise HTTPException(status_code=502, detail="Qdrant unreachable")
@@ -3128,7 +3091,7 @@ def create_app(
     async def discover_liked_page(
         request: Request,
         session_id: str = Query(..., description="discovery session id"),
-        view: str = Query(DEFAULT_VIEW, description="result view: 'grid' (default) or 'feed'"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' (default) or 'feed'"),
     ) -> HTMLResponse:
         """Render the gallery of images the user picked in this session."""
         view = _coerce_view(view)
@@ -3144,7 +3107,7 @@ def create_app(
                     "view": view,
                     "images": [],
                     "session_gone": True,
-                    "static_assets_version": STATIC_ASSETS_VERSION,
+                    "static_assets_version": _cfg.static_assets_version,
                 },
             )
         return templates.TemplateResponse(
@@ -3155,7 +3118,7 @@ def create_app(
                 "view": view,
                 "images": images,
                 "session_gone": False,
-                "static_assets_version": STATIC_ASSETS_VERSION,
+                "static_assets_version": _cfg.static_assets_version,
             },
         )
 

@@ -17,7 +17,29 @@ from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search import discover
 from search.config import Config
-from search.discover import RABBITHOLE_BURST_SIZE, SEED_ROUNDS
+def _seed_rounds() -> int:
+    """Read the discover seed-rounds knob from the live app's Config.
+
+    The discover constants were moved off module globals onto the
+    search-side `Config` (env-driven). Tests need a live value at
+    the time the test runs (after the fixture has built the app),
+    so this helper reads it from `app_mod.get_cfg()` rather than
+    baking the default into a module-level constant.
+    """
+    return app_mod.get_cfg().discover_seed_rounds
+
+
+def _burst_size() -> int:
+    return app_mod.get_cfg().discover_burst_size
+
+
+def _recommend_overfetch() -> int:
+    return app_mod.get_cfg().discover_recommend_overfetch
+
+
+def _mmr_pool_size() -> int:
+    return app_mod.get_cfg().discover_mmr_pool_size
+
 
 
 # ---------------- fixtures ----------------
@@ -228,18 +250,19 @@ def test_seen_set_prevents_repeats(app_with_qdrant):
 
 
 def test_pair_source_switches_to_recommend_after_seed_rounds(app_with_qdrant):
-    """After SEED_ROUNDS picks, the pair source is 'recommend' (not 'random').
+    """After seed_rounds picks, the pair source is 'recommend' (not 'random').
 
-    The seed phase is SEED_ROUNDS rounds of random pairs. From
-    round SEED_ROUNDS+1 onward, we use recommend().
+    The seed phase is `seed_rounds` rounds of random pairs. From
+    round `seed_rounds + 1` onward, we use recommend().
 
     Stubs qdrant.recommend + retrieve_batch_with_vectors so the
-    20-image fixture isn't exhausted by round SEED_ROUNDS+1 (11
-    rounds × 2 picks per round = 22 images shown, more than the
-    fixture holds). Without the stub, recommend would return
+    20-image fixture isn't exhausted by round `seed_rounds + 1`
+    (11 rounds × 2 picks per round = 22 images shown, more than
+    the fixture holds). Without the stub, recommend would return
     0 unseen at round 11 and the flow would fall back to random,
     masking the source transition we're testing.
     """
+    seed_rounds = app_mod.get_cfg().discover_seed_rounds
     from search.qdrant_client import SearchHit
 
     qdrant = app_mod.get_qdrant()
@@ -263,7 +286,7 @@ def test_pair_source_switches_to_recommend_after_seed_rounds(app_with_qdrant):
         sid, pair = _start(app_with_qdrant)
         # Round 1: random.
         assert pair["source"] == "random"
-        for i in range(2, SEED_ROUNDS + 2):  # rounds 2..SEED_ROUNDS+1 (picks)
+        for i in range(2, seed_rounds + 2):  # rounds 2..seed_rounds+1 (picks)
             if pair is None:
                 break
             r = app_with_qdrant.post(
@@ -272,7 +295,7 @@ def test_pair_source_switches_to_recommend_after_seed_rounds(app_with_qdrant):
             pair = r["pair"]
             if pair is None:
                 break
-            if i <= SEED_ROUNDS:
+            if i <= seed_rounds:
                 # Still in seed phase: source should be random.
                 assert pair["source"] == "random", f"round {i} should be random, got {pair['source']}"
             else:
@@ -284,16 +307,16 @@ def test_pair_source_switches_to_recommend_after_seed_rounds(app_with_qdrant):
 
 
 def test_all_bursts_use_uniform_size(app_with_qdrant):
-    """Every rabbithole burst uses RABBITHOLE_BURST_SIZE — there is
+    """Every rabbithole burst uses _burst_size() — there is
     no first-burst special case anymore.
 
-    After SEED_ROUNDS picks, the first rabbithole burst fires a
+    After _seed_rounds() picks, the first rabbithole burst fires a
     fresh recommend. Subsequent rounds in the burst (up to
-    RABBITHOLE_BURST_SIZE total) reuse the cached pool.
+    _burst_size() total) reuse the cached pool.
 
     Stubs qdrant.recommend + retrieve_batch_with_vectors to feed
     200 fake unseen ids so the 20-image fixture isn't exhausted
-    by round SEED_ROUNDS+1 (11 rounds x 2 = 22 images > 20).
+    by round _seed_rounds()+1 (11 rounds x 2 = 22 images > 20).
     """
     from search import discover as discover_mod
     from search.qdrant_client import SearchHit
@@ -326,35 +349,35 @@ def test_all_bursts_use_uniform_size(app_with_qdrant):
     qdrant.retrieve_batch_with_vectors = fake_retrieve_batch_with_vectors
     qdrant.retrieve_batch = fake_retrieve_batch
     try:
-        # SEED_ROUNDS seed picks (rounds 1..SEED_ROUNDS; no recommend calls).
+        # _seed_rounds() seed picks (rounds 1.._seed_rounds(); no recommend calls).
         sid, pair = _start(app_with_qdrant)
         assert pair["source"] == "random"
-        for _ in range(SEED_ROUNDS):
+        for _ in range(_seed_rounds()):
             assert pair is not None
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
             ).json()
             pair = r["pair"]
         # The last seed pick's response carries the pair for
-        # round SEED_ROUNDS+1 — the first rabbithole round —
+        # round _seed_rounds()+1 — the first rabbithole round —
         # which just triggered a fresh recommend.
         assert call_count[0] == 1, f"expected 1 recommend after seed, got {call_count[0]}"
         assert pair is not None
         assert pair["source"] == "recommend"
 
         # The first burst is active. Verify its size is
-        # RABBITHOLE_BURST_SIZE (NOT a larger first-burst size)
+        # _burst_size() (NOT a larger first-burst size)
         # and the counter started at 1.
         session = discover_mod.get_session(sid)
         assert session is not None
         assert session.bursts_started == 1
-        assert session.current_burst_size == RABBITHOLE_BURST_SIZE
+        assert session.current_burst_size == _burst_size()
         assert session.burst_rounds_shown == 1
 
         # Do more picks in the first burst. The fake recommend
         # always returns fresh ids so the burst pool stays full
-        # across all RABBITHOLE_BURST_SIZE rounds.
-        for _ in range(RABBITHOLE_BURST_SIZE - 1):
+        # across all _burst_size() rounds.
+        for _ in range(_burst_size() - 1):
             assert pair is not None and pair["left"] is not None
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
@@ -367,7 +390,7 @@ def test_all_bursts_use_uniform_size(app_with_qdrant):
             f"expected still 1 recommend call (first burst not yet complete), "
             f"got {call_count[0]}"
         )
-        assert session.current_burst_size == RABBITHOLE_BURST_SIZE
+        assert session.current_burst_size == _burst_size()
     finally:
         qdrant.recommend = original_recommend
         qdrant.retrieve_batch_with_vectors = original_retrieve_vectors
@@ -376,7 +399,7 @@ def test_all_bursts_use_uniform_size(app_with_qdrant):
 
 def test_subsequent_bursts_use_burst_size(app_with_qdrant):
     """After the first burst completes, the second burst fires a
-    fresh recommend and continues at the same RABBITHOLE_BURST_SIZE
+    fresh recommend and continues at the same _burst_size()
     (every burst is the same size now).
 
     Stubs qdrant.recommend and qdrant.retrieve_batch_with_vectors
@@ -416,40 +439,40 @@ def test_subsequent_bursts_use_burst_size(app_with_qdrant):
     qdrant.retrieve_batch = fake_retrieve_batch
     qdrant.retrieve_batch_with_vectors = fake_retrieve_batch_with_vectors
     try:
-        # SEED_ROUNDS seed picks (random from the real fixture).
+        # _seed_rounds() seed picks (random from the real fixture).
         sid, pair = _start(app_with_qdrant)
-        for _ in range(SEED_ROUNDS):
+        for _ in range(_seed_rounds()):
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
             ).json()
             pair = r["pair"]
-        # Last seed pick's response: round SEED_ROUNDS+1 (start of
+        # Last seed pick's response: round _seed_rounds()+1 (start of
         # first burst), 1st recommend call.
         assert call_count[0] == 1
         session = discover_mod.get_session(sid)
         assert session is not None
-        assert session.current_burst_size == RABBITHOLE_BURST_SIZE
+        assert session.current_burst_size == _burst_size()
         assert session.bursts_started == 1
 
-        # Drive the first burst: RABBITHOLE_BURST_SIZE - 1 more
+        # Drive the first burst: _burst_size() - 1 more
         # picks. None of these should trigger a fresh recommend —
         # they all reuse the cached pool.
-        for _ in range(RABBITHOLE_BURST_SIZE - 1):
+        for _ in range(_burst_size() - 1):
             assert pair is not None
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
             ).json()
             pair = r["pair"]
         assert call_count[0] == 1, (
-            f"first burst should be {RABBITHOLE_BURST_SIZE} rounds "
+            f"first burst should be {_burst_size()} rounds "
             f"with 1 recommend, got {call_count[0]}"
         )
-        assert session.current_burst_size == RABBITHOLE_BURST_SIZE
-        assert session.burst_rounds_shown == RABBITHOLE_BURST_SIZE
+        assert session.current_burst_size == _burst_size()
+        assert session.burst_rounds_shown == _burst_size()
 
         # The next pick is the start of the second burst — it
         # should fire the 2nd fresh recommend and the burst size
-        # stays at RABBITHOLE_BURST_SIZE (uniform across bursts).
+        # stays at _burst_size() (uniform across bursts).
         r = app_with_qdrant.post(
             f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
         ).json()
@@ -458,7 +481,7 @@ def test_subsequent_bursts_use_burst_size(app_with_qdrant):
             f"expected 2nd recommend call for the 2nd burst, got {call_count[0]}"
         )
         assert session.bursts_started == 2
-        assert session.current_burst_size == RABBITHOLE_BURST_SIZE
+        assert session.current_burst_size == _burst_size()
         assert session.burst_rounds_shown == 1  # the 2nd burst just showed its 1st round
     finally:
         qdrant.recommend = original_recommend
@@ -483,7 +506,7 @@ def test_burst_pair_uses_stratified_sampling(app_with_qdrant):
     third and 1 from the bottom third.
 
     Stubs qdrant.recommend to return 200 fake ids in a known order
-    (matches the new RECOMMEND_OVERFETCH=200, since the test
+    (matches the new _recommend_overfetch()=200, since the test
     fixture has only 20 real images).
     """
     from search.qdrant_client import SearchHit
@@ -494,7 +517,7 @@ def test_burst_pair_uses_stratified_sampling(app_with_qdrant):
     original_retrieve_batch_with_vectors = qdrant.retrieve_batch_with_vectors
 
     # Track every call so we can verify limit=200 (the new
-    # RECOMMEND_OVERFETCH).
+    # _recommend_overfetch()).
     call_log: list[dict] = []
 
     def fake_recommend(positive, negative, limit=20, collections=None):
@@ -511,7 +534,7 @@ def test_burst_pair_uses_stratified_sampling(app_with_qdrant):
         ]
 
     # All candidates share the same vector, so MMR degenerates to
-    # pure relevance and the pool is the top-MMR_POOL_SIZE by
+    # pure relevance and the pool is the top-_mmr_pool_size() by
     # score. This preserves the previous "stratified sampling from
     # a top-N pool" assertion that this test was guarding.
     SAME_VEC = [0.0] * 4 + [1.0]  # unit-ish vector
@@ -523,27 +546,27 @@ def test_burst_pair_uses_stratified_sampling(app_with_qdrant):
     qdrant.retrieve_batch = fake_retrieve_batch
     qdrant.retrieve_batch_with_vectors = fake_retrieve_batch_with_vectors
     try:
-        # SEED_ROUNDS seed picks (random from the real fixture, not stubbed).
+        # _seed_rounds() seed picks (random from the real fixture, not stubbed).
         sid, pair = _start(app_with_qdrant)
-        for _ in range(SEED_ROUNDS):
+        for _ in range(_seed_rounds()):
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
             ).json()
             pair = r["pair"]
 
         # The last seed pick's response carries the pair for
-        # round SEED_ROUNDS+1 — the first
+        # round _seed_rounds()+1 — the first
         # burst round. The stub recommend was just called.
         assert len(call_log) == 1
         assert call_log[0]["limit"] == 200, (
-            f"expected recommend limit=200 (RECOMMEND_OVERFETCH), "
+            f"expected recommend limit=200 (_recommend_overfetch()), "
             f"got {call_log[0]['limit']}"
         )
         assert pair is not None
         assert pair["source"] == "recommend"
 
         # Both images should be from the fake r* set, with one in
-        # the top third of the MMR-cached pool (MMR_POOL_SIZE=10,
+        # the top third of the MMR-cached pool (_mmr_pool_size()=10,
         # so top third = positions 0-2) and one in the bottom third
         # (positions 6-9).
         def get_idx(image_id: str) -> int:
@@ -584,7 +607,7 @@ def test_recommend_failure_falls_back_to_random(app_with_qdrant):
 
     Also stubs index_db.pick_unseen + qdrant.retrieve_batch to
     feed infinite unseen ids and resolve them, so the 20-image
-    fixture isn't exhausted by SEED_ROUNDS seed picks before we
+    fixture isn't exhausted by _seed_rounds() seed picks before we
     get to the recommend-failure round.
     """
     from search.qdrant_client import SearchHit
@@ -608,7 +631,7 @@ def test_recommend_failure_falls_back_to_random(app_with_qdrant):
     qdrant.client.query_points = boom_query_points
     # Also stub index_db.pick_unseen to return fresh unseen ids
     # for the random fallback. Without this, the 20-image
-    # fixture is exhausted by the SEED_ROUNDS seed picks and the
+    # fixture is exhausted by the _seed_rounds() seed picks and the
     # random fallback would return None instead of an actual
     # pair — masking the recommend-failure path we're testing.
     index_db = app_mod.get_index_db()
@@ -642,10 +665,10 @@ def test_recommend_failure_falls_back_to_random(app_with_qdrant):
 
     qdrant.retrieve_batch = fake_retrieve_batch
     try:
-        # Walk through the SEED_ROUNDS seed rounds so we're about
-        # to hit the first recommend call on round SEED_ROUNDS+1.
+        # Walk through the _seed_rounds() seed rounds so we're about
+        # to hit the first recommend call on round _seed_rounds()+1.
         sid, pair = _start(app_with_qdrant)
-        for _ in range(SEED_ROUNDS):
+        for _ in range(_seed_rounds()):
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
             )
@@ -655,7 +678,7 @@ def test_recommend_failure_falls_back_to_random(app_with_qdrant):
             assert data["pair"] is not None, f"seed round died: {data}"
             pair = data["pair"]
 
-        # Round SEED_ROUNDS+1: this is the first recommend call.
+        # Round _seed_rounds()+1: this is the first recommend call.
         # The recommendation call itself will raise, the wrapper
         # returns [], the discover flow sees < 2 unseen, and
         # falls back to a random pair. The response must still
@@ -885,7 +908,15 @@ def test_seed_phase_uses_index_db_pick_unseen():
     index_db = FakeIndexDB()
     qdrant = FakeQdrant()
     try:
-        _sid, pair = discover.start_session(qdrant, index_db)
+        _opts = discover.DiscoverOptions(
+            seed_rounds=10,
+            recommend_overfetch=200,
+            diversify_lambda=0.5,
+            mmr_pool_size=10,
+            burst_size=5,
+            session_ttl_seconds=1800,
+        )
+        _sid, pair = discover.start_session(qdrant, _opts, index_db)
         assert pair.source == "random"
         assert {pair.left.id, pair.right.id} == {"seed-a", "seed-b"}
         assert index_db.calls
@@ -1098,8 +1129,8 @@ def test_burst_pool_spans_clusters(app_with_qdrant):
     qdrant.retrieve_batch_with_vectors = fake_retrieve_batch_with_vectors
     try:
         sid, pair = _start(app_with_qdrant)
-        # SEED_ROUNDS seed picks to transition out of the random phase.
-        for _ in range(SEED_ROUNDS):
+        # _seed_rounds() seed picks to transition out of the random phase.
+        for _ in range(_seed_rounds()):
             r = app_with_qdrant.post(
                 f"/api/discover/pick?session_id={sid}"
                 f"&image_id={pair['left']['id']}"

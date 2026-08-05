@@ -97,6 +97,29 @@ class Config:
     centroid_expected_model: str = "siglip2"
     centroid_expected_feature_dim: int = 1536
     index_db_path: str = "./data/images.db"
+    # ----- Operational constants (formerly module-level in app.py / discover.py) -----
+    # All env-driven so an operator can tune the running service without
+    # a code change. Defaults match the prior hardcoded values exactly.
+    max_results_total: int = 5000
+    static_assets_version: int = 22
+    max_prompt_chars: int = 512
+    max_prompts_total: int = 16
+    # `valid_views` and `default_view` are a closed enum; not env-driven.
+    # Moved to Config for testability (tests can construct a Config with
+    # custom values instead of monkey-patching module globals).
+    valid_views: tuple[str, ...] = ("grid", "feed")
+    default_view: str = "grid"
+    # FTS filter cardinality guard (see app.py:_resolve_filename_filter).
+    filename_cardinality_guard: float = 0.5
+    # Discovery rabbithole burst timeline (formerly module-level in
+    # discover.py). Tuned empirically against a real dataset; these
+    # are exactly the knobs an operator wants to fiddle with in prod.
+    discover_seed_rounds: int = 10
+    discover_recommend_overfetch: int = 200
+    discover_diversify_lambda: float = 0.5
+    discover_mmr_pool_size: int = 10
+    discover_burst_size: int = 5
+    discover_session_ttl_seconds: int = 1800
 
 
 def _int(name: str, default: int) -> int:
@@ -107,6 +130,16 @@ def _int(name: str, default: int) -> int:
         return int(raw)
     except ValueError as e:
         raise ValueError(f"env {name}={raw!r} is not a valid int") from e
+
+
+def _float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError as e:
+        raise ValueError(f"env {name}={raw!r} is not a valid float") from e
 
 
 def load() -> Config:
@@ -156,6 +189,17 @@ def load() -> Config:
         centroid_expected_model=expected_model,
         centroid_expected_feature_dim=expected_dim,
         index_db_path=index_db_path,
+        max_results_total=_int("MAX_RESULTS_TOTAL", 5000),
+        static_assets_version=_int("STATIC_ASSETS_VERSION", 22),
+        max_prompt_chars=_int("MAX_PROMPT_CHARS", 512),
+        max_prompts_total=_int("MAX_PROMPTS_TOTAL", 16),
+        filename_cardinality_guard=_float("FILENAME_CARDINALITY_GUARD", 0.5),
+        discover_seed_rounds=_int("DISCOVER_SEED_ROUNDS", 10),
+        discover_recommend_overfetch=_int("DISCOVER_RECOMMEND_OVERFETCH", 200),
+        discover_diversify_lambda=_float("DISCOVER_DIVERSIFY_LAMBDA", 0.5),
+        discover_mmr_pool_size=_int("DISCOVER_MMR_POOL_SIZE", 10),
+        discover_burst_size=_int("DISCOVER_BURST_SIZE", 5),
+        discover_session_ttl_seconds=_int("DISCOVER_SESSION_TTL_SECONDS", 1800),
     )
 
     # Validate NAS base if set (test mode may set it later).
