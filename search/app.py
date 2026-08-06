@@ -1150,7 +1150,7 @@ def create_app(
                 is_favorite=h.id in favorite_ids,
                 # LQIP from the Qdrant payload (set at index time, T9).
                 # None when the point was indexed before blurhash landed.
-                blurhash=(h.payload or {}).get("blurhash") if hasattr(h, "payload") else None,
+                blurhash=(h.payload or {}).get("blurhash"),
             )
             for h in hits
         ]

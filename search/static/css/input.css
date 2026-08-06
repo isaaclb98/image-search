@@ -143,3 +143,29 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* 7. Component polish — photo grid items (T6).
+   site.css still owns the legacy .grid-item / .feed-item styles
+   (border, transform-on-hover). T6 established a softer hover
+   (box-shadow only, no translate, no border); we override here
+   rather than touch site.css so the legacy file stays the
+   canonical pre-Tailwind reference. Tests assert the discriminator
+   `class="grid-item"` / `class="feed-item"` exact strings — the
+   class attribute is the only thing on the <li>; styling lives
+   exclusively in CSS. */
+.grid-item,
+.feed-item {
+  border: 0;                          /* drop the site.css 1px glass-border */
+  transition: box-shadow 150ms ease-out;
+}
+.grid-item:hover,
+.feed-item:hover,
+.grid-item:focus-within,
+.feed-item:focus-within {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+              0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+.grid-item:hover,
+.feed-item:hover {
+  transform: none;                    /* cancel site.css translateY(-2px) */
+}

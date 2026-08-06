@@ -2146,6 +2146,10 @@ a:hover {
   .opacity-40 {
     opacity: 40%;
   }
+  .shadow {
+    --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
   .shadow-lg {
     --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -50950,6 +50954,16 @@ a:hover {
   .count, .tabular-nums, [data-count] {
     font-variant-numeric: tabular-nums;
   }
+}
+.grid-item, .feed-item {
+  border: 0;
+  transition: box-shadow 150ms ease-out;
+}
+.grid-item:hover, .feed-item:hover, .grid-item:focus-within, .feed-item:focus-within {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+.grid-item:hover, .feed-item:hover {
+  transform: none;
 }
 @property --tw-space-y-reverse {
   syntax: "*";

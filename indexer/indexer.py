@@ -33,6 +33,10 @@ Options:
                        on startup. Use after manual point deletions, restores,
                        or anything that desyncs the cache from reality.
 
+    --reblurhash       Walk the existing collection, recompute blurhash per point
+                       from its source file, and rewrite only the 'blurhash' payload
+                       field. Does NOT re-embed. Idempotent.
+
 Exit codes:
     0  success
     1  unhandled error
@@ -120,6 +124,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--refresh-cache",
         action="store_true",
         help="discard the local cache and rebuild from Qdrant on startup",
+    )
+    p.add_argument(
+        "--reblurhash",
+        action="store_true",
+        help="walk the existing collection, recompute blurhash for each point from its source "
+             "file, and rewrite only the 'blurhash' payload field via set_payload. Does NOT "
+             "re-embed. Idempotent: re-running on a current collection is a no-op. Mutually "
+             "exclusive with the normal index path.",
     )
     return p.parse_args(argv)
 
@@ -223,6 +235,53 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                 logger.warning("cache: prune save failed: %s", e)
         logger.info(
             "prune complete: removed %d points, %d cache entries", removed, dropped,
+        )
+        return 0
+
+    if args.reblurhash:
+        # Walk the collection with cursor-paginated scrolls. We don't
+        # embed (the vector stays put) — only the `blurhash` payload
+        # field is rewritten. Idempotent: re-running on an already-
+        # complete collection is a no-op (skipped counter ticks up).
+        from indexer.blurhash import compute_blurhash as _compute_blurhash
+        logger.info("reblurhash: walking collection %s", args.qdrant_collection)
+        updated = skipped = failed = 0
+        offset = None
+        while True:
+            points, next_offset = client.scroll(
+                collection_name=args.qdrant_collection,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            if not points:
+                break
+            for rec in points:
+                payload = rec.payload or {}
+                path_str = payload.get("path")
+                if not path_str:
+                    failed += 1
+                    continue
+                new_hash = _compute_blurhash(Path(path_str))
+                if new_hash is None:
+                    failed += 1
+                    continue
+                if payload.get("blurhash") == new_hash:
+                    skipped += 1
+                    continue
+                client.set_payload(
+                    collection_name=args.qdrant_collection,
+                    payload={"blurhash": new_hash},
+                    points=[rec.id],
+                )
+                updated += 1
+            if next_offset is None:
+                break
+            offset = next_offset
+        logger.info(
+            "reblurhash complete: updated=%d skipped=%d failed=%d",
+            updated, skipped, failed,
         )
         return 0
 
