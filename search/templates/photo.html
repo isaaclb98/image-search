@@ -1,7 +1,5 @@
 {% extends "base.html" %}
 
-{% import "_macros.html" as ui %}
-
 {% block title %}photo {{ id[:8] }}…{% endblock %}
 
 {% block content %}
@@ -16,7 +14,9 @@
 </nav>
 
 {% if file_missing %}
-  {{ ui.error_state("File not found on disk. The image has been indexed but the source file is missing.") }}
+  <p class="state state-warn" role="alert">
+    File not found on disk. The image has been indexed but the source file is missing.
+  </p>
 {% endif %}
 
 <figure class="photo">
@@ -61,7 +61,9 @@
     </ul>
   </section>
 {% else %}
-  <p class="text-sm text-base-content/70 mt-4"><a href="/albums" class="link link-primary">Create an album</a> to curate this photo into.</p>
+  <p class="album-pills__empty">
+    <a href="/albums">Create an album</a> to curate this photo into.
+  </p>
 {% endif %}
 
 <dl class="meta">

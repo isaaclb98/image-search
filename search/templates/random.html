@@ -3,16 +3,16 @@
 {% block title %}Random — Isaac Image Search{% endblock %}
 
 {% block content %}
-{% import "_macros.html" as ui %}
-<section class="random-page max-w-6xl mx-auto px-4 py-6">
-  {{ ui.page_header("Random") }}
-  <p class="text-sm text-base-content/70 -mt-4 mb-6">
-    {% if collections %}
-      Random sample from {{ collections|join(', ') }}.
-    {% else %}
-      Random sample from the whole collection.
-    {% endif %}
-  </p>
+<section class="random-page">
+  <header class="random-header">
+    <h1>Random</h1>
+    <p class="random-tagline">
+      {% if collections %}
+        Random sample from {{ collections|join(', ') }}.
+      {% else %}
+        Random sample from the whole collection.
+      {% endif %}
+    </p>
     {# View toggle: grid (default) or feed (single-column phone-style).
        Same UI shape as the search page so the muscle memory transfers. #}
     <div class="view-toggle" role="group" aria-label="Result view">
@@ -32,7 +32,7 @@
   </header>
 
   {% if error %}
-    {{ ui.error_state(error) }}
+    <p class="state state-error">{{ error }}</p>
   {% elif results %}
     {# has_more=True keeps the sentinel rendered so the
        IntersectionObserver in random.js can append the next random
@@ -56,7 +56,9 @@
        models that Jinja serialises via .__dict__ on attribute access. #}
     <script id="random-initial-results" type="application/json">{{ results|tojson }}</script>
   {% else %}
-    {{ ui.empty_state(icon='◌', title='Nothing to sample yet', body='No photos indexed yet, or your collection filter matched nothing.') }}
+    <p class="state state-idle">
+      No photos indexed yet, or your collection filter matched nothing.
+    </p>
   {% endif %}
 </section>
 

@@ -22,8 +22,6 @@ from typing import Iterable, Sequence
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
-from indexer.blurhash import compute_blurhash
-
 logger = logging.getLogger(__name__)
 
 # SigLIP2 gopt-16 output dim. Hard-coded — change only if the model changes.
@@ -80,15 +78,11 @@ def build_payload(
             search side can filter with a native MatchAny query.
     """
     stat = path.stat()
-    blurhash = compute_blurhash(path)
     return {
         "id": id_for(path, shard),
         "path": str(path.resolve()),
         "shard": shard,
         "collection": collection,
-        # T9 — LQIP. None when compute failed (file missing / unreadable /
-        # non-image); the client skips the placeholder render in that case.
-        "blurhash": blurhash,
         "mtime": int(stat.st_mtime),
         "size": int(stat.st_size),
         "model_name": model_name,
