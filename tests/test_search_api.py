@@ -486,9 +486,11 @@ def test_get_photo_raw_unknown_id_returns_404(app_with_qdrant):
 
 def test_get_photo_page_file_missing(app_with_qdrant):
     # 'c' * 32 is the car.jpg point, but car.jpg was NOT created on disk.
+    # After the lazy-validation change, the /photo page 404s immediately
+    # when the on-disk file is missing (cleaner UX than rendering the
+    # detail page with "File not found" text in the middle).
     resp = app_with_qdrant.get(f"/photo/{CAR_ID}")
-    assert resp.status_code == 200
-    assert "File not found on disk" in resp.text
+    assert resp.status_code == 404
 
 
 def test_get_photo_raw_file_missing_returns_404(app_with_qdrant):
@@ -508,13 +510,12 @@ def test_photo_page_has_similar_button(app_with_qdrant):
 
 
 def test_photo_page_omits_similar_button_when_file_missing(app_with_qdrant):
-    """When the file is missing on disk, don't show the similar button.
-    Similarity search still works (it only needs the embedding), but
-    surfacing the action next to a 'file missing' warning is confusing."""
+    """When the file is missing on disk, the /photo page 404s entirely
+    (lazy-validation change) — there's no detail page to render, so
+    the similar-button question is moot. The raw-image route still
+    404s too (see test_get_photo_raw_file_missing_returns_404)."""
     resp = app_with_qdrant.get(f"/photo/{CAR_ID}")
-    assert resp.status_code == 200
-    assert "File not found on disk" in resp.text
-    assert f'href="/photo/{CAR_ID}/similar"' not in resp.text
+    assert resp.status_code == 404
 
 
 def test_get_photo_similar_known_id_renders_grid(app_with_qdrant):

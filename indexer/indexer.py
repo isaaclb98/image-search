@@ -207,7 +207,14 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
 
     if args.prune:
         logger.info("pruning missing files from collection %s", args.qdrant_collection)
-        removed = upsert.prune_missing(client, args.qdrant_collection)
+        # Pass the source dir so the prune uses a filesystem-walk +
+        # set-membership check (much faster than per-point stat()).
+        # For multi-source collections, callers would loop over each
+        # source dir; the v1 supports one --source per prune run.
+        removed = upsert.prune_missing(
+            client, args.qdrant_collection,
+            source_dirs=[args.source] if args.source else None,
+        )
         dropped = cache.remove_missing() if cache is not None else 0
         if dropped and cache is not None:
             try:

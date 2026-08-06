@@ -120,6 +120,20 @@ class Config:
     discover_mmr_pool_size: int = 10
     discover_burst_size: int = 5
     discover_session_ttl_seconds: int = 1800
+    # ----- Dual-store sync (Qdrant ↔ SQLite IndexDB) -----
+    # How often the search container re-runs `IndexDB.init_from_qdrant`
+    # in the background so the browse cache (SQLite) catches up with
+    # bulk indexer runs without an operator hitting
+    # POST /api/cache/refresh. Manual refresh still works as a
+    # force-now override. Default 6h is a sweet spot: long enough to
+    # not waste Qdrant scroll bandwidth, short enough that /random
+    # and /albums are rarely more than 6h stale.
+    index_db_refresh_interval_seconds: int = 21600
+    # TTL for the lazy path-liveness cache (see `app.py:_is_path_alive`).
+    # Bounds per-request `Path.exists()` cost while keeping the read
+    # path fresh. 60s means a freshly-deleted file shows up as dead
+    # within a minute; tune higher if you're on a slow NAS.
+    path_liveness_ttl_seconds: int = 60
 
 
 def _int(name: str, default: int) -> int:
@@ -200,6 +214,8 @@ def load() -> Config:
         discover_mmr_pool_size=_int("DISCOVER_MMR_POOL_SIZE", 10),
         discover_burst_size=_int("DISCOVER_BURST_SIZE", 5),
         discover_session_ttl_seconds=_int("DISCOVER_SESSION_TTL_SECONDS", 1800),
+        index_db_refresh_interval_seconds=_int("INDEX_DB_REFRESH_INTERVAL_SECONDS", 21600),
+        path_liveness_ttl_seconds=_int("PATH_LIVENESS_TTL_SECONDS", 60),
     )
 
     # Validate NAS base if set (test mode may set it later).

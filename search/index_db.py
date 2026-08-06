@@ -55,6 +55,13 @@ class IndexDB:
         self.refresh_interval_seconds = refresh_interval_seconds
         self._lock = threading.RLock()
         self._last_refresh = 0.0
+        # Refresh lock — non-reentrant guard against the periodic
+        # background task and the manual /api/cache/refresh endpoint
+        # racing. Acquired before `init_from_qdrant` runs, released
+        # after. NOT the same as `_lock` (which guards DB operations);
+        # this one spans the whole Qdrant scroll + rebuild and
+        # prevents two scrolls from running at once.
+        self._refresh_lock = threading.Lock()
 
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -1195,6 +1202,48 @@ class IndexDB:
             return False
         self.init_from_qdrant(force=True)
         return True
+
+    def try_acquire_refresh_lock(self, *, blocking: bool = False) -> bool:
+        """Try to acquire the refresh lock.
+
+        Returns True if acquired, False if already held by another
+        caller (the periodic task, the manual endpoint, etc.). The
+        caller MUST pair every successful acquire with
+        `release_refresh_lock()` in a finally block. Non-blocking by
+        default — the manual endpoint prefers to bail fast and let
+        the periodic task finish than to queue a second scroll.
+        """
+        if blocking:
+            self._refresh_lock.acquire()
+            return True
+        return self._refresh_lock.acquire(blocking=False)
+
+    def release_refresh_lock(self) -> None:
+        """Release the refresh lock. No-op if not held."""
+        try:
+            self._refresh_lock.release()
+        except RuntimeError:
+            pass  # not held
+
+    def last_refresh_time(self) -> float:
+        """Unix timestamp of the last successful refresh (init_from_qdrant),
+        or 0.0 if never refreshed.
+        """
+        with self._lock:
+            return self._last_refresh
+
+    def qdrant_point_count(self) -> int:
+        """Return the current point count in the Qdrant collection.
+
+        Used for drift detection vs the IndexDB cache. Returns -1 if
+        Qdrant is unreachable (caller logs the error and continues).
+        """
+        try:
+            info = self.qdrant_client.client.get_collection(self.qdrant_client.collection)
+            return int(info.points_count)
+        except Exception as e:
+            logger.warning("qdrant_point_count failed: %s", e)
+            return -1
 
     def close(self) -> None:
         with self._lock:

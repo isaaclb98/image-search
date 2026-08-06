@@ -194,17 +194,59 @@ def existing_ids(
 
 
 def prune_missing(
-    client: QdrantClient, name: str, batch_size: int = 100
+    client: QdrantClient,
+    name: str,
+    source_dirs: list[str] | None = None,
+    batch_size: int = 1000,
 ) -> int:
     """
-    Scroll all points in the collection, check if their stored path
-    exists on disk, and delete the ones that don't.
+    Scroll all points in the collection and delete the ones whose
+    stored path doesn't exist on disk.
+
+    When `source_dirs` is provided, the liveness check is a set
+    membership test against a single filesystem walk over those dirs
+    (much faster at 1.5M+ scale than per-point `Path.exists()`).
+    When `source_dirs` is None, the slower per-point check is used —
+    fine for small collections but hours on a slow share at scale.
 
     Returns the number of points deleted.
     """
     removed = 0
-    next_offset: int | None = None
 
+    # Pre-walk: build a set of every existing path under the source
+    # dirs. One filesystem walk is dramatically faster than 1.5M
+    # individual stat() calls (which is what the no-arg path used to
+    # do). The walk is opt-in: callers that don't know their source
+    # dirs fall back to the per-point check.
+    existing_paths: set[str] | None = None
+    if source_dirs:
+        existing_paths = set()
+        for src in source_dirs:
+            src_path = Path(src)
+            if not src_path.exists() or not src_path.is_dir():
+                logger.warning(
+                    "prune: source dir does not exist or is not a directory: %s", src
+                )
+                continue
+            for p in src_path.rglob("*"):
+                if p.is_file():
+                    existing_paths.add(str(p.resolve()))
+        logger.info(
+            "prune: pre-walked %d files under %d source dir(s)",
+            len(existing_paths), len(source_dirs),
+        )
+
+    def _is_alive(path_str: str) -> bool:
+        if not path_str:
+            return False  # no path = orphan
+        if existing_paths is not None:
+            return path_str in existing_paths
+        try:
+            return Path(path_str).exists()
+        except OSError:
+            return False
+
+    next_offset: int | None = None
     while True:
         points = client.scroll(
             collection_name=name,
@@ -220,11 +262,7 @@ def prune_missing(
         to_delete: list[str | int] = []
         for p in batch:
             path_str = (p.payload or {}).get("path", "")
-            if path_str:
-                if not Path(path_str).exists():
-                    to_delete.append(str(p.id))
-            else:
-                # No path at all — orphaned point.
+            if not _is_alive(path_str):
                 to_delete.append(str(p.id))
 
         if to_delete:

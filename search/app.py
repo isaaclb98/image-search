@@ -70,6 +70,65 @@ logger = logging.getLogger(__name__)
 # `_invalidate_favourites_centroid` helper below reads this.
 _dynamic_centroids = None  # type: DynamicCentroidRegistry | None
 
+# ----- Lazy path-liveness cache (dual-store sync, defense in depth) -----
+# Maps absolute path → (exists, expires_at_monotonic). Populated on
+# first miss; subsequent checks within the TTL return the cached
+# value without touching the filesystem. Bounds the per-request
+# stat() cost of the lazy-validation check (`_is_path_alive` below).
+# Reads beyond the TTL re-stat. Negative results are cached too —
+# a freshly-deleted file shows up as dead within the TTL window.
+_path_liveness_cache: dict[str, tuple[bool, float]] = {}
+
+
+def _is_path_alive(path: str) -> bool:
+    """Lazy liveness check for a photo's on-disk path.
+
+    Cached for `_cfg.path_liveness_ttl_seconds` (default 60s). On a
+    miss, calls `Path(path).exists()` once and caches the result.
+    Both alive and dead outcomes are cached — a deleted file stays
+    cached as dead for the TTL window.
+
+    Used by the read paths (/random, /albums/{id}/members, /photo/{id},
+    /photo/{id}/raw) to silently skip dead photos without waiting
+    for the periodic IndexDB refresh to catch up.
+
+    The TTL is short enough that the cache reflects filesystem
+    state within a minute; it's also long enough that a single page
+    load (50+ photos) hits `Path.exists()` once, not 50+ times.
+    """
+    import time as _time
+    from pathlib import Path as _Path
+
+    if not path:
+        return False
+    now = _time.monotonic()
+    cached = _path_liveness_cache.get(path)
+    if cached is not None:
+        exists, expires_at = cached
+        if now < expires_at:
+            return exists
+    try:
+        exists = _Path(path).exists()
+    except OSError:
+        # Permission error, dangling symlink, etc. Treat as dead
+        # so the caller skips it. The periodic refresh + scheduled
+        # prune will eventually clean up the IndexDB row.
+        exists = False
+    ttl = _cfg.path_liveness_ttl_seconds
+    _path_liveness_cache[path] = (exists, now + ttl)
+    return exists
+
+
+def _is_row_alive(row: dict | None) -> bool:
+    """True if the row's `path` field is currently alive on disk.
+
+    Defensive wrapper: a None row is dead. Otherwise delegates to
+    `_is_path_alive` which caches the filesystem check.
+    """
+    if not row:
+        return False
+    return _is_path_alive(str(row.get("path") or ""))
+
 
 def _coerce_view(raw: str | None) -> str:
     """Return 'grid' or 'feed' from a query-param value; fallback to default."""
@@ -488,12 +547,44 @@ def create_app(
         except Exception as e:
             logger.warning("index cache warm-up failed: %s", e)
 
-        # Periodic index refresh removed (manual-only via POST /api/cache/refresh).
-        # The task lived here previously and ran every refresh_interval_seconds.
+        # Periodic IndexDB refresh. Picks up bulk indexer runs without
+        # the operator having to hit POST /api/cache/refresh manually.
+        # The manual endpoint stays as a force-now override. The task
+        # is cooperative: `init_from_qdrant` is wrapped in
+        # `asyncio.to_thread` so the event loop isn't blocked.
+        interval = _cfg.index_db_refresh_interval_seconds
+        if interval > 0:
+            async def _periodic_refresh_loop() -> None:
+                while True:
+                    try:
+                        await asyncio.sleep(interval)
+                        # No `force=True`: respect the existing
+                        # skip-if-populated branch in `init_from_qdrant`
+                        # which short-circuits when the cache is fresh
+                        # and skips the Qdrant scroll. Periodic
+                        # refresh is cheap when there's nothing to do.
+                        t0 = time.time()
+                        count = await asyncio.to_thread(index_db.init_from_qdrant)
+                        dt_ms = int((time.time() - t0) * 1000)
+                        logger.info(
+                            "periodic IndexDB refresh: %d rows in %d ms", count, dt_ms,
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        logger.warning("periodic IndexDB refresh failed: %s", e)
+            refresh_task = asyncio.create_task(_periodic_refresh_loop())
         try:
             yield
         finally:
-            pass
+            if refresh_task is not None:
+                refresh_task.cancel()
+                try:
+                    await refresh_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.warning("refresh task shutdown: %s", e)
             await asyncio.to_thread(index_db.close)
 
     app = FastAPI(
@@ -1347,9 +1438,19 @@ def create_app(
             raise HTTPException(status_code=502, detail="Qdrant unreachable")
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
+        # Lazy liveness: if the file is gone from disk, 404 immediately.
+        # The raw-image route would 404 anyway, but a 404 at the page
+        # level is a cleaner signal than rendering "File not found" in
+        # the middle of the photo detail page.
+        if not _is_path_alive(str(hit.path)):
+            raise HTTPException(status_code=404, detail="Photo file missing")
 
         local = resolve_local(hit.path, _cfg.nas_images_base, _cfg.path_prefix)
         file_missing = local is None
+        # Belt-and-braces: even if `resolve_local` succeeded, the file
+        # may have been deleted since the last IndexDB refresh.
+        if not file_missing and not _is_path_alive(str(local)):
+            file_missing = True
         prompt_state = _normalize_prompt_state(
             q,
             _parse_prompts(request, "positives"),
@@ -1367,6 +1468,9 @@ def create_app(
         filename_pattern = _parse_filename(request)
         cached_row = await asyncio.to_thread(index_db.get_by_id, hit.id)
         is_favorite = bool(cached_row and int(cached_row.get("is_favorite") or 0) == 1)
+        # Lazy liveness for the /photo page too (same check as the
+        # raw route). Defensive: catches filesystem deletions that the
+        # IndexDB refresh hasn't caught up with yet.
         # All user albums + which ones contain this photo, for the
         # album pill toggles on the photo detail page. Loaded in
         # parallel via gather so the photo page latency stays flat
@@ -1424,9 +1528,14 @@ def create_app(
             raise HTTPException(status_code=502, detail="Qdrant unreachable")
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
+        # Lazy liveness at the raw route too. The page route has its
+        # own check; this is the last line of defense before serving
+        # bytes from disk.
+        if not _is_path_alive(str(hit.path)):
+            raise HTTPException(status_code=404, detail="Photo file missing")
 
         local = resolve_local(hit.path, _cfg.nas_images_base, _cfg.path_prefix)
-        if local is None:
+        if local is None or not _is_path_alive(str(local)):
             raise HTTPException(status_code=404, detail="File not found on disk")
 
         filename = local.name
@@ -2059,16 +2168,35 @@ def create_app(
 
     # ---------------------- Cache refresh ----------------------
     #
-    # Manual-only trigger for `IndexDB.init_from_qdrant(force=True)`.
-    # Run this after indexing new images to sync the SQLite cache
-    # with Qdrant. Synchronous — finishes in a couple seconds.
+    # Two paths to refresh the IndexDB:
+    #   1. Periodic background task (lifespan) — runs every
+    #      INDEX_DB_REFRESH_INTERVAL_SECONDS (default 6h).
+    #   2. Manual override via this endpoint — force-now button.
+    # The periodic path respects the skip-if-populated branch in
+    # `init_from_qdrant` (cheap when fresh); the manual path passes
+    # `force=True` to bypass it.
+    # A lock guards against the two paths racing — only one
+    # refresh runs at a time; the other short-circuits with a
+    # clear log message.
 
     @app.api_route("/api/cache/refresh", methods=["GET", "POST"])
     async def api_cache_refresh():
+        # Cooperative refresh lock. If the periodic task is in the
+        # middle of a refresh, the manual call bails immediately
+        # rather than running two scrolls in parallel.
+        if not index_db.try_acquire_refresh_lock():
+            return {
+                "status": "skipped",
+                "reason": "refresh already in progress",
+            }
         try:
+            t0 = time.time()
             count = await asyncio.to_thread(
                 index_db.init_from_qdrant, True
             )
+            dt_ms = int((time.time() - t0) * 1000)
+            logger.info("manual cache refresh: %d rows in %d ms", count, dt_ms)
+            return {"status": "ok", "count": count, "took_ms": dt_ms}
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for cache refresh: %s", e)
             return JSONResponse(
@@ -2089,8 +2217,25 @@ def create_app(
                     code="internal_error",
                 ).model_dump(),
             )
-        logger.info("manual cache refresh: %d rows", count)
-        return {"status": "ok", "count": count}
+        finally:
+            index_db.release_refresh_lock()
+
+    @app.get("/api/cache/status")
+    async def cache_status() -> dict:
+        """Operator visibility into the dual-store sync.
+
+        Returns last refresh timestamps, point counts in both
+        stores, and the drift between them. Drift = qdrant_count
+        - index_db_count; non-zero means the periodic refresh
+        hasn't caught up yet, OR a manual refresh is needed.
+        """
+        return {
+            "last_refresh": index_db.last_refresh_time(),
+            "qdrant_count": index_db.qdrant_point_count(),
+            "index_db_count": index_db.count_images(),
+            "refresh_interval_seconds": _cfg.index_db_refresh_interval_seconds,
+            "path_liveness_ttl_seconds": _cfg.path_liveness_ttl_seconds,
+        }
 
     @app.get("/favorites", response_class=HTMLResponse)
     async def favorites_page(
