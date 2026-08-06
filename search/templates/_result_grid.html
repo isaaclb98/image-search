@@ -1,3 +1,4 @@
+{% import "_macros.html" as ui %}
 {#
   _result_grid.html — result grid partial, shared by /?q=... and /photo/{id}/similar.
 
@@ -43,15 +44,21 @@
         {% if r.is_favorite %}
           <span class="fav-badge" aria-label="Favourite">♥</span>
         {% endif %}
-        <a href="/photo/{{ r.id }}{% if search_query_string %}?{{ search_query_string }}{% endif %}">
-          <img
-            src="{{ r.url }}"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onerror="this.classList.add('img-error')"
-          >
-        </a>
+        {% set href = "/photo/" ~ r.id ~ ("?" ~ search_query_string if search_query_string else "") %}
+        {% if r.blurhash %}
+          {{ ui.blurhash_thumb(href, r.url, alt='', blurhash=r.blurhash, score=r.score, score_str=r.score_str) }}
+        {% else %}
+          <a href="{{ href }}" class="block w-full h-full overflow-hidden">
+            <img
+              src="{{ r.url }}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onerror="this.classList.add('img-error')"
+              class="block w-full h-full object-cover"
+            >
+          </a>
+        {% endif %}
       </li>
     {% endfor %}
     {% if has_more %}

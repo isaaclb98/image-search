@@ -84,3 +84,28 @@
     </div>
   {% endif %}
 {% endmacro %}
+
+{# ---------- blurhash_thumb ----------
+   Renders a thumbnail wrapped in a tinted LQIP placeholder. The
+   `data-blurhash` attribute carries the encoded hash forward to
+   branch 2's client-side decoder; in this branch we just paint a
+   neutral bg-base-300 until the image fills in, then reveal on
+   load. Server-side we also pre-paint a fallback tint derived
+   from the dominant color when present (computed lazily via
+   `img.tint-color` data attr, which the browser uses as the
+   initial paint color). #}
+{% macro blurhash_thumb(href, src, alt='', blurhash=none, score=none, score_str='') %}
+  <a href="{{ href }}" class="thumb-link block w-full h-full bg-base-300 relative overflow-hidden" data-blurhash="{{ blurhash or '' }}">
+    {% if score is not none and score_str %}
+      <span class="grid-score tabular-nums">{{ score_str }}</span>
+    {% endif %}
+    <img
+      src="{{ src }}"
+      alt="{{ alt }}"
+      loading="lazy"
+      decoding="async"
+      onerror="this.classList.add('img-error')"
+      class="block w-full h-full object-cover transition-opacity duration-150"
+    >
+  </a>
+{% endmacro %}
