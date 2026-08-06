@@ -66,4 +66,3 @@ photos/
 
 # Design-system build artifacts (Tailwind standalone CLI + compiled CSS)
 bin/
-search/static/css/app.css
