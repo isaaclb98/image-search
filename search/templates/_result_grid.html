@@ -1,3 +1,4 @@
+{% import "_macros.html" as ui %}
 {#
   _result_grid.html — result grid partial, shared by /?q=... and /photo/{id}/similar.
 
@@ -5,6 +6,12 @@
   "load more" / "capped" hint, and nothing else. The "Showing N-M
   for X" preamble stays in the parent template (the wording depends
   on the page's mode — text query, positive chips, or similar).
+
+  T6 polish (2026-08-05):
+    - Edge-to-edge thumbs (image fills the card).
+    - No border; hover raises shadow-md → shadow-lg.
+    - Score / favourite overlays stay in the top corners (small, semantic).
+    - Loading="lazy" + decoding="async" preserved.
 
   Required context:
     results               list[SearchResult] (each has .id, .url, .score, .score_str)
@@ -32,20 +39,26 @@
     {% for r in results %}
       <li class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}" data-id="{{ r.id }}" data-score="{{ r.score }}">
         {% if r.score_str %}
-          <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }}">{{ r.score_str }}</span>
+          <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }} tabular-nums">{{ r.score_str }}</span>
         {% endif %}
         {% if r.is_favorite %}
           <span class="fav-badge" aria-label="Favourite">♥</span>
         {% endif %}
-        <a href="/photo/{{ r.id }}{% if search_query_string %}?{{ search_query_string }}{% endif %}">
-          <img
-            src="{{ r.url }}"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onerror="this.classList.add('img-error')"
-          >
-        </a>
+        {% set href = "/photo/" ~ r.id ~ ("?" ~ search_query_string if search_query_string else "") %}
+        {% if r.blurhash %}
+          {{ ui.blurhash_thumb(href, r.url, alt='', blurhash=r.blurhash, score=r.score, score_str=r.score_str) }}
+        {% else %}
+          <a href="{{ href }}" class="block w-full h-full overflow-hidden">
+            <img
+              src="{{ r.url }}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onerror="this.classList.add('img-error')"
+              class="block w-full h-full object-cover"
+            >
+          </a>
+        {% endif %}
       </li>
     {% endfor %}
     {% if has_more %}

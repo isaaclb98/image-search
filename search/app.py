@@ -1148,6 +1148,9 @@ def create_app(
                 score_str=f"{h.score:.3f}",
                 url=resolve_url(h.id, _cfg.web_ui_url),
                 is_favorite=h.id in favorite_ids,
+                # LQIP from the Qdrant payload (set at index time, T9).
+                # None when the point was indexed before blurhash landed.
+                blurhash=(h.payload or {}).get("blurhash") if hasattr(h, "payload") else None,
             )
             for h in hits
         ]

@@ -1,0 +1,111 @@
+{#
+  _macros.html — reusable design-system macros for state design (T7).
+
+  Macros:
+    page_header(title, count, count_label, count_plural_label)
+        Sticky header bar with title (h1) on the left and an optional
+        tabular-numeral count on the right. Replaces hand-rolled
+        <header class="*-header"><h1>...</h1><p class="result-count">N ...</p>
+        patterns across pages.
+
+    empty_state(icon, title, body, action_url, action_label)
+        Centered empty state with icon, heading, body, and optional
+        action button. Replaces hand-rolled <p class="state state-idle">.
+
+    error_state(message)
+        DaisyUI alert with an error icon. Used by the Starlette
+        exception handler (app.py) for unhandled errors.
+
+    loading_skeleton(kind='grid' | 'detail')
+        Skeleton placeholders. Used by client-side HTMX-driven loads
+        in branch 2 (polished-ui-interactive); defined here so templates
+        can reference it without inlining.
+
+  All macros use DaisyUI / Tailwind classes; no site.css dependencies.
+#}
+
+{# ---------- page_header ---------- #}
+{% macro page_header(title, count=none, count_label='', count_plural_label='') %}
+  <div class="flex items-baseline justify-between gap-4 mb-6">
+    <h1 class="text-2xl font-bold tracking-tight text-base-content">{{ title }}</h1>
+    {% if count is not none %}
+      <span class="text-sm text-base-content/70 tabular-nums shrink-0">
+        {% if count_plural_label %}
+          {{ count }} {{ count_plural_label if count != 1 else count_label }}
+        {% else %}
+          {{ count }} {{ count_label }}
+        {% endif %}
+      </span>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# ---------- empty_state ---------- #}
+{% macro empty_state(icon='', title='', body='', action_url='', action_label='') %}
+  <div class="flex flex-col items-center justify-center text-center py-16 px-6 max-w-md mx-auto">
+    {% if icon %}
+      <div class="text-5xl mb-4 opacity-40 text-base-content" aria-hidden="true">{{ icon }}</div>
+    {% endif %}
+    {% if title %}
+      <h2 class="text-lg font-semibold mb-2 text-base-content">{{ title }}</h2>
+    {% endif %}
+    {% if body %}
+      <p class="text-sm text-base-content/70 mb-4">{{ body }}</p>
+    {% endif %}
+    {% if action_url and action_label %}
+      <a href="{{ action_url }}" class="btn btn-primary">{{ action_label }}</a>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# ---------- error_state ---------- #}
+{% macro error_state(message='Something went wrong.') %}
+  <div role="alert" class="alert alert-error max-w-2xl mx-auto my-8">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <span>{{ message }}</span>
+  </div>
+{% endmacro %}
+
+{# ---------- loading_skeleton ---------- #}
+{% macro loading_skeleton(kind='grid') %}
+  {% if kind == 'grid' %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+      {% for _ in range(20) %}
+        <div class="skeleton aspect-square bg-base-300 rounded-lg"></div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="space-y-3 max-w-2xl mx-auto">
+      <div class="skeleton h-8 bg-base-300 rounded w-1/3"></div>
+      <div class="skeleton h-4 bg-base-300 rounded w-full"></div>
+      <div class="skeleton h-4 bg-base-300 rounded w-5/6"></div>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{# ---------- blurhash_thumb ----------
+   Renders a thumbnail wrapped in a tinted LQIP placeholder. The
+   `data-blurhash` attribute carries the encoded hash forward to
+   branch 2's client-side decoder; in this branch we just paint a
+   neutral bg-base-300 until the image fills in, then reveal on
+   load. Server-side we also pre-paint a fallback tint derived
+   from the dominant color when present (computed lazily via
+   `img.tint-color` data attr, which the browser uses as the
+   initial paint color). #}
+{% macro blurhash_thumb(href, src, alt='', blurhash=none, score=none, score_str='') %}
+  <a href="{{ href }}" class="thumb-link block w-full h-full bg-base-300 relative overflow-hidden" data-blurhash="{{ blurhash or '' }}">
+    {% if score is not none and score_str %}
+      <span class="grid-score tabular-nums">{{ score_str }}</span>
+    {% endif %}
+    <img
+      src="{{ src }}"
+      alt="{{ alt }}"
+      loading="lazy"
+      decoding="async"
+      onerror="this.classList.add('img-error')"
+      class="block w-full h-full object-cover transition-opacity duration-150"
+    >
+  </a>
+{% endmacro %}

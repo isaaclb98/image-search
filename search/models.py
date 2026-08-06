@@ -17,6 +17,14 @@ class SearchResult(BaseModel):
     )
     url: str = Field("", description="Public URL for the /photo/{id}/raw endpoint")
     is_favorite: bool = Field(False, description="True when the image is marked as a favourite")
+    blurhash: str | None = Field(
+        None,
+        description=(
+            "LQIP (low-quality image placeholder). Decoded client-side into a tinted"
+            " background while the real image loads. None when the encoder failed"
+            " or the point was indexed before the blurhash feature shipped."
+        ),
+    )
 
 
 class SearchResponse(BaseModel):
