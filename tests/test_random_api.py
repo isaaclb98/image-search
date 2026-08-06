@@ -34,6 +34,15 @@ def random_app(tmp_path, monkeypatch):
         test_mode=True,
     )
 
+    # Lazy liveness check (added in fix/dual-store-cleanup) calls
+    # Path(path).exists() on every row the random / album routes
+    # return. The fixture seeds paths like /photos/a.jpg directly via
+    # SQL — they're not real files on disk, so the liveness check
+    # correctly filters every row out. Mock the helper to return True
+    # so the seeded rows survive.
+    from search import app as _app_mod
+    monkeypatch.setattr(_app_mod, "_is_path_alive", lambda path: True)
+
     # Seed the SQLite cache directly — the random page reads from
     # there, not from Qdrant, so we can skip the indexer entirely.
     db_path = str(tmp_path / "images.db")

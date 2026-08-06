@@ -78,6 +78,13 @@ _dynamic_centroids = None  # type: DynamicCentroidRegistry | None
 # Reads beyond the TTL re-stat. Negative results are cached too —
 # a freshly-deleted file shows up as dead within the TTL window.
 _path_liveness_cache: dict[str, tuple[bool, float]] = {}
+# Memory cap for the lazy liveness cache. At 1.5M points with a
+# 60s TTL the steady-state cache stays well under this; the cap is
+# a defence against pathological workloads (long-running container
+# with millions of distinct paths). Eviction drops the oldest 10%
+# of entries by insertion order, which is O(n) on the dict. Bumping
+# the cap trades memory for fewer re-stats.
+_PATH_LIVENESS_CACHE_MAX: int = 50000
 
 
 def _is_path_alive(path: str) -> bool:
@@ -116,6 +123,16 @@ def _is_path_alive(path: str) -> bool:
         exists = False
     ttl = _cfg.path_liveness_ttl_seconds
     _path_liveness_cache[path] = (exists, now + ttl)
+    # Evict the oldest 10% if we've blown past the cap. Cheap;
+    # re-stats on next read. Defends against pathological workloads
+    # (long-running container with millions of distinct paths).
+    if len(_path_liveness_cache) > _PATH_LIVENESS_CACHE_MAX:
+        evict_count = _PATH_LIVENESS_CACHE_MAX // 10
+        for _ in range(evict_count):
+            try:
+                _path_liveness_cache.pop(next(iter(_path_liveness_cache)))
+            except StopIteration:
+                break
     return exists
 
 
@@ -558,17 +575,39 @@ def create_app(
                 while True:
                     try:
                         await asyncio.sleep(interval)
-                        # No `force=True`: respect the existing
-                        # skip-if-populated branch in `init_from_qdrant`
-                        # which short-circuits when the cache is fresh
-                        # and skips the Qdrant scroll. Periodic
-                        # refresh is cheap when there's nothing to do.
-                        t0 = time.time()
-                        count = await asyncio.to_thread(index_db.init_from_qdrant)
-                        dt_ms = int((time.time() - t0) * 1000)
-                        logger.info(
-                            "periodic IndexDB refresh: %d rows in %d ms", count, dt_ms,
-                        )
+                        # Take the refresh lock so a manual
+                        # POST /api/cache/refresh fired during a
+                        # periodic rebuild bails instead of running
+                        # a second Qdrant scroll in parallel. The lock
+                        # is non-blocking; if the manual path holds
+                        # it, we just skip this tick (next tick retries).
+                        if not index_db.try_acquire_refresh_lock():
+                            logger.debug(
+                                "periodic refresh: lock held by another path, skipping this tick"
+                            )
+                            continue
+                        try:
+                            t0 = time.time()
+                            # `force=True`: must rebuild every tick. The
+                            # `force=False` path short-circuits when the
+                            # cache is non-empty, which would make the
+                            # periodic loop a no-op after the first
+                            # warm-up. We want to *always* pick up
+                            # Qdrant-side changes (bulk indexer runs,
+                            # admin deletes), so force=True is the
+                            # right default here. The cost is one
+                            # full Qdrant scroll per `interval`
+                            # seconds; bounded and acceptable for the
+                            # default 6h cadence.
+                            count = await asyncio.to_thread(
+                                index_db.init_from_qdrant, True
+                            )
+                            dt_ms = int((time.time() - t0) * 1000)
+                            logger.info(
+                                "periodic IndexDB refresh: %d rows in %d ms", count, dt_ms,
+                            )
+                        finally:
+                            index_db.release_refresh_lock()
                     except asyncio.CancelledError:
                         raise
                     except Exception as e:
@@ -1828,6 +1867,15 @@ def create_app(
         in IndexDB.get_by_id; album rows from list_album_members
         don't include it so default False is fine for v1).
         """
+        # Lazy liveness: drop dead rows from album tiles. Same
+        # defence as the random helper below.
+        alive = [r for r in rows if _is_path_alive(str(r.get("path") or ""))]
+        if len(alive) < len(rows):
+            logger.debug(
+                "album members: dropped %d dead row(s) from %d via lazy liveness",
+                len(rows) - len(alive), len(rows),
+            )
+        rows = alive
         def _maybe_int(v):
             try:
                 iv = int(v) if v is not None else None
@@ -1855,6 +1903,18 @@ def create_app(
         the cache (some random samples may already be favourites) and
         uses the cache's width/height for future masonry support.
         """
+        # Lazy liveness: drop rows whose on-disk file is gone. The
+        # IndexDB periodic refresh (force=True, every
+        # index_db_refresh_interval_seconds) keeps the cache clean
+        # in the long term; this is the always-on defense so /random
+        # doesn't show broken tiles within the TTL window.
+        alive = [r for r in rows if _is_path_alive(str(r.get("path") or ""))]
+        if len(alive) < len(rows):
+            logger.debug(
+                "random: dropped %d dead row(s) from %d via lazy liveness",
+                len(rows) - len(alive), len(rows),
+            )
+        rows = alive
         def _maybe_int(v):
             try:
                 iv = int(v) if v is not None else None
@@ -2224,17 +2284,27 @@ def create_app(
     async def cache_status() -> dict:
         """Operator visibility into the dual-store sync.
 
-        Returns last refresh timestamps, point counts in both
-        stores, and the drift between them. Drift = qdrant_count
-        - index_db_count; non-zero means the periodic refresh
-        hasn't caught up yet, OR a manual refresh is needed.
+        Returns last refresh timestamp + duration, point counts in
+        both stores, drift between them, the liveness cache size +
+        cap, and the configured refresh interval / TTL. Drift is
+        "unknown" when Qdrant is unreachable (qdrant_count == -1)
+        so operators don't see a misleading negative number.
         """
+        qdrant_count = index_db.qdrant_point_count()
+        index_db_count = index_db.count_images()
+        drift: int | str = (
+            "unknown" if qdrant_count < 0 else qdrant_count - index_db_count
+        )
         return {
             "last_refresh": index_db.last_refresh_time(),
-            "qdrant_count": index_db.qdrant_point_count(),
-            "index_db_count": index_db.count_images(),
+            "last_refresh_duration_ms": index_db.last_refresh_duration_ms(),
+            "qdrant_count": qdrant_count,
+            "index_db_count": index_db_count,
+            "drift": drift,
             "refresh_interval_seconds": _cfg.index_db_refresh_interval_seconds,
             "path_liveness_ttl_seconds": _cfg.path_liveness_ttl_seconds,
+            "path_liveness_cache_size": len(_path_liveness_cache),
+            "path_liveness_cache_max": _PATH_LIVENESS_CACHE_MAX,
         }
 
     @app.get("/favorites", response_class=HTMLResponse)
