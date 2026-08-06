@@ -8,7 +8,7 @@ from indexer.upsert import VECTOR_DIM
 
 
 @pytest.fixture
-def refresh_app(tmp_path):
+def refresh_app(tmp_path, monkeypatch):
     """A FastAPI app wired to an in-memory Qdrant with three seeded
     points and a SQLite cache. Mirrors the search_api fixture shape
     so the refresh path is exercised end-to-end.
@@ -18,6 +18,15 @@ def refresh_app(tmp_path):
     from search.app import create_app
     from search.config import Config
     from search.qdrant_client import QdrantSearch
+
+    # Lazy liveness check (added in fix/dual-store-cleanup) calls
+    # Path(path).exists() on every row the random route returns.
+    # The fixture seeds paths like /photos/a.jpg directly via Qdrant
+    # payloads — they're not real files on disk, so the liveness
+    # check would filter every row out. Mock the helper to return
+    # True so the seeded rows survive the /api/random read path.
+    from search import app as _app_mod
+    monkeypatch.setattr(_app_mod, "_is_path_alive", lambda path: True)
 
     cfg = Config(
         qdrant_url="memory://",
