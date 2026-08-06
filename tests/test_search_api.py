@@ -120,8 +120,11 @@ def test_search_page_has_discover_nav_link(app_with_qdrant):
     resp = app_with_qdrant.get("/")
     assert resp.status_code == 200
     # The link is in the header (not buried in the page), points
-    # to /discover, and uses the discover-button copy.
-    assert 'class="site-nav"' in resp.text
+    # to /discover, and uses the discover-button copy. The header nav
+    # was migrated to DaisyUI (T5); assert on `aria-label="Primary"`
+    # instead of the removed `site-nav` class. The link target and
+    # label are unchanged.
+    assert 'aria-label="Primary"' in resp.text
     assert 'href="/discover"' in resp.text
     assert ">Discover<" in resp.text
 
