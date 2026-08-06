@@ -120,8 +120,12 @@ def test_search_page_has_discover_nav_link(app_with_qdrant):
     resp = app_with_qdrant.get("/")
     assert resp.status_code == 200
     # The link is in the header (not buried in the page), points
-    # to /discover, and uses the discover-button copy.
-    assert 'class="site-nav"' in resp.text
+    # to /discover, and uses the discover-button copy. The header nav
+    # was migrated to DaisyUI (T5); the old `<nav class="site-nav">`
+    # is now `<div class="navbar-center"><ul class="menu ...">`. Assert
+    # on `class="menu` (substring — matches `class="menu menu-..."`)
+    # instead. Link target and label are unchanged.
+    assert 'class="menu' in resp.text
     assert 'href="/discover"' in resp.text
     assert ">Discover<" in resp.text
 

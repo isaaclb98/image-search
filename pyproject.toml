@@ -23,6 +23,7 @@ dependencies = [
     "torchvision>=0.16",
     "pillow>=10",
     "pillow-heif>=0.16",
+    "blurhash>=1.0",  # LQIP placeholders — computed at index time, decoded client-side
     "tqdm>=4.66",
     # Streaming ZIP archive for /favorites/download.zip — doesn't
     # buffer the whole archive in memory.
