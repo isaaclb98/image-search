@@ -88,8 +88,8 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 - **Given:** the user types `cat & dog`.
 - **When:** the user submits.
 - **Then:**
-  - The browser navigates to `GET /?q=cat+%26+dog` (or similar correctly-encoded URL).
-  - The `q` input decodes back to `cat & dog` on the rendered page.
+  - The browser navigates to `GET /?positives=cat+%26+dog` (or similar correctly-encoded URL).
+  - The Include chip decodes back to `cat & dog` on the rendered page.
   - Search executes with the decoded query.
 
 #### UI-S-009 — query with quotes/special chars `[AUTO]`
@@ -165,7 +165,7 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
   - HTTP 200.
   - Page contains a large `<img>` with `src="/photo/<id>/raw"`.
   - Page contains a metadata block: `path`, `indexed_at`, `model_name`.
-  - Page contains a "← Back to results" link to `/?q=<q>` (where `<q>` is the original query, passed via `?q=` on the photo URL).
+  - Page contains a "← Back to results" link preserving the committed prompt URL.
 
 #### UI-P-002 — unknown photo id `[AUTO]`
 
@@ -196,10 +196,10 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 
 #### UI-P-005 — back link works `[AUTO]`
 
-- **Given:** the user came from `GET /?q=cat&page=1` (or whatever URL state is in use).
+- **Given:** the user came from `GET /?positives=cat&offset=50` (or whatever URL state is in use).
 - **When:** the user clicks the "Back to results" link on the photo page.
 - **Then:**
-  - The browser navigates back to `GET /?q=cat`.
+  - The browser navigates back to the committed prompt URL.
   - The result grid is re-rendered.
 
 #### UI-P-006 — direct photo URL without prior search `[MANUAL]`
@@ -278,34 +278,34 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 #### UI-N-001 — back button after search `[AUTO]`
 
 - **Given:** the user is on `GET /`.
-- **When:** the user submits `cat`, lands on `?q=cat`, then clicks a thumbnail to land on `/photo/<id>`.
-- **Then:** clicking the browser back button returns to `?q=cat` with the result grid re-rendered.
+- **When:** the user submits Include `cat`, lands on `?positives=cat`, then clicks a thumbnail to land on `/photo/<id>`.
+- **Then:** clicking the browser back button returns to `?positives=cat` with the result grid re-rendered.
 
 #### UI-N-002 — forward button `[AUTO]`
 
-- **Given:** the user has gone back from `/photo/<id>` to `/?q=cat`.
+- **Given:** the user has gone back from `/photo/<id>` to `/?positives=cat`.
 - **When:** the user clicks the browser forward button.
 - **Then:** the browser returns to `/photo/<id>` with the detail page re-rendered.
 
 #### UI-N-003 — URL state is shareable `[AUTO]`
 
-- **Given:** the user is on `GET /?q=cat`.
+- **Given:** the user is on `GET /?positives=cat`.
 - **When:** the user copies the URL and opens it in a new tab.
 - **Then:** the new tab shows the result grid for `cat` on first paint (no flash of empty state, no double-render).
 
 #### UI-N-004 — JS popstate handler `[AUTO]`
 
-- **Given:** the user is on `GET /?q=cat` with JS enabled.
+- **Given:** the user is on `GET /?positives=cat` with JS enabled.
 - **When:** the user navigates back from a result click and the result list re-renders.
 - **Then:**
   - The result list re-renders without a full page reload.
-  - The browser URL still shows `?q=cat`.
+  - The browser URL still shows `?positives=cat`.
   - `popstate` event fires; the JS handles it and re-runs the search.
 
 #### UI-N-005 — direct deep link to query `[AUTO]`
 
 - **Given:** the user has never visited the site.
-- **When:** the user opens `GET /?q=cat` directly.
+- **When:** the user opens `GET /?positives=cat` directly.
 - **Then:** the page renders fully on first paint (server-rendered, not JS-only). No flash of empty state.
 
 ### Group F — error and edge cases (UI-visible)
@@ -357,7 +357,7 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 #### UI-T-001 — cold-start page load `[AUTO]`
 
 - **Given:** the search container has just started (no model in memory, no LRU cache hits).
-- **When:** the user loads `GET /?q=cat`.
+- **When:** the user loads `GET /?positives=cat`.
 - **Then:** total time to first paint < 5 seconds. (SigLIP2 text tower load is the bulk; this budget assumes it's been pre-loaded by the startup event.)
 
 #### UI-T-002 — warm query response `[AUTO]`

@@ -87,3 +87,7 @@ def test_search_surface_uses_prompts_and_explicit_submit_gate():
     assert "function markDraftDirty()" in controller
     assert "form.requestSubmit()" not in controller
     assert "if (hasPositivePrompt(readQuery())) runSearch()" not in controller
+    assert "if (loadingMore || loadingSearch || !grid || draftDirty) return;" in controller
+    assert "new AbortController()" in controller
+    assert 'submitButton.dataset.locked = "true"' in controller
+    assert "if (rawValue.trim()) promptChips.add(side, rawValue);" in controller

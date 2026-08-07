@@ -44,7 +44,12 @@ const promptChips = promptRoot
   ? new PromptChips(promptRoot, initialPromptState())
   : null;
 
+if (submitButton?.disabled) submitButton.dataset.locked = "true";
+
 let loadingMore = false;
+let loadingSearch = false;
+let loadMoreGeneration = 0;
+let loadMoreController = null;
 let io = null;
 
 // Populate the library chip filter from /api/collections. This metadata
@@ -55,6 +60,7 @@ populateCollectionChips();
 if (form) {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (submitButton?.dataset.locked === "true") return;
     flushPendingPromptInputs();
     if (!hasDraftSearch()) {
       showPromptError("Add at least one Include prompt or filename.");
@@ -96,6 +102,7 @@ window.addEventListener("popstate", () => {
 attachInfiniteScroll();
 
 async function runSearch() {
+  invalidateLoadMore();
   const q = readQuery().trim();
   if (!hasActiveSearch(q)) {
     // Empty query: full reload to the bare / page. This keeps the
@@ -107,6 +114,7 @@ async function runSearch() {
     return;
   }
 
+  loadingSearch = true;
   setLoading(true);
 
   try {
@@ -126,6 +134,7 @@ async function runSearch() {
     console.error("search failed", err);
     showError();
   } finally {
+    loadingSearch = false;
     setLoading(false);
   }
 }
@@ -236,6 +245,7 @@ function syncDraftFromCommitted() {
 
 function markDraftDirty() {
   if (syncingDraft) return;
+  invalidateLoadMore();
   draftDirty = true;
   updateDraftStatus();
 }
@@ -253,10 +263,11 @@ function flushPendingPromptInputs() {
   if (!promptRoot || !promptChips) return;
   for (const side of ["positives", "negatives"]) {
     const input = promptRoot.querySelector(`[data-prompt-input="${side}"]`);
-    const value = input?.value.trim() || "";
-    if (value && promptChips.add(side, value)) {
-      input.value = "";
-    }
+    const rawValue = input?.value || "";
+    if (rawValue.trim()) promptChips.add(side, rawValue);
+    // Clear even duplicate prompts: the draft has already normalized them,
+    // and leaving the rejected text visible makes Search appear incomplete.
+    if (rawValue) input.value = "";
   }
 }
 
@@ -302,7 +313,7 @@ function renderInitial(data) {
 }
 
 async function loadMorePage() {
-  if (loadingMore || !grid || draftDirty) return;
+  if (loadingMore || loadingSearch || !grid || draftDirty) return;
   const q = readQuery().trim();
   const filename = readFilename();
   if (!hasActiveSearch(q)) return;
@@ -311,6 +322,9 @@ async function loadMorePage() {
   const nextOffset = currentOffset;
 
   loadingMore = true;
+  const requestGeneration = loadMoreGeneration;
+  const controller = new AbortController();
+  loadMoreController = controller;
   setLoading(true);
   try {
     const params = new URLSearchParams();
@@ -353,12 +367,15 @@ async function loadMorePage() {
     }
     const resp = await fetch(`/api/search?${params.toString()}`, {
       headers: { Accept: "application/json" },
+      signal: controller.signal,
     });
+    if (requestGeneration !== loadMoreGeneration || controller.signal.aborted) return;
     if (!resp.ok) {
       showError();
       return;
     }
     const data = await resp.json();
+    if (requestGeneration !== loadMoreGeneration || controller.signal.aborted) return;
     if (data.results.length === 0) {
       // No more results. Tear down the observer.
       grid.dataset.hasMore = "false";
@@ -379,12 +396,27 @@ async function loadMorePage() {
     }
     updateLoadMoreHint(data.has_more, data.offset, data.results.length);
   } catch (err) {
+    if (controller.signal.aborted || requestGeneration !== loadMoreGeneration) return;
     console.error("loadMore failed", err);
     showError();
   } finally {
-    loadingMore = false;
-    setLoading(false);
+    if (loadMoreController === controller) {
+      loadMoreController = null;
+    }
+    if (requestGeneration === loadMoreGeneration) {
+      loadingMore = false;
+      setLoading(false);
+    }
   }
+}
+
+function invalidateLoadMore() {
+  const wasLoading = loadingMore || Boolean(loadMoreController);
+  loadMoreGeneration += 1;
+  loadMoreController?.abort();
+  loadMoreController = null;
+  loadingMore = false;
+  if (wasLoading && !loadingSearch) setLoading(false);
 }
 
 function updateLoadMoreHint(hasMore, offset, count) {
