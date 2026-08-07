@@ -336,8 +336,8 @@ document.addEventListener("keydown", (event) => {
   }
   if (editable) return;
   if (event.key === "/") {
-    const query = document.querySelector('input[name="q"]');
-    if (query) { event.preventDefault(); query.focus(); query.select(); }
+    const includePrompt = document.querySelector('[data-prompt-input="positives"]');
+    if (includePrompt) { event.preventDefault(); includePrompt.focus(); includePrompt.select(); }
   } else if (event.key === "?") {
     event.preventDefault();
     openShortcuts();

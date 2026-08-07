@@ -1,20 +1,17 @@
 // search.js — page-level controller
 //
 // Behavior contract:
-//   - Form submission is intercepted when a results view is on screen
-//     (i.e. grid + result-count exist); we push the new URL onto the
-//     history stack and re-run the search via /api/search.
-//   - On the landing page (no results view yet), the form does a real
-//     full-page submit. SSR renders the grid + result-count, after
-//     which subsequent submissions can be intercepted.
-//   - popstate re-runs the search so back/forward always shows the
-//     right results for the URL.
-//   - Infinite scroll: an IntersectionObserver on a sentinel <li> at
-//     the bottom of the grid fetches the next page via /api/search
-//     and appends results, until has_more=false or 500-result cap.
-//   - Library chip filter: a row of toggle chips above the results
-//     is populated from /api/collections. Each chip is a multi-select
-//     filter on the `?collection=` query param.
+//   - The form owns a draft search. Include/Exclude prompts, collections,
+//     filename, Diversity, depth, and view changes do not touch the URL or
+//     fetch results.
+//   - Clicking Search commits the draft to the URL and starts one search.
+//     This is the only path for ordinary search controls to start a search.
+//   - popstate restores the committed URL state and re-runs that committed
+//     search so browser navigation remains useful.
+//   - Infinite scroll reads only committed URL state; unfinished edits cannot
+//     leak into another page of the current result set.
+//   - Library chips are metadata-loaded once from /api/collections, then
+//     toggled locally until Search is clicked.
 
 import { buildSearchUrlWithFilename, readCentroid, readCentroidWeights, readCentroids, readCollections, readDiversityDepth, readDiversityMode, readFavoritesFilter, readFilename, readPrompts, readQuery, readView } from "./lib/url.js"
 import { renderGrid, appendToGrid, addSentinel, removeSentinel } from "./lib/grid.js";
@@ -22,7 +19,6 @@ import { renderFeed, appendToFeed } from "./lib/feed.js";
 import { PromptChips } from "./lib/prompts.js";
 
 const form = document.querySelector(".search-form");
-const input = form?.querySelector('input[name="q"]');
 const filenameInput = form?.querySelector('input[name="filename"]');
 const resultCount = document.querySelector(".result-count");
 const grid = document.getElementById("result-grid");
@@ -31,37 +27,63 @@ const categoryBar = document.getElementById("category-bar");
 const promptRoot = document.querySelector(".prompt-composition");
 const promptError = document.querySelector(".prompt-error");
 const filterSummary = document.querySelector("[data-filter-summary]");
-const promptChips = promptRoot ? new PromptChips(promptRoot, readPrompts()) : null;
+const draftStatus = document.querySelector("[data-search-draft-status]");
+const submitButton = form?.querySelector(".search-submit");
+
+const draftState = {
+  collections: new Set(readCollections()),
+  diversityMode: readDiversityMode(),
+  diversityDepth: readDiversityDepth(),
+  filename: readFilename(),
+  view: readView(),
+};
+
+let syncingDraft = false;
+let draftDirty = false;
+const promptChips = promptRoot
+  ? new PromptChips(promptRoot, initialPromptState())
+  : null;
+
+if (submitButton?.disabled) submitButton.dataset.locked = "true";
 
 let loadingMore = false;
+let loadingSearch = false;
+let searchGeneration = 0;
+let searchController = null;
+let loadMoreGeneration = 0;
+let loadMoreController = null;
 let io = null;
 
-// Populate the library chip filter from /api/collections. Called on
-// page load. Each chip, when clicked, toggles its library in the URL
-// and re-runs the search. Active state is derived from `?collection=`
-// params in the URL.
+// Populate the library chip filter from /api/collections. This metadata
+// request is independent of image search. Chip selections themselves stay
+// in draftState until the user clicks Search.
 populateCollectionChips();
 
-if (form && input) {
+if (form) {
   form.addEventListener("submit", (e) => {
-    const q = input.value.trim();
-    const filename = filenameInput ? filenameInput.value.trim() : "";
     e.preventDefault();
-    if (!hasPositivePrompt(q, filename)) {
-      showPromptError("Add at least one include prompt or filename.");
+    if (submitButton?.dataset.locked === "true") return;
+    flushPendingPromptInputs();
+    if (!hasDraftSearch()) {
+      showPromptError("Add at least one Include prompt or filename.");
       return;
     }
     clearPromptError();
-    // buildSearchUrlWithFilename takes the filename from the form's
-    // current value (the user just typed it), not from the URL —
-    // the URL hasn't been updated yet. Empty filename is omitted
-    // from the canonical URL so the "clear" link stays clean.
+    // The URL is the committed search. Draft controls have not changed it
+    // while the user was configuring the search, so this is the single gate
+    // where a new result request is allowed to begin.
     const url = buildSearchUrlWithFilename(
-      q, promptChips?.serialize(), activeCollections(), filename, null,
-      diversitySelect?.value || readDiversityMode(),
-      diversityDepthSelect?.value || readDiversityDepth(),
+      "",
+      promptChips?.serialize(),
+      activeCollections(),
+      draftState.filename,
+      draftState.view,
+      draftState.diversityMode,
+      draftState.diversityDepth,
     );
-    history.pushState({ q }, "", url);
+    draftDirty = false;
+    updateDraftStatus();
+    history.pushState({ search: url }, "", url);
     if (!grid || !resultCount) {
       window.location.href = url;
       return;
@@ -71,11 +93,7 @@ if (form && input) {
 }
 
 window.addEventListener("popstate", () => {
-  const q = readQuery();
-  if (input) input.value = q;
-  if (filenameInput) filenameInput.value = readFilename();
-  promptChips?.hydrate(readPrompts());
-  promptChips?.render();
+  syncDraftFromCommitted();
   syncViewToggle();
   syncDiversityControls();
   runSearch();
@@ -86,39 +104,59 @@ window.addEventListener("popstate", () => {
 attachInfiniteScroll();
 
 async function runSearch() {
-  const q = input ? input.value.trim() : readQuery().trim();
+  cancelSearchRequest();
+  invalidateLoadMore();
+  const q = readQuery().trim();
   if (!hasActiveSearch(q)) {
     // Empty query: full reload to the bare / page. This keeps the
-    // server-rendered "Enter a query" message visible. hasActiveSearch
-    // also returns true for centroid-only pages, so we don't redirect
-    // a centroid URL away just because the text input is empty.
-    window.location.href = "/";
+    // server-rendered landing state visible. Avoid reloading an already
+    // empty landing page when popstate is restoring `/`.
+    if (window.location.search || grid?.children.length) {
+      window.location.href = "/";
+    }
     return;
   }
 
+  const requestGeneration = searchGeneration;
+  const controller = new AbortController();
+  searchController = controller;
+  loadingSearch = true;
   setLoading(true);
 
   try {
     const apiUrl = buildApiUrl(q);
     const resp = await fetch(apiUrl, {
       headers: { Accept: "application/json" },
+      signal: controller.signal,
     });
+    if (requestGeneration !== searchGeneration || controller.signal.aborted) return;
     if (!resp.ok) {
       showError();
       return;
     }
     const data = await resp.json();
+    if (requestGeneration !== searchGeneration || controller.signal.aborted) return;
     renderInitial(data);
-    // Re-render chips so active state matches the (now possibly
-    // changed) URL — important when the user used a chip to narrow
-    // a search.
+    // The committed URL is the source of truth after Search.
     syncChipActiveState();
   } catch (err) {
+    if (controller.signal.aborted || requestGeneration !== searchGeneration) return;
     console.error("search failed", err);
     showError();
   } finally {
-    setLoading(false);
+    if (searchController === controller) {
+      searchController = null;
+      loadingSearch = false;
+      setLoading(false);
+    }
   }
+}
+
+function cancelSearchRequest() {
+  searchGeneration += 1;
+  searchController?.abort();
+  searchController = null;
+  loadingSearch = false;
 }
 
 function buildApiUrl(q, surprise = false) {
@@ -137,14 +175,14 @@ function buildApiUrl(q, surprise = false) {
   if (weights && centroids.length > 1 && weights.length === centroids.length) {
     params.set("weights", weights.join(","));
   }
-  if (promptChips) {
-    for (const [key, value] of promptChips.serialize().entries()) {
-      params.append(key, value);
+  for (const [key, value] of Object.entries(readPrompts())) {
+    for (const prompt of value) {
+      params.append(key, prompt);
     }
   }
-  // Multi-value: every active chip adds a `collection` param. The
+  // Multi-value: every committed collection adds a `collection` param. The
   // server applies them as a MatchAny filter.
-  for (const c of activeCollections()) {
+  for (const c of readCollections()) {
     params.append("collection", c);
   }
   // Filename: round-trip from the URL so the API request honours
@@ -177,8 +215,87 @@ function buildApiUrl(q, surprise = false) {
   return `/api/search?${params.toString()}`;
 }
 
+function buildDraftApiUrl(surprise = false) {
+  const committedUrl = buildSearchUrlWithFilename(
+    "",
+    promptChips?.serialize(),
+    activeCollections(),
+    draftState.filename,
+    draftState.view,
+    draftState.diversityMode,
+    draftState.diversityDepth,
+  );
+  const url = new URL(committedUrl, window.location.origin);
+  if (surprise) url.searchParams.set("surprise", "true");
+  return `/api/search${url.search}`;
+}
+
 function activeCollections() {
-  return readCollections();
+  return [...draftState.collections].sort();
+}
+
+function initialPromptState() {
+  const prompts = readPrompts();
+  const legacyQuery = readQuery().trim();
+  if (legacyQuery && !prompts.positives.some((p) => p.toLowerCase() === legacyQuery.toLowerCase())) {
+    prompts.positives.unshift(legacyQuery);
+  }
+  return prompts;
+}
+
+function committedPromptState() {
+  return readPrompts();
+}
+
+function syncDraftFromCommitted() {
+  syncingDraft = true;
+  draftState.collections = new Set(readCollections());
+  draftState.diversityMode = readDiversityMode();
+  draftState.diversityDepth = readDiversityDepth();
+  draftState.filename = readFilename();
+  draftState.view = readView();
+  if (filenameInput) filenameInput.value = draftState.filename;
+  promptChips?.hydrate(initialPromptState());
+  promptChips?.render();
+  syncingDraft = false;
+  draftDirty = false;
+  updateDraftStatus();
+  updateFilterSummary();
+}
+
+function markDraftDirty() {
+  if (syncingDraft) return;
+  invalidateLoadMore();
+  draftDirty = true;
+  updateDraftStatus();
+}
+
+function updateDraftStatus() {
+  if (!draftStatus) return;
+  const submitLabel = draftDirty ? "Changes ready — click Search." : "Set your prompts and filters, then click Search.";
+  draftStatus.textContent = submitLabel;
+  draftStatus.classList.toggle("is-dirty", draftDirty);
+  submitButton?.classList.toggle("is-dirty", draftDirty);
+  form?.classList.toggle("search-form--dirty", draftDirty);
+}
+
+function flushPendingPromptInputs() {
+  if (!promptRoot || !promptChips) return;
+  for (const side of ["positives", "negatives"]) {
+    const input = promptRoot.querySelector(`[data-prompt-input="${side}"]`);
+    const rawValue = input?.value || "";
+    if (rawValue.trim()) promptChips.add(side, rawValue);
+    // Clear even duplicate prompts: the draft has already normalized them,
+    // and leaving the rejected text visible makes Search appear incomplete.
+    if (rawValue) input.value = "";
+  }
+}
+
+function hasDraftSearch() {
+  if (promptChips?.state.positives.length) return true;
+  if (draftState.filename.trim()) return true;
+  if (readCentroid()) return true;
+  return false;
 }
 
 function renderInitial(data) {
@@ -216,15 +333,18 @@ function renderInitial(data) {
 }
 
 async function loadMorePage() {
-  if (loadingMore || !grid) return;
+  if (loadingMore || loadingSearch || !grid || draftDirty) return;
   const q = readQuery().trim();
   const filename = readFilename();
-  if (!hasPositivePrompt(q, filename)) return;
+  if (!hasActiveSearch(q)) return;
   const currentOffset = Number(grid.dataset.offset || "0");
   const limit = Number(grid.dataset.limit || "50");
   const nextOffset = currentOffset;
 
   loadingMore = true;
+  const requestGeneration = loadMoreGeneration;
+  const controller = new AbortController();
+  loadMoreController = controller;
   setLoading(true);
   try {
     const params = new URLSearchParams();
@@ -232,17 +352,22 @@ async function loadMorePage() {
     // Same forwarding rule as buildApiUrl — without this, the API
     // would 400 ("at least one positive prompt is required") and the
     // sentinel would just sit there as the user scrolls.
-    const centroid = readCentroid();
-    if (centroid) params.set("centroid", centroid);
+    for (const centroid of readCentroids()) {
+      params.append("centroid", centroid);
+    }
+    const weights = readCentroidWeights();
+    if (weights && readCentroids().length > 1 && weights.length === readCentroids().length) {
+      params.set("weights", weights.join(","));
+    }
     if (filename) params.set("filename", filename);
     params.set("offset", String(nextOffset));
     params.set("limit", String(limit));
-    if (promptChips) {
-      for (const [key, value] of promptChips.serialize().entries()) {
-        params.append(key, value);
+    for (const [key, value] of Object.entries(committedPromptState())) {
+      for (const prompt of value) {
+        params.append(key, prompt);
       }
     }
-    for (const c of activeCollections()) {
+    for (const c of readCollections()) {
       params.append("collection", c);
     }
     if (readFavoritesFilter()) {
@@ -262,12 +387,15 @@ async function loadMorePage() {
     }
     const resp = await fetch(`/api/search?${params.toString()}`, {
       headers: { Accept: "application/json" },
+      signal: controller.signal,
     });
+    if (requestGeneration !== loadMoreGeneration || controller.signal.aborted) return;
     if (!resp.ok) {
       showError();
       return;
     }
     const data = await resp.json();
+    if (requestGeneration !== loadMoreGeneration || controller.signal.aborted) return;
     if (data.results.length === 0) {
       // No more results. Tear down the observer.
       grid.dataset.hasMore = "false";
@@ -288,12 +416,27 @@ async function loadMorePage() {
     }
     updateLoadMoreHint(data.has_more, data.offset, data.results.length);
   } catch (err) {
+    if (controller.signal.aborted || requestGeneration !== loadMoreGeneration) return;
     console.error("loadMore failed", err);
     showError();
   } finally {
-    loadingMore = false;
-    setLoading(false);
+    if (loadMoreController === controller) {
+      loadMoreController = null;
+    }
+    if (requestGeneration === loadMoreGeneration) {
+      loadingMore = false;
+      setLoading(false);
+    }
   }
+}
+
+function invalidateLoadMore() {
+  const wasLoading = loadingMore || Boolean(loadMoreController);
+  loadMoreGeneration += 1;
+  loadMoreController?.abort();
+  loadMoreController = null;
+  loadingMore = false;
+  if (wasLoading && !loadingSearch) setLoading(false);
 }
 
 function updateLoadMoreHint(hasMore, offset, count) {
@@ -317,10 +460,13 @@ function updateLoadMoreHint(hasMore, offset, count) {
 }
 
 function setLoading(on) {
-  if (input) input.disabled = on;
-  if (form) {
-    const btn = form.querySelector("button");
-    if (btn) btn.disabled = on;
+  if (!submitButton) return;
+  if (on) {
+    submitButton.disabled = true;
+    submitButton.setAttribute("aria-busy", "true");
+  } else {
+    submitButton.removeAttribute("aria-busy");
+    submitButton.disabled = submitButton.dataset.locked === "true";
   }
 }
 
@@ -331,31 +477,16 @@ function showError() {
   if (grid) grid.innerHTML = "";
 }
 
-// A page is "actively searching" when there's a text query, at least
-// one positive prompt chip, OR an active `?centroid=` anchor. The
-// centroid branch matters because the prompt UI is hidden in centroid
-// mode (server-enforced mutex) — without this, the form's empty-query
-// guard would redirect centroid pages to `/` and the infinite-scroll
-// sentinel would never trigger a fetch. Filename-only mode is also a
-// valid search anchor (the server resolves it to a zero-vector +
-// HasId filter), so it qualifies too.
+// A committed page is "actively searching" when there's a text query, at
+// least one positive prompt, an active centroid anchor, or a filename-only
+// browse. This reads only the URL; draft prompts must not make the current
+// result grid start searching before the Search button is clicked.
 function hasActiveSearch(q) {
   if (q) return true;
-  if (promptChips && promptChips.state.positives.length > 0) return true;
+  if (readPrompts().positives.length > 0) return true;
   if (readCentroid()) return true;
   if (readFavoritesFilter()) return true;
   if (readFilename()) return true;
-  return false;
-}
-
-// Kept under the old name for the one callsite that already used it
-// (form submit). New code should prefer hasActiveSearch() to keep the
-// centroid branch in mind. The optional `filename` arg lets the
-// form's submit handler see the freshly-typed value before the URL
-// is updated (readFilename reads from the URL).
-function hasPositivePrompt(q, filename = "") {
-  if (hasActiveSearch(q)) return true;
-  if (filename) return true;
   return false;
 }
 
@@ -383,7 +514,7 @@ function getRenderer(view) {
 }
 
 function syncViewToggle() {
-  const current = readView();
+  const current = draftState.view;
   for (const btn of document.querySelectorAll(".view-toggle-btn")) {
     const isActive = btn.dataset.view === current;
     btn.classList.toggle("view-toggle-btn--active", isActive);
@@ -392,27 +523,10 @@ function syncViewToggle() {
 }
 
 function onViewToggleClick(nextView) {
-  if (readView() === nextView) return;
-  const url = new URL(window.location.href);
-  if (nextView === "grid") {
-    url.searchParams.delete("view");
-  } else {
-    url.searchParams.set("view", nextView);
-  }
-  history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
+  if (draftState.view === nextView) return;
+  draftState.view = nextView;
   syncViewToggle();
-  // Re-render current results with the new view — no new fetch needed,
-  // the data is the same. Falls back to a fresh search on the empty
-  // landing page (no results to re-render yet).
-  if (grid && grid.children.length > 0) {
-    const renderer = getRenderer(nextView);
-    // Capture the current results from the DOM. The grid renderer
-    // stored the most recent payload in `grid.dataset`; we don't keep
-    // the full result array around, so the cleanest path is to
-    // re-fetch the first page. Cheap: the data is in Qdrant's HNSW
-    // and the network round trip is small.
-    runSearch();
-  }
+  markDraftDirty();
 }
 
 // Set the toggle's active state on initial load, and wire up clicks.
@@ -430,39 +544,25 @@ const diversitySelect = document.querySelector("[data-diversity-select]");
 const diversityDepthSelect = document.querySelector("[data-diversity-depth-select]");
 
 function syncDiversityControls() {
-  if (diversitySelect) diversitySelect.value = readDiversityMode();
+  if (diversitySelect) diversitySelect.value = draftState.diversityMode;
   if (diversityDepthSelect) {
-    diversityDepthSelect.value = readDiversityDepth();
-    diversityDepthSelect.disabled = readDiversityMode() === "off";
+    diversityDepthSelect.value = draftState.diversityDepth;
+    diversityDepthSelect.disabled = draftState.diversityMode === "off";
   }
 }
 
 function onDiversityChange() {
   const nextMode = diversitySelect?.value || "off";
-  const url = new URL(window.location.href);
-  url.searchParams.delete("diverse");
-  if (nextMode === "off") {
-    url.searchParams.delete("diversity");
-    url.searchParams.delete("diversity_depth");
-  } else {
-    url.searchParams.set("diversity", nextMode);
-  }
-  history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
+  draftState.diversityMode = nextMode;
   syncDiversityControls();
-  if (hasPositivePrompt(readQuery())) runSearch();
+  markDraftDirty();
 }
 
 function onDiversityDepthChange() {
   const nextDepth = diversityDepthSelect?.value || "auto";
-  const url = new URL(window.location.href);
-  if (readDiversityMode() === "off" || nextDepth === "auto") {
-    url.searchParams.delete("diversity_depth");
-  } else {
-    url.searchParams.set("diversity_depth", nextDepth);
-  }
-  history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
+  draftState.diversityDepth = nextDepth;
   syncDiversityControls();
-  if (hasPositivePrompt(readQuery())) runSearch();
+  markDraftDirty();
 }
 
 syncDiversityControls();
@@ -481,11 +581,14 @@ diversityDepthSelect?.addEventListener("change", onDiversityDepthChange);
 // random sample from the deep Qdrant pool.
 
 function onSurpriseClick() {
+  flushPendingPromptInputs();
+  if (!hasDraftSearch()) {
+    showPromptError("Add at least one Include prompt or filename.");
+    return;
+  }
+  clearPromptError();
   setLoading(true);
-  // Read from the input field (not the URL) so typed-but-unsubmitted
-  // text is picked up. The same pattern `runSearch` uses at line 85.
-  const q = input ? input.value.trim() : readQuery().trim();
-  const apiUrl = buildApiUrl(q, true);  // surprise=true
+  const apiUrl = buildDraftApiUrl(true);
   fetch(apiUrl, { headers: { Accept: "application/json" } })
     .then(r => r.json())
     .then(data => {
@@ -582,40 +685,32 @@ function syncChipActiveState() {
 
 function updateFilterSummary() {
   if (!filterSummary) return;
-  const promptCount = promptChips
-    ? promptChips.state.positives.length + promptChips.state.negatives.length
-    : 0;
-  const filterCount = promptCount + (readFilename() ? 1 : 0) + activeCollections().length;
+  const filterCount = (draftState.filename ? 1 : 0) + activeCollections().length;
   filterSummary.textContent = filterCount
     ? `${filterCount} active`
     : "Optional";
 }
 
-promptRoot?.addEventListener("promptschanged", updateFilterSummary);
-filenameInput?.addEventListener("input", updateFilterSummary);
+promptRoot?.addEventListener("promptschanged", () => {
+  if (!syncingDraft) markDraftDirty();
+  updateFilterSummary();
+});
+filenameInput?.addEventListener("input", () => {
+  draftState.filename = filenameInput.value.trim();
+  markDraftDirty();
+  updateFilterSummary();
+});
+for (const input of promptRoot?.querySelectorAll("[data-prompt-input]") || []) {
+  input.addEventListener("input", markDraftDirty);
+}
 updateFilterSummary();
 
 function onChipClick(name) {
-  const url = new URL(window.location.href);
-  // Toggle: remove if present, add if absent. We model active set as
-  // a Set, then rewrite the URL with sorted-deduped values for
-  // stable back/forward navigation.
-  const current = new Set(url.searchParams.getAll("collection"));
-  if (current.has(name)) current.delete(name);
-  else current.add(name);
-  url.searchParams.delete("collection");
-  for (const c of [...current].sort()) {
-    url.searchParams.append("collection", c);
-  }
-  const newPath = url.pathname + (url.search || "");
-  history.pushState({ q: readQuery() }, "", newPath);
+  if (draftState.collections.has(name)) draftState.collections.delete(name);
+  else draftState.collections.add(name);
   syncChipActiveState();
-  // Re-run the search if we have an active query. On the landing
-  // page (no q) just sit on the empty state — the URL change is
-  // reflected in the chip's active state for when the user types.
-  if (hasPositivePrompt(readQuery())) {
-    runSearch();
-  }
+  markDraftDirty();
+  updateFilterSummary();
 }
 
 function escapeHtml(s) {
@@ -632,18 +727,15 @@ function escapeHtml(s) {
 // Wires the Saved dropdown + Save current button rendered into the
 // search bar. Behaviour:
 //   - Selecting a saved search clears the current chips and repopulates
-//     from the option's data attributes, then submits the form so the
-//     search runs immediately. Matches the chip data attributes the
-//     PromptChips controller reads, so this stays in lockstep with
-//     how chips are normally typed.
+//     from the option's data attributes. It only changes the draft; the
+//     user must still click Search to commit it.
 //   - Save current prompts the user for a name (default derived from
 //     the chips: first positive, or `first_pos −first_neg` if any
 //     negatives are set, capped at 50 chars), POSTs to
 //     /api/saved-searches, and on success refreshes the dropdown so
 //     the new entry is selectable without a page reload.
-//   - Save button is enabled only when at least one positive OR
-//     negative chip exists — empty saves are rejected both client-
-//     and server-side.
+//   - Save button is enabled only when at least one Include chip exists;
+//     a negative-only preset cannot produce a valid search.
 const savedBar = document.querySelector("[data-saved-bar]");
 if (savedBar) {
   const select = savedBar.querySelector("[data-saved-select]");
@@ -658,9 +750,8 @@ if (savedBar) {
   };
 
   // Dropdown apply. Hydrate chips from the selected option's
-  // data-saved-positives / data-saved-negatives attributes, then
-  // submit the form. Re-render the chips first so the user sees the
-  // transition before the search kicks off.
+  // data-saved-positives / data-saved-negatives attributes. This is a
+  // draft-only action; Search remains the explicit commit gate.
   if (select) {
     select.addEventListener("change", () => {
       const option = select.options[select.selectedIndex];
@@ -679,10 +770,11 @@ if (savedBar) {
         for (const p of pos) promptChips.add("positives", p);
         for (const n of neg) promptChips.add("negatives", n);
       }
+      for (const input of promptRoot?.querySelectorAll("[data-prompt-input]") || []) {
+        input.value = "";
+      }
       showSavedError("");
-      // Trigger the form's submit path so the search actually runs.
-      // Same handler used by the q-input submit listener above.
-      if (form) form.requestSubmit();
+      markDraftDirty();
     });
   }
 
@@ -690,10 +782,11 @@ if (savedBar) {
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
       if (!promptChips) return;
+      flushPendingPromptInputs();
       const positives = [...promptChips.state.positives];
       const negatives = [...promptChips.state.negatives];
-      if (!positives.length && !negatives.length) {
-        showSavedError("Type at least one prompt first.");
+      if (!positives.length) {
+        showSavedError("Add at least one Include prompt first.");
         return;
       }
       const firstPos = positives[0] || "";
@@ -743,11 +836,12 @@ if (savedBar) {
 
   const updateSaveButtonState = () => {
     if (!saveBtn || !promptChips) return;
-    const hasAny =
+    const includeInput = promptRoot?.querySelector('[data-prompt-input="positives"]');
+    const hasInclude =
       promptChips.state.positives.length > 0 ||
-      promptChips.state.negatives.length > 0;
-    saveBtn.disabled = !hasAny;
-    if (hasAny) saveBtn.removeAttribute("title");
+      Boolean(includeInput?.value.trim());
+    saveBtn.disabled = !hasInclude;
+    if (hasInclude) saveBtn.removeAttribute("title");
     else saveBtn.setAttribute("title", "Type at least one prompt to save");
   };
 
@@ -760,5 +854,8 @@ if (savedBar) {
       origRender();
       updateSaveButtonState();
     };
+  }
+  for (const input of promptRoot?.querySelectorAll("[data-prompt-input]") || []) {
+    input.addEventListener("input", updateSaveButtonState);
   }
 }

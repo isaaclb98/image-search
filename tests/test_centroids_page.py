@@ -136,13 +136,12 @@ def test_search_page_hides_prompt_composition_in_centroid_mode(app_with_centroid
     assert "prompt-composition" not in resp.text
 
 
-def test_search_page_disables_input_in_centroid_mode(app_with_centroids):
-    """The text search input is disabled in centroid mode."""
+def test_search_page_disables_search_in_centroid_mode(app_with_centroids):
+    """The prompt composer is hidden and Search is disabled in centroid mode."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
     assert resp.status_code == 200
-    # The input has the `disabled` attribute.
-    assert 'name="q"' in resp.text
-    # Sanity: there's a 'disabled' in the form area.
+    assert 'data-prompt-input="positives"' not in resp.text
+    assert 'class="search-submit" type="submit" disabled' in resp.text
     assert "disabled" in resp.text
 
 

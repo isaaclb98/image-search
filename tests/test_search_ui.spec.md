@@ -24,74 +24,84 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 - **Then:**
   - HTTP 200.
   - URL has no `?q=`.
-  - Page contains a `<form>` with an `<input name="q">` and a submit button.
+  - Page contains a `<form>` with Include/Exclude prompt inputs and a Search button.
+  - The legacy `Search your library…` input is absent.
   - Page does **not** show a "results" or "no results" message.
-  - The `q` input is autofocused.
-  - No network requests to `/api/search` are made (the page is fully server-rendered for the empty state).
+  - The Include prompt input is autofocused.
+  - No network requests to `/api/search` are made (the page is fully server-rendered for the empty state). The collections metadata request is allowed.
 
-#### UI-S-002 — initial page load with `?q=cat` `[AUTO]`
+#### UI-S-002 — initial page load with a committed Include prompt `[AUTO]`
 
 - **Given:** Qdrant contains 3+ indexed images; some match "cat," some do not.
-- **When:** the browser loads `GET /?q=cat`.
+- **When:** the browser loads `GET /?positives=cat`.
 - **Then:**
   - HTTP 200.
-  - The `q` input has value `cat`.
+  - The Include chip has value `cat`.
   - The result count text is visible (e.g., "Showing N results for 'cat'").
   - The grid renders 1+ `<li>` items, each containing a link to `/photo/<id>` and an `<img src="/photo/<id>/raw">`.
-  - The `q` input is **not** autofocused (we don't want the cursor jumping after a search).
+  - The Include prompt input is **not** autofocused (we don't want the cursor jumping after a search).
 
-#### UI-S-003 — form submission via Enter key `[AUTO]`
+#### UI-S-003 — Search button commits the draft `[AUTO]`
 
 - **Given:** the user is on `GET /` with no query.
-- **When:** the user types `cat` and presses Enter.
+- **When:** the user types `cat` in Include and clicks Search.
 - **Then:**
-  - Browser navigates to `GET /?q=cat`.
+  - Browser navigates to `GET /?positives=cat`.
   - The result grid renders.
-  - URL bar shows `?q=cat`.
+  - URL bar shows `?positives=cat`.
 
-#### UI-S-004 — form submission with JS disabled `[AUTO]`
+#### UI-S-004 — editing controls does not search `[AUTO]`
 
-- **Given:** JavaScript is disabled in the browser.
-- **When:** the user submits the form (Enter or button click).
-- **Then:**
-  - The browser performs a full page navigation to `GET /?q=<query>`.
-  - The page renders the result grid as in UI-S-002.
-  - **Behavior parity with JS-enabled is required.**
+- **Given:** the user is on a committed result page.
+- **When:** the user changes a collection or Diversity setting.
+- **Then:** the URL, result grid, and `/api/search` request count remain unchanged.
+- **When:** the user clicks Search.
+- **Then:** one new committed URL and one new search are produced.
 
-#### UI-S-005 — empty query submission `[AUTO]`
+#### UI-S-004a — saved search selection is draft-only `[AUTO]`
+
+- **Given:** the user is on a committed result page.
+- **When:** the user selects a saved search.
+- **Then:** Include/Exclude chips update, but the URL, result grid, and search request remain unchanged until Search is clicked.
+
+#### UI-S-004b — unfinished edits cannot append stale pages `[AUTO]`
+
+- **Given:** an infinite-scroll request is in flight for the current committed search.
+- **When:** the user changes a filter or submits a new search before that request returns.
+- **Then:** the old response is ignored or aborted and cannot append results to the new committed result grid.
+
+#### UI-S-005 — empty Include submission `[AUTO]`
 
 - **Given:** the user is on `GET /`.
-- **When:** the user submits the form with an empty `q` field.
+- **When:** the user clicks Search with no Include prompt or filename.
 - **Then:**
-  - The browser navigates to `GET /?q=` (or `GET /`, depending on form serialization).
-  - The page renders the empty state (`Enter a query to search.`) — **not** the "no results" state.
+  - The form shows an inline Include error and does not navigate.
   - No API request is made.
 
-#### UI-S-006 — whitespace-only query `[AUTO]`
+#### UI-S-006 — whitespace-only Include prompt `[AUTO]`
 
 - **Given:** the user is on `GET /`.
-- **When:** the user types `   ` (only whitespace) and submits.
+- **When:** the user types `   ` (only whitespace) in Include and clicks Search.
 - **Then:**
-  - The query is treated as empty (trimmed server-side).
-  - Empty state renders.
-  - URL is `/?q=` (or `/`).
+  - The form shows an inline Include error and remains on the current URL.
+  - No API request is made.
 
-#### UI-S-007 — long query (over 512 chars) `[AUTO]`
+#### UI-S-007 — long Include prompt (over 512 chars) `[AUTO]`
 
 - **Given:** the user is on `GET /`.
-- **When:** the user pastes a 600-character string and submits.
+- **When:** the user pastes a 600-character string into Include and clicks Search.
 - **Then:**
   - The API returns 400 `bad_request`.
   - The page renders the error state.
   - No Qdrant query is executed.
 
-#### UI-S-008 — query with URL-unsafe characters `[AUTO]`
+#### UI-S-008 — Include prompt with URL-unsafe characters `[AUTO]`
 
 - **Given:** the user types `cat & dog`.
 - **When:** the user submits.
 - **Then:**
-  - The browser navigates to `GET /?q=cat+%26+dog` (or similar correctly-encoded URL).
-  - The `q` input decodes back to `cat & dog` on the rendered page.
+  - The browser navigates to `GET /?positives=cat+%26+dog` (or similar correctly-encoded URL).
+  - The Include chip decodes back to `cat & dog` on the rendered page.
   - Search executes with the decoded query.
 
 #### UI-S-009 — query with quotes/special chars `[AUTO]`
@@ -167,7 +177,7 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
   - HTTP 200.
   - Page contains a large `<img>` with `src="/photo/<id>/raw"`.
   - Page contains a metadata block: `path`, `indexed_at`, `model_name`.
-  - Page contains a "← Back to results" link to `/?q=<q>` (where `<q>` is the original query, passed via `?q=` on the photo URL).
+  - Page contains a "← Back to results" link preserving the committed prompt URL.
 
 #### UI-P-002 — unknown photo id `[AUTO]`
 
@@ -198,10 +208,10 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 
 #### UI-P-005 — back link works `[AUTO]`
 
-- **Given:** the user came from `GET /?q=cat&page=1` (or whatever URL state is in use).
+- **Given:** the user came from `GET /?positives=cat&offset=50` (or whatever URL state is in use).
 - **When:** the user clicks the "Back to results" link on the photo page.
 - **Then:**
-  - The browser navigates back to `GET /?q=cat`.
+  - The browser navigates back to the committed prompt URL.
   - The result grid is re-rendered.
 
 #### UI-P-006 — direct photo URL without prior search `[MANUAL]`
@@ -280,34 +290,34 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 #### UI-N-001 — back button after search `[AUTO]`
 
 - **Given:** the user is on `GET /`.
-- **When:** the user submits `cat`, lands on `?q=cat`, then clicks a thumbnail to land on `/photo/<id>`.
-- **Then:** clicking the browser back button returns to `?q=cat` with the result grid re-rendered.
+- **When:** the user submits Include `cat`, lands on `?positives=cat`, then clicks a thumbnail to land on `/photo/<id>`.
+- **Then:** clicking the browser back button returns to `?positives=cat` with the result grid re-rendered.
 
 #### UI-N-002 — forward button `[AUTO]`
 
-- **Given:** the user has gone back from `/photo/<id>` to `/?q=cat`.
+- **Given:** the user has gone back from `/photo/<id>` to `/?positives=cat`.
 - **When:** the user clicks the browser forward button.
 - **Then:** the browser returns to `/photo/<id>` with the detail page re-rendered.
 
 #### UI-N-003 — URL state is shareable `[AUTO]`
 
-- **Given:** the user is on `GET /?q=cat`.
+- **Given:** the user is on `GET /?positives=cat`.
 - **When:** the user copies the URL and opens it in a new tab.
 - **Then:** the new tab shows the result grid for `cat` on first paint (no flash of empty state, no double-render).
 
 #### UI-N-004 — JS popstate handler `[AUTO]`
 
-- **Given:** the user is on `GET /?q=cat` with JS enabled.
+- **Given:** the user is on `GET /?positives=cat` with JS enabled.
 - **When:** the user navigates back from a result click and the result list re-renders.
 - **Then:**
   - The result list re-renders without a full page reload.
-  - The browser URL still shows `?q=cat`.
+  - The browser URL still shows `?positives=cat`.
   - `popstate` event fires; the JS handles it and re-runs the search.
 
 #### UI-N-005 — direct deep link to query `[AUTO]`
 
 - **Given:** the user has never visited the site.
-- **When:** the user opens `GET /?q=cat` directly.
+- **When:** the user opens `GET /?positives=cat` directly.
 - **Then:** the page renders fully on first paint (server-rendered, not JS-only). No flash of empty state.
 
 ### Group F — error and edge cases (UI-visible)
@@ -359,7 +369,7 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 #### UI-T-001 — cold-start page load `[AUTO]`
 
 - **Given:** the search container has just started (no model in memory, no LRU cache hits).
-- **When:** the user loads `GET /?q=cat`.
+- **When:** the user loads `GET /?positives=cat`.
 - **Then:** total time to first paint < 5 seconds. (SigLIP2 text tower load is the bulk; this budget assumes it's been pre-loaded by the startup event.)
 
 #### UI-T-002 — warm query response `[AUTO]`
@@ -410,11 +420,11 @@ These are minimum-viable; the design is single-user, so we don't go deep into mo
 
 ## Multi-prompt search
 
-#### UI-MP-001 — primary q input still works on its own `[AUTO]`
+#### UI-MP-001 — Include is the primary search mode `[AUTO]`
 
 - **Given:** the user opens `GET /`.
-- **When:** the user types `cat` into the primary search input and submits without adding chips.
-- **Then:** the URL has `?q=cat`, the result grid renders, and no prompt chips are required.
+- **When:** the user types `cat` into Include and clicks Search without adding another chip.
+- **Then:** the URL has `?positives=cat`, the result grid renders, and no second query field is required.
 
 #### UI-MP-002 — add a positive chip `[AUTO]`
 
@@ -436,9 +446,9 @@ These are minimum-viable; the design is single-user, so we don't go deep into mo
 
 #### UI-MP-005 — submit mixed prompts `[AUTO]`
 
-- **Given:** the user has primary query `cat`, include chips `kitten` and `portrait`, and exclude chip `blurry`.
-- **When:** the user submits.
-- **Then:** the URL contains `q=cat`, repeated `positives=` params for the include chips, and repeated `negatives=` params for exclude chips.
+- **Given:** the user has Include chips `cat`, `kitten`, and `portrait`, and Exclude chip `blurry`.
+- **When:** the user clicks Search.
+- **Then:** the URL contains repeated `positives=` params for the Include chips and repeated `negatives=` params for Exclude chips.
 
 #### UI-MP-006 — refresh hydrates chips `[AUTO]`
 
@@ -452,11 +462,13 @@ These are minimum-viable; the design is single-user, so we don't go deep into mo
 - **When:** the user clicks `← Back to results`.
 - **Then:** the browser returns to the multi-prompt search URL and the chips are intact.
 
-#### UI-MP-008 — library filter preserves prompts `[AUTO]`
+#### UI-MP-008 — library filter waits for Search `[AUTO]`
 
 - **Given:** the user has include/exclude chips set.
 - **When:** the user toggles a library chip filter.
-- **Then:** the URL preserves `positives=` and `negatives=` while adding or removing `collection=`.
+- **Then:** the chip changes visually, but the URL, result grid, and search request remain unchanged.
+- **When:** the user clicks Search.
+- **Then:** the committed URL adds or removes `collection=` while preserving the prompts.
 
 #### UI-MP-009 — positives without negatives submit `[AUTO]`
 
@@ -497,17 +509,17 @@ phone-style feed with natural image aspect).
 - **When:** the page loads.
 - **Then:** the `grid` button is `aria-pressed="true"`; the `feed` button is `aria-pressed="false"`.
 
-#### UI-VIEW-004 — click feed renders feed layout `[AUTO]`
+#### UI-VIEW-004 — click feed stages feed layout `[AUTO]`
 
 - **Given:** a result page in grid mode with results visible.
 - **When:** the user clicks the `feed` toggle.
-- **Then:** the result list re-renders with `class="feed"` and `class="feed-item"` cells; images appear full-width with natural aspect ratio; the URL now has `?view=feed`.
+- **Then:** the feed setting becomes active without changing the URL or fetching results. The next Search commits `?view=feed` and renders the feed.
 
-#### UI-VIEW-005 — click grid renders grid layout `[AUTO]`
+#### UI-VIEW-005 — click grid stages grid layout `[AUTO]`
 
 - **Given:** a result page in feed mode with results visible.
 - **When:** the user clicks the `grid` toggle.
-- **Then:** the result list re-renders with `class="grid"` and `class="grid-item"` cells; the URL no longer has `?view=` (default is omitted for clean URLs).
+- **Then:** the grid setting becomes active without changing the URL or fetching results. The next Search omits `?view=` for the default.
 
 #### UI-VIEW-006 — toggle click on the active view is a no-op `[AUTO]`
 
@@ -515,11 +527,11 @@ phone-style feed with natural image aspect).
 - **When:** the user clicks the `grid` toggle (the active one).
 - **Then:** no URL change, no re-render, no network call.
 
-#### UI-VIEW-007 — feed view preserves prompts, library filter, and query `[AUTO]`
+#### UI-VIEW-007 — feed view preserves prompts and library filter `[AUTO]`
 
-- **Given:** the user has `?q=cat&positives=kitten&negatives=blurry&collection=foo` in the URL.
-- **When:** the user clicks the `feed` toggle.
-- **Then:** the URL becomes `?q=cat&positives=kitten&negatives=blurry&collection=foo&view=feed`; the search re-runs with the same prompts/filter.
+- **Given:** the user has `?positives=cat&positives=kitten&negatives=blurry&collection=foo` in the URL.
+- **When:** the user clicks the `feed` toggle and then Search.
+- **Then:** the URL becomes `?positives=cat&positives=kitten&negatives=blurry&collection=foo&view=feed`; the search runs with the same prompts/filter.
 
 #### UI-VIEW-008 — back link from photo page restores the view `[AUTO]`
 
@@ -552,4 +564,3 @@ phone-style feed with natural image aspect).
 - **Given:** the URL has `?view=garbage` (or any non-`grid`/`feed` value).
 - **When:** the page loads.
 - **Then:** the result list renders in grid mode; the response JSON's `view` field is `"grid"`; the toggle's `grid` button is `aria-pressed="true"`.
-
