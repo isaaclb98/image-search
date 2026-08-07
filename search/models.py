@@ -27,13 +27,38 @@ class SearchResult(BaseModel):
     )
 
 
+class DiversityMetadata(BaseModel):
+    """What the search-side Diversity ranker actually did."""
+
+    requested: bool = False
+    applied: bool = False
+    mode: str = "off"
+    strength: float = 0.0
+    candidate_count: int = 0
+    result_count: int = 0
+    duplicate_images_collapsed: int = 0
+    semantic_groups_covered: int = 0
+    depth: str = Field(
+        "auto",
+        description="Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
+    )
+    pool_depth: int = Field(
+        0,
+        description="Number of candidates actually retrieved for the ranking pass.",
+    )
+
+
 class SearchResponse(BaseModel):
     query: str
     positives: list[str] = Field(default_factory=list)
     negatives: list[str] = Field(default_factory=list)
     diverse: bool = Field(
         False,
-        description="True when MMR re-ranking was applied for result diversity.",
+        description="Backwards-compatible flag; true when search Diversity was applied.",
+    )
+    diversity: DiversityMetadata = Field(
+        default_factory=DiversityMetadata,
+        description="Diagnostics for the search-only Diversity ranking pass.",
     )
     surprise: bool = Field(
         False,

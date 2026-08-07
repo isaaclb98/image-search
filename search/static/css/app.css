@@ -2189,6 +2189,10 @@ a:hover {
     --tw-shadow: 0 1px 1px var(--tw-shadow-color, rgba(0, 0, 0, 0.04));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .grayscale {
+    --tw-grayscale: grayscale(100%);
+    filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+  }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
   }
@@ -51266,7 +51270,7 @@ body {
   gap: 0.35rem;
   align-items: center;
 }
-.view-toggle-btn, .diverse-btn, .surprise-btn {
+.view-toggle-btn, .diverse-btn, .surprise-btn, .diversity-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -51282,7 +51286,34 @@ body {
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
 }
-.view-toggle-btn:hover, .diverse-btn:hover, .surprise-btn:hover {
+.diversity-control {
+  padding: 0 0.25rem 0 0.65rem;
+}
+.diversity-depth-control {
+  gap: 0.25rem;
+}
+.diversity-depth-label {
+  color: var(--color-base-content);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.diversity-select {
+  min-height: 2.45rem;
+  max-width: 10rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.diversity-select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.view-toggle-btn:hover, .diverse-btn:hover, .surprise-btn:hover, .diversity-control:hover {
   background: var(--color-base-200);
   border-color: var(--color-primary);
 }

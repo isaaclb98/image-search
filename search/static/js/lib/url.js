@@ -85,8 +85,33 @@ export function readFilename() {
 // "grid" — the JS mirrors that fallback so the toggle UI and the rendered
 // output always agree.
 export function readDiverse() {
+  return readDiversityMode() !== "off";
+}
+
+// Search-only Diversity mode. The legacy `?diverse=true` URL remains a
+// backwards-compatible alias for `balanced`.
+export function readDiversityMode() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("diverse") === "true";
+  const mode = (params.get("diversity") || "").toLowerCase();
+  if (["low", "balanced", "high"].includes(mode)) return mode;
+  if (mode === "off") return "off";
+  // The legacy alias is only a fallback. An explicit `diversity=off` must
+  // win, matching the server's resolve_mode contract.
+  const legacy = (params.get("diverse") || "").toLowerCase();
+  if (!mode && ["true", "1", "on", "yes", "y", "t"].includes(legacy)) {
+    return "balanced";
+  }
+  return "off";
+}
+
+// Candidate-pool depth is independent from Diversity strength. Keep the
+// public values stepped so URLs remain reproducible and the server can bound
+// the expensive vector ranking pass.
+export function readDiversityDepth() {
+  const params = new URLSearchParams(window.location.search);
+  const depth = (params.get("diversity_depth") || "").toLowerCase();
+  if (["500", "1000", "2000", "5000"].includes(depth)) return depth;
+  return "auto";
 }
 
 
@@ -107,7 +132,10 @@ export function writeQuery(q) {
   return url.pathname + (url.search || "");
 }
 
-export function buildSearchUrl(q, promptParams, collections = [], view = null) {
+export function buildSearchUrl(
+  q, promptParams, collections = [], view = null, diversityMode = null,
+  diversityDepth = null,
+) {
   // Build the canonical search URL from scratch (so old junk params
   // don't leak through). View is opt-in: pass an explicit value, or
   // we'll preserve the current `?view=` from the URL. Passing
@@ -132,6 +160,14 @@ export function buildSearchUrl(q, promptParams, collections = [], view = null) {
   if (readFavoritesFilter()) {
     params.set("favorites", "true");
   }
+  const effectiveDiversity = diversityMode === null ? readDiversityMode() : diversityMode;
+  if (effectiveDiversity && effectiveDiversity !== "off") {
+    params.set("diversity", effectiveDiversity);
+    const effectiveDepth = diversityDepth === null ? readDiversityDepth() : diversityDepth;
+    if (effectiveDepth && effectiveDepth !== "auto") {
+      params.set("diversity_depth", effectiveDepth);
+    }
+  }
   const effectiveView = view === null ? readView() : view;
   if (effectiveView && effectiveView !== "grid") {
     params.set("view", effectiveView);
@@ -146,7 +182,8 @@ export function buildSearchUrl(q, promptParams, collections = [], view = null) {
 // value isn't in `window.location` yet — readFilename would see the
 // stale URL. Pass null to clear the filter.
 export function buildSearchUrlWithFilename(
-  q, promptParams, collections, filename, view,
+  q, promptParams, collections, filename, view, diversityMode = null,
+  diversityDepth = null,
 ) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -164,8 +201,13 @@ export function buildSearchUrlWithFilename(
   if (readFavoritesFilter()) {
     params.set("favorites", "true");
   }
-  if (readDiverse()) {
-    params.set("diverse", "true");
+  const effectiveDiversity = diversityMode === null ? readDiversityMode() : diversityMode;
+  if (effectiveDiversity && effectiveDiversity !== "off") {
+    params.set("diversity", effectiveDiversity);
+    const effectiveDepth = diversityDepth === null ? readDiversityDepth() : diversityDepth;
+    if (effectiveDepth && effectiveDepth !== "auto") {
+      params.set("diversity_depth", effectiveDepth);
+    }
   }
   const effectiveView = view === null ? readView() : view;
   if (effectiveView && effectiveView !== "grid") {

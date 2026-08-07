@@ -1,16 +1,24 @@
 """
-tests/test_diversity.py — Unit tests for MMR re-ranking.
+tests/test_diversity.py — Unit tests for search Diversity and legacy MMR.
 
 Verifies the core algorithm, edge cases, and the embedding-normalisation
-helper. Does NOT require Qdrant or a SigLIP2 model — the diversity
-module is pure Python + math.
+helper. Does NOT require Qdrant or a SigLIP2 model — the ranking
+module accepts plain hit-like objects and small vectors.
 """
 
 from __future__ import annotations
 
 import math
 
-from search.diversity import mmr_rerank, _cosine_sim
+from search.diversity import (
+    DiversityResultCache,
+    mmr_rerank,
+    rank_diverse,
+    relevance_drop_for_mode,
+    resolve_depth,
+    resolve_mode,
+    _cosine_sim,
+)
 
 
 def _unit_vec(*components) -> list[float]:
@@ -19,12 +27,13 @@ def _unit_vec(*components) -> list[float]:
     return [c / norm for c in components]
 
 
-def _make_hit(hit_id: str, score: float = 0.0):
+def _make_hit(hit_id: str, score: float = 0.0, payload: dict | None = None):
     """Minimal hit-like object for testing."""
     class FakeHit:
         def __init__(self, id_, score_):
             self.id = id_
             self.score = score_
+            self.payload = payload or {}
     return FakeHit(hit_id, score)
 
 
@@ -137,3 +146,106 @@ class TestCosineSim:
         b = _unit_vec(3, 4)
         sim = _cosine_sim(a, b)
         assert abs(sim - 1.0) < 1e-6
+
+
+class TestSearchDiversity:
+
+    def test_resolve_mode_supports_legacy_boolean(self):
+        assert resolve_mode(None, False) == ("off", 0.0)
+        assert resolve_mode(None, True) == ("balanced", 0.5)
+        assert resolve_mode("high") == ("high", 0.88)
+        assert resolve_mode("off", True) == ("off", 0.0)
+
+    def test_resolve_depth_uses_mode_specific_auto_defaults(self):
+        assert resolve_depth(None, "off") == ("auto", 0)
+        assert resolve_depth("auto", "low") == ("auto", 500)
+        assert resolve_depth("auto", "balanced") == ("auto", 1000)
+        assert resolve_depth("auto", "high") == ("auto", 2000)
+        assert resolve_depth("5000", "low") == ("5000", 5000)
+
+    def test_resolve_depth_rejects_unknown_value(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="diversity_depth must be one of"):
+            resolve_depth("10000", "high")
+
+    def test_rank_diverse_can_bound_result_count(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("a"), _unit_vec(1, 0, 0)),
+            (_make_hit("b"), _unit_vec(0.9, 0.1, 0)),
+            (_make_hit("c"), _unit_vec(0, 1, 0)),
+        ]
+        ranking = rank_diverse(hits, q, mode="high", max_results=2)
+        assert len(ranking.hits) == 2
+        assert ranking.stats.result_count == 2
+
+    def test_rank_diverse_rejects_unrepresentable_dhash_threshold(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="between 0 and 64"):
+            rank_diverse([], [1.0], mode="high", duplicate_hamming_distance=65)
+
+    def test_relevance_drop_scales_with_strength(self):
+        import pytest
+
+        assert relevance_drop_for_mode("low", 0.10) == pytest.approx(0.06)
+        assert relevance_drop_for_mode("balanced", 0.10) == pytest.approx(0.10)
+        assert relevance_drop_for_mode("high", 0.10) == pytest.approx(0.18)
+
+    def test_resolve_mode_rejects_unknown_mode(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="diversity must be one of"):
+            resolve_mode("random")
+
+    def test_rank_diverse_collapses_exact_duplicate_payloads(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("best", payload={"content_sha256": "same"}), q),
+            (_make_hit("copy", payload={"content_sha256": "same"}), _unit_vec(0.99, 0.1, 0)),
+            (_make_hit("different", payload={"content_sha256": "other"}), _unit_vec(0.7, 0, 0.7)),
+        ]
+        ranking = rank_diverse(hits, q, mode="balanced")
+        assert [hit.id for hit in ranking.hits] == ["best", "different"]
+        assert ranking.stats.duplicate_images_collapsed == 1
+        assert ranking.stats.applied is True
+
+    def test_rank_diverse_unions_all_transitive_dhash_matches(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("zero", payload={"dhash": "0000000000000000"}), q),
+            (_make_hit("three", payload={"dhash": "0000000000000003"}), q),
+            (_make_hit("one", payload={"dhash": "0000000000000001"}), q),
+        ]
+        ranking = rank_diverse(
+            hits,
+            q,
+            mode="balanced",
+            duplicate_hamming_distance=1,
+        )
+        assert len(ranking.hits) == 1
+        assert ranking.stats.duplicate_images_collapsed == 2
+
+    def test_rank_diverse_is_deterministic_and_keeps_relevance_first(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("a"), _unit_vec(1, 0, 0)),
+            (_make_hit("b"), _unit_vec(0.98, 0.1, 0)),
+            (_make_hit("c"), _unit_vec(0.65, 0, 0.76)),
+        ]
+        first = rank_diverse(hits, q, mode="high", depth="2000", pool_depth=3)
+        second = rank_diverse(hits, q, mode="high", depth="2000", pool_depth=3)
+        assert [hit.id for hit in first.hits] == [hit.id for hit in second.hits]
+        assert first.hits[0].id == "a"
+        assert first.stats.semantic_groups_covered >= 1
+        assert first.stats.depth == "2000"
+        assert first.stats.pool_depth == 3
+
+    def test_diversity_cache_can_clear(self):
+        cache = DiversityResultCache(ttl_seconds=60, max_entries=1)
+        stats = rank_diverse([], [1.0], mode="balanced").stats
+        cache.put("one", ["a"], stats)
+        assert cache.get("one").hits == ("a",)
+        cache.clear()
+        assert cache.get("one") is None

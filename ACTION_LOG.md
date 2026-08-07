@@ -160,3 +160,80 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Isaac explicitly approved merging `feature/polished-ui-tasks` into `main`.
 - The merge resolution restored the complete reviewed feature tree, including the inherited BlurHash indexer, CI workflow, and state/theme regression tests that `main`'s prior revert had removed.
 - Merge-result verification: Tailwind build, JavaScript syntax checks, Python compileall, `git diff --check`, and **488 tests passed with 2 known warnings**.
+
+## 2026-08-07 — Search Diversity implementation authorized
+
+- Isaac authorized implementation of the search-only Diversity overhaul.
+- Scope: stable pre-pagination ranking, duplicate awareness, relevance-preserving
+  coverage, explicit Diversity strength, API metadata, and focused verification.
+- Explicit exclusion: Discovery is not part of this change and must remain
+  behaviorally untouched.
+- Created feature branch `feature/search-diversity` from `main`.
+- Preserved pre-existing untracked `REVIEW.md`.
+
+## 2026-08-07 — Search Diversity verification
+
+- Focused search/indexer/Diversity tests passed; final full suite reached
+  **503 passed, 2 warnings**.
+- Tailwind output was rebuilt and confirmed current; Python compilation,
+  JavaScript syntax checks, and `git diff --check` passed.
+- Discovery scope guard passed: `search/discover.py` and
+  `search/static/js/discover.js` have no diff from `main`.
+- Sentinel review was invoked twice but both delegated review processes stayed
+  running without producing a verdict and were shut down. No Sentinel PASS is
+  claimed; the residual review limitation is reported at handoff.
+
+## 2026-08-07 — Search Diversity depth controls authorized
+
+- Isaac authorized separate Diversity strength and candidate-pool depth
+  controls after observing that High remained insufficiently diverse.
+- Implemented `diversity_depth=auto|500|1000|2000|5000`; Auto maps to 500,
+  1,000, and 2,000 candidates for Low, Balanced, and High respectively.
+- High now uses a stronger ranking weight and wider relevance allowance; depth
+  is included in API metadata, URL state, cache keys, and stable pagination.
+- Discovery remains explicitly out of scope.
+
+## 2026-08-07 — Search Diversity depth review repairs
+
+- Sentinel review returned `NEEDS_WORK` with three P2 findings: photo
+  back-links dropped Diversity state, the client-side legacy URL alias could
+  override explicit `diversity=off`, and a configurable Auto floor could make
+  Low and Balanced resolve to the same pool depth.
+- Preserved Diversity mode/depth through `/photo/{id}` back-links and added a
+  route regression test.
+- Made explicit `diversity=off` win over the legacy `diverse=true` alias in the
+  URL reader.
+- Removed the obsolete configurable Auto floor so Auto always resolves to the
+  distinct 500 / 1,000 / 2,000 mode depths; explicit depths remain capped by
+  `DIVERSITY_MAX_CANDIDATE_POOL_SIZE`.
+
+## 2026-08-07 — Search Diversity depth review performance/config repairs
+
+- A fresh Sentinel review identified a cubic Python selection loop at deep
+  pools, incomplete dHash/relevance-drop validation, and incomplete browser
+  support for FastAPI's legacy boolean spellings.
+- Replaced repeated selected-list membership and pairwise slicing with a
+  boolean selection mask plus an incrementally maintained redundancy vector;
+  the existing vectorized pairwise matrix is now consumed without the cubic
+  loop.
+- Restricted dHash thresholds to the 0–64 bit range and required finite
+  relevance-drop configuration values, with matching ranker validation.
+- Browser URL parsing now treats `true`, `1`, `on`, `yes`, `y`, and `t` as
+  the legacy `diverse=true` alias, while explicit `diversity=off` still wins.
+
+## 2026-08-07 — Search Diversity final review repairs
+
+- Final Sentinel review found two remaining P2 issues: the deep-pool dHash
+  scan was still quadratic Python work and only joined the first matching
+  pair; candidate depth was also capped by the separate cumulative result
+  limit.
+- Replaced dHash grouping with chunked NumPy Hamming-distance matching and
+  unioned every matching pair, including transitive near-duplicate groups.
+- Candidate retrieval now honors the selected Diversity depth independently;
+  `MAX_RESULTS_TOTAL` bounds the ranked/servable prefix rather than the
+  candidate universe.
+
+## 2026-08-07 — Search Diversity final Sentinel review
+
+- Sentinel verdict: **PASS** on the final diff through `f3d5bc2`.
+- Focused review checks passed; Discovery remains untouched.

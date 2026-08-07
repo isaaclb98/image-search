@@ -16,7 +16,7 @@
 //     is populated from /api/collections. Each chip is a multi-select
 //     filter on the `?collection=` query param.
 
-import { buildSearchUrlWithFilename, readCentroid, readCentroidWeights, readCentroids, readCollections, readDiverse, readFavoritesFilter, readFilename, readPrompts, readQuery, readView } from "./lib/url.js"
+import { buildSearchUrlWithFilename, readCentroid, readCentroidWeights, readCentroids, readCollections, readDiversityDepth, readDiversityMode, readFavoritesFilter, readFilename, readPrompts, readQuery, readView } from "./lib/url.js"
 import { renderGrid, appendToGrid, addSentinel, removeSentinel } from "./lib/grid.js";
 import { renderFeed, appendToFeed } from "./lib/feed.js";
 import { PromptChips } from "./lib/prompts.js";
@@ -57,7 +57,9 @@ if (form && input) {
     // the URL hasn't been updated yet. Empty filename is omitted
     // from the canonical URL so the "clear" link stays clean.
     const url = buildSearchUrlWithFilename(
-      q, promptChips?.serialize(), activeCollections(), filename,
+      q, promptChips?.serialize(), activeCollections(), filename, null,
+      diversitySelect?.value || readDiversityMode(),
+      diversityDepthSelect?.value || readDiversityDepth(),
     );
     history.pushState({ q }, "", url);
     if (!grid || !resultCount) {
@@ -75,6 +77,7 @@ window.addEventListener("popstate", () => {
   promptChips?.hydrate(readPrompts());
   promptChips?.render();
   syncViewToggle();
+  syncDiversityControls();
   runSearch();
 });
 
@@ -154,8 +157,13 @@ function buildApiUrl(q, surprise = false) {
   if (readFavoritesFilter()) {
     params.set("favorites", "true");
   }
-  if (readDiverse()) {
-    params.set("diverse", "true");
+  const diversityMode = readDiversityMode();
+  if (diversityMode !== "off") {
+    params.set("diversity", diversityMode);
+    const diversityDepth = readDiversityDepth();
+    if (diversityDepth !== "auto") {
+      params.set("diversity_depth", diversityDepth);
+    }
   }
   if (surprise) {
     params.set("surprise", "true");
@@ -240,8 +248,13 @@ async function loadMorePage() {
     if (readFavoritesFilter()) {
       params.set("favorites", "true");
     }
-    if (readDiverse()) {
-      params.set("diverse", "true");
+    const diversityMode = readDiversityMode();
+    if (diversityMode !== "off") {
+      params.set("diversity", diversityMode);
+      const diversityDepth = readDiversityDepth();
+      if (diversityDepth !== "auto") {
+        params.set("diversity_depth", diversityDepth);
+      }
     }
     const view = readView();
     if (view && view !== "grid") {
@@ -408,41 +421,53 @@ for (const btn of document.querySelectorAll(".view-toggle-btn")) {
   btn.addEventListener("click", () => onViewToggleClick(btn.dataset.view));
 }
 
-// ── Diversity toggle ────────────────────────────────────────────────────
+// ── Diversity controls ────────────────────────────────────────────────
 //
-// A simple on/off toggle that adds `?diverse=true` to the URL and
-// re-runs the search with MMR re-ranking. Mirrors the view-toggle
-// pattern (URL round-trip, shareable, back-button-aware).
+// Diversity remains a search mode, but its strength is explicit in the URL
+// so a saved/shared search communicates how it was ranked.
 
-function syncDiverseToggle() {
-  const on = readDiverse();
-  for (const btn of document.querySelectorAll("[data-diverse]")) {
-    btn.classList.toggle("diverse-btn--active", on);
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
+const diversitySelect = document.querySelector("[data-diversity-select]");
+const diversityDepthSelect = document.querySelector("[data-diversity-depth-select]");
+
+function syncDiversityControls() {
+  if (diversitySelect) diversitySelect.value = readDiversityMode();
+  if (diversityDepthSelect) {
+    diversityDepthSelect.value = readDiversityDepth();
+    diversityDepthSelect.disabled = readDiversityMode() === "off";
   }
 }
 
-function onDiverseToggleClick() {
-  const nextState = !readDiverse();
+function onDiversityChange() {
+  const nextMode = diversitySelect?.value || "off";
   const url = new URL(window.location.href);
-  if (nextState) {
-    url.searchParams.set("diverse", "true");
+  url.searchParams.delete("diverse");
+  if (nextMode === "off") {
+    url.searchParams.delete("diversity");
+    url.searchParams.delete("diversity_depth");
   } else {
-    url.searchParams.delete("diverse");
+    url.searchParams.set("diversity", nextMode);
   }
   history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
-  syncDiverseToggle();
-  // Re-run the search if we have an active query. Falls back to a
-  // fresh SSR page on the empty landing page.
-  if (hasPositivePrompt(readQuery())) {
-    runSearch();
-  }
+  syncDiversityControls();
+  if (hasPositivePrompt(readQuery())) runSearch();
 }
 
-syncDiverseToggle();
-for (const btn of document.querySelectorAll("[data-diverse]")) {
-  btn.addEventListener("click", onDiverseToggleClick);
+function onDiversityDepthChange() {
+  const nextDepth = diversityDepthSelect?.value || "auto";
+  const url = new URL(window.location.href);
+  if (readDiversityMode() === "off" || nextDepth === "auto") {
+    url.searchParams.delete("diversity_depth");
+  } else {
+    url.searchParams.set("diversity_depth", nextDepth);
+  }
+  history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
+  syncDiversityControls();
+  if (hasPositivePrompt(readQuery())) runSearch();
 }
+
+syncDiversityControls();
+diversitySelect?.addEventListener("change", onDiversityChange);
+diversityDepthSelect?.addEventListener("change", onDiversityDepthChange);
 
 // Keep the toggle in sync with browser back/forward navigation.
 // (The main popstate listener above already calls runSearch(); the

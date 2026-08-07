@@ -57,6 +57,16 @@ Routes:
 - `/random` — random sample from the cache
 - `/discover` — feedback-driven recommendation feed
 
+Search supports explicit **Diversity** controls in the result toolbar. `low`,
+`balanced`, and `high` settings control how strongly repetition is penalized;
+the separate depth control accepts `auto`, `500`, `1000`, `2000`, or `5000`
+candidate images before ranking. Auto uses progressively deeper pools for
+stronger Diversity. Diversity preserves a mode-specific relevance floor while
+suppressing exact/perceptual duplicates and spreading the result ordering
+across distinct embedding neighborhoods. It ranks one stable candidate set
+before offset pagination, so scrolling does not independently rerank each page.
+The legacy `?diverse=true` URL remains an alias for `?diversity=balanced`.
+
 JSON API at `/api/*`. Health check at `/healthz`.
 
 ## Configuration
@@ -124,11 +134,24 @@ python -m indexer.indexer /path/to/photos --qdrant-url http://localhost:6333 --r
 
 Use this after upgrading the encoder, or for any point indexed before the `--reblurhash` feature shipped (those have `payload.blurhash == null` until the walk touches them). The walk is cursor-paginated, idempotent (a point whose current hash matches the recompute is skipped), and never re-embeds — it only writes the `blurhash` payload field.
 
+Search Diversity fingerprints can be backfilled independently:
+
+```bash
+python -m indexer.indexer /path/to/photos --qdrant-url http://localhost:6333 --refingerprint
+```
+
+`--refingerprint` writes `content_sha256` and `dhash` payload fields without
+changing vectors. Exact duplicate files are grouped by SHA-256; recompressed
+or lightly edited copies are grouped by perceptual dHash. New indexing runs
+write these fields automatically.
+
 ### Test layout
 
 - `tests/test_search_api.py` — full-stack FastAPI + in-memory Qdrant, covers `/api/search`, `/photo/{id}/similar`, etc.
 - `tests/test_albums_api.py` / `tests/test_saved_searches_api.py` / `tests/test_favorites_api.py` — CRUD + ZIP round-trip.
 - `tests/test_blurhash.py` — encoder edge cases + `build_payload` round-trip.
+- `tests/test_fingerprints.py` — exact/perceptual Diversity fingerprint behavior.
+- `tests/test_diversity.py` — Diversity modes, duplicate collapse, ranking, and cache behavior.
 - `tests/test_states.py` — macro rendering + per-page opt-in guards.
 - `tests/test_theme.py` — base.html / input.css file-content + Alpine-wiring checks.
 - `tests/test_ui_interactive.py` — shared shell, lightbox, blurhash, favorite, and responsive UI contracts.
