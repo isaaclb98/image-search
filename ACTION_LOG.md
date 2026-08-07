@@ -152,5 +152,5 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Added `tests/test_ui_interactive.py` and updated README/PLAN documentation.
 - Verification: `./bin/tailwindcss ...` succeeded; `.venv/bin/pytest -q` → **488 passed, 2 warnings**; all JS files passed `node --check`; `git diff --check` passed; Playwright seeded-Qdrant smoke passed for 12 result tiles, BlurHash canvases, lightbox next/previous/Escape, shortcut help, and favorite POST with no page errors.
 - `ruff check search indexer tests` still reports 55 pre-existing repository lint findings; no lint config or unrelated cleanup was applied.
-- Branch remains uncommitted and unpushed; merge to `main` still requires Isaac's approval.
+- Commit `2096f2b` is pushed to `origin/feature/polished-ui-tasks`; merge to `main` still requires Isaac's approval.
 - Sentinel final review: **PASS** after repairing clickable lightbox arrows, x-cloak, mobile lightbox scrolling, favorite/discovery state synchronization, and favorites-page shell updates.
