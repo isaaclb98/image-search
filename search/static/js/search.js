@@ -48,6 +48,8 @@ if (submitButton?.disabled) submitButton.dataset.locked = "true";
 
 let loadingMore = false;
 let loadingSearch = false;
+let searchGeneration = 0;
+let searchController = null;
 let loadMoreGeneration = 0;
 let loadMoreController = null;
 let io = null;
@@ -102,6 +104,7 @@ window.addEventListener("popstate", () => {
 attachInfiniteScroll();
 
 async function runSearch() {
+  cancelSearchRequest();
   invalidateLoadMore();
   const q = readQuery().trim();
   if (!hasActiveSearch(q)) {
@@ -114,6 +117,9 @@ async function runSearch() {
     return;
   }
 
+  const requestGeneration = searchGeneration;
+  const controller = new AbortController();
+  searchController = controller;
   loadingSearch = true;
   setLoading(true);
 
@@ -121,22 +127,36 @@ async function runSearch() {
     const apiUrl = buildApiUrl(q);
     const resp = await fetch(apiUrl, {
       headers: { Accept: "application/json" },
+      signal: controller.signal,
     });
+    if (requestGeneration !== searchGeneration || controller.signal.aborted) return;
     if (!resp.ok) {
       showError();
       return;
     }
     const data = await resp.json();
+    if (requestGeneration !== searchGeneration || controller.signal.aborted) return;
     renderInitial(data);
     // The committed URL is the source of truth after Search.
     syncChipActiveState();
   } catch (err) {
+    if (controller.signal.aborted || requestGeneration !== searchGeneration) return;
     console.error("search failed", err);
     showError();
   } finally {
-    loadingSearch = false;
-    setLoading(false);
+    if (searchController === controller) {
+      searchController = null;
+      loadingSearch = false;
+      setLoading(false);
+    }
   }
+}
+
+function cancelSearchRequest() {
+  searchGeneration += 1;
+  searchController?.abort();
+  searchController = null;
+  loadingSearch = false;
 }
 
 function buildApiUrl(q, surprise = false) {

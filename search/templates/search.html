@@ -158,10 +158,11 @@
             <span>{{ prompt }}</span>
             <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
           </button>
+          <input type="hidden" name="positives" value="{{ prompt }}">
         {% endfor %}
       </div>
       <div class="prompt-add">
-        <input type="text" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
+        <input type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
         <button type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
       </div>
       <span class="prompt-hint">required</span>
@@ -174,10 +175,11 @@
             <span>{{ prompt }}</span>
             <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
           </button>
+          <input type="hidden" name="negatives" value="{{ prompt }}">
         {% endfor %}
       </div>
       <div class="prompt-add">
-        <input type="text" data-prompt-input="negatives" placeholder="e.g. blurry, screenshot" aria-label="Add Exclude prompt">
+        <input type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, screenshot" aria-label="Add Exclude prompt">
         <button type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
       </div>
       <span class="prompt-hint">optional</span>
@@ -301,7 +303,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% if not error %}
 <script type="module" src="/static/js/search.js?v={{ static_assets_version }}"></script>
-{% endif %}
 {% endblock %}

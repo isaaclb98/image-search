@@ -82,6 +82,8 @@ def test_search_surface_uses_prompts_and_explicit_submit_gate():
     assert 'name="q"' not in search
     assert 'data-prompt-input="positives"' in search
     assert 'data-prompt-input="negatives"' in search
+    assert 'name="positives"' in search
+    assert 'name="negatives"' in search
     assert 'data-search-draft-status' in search
     assert "history.pushState({ search: url }" in controller
     assert "function markDraftDirty()" in controller
@@ -91,3 +93,6 @@ def test_search_surface_uses_prompts_and_explicit_submit_gate():
     assert "new AbortController()" in controller
     assert 'submitButton.dataset.locked = "true"' in controller
     assert "if (rawValue.trim()) promptChips.add(side, rawValue);" in controller
+    assert "let searchGeneration = 0;" in controller
+    assert "signal: controller.signal" in controller
+    assert "requestGeneration !== searchGeneration" in controller

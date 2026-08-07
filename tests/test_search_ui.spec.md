@@ -58,6 +58,18 @@ This is the spec. IDs are stable so test runners (Playwright or human) can refer
 - **When:** the user clicks Search.
 - **Then:** one new committed URL and one new search are produced.
 
+#### UI-S-004a — saved search selection is draft-only `[AUTO]`
+
+- **Given:** the user is on a committed result page.
+- **When:** the user selects a saved search.
+- **Then:** Include/Exclude chips update, but the URL, result grid, and search request remain unchanged until Search is clicked.
+
+#### UI-S-004b — unfinished edits cannot append stale pages `[AUTO]`
+
+- **Given:** an infinite-scroll request is in flight for the current committed search.
+- **When:** the user changes a filter or submits a new search before that request returns.
+- **Then:** the old response is ignored or aborted and cannot append results to the new committed result grid.
+
 #### UI-S-005 — empty Include submission `[AUTO]`
 
 - **Given:** the user is on `GET /`.

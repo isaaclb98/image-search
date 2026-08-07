@@ -87,6 +87,11 @@ export class PromptChips {
           `<span class="prompt-chip-remove" aria-hidden="true">&times;</span>`;
         chip.addEventListener("click", () => this.remove(side, prompt));
         frag.appendChild(chip);
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = side;
+        hidden.value = prompt;
+        frag.appendChild(hidden);
       }
       list.appendChild(frag);
     }
