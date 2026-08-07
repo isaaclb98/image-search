@@ -302,7 +302,7 @@ function renderInitial(data) {
 }
 
 async function loadMorePage() {
-  if (loadingMore || !grid) return;
+  if (loadingMore || !grid || draftDirty) return;
   const q = readQuery().trim();
   const filename = readFilename();
   if (!hasActiveSearch(q)) return;
