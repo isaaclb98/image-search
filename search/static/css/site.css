@@ -774,6 +774,9 @@ a:hover { color: var(--accent-hover); }
   transition: opacity 0.18s ease, visibility 0.18s ease,
               transform 0.12s ease, box-shadow 0.12s ease;
   z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .scroll-to-top--visible {
   opacity: 1;
