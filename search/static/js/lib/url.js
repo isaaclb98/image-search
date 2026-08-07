@@ -94,7 +94,10 @@ export function readDiversityMode() {
   const params = new URLSearchParams(window.location.search);
   const mode = (params.get("diversity") || "").toLowerCase();
   if (["low", "balanced", "high"].includes(mode)) return mode;
-  if (params.get("diverse") === "true") return "balanced";
+  if (mode === "off") return "off";
+  // The legacy alias is only a fallback. An explicit `diversity=off` must
+  // win, matching the server's resolve_mode contract.
+  if (!mode && params.get("diverse") === "true") return "balanced";
   return "off";
 }
 

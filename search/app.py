@@ -1272,10 +1272,11 @@ def create_app(
         # slicing. The requested depth is independent from Diversity strength:
         # a deep, low-strength search can still preserve relevance while making
         # more candidates available for later pages.
-        requested_pool_depth = max(
-            pool_depth,
-            _cfg.diversity_candidate_pool_size if depth == "auto" else 0,
-        )
+        # ``resolve_depth`` already maps Auto to a distinct depth for each
+        # Diversity mode. Do not apply a second configurable floor here: a
+        # user-configured base pool could otherwise collapse Low and
+        # Balanced (for example, both would become 1,000).
+        requested_pool_depth = pool_depth
         candidate_limit = min(
             _cfg.max_results_total,
             _cfg.diversity_max_candidate_pool_size,
@@ -1641,8 +1642,27 @@ def create_app(
         view: str = Query(_cfg.default_view, description="originating view for back link"),
         favorites: bool = Query(False, description="originating favourites filter"),
         from_favorites: bool = Query(False, description="return to favourites page"),
+        diverse: bool = Query(False, description="originating legacy Diversity flag"),
+        diversity: str | None = Query(
+            None, description="originating Diversity strength",
+        ),
+        diversity_depth: str | None = Query(
+            None, description="originating Diversity candidate depth",
+        ),
     ) -> HTMLResponse:
         view = _coerce_view(view)
+        try:
+            diversity_mode, _ = resolve_mode(diversity, diverse)
+        except ValueError:
+            # A stale or hand-edited photo URL should still render. Fall back
+            # to the safe baseline rather than carrying an invalid mode back
+            # into search.
+            diversity_mode = "off"
+        try:
+            diversity_depth_mode, _ = resolve_depth(diversity_depth, diversity_mode)
+        except ValueError:
+            diversity_depth_mode = "auto"
+        diverse = diversity_mode != "off"
         try:
             hit = qdrant.retrieve(point_id)
         except (ConnectionError, OSError) as e:
@@ -1719,7 +1739,9 @@ def create_app(
                     centroids=active_centroids,
                     weights=active_weights,
                     favorites=favorites,
-                    diverse=False,
+                    diverse=diverse,
+                    diversity_mode=diversity_mode,
+                    diversity_depth=diversity_depth_mode,
                     filename=filename_pattern,
                 ),
                 "payload": hit.payload or {},

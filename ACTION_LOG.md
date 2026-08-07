@@ -192,3 +192,17 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - High now uses a stronger ranking weight and wider relevance allowance; depth
   is included in API metadata, URL state, cache keys, and stable pagination.
 - Discovery remains explicitly out of scope.
+
+## 2026-08-07 — Search Diversity depth review repairs
+
+- Sentinel review returned `NEEDS_WORK` with three P2 findings: photo
+  back-links dropped Diversity state, the client-side legacy URL alias could
+  override explicit `diversity=off`, and a configurable Auto floor could make
+  Low and Balanced resolve to the same pool depth.
+- Preserved Diversity mode/depth through `/photo/{id}` back-links and added a
+  route regression test.
+- Made explicit `diversity=off` win over the legacy `diverse=true` alias in the
+  URL reader.
+- Removed the obsolete configurable Auto floor so Auto always resolves to the
+  distinct 500 / 1,000 / 2,000 mode depths; explicit depths remain capped by
+  `DIVERSITY_MAX_CANDIDATE_POOL_SIZE`.

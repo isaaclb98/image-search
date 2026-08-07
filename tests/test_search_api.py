@@ -486,6 +486,16 @@ def test_get_photo_page_view_preserved_in_back_link(app_with_qdrant):
     assert "view=feed" in resp.text
 
 
+def test_get_photo_page_diversity_state_preserved_in_back_link(app_with_qdrant):
+    """Photo back-links retain the active Diversity strength and depth."""
+    resp = app_with_qdrant.get(
+        f"/photo/{CAT_ID}?q=cat&diversity=high&diversity_depth=2000"
+    )
+    assert resp.status_code == 200
+    assert "diversity=high" in resp.text
+    assert "diversity_depth=2000" in resp.text
+
+
 def test_get_photo_page_view_default_omitted_from_back_link(app_with_qdrant):
     """The default 'grid' view is NOT in the back link (clean URLs)."""
     resp = app_with_qdrant.get(f"/photo/{CAT_ID}?q=cat")

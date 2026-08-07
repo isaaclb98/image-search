@@ -74,7 +74,6 @@ class Config:
     # Search Diversity. These knobs apply only to ordinary /api/search and
     # the SSR search page; Discovery owns a separate implementation and is
     # intentionally not wired to these values.
-    diversity_candidate_pool_size: int = 500
     diversity_max_candidate_pool_size: int = 5000
     diversity_cache_ttl_seconds: int = 300
     diversity_cache_max_entries: int = 64
@@ -208,7 +207,6 @@ def load() -> Config:
         web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
         test_mode=bool(os.environ.get("SEARCH_TEST_MODE")),
-        diversity_candidate_pool_size=_int("DIVERSITY_CANDIDATE_POOL_SIZE", 500),
         diversity_max_candidate_pool_size=_int("DIVERSITY_MAX_CANDIDATE_POOL_SIZE", 5000),
         diversity_cache_ttl_seconds=_int("DIVERSITY_CACHE_TTL_SECONDS", 300),
         diversity_cache_max_entries=_int("DIVERSITY_CACHE_MAX_ENTRIES", 64),
@@ -235,13 +233,9 @@ def load() -> Config:
         path_liveness_ttl_seconds=_int("PATH_LIVENESS_TTL_SECONDS", 60),
     )
 
-    if cfg.diversity_candidate_pool_size < cfg.top_k_default:
+    if cfg.diversity_max_candidate_pool_size < cfg.top_k_default:
         raise ValueError(
-            "DIVERSITY_CANDIDATE_POOL_SIZE must be >= TOP_K_DEFAULT"
-        )
-    if cfg.diversity_max_candidate_pool_size < cfg.diversity_candidate_pool_size:
-        raise ValueError(
-            "DIVERSITY_MAX_CANDIDATE_POOL_SIZE must be >= DIVERSITY_CANDIDATE_POOL_SIZE"
+            "DIVERSITY_MAX_CANDIDATE_POOL_SIZE must be >= TOP_K_DEFAULT"
         )
     if cfg.diversity_cache_ttl_seconds < 0 or cfg.diversity_cache_max_entries < 1:
         raise ValueError("Diversity cache settings must be non-negative and non-empty")
