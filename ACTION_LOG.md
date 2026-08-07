@@ -247,3 +247,16 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Draft controls are being kept separate from committed URL state so collection,
   Diversity, depth, filename, view, and saved-search changes do not fetch until
   Search is clicked.
+
+## 2026-08-07 — Search-submit gate review repairs
+
+- First focused Sentinel review identified stale in-flight pagination, centroid
+  Search re-enabling, duplicate pending prompt text, and stale UI specification
+  cases. Repaired all four findings.
+- Final focused review identified concurrent committed-search responses and
+  error-page/native retry prompt preservation. Added AbortController/generation
+  guards, prompt `name=` plus hidden chip fields, and kept the search controller
+  active on error pages.
+- Local verification remains green at **515 passed**, with JavaScript syntax,
+  Python compile, CSS build, and diff checks passing. The final Sentinel runner
+  did not return a verdict within bounded waits; no Sentinel PASS is claimed.
