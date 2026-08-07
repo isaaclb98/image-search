@@ -8,6 +8,7 @@ lifetime of the process. See .env.example for the full table.
 from __future__ import annotations
 
 import logging
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -239,10 +240,12 @@ def load() -> Config:
         )
     if cfg.diversity_cache_ttl_seconds < 0 or cfg.diversity_cache_max_entries < 1:
         raise ValueError("Diversity cache settings must be non-negative and non-empty")
-    if cfg.diversity_duplicate_hamming_distance < 0:
-        raise ValueError("DIVERSITY_DUPLICATE_HAMMING_DISTANCE must be >= 0")
-    if cfg.diversity_relevance_drop < 0:
-        raise ValueError("DIVERSITY_RELEVANCE_DROP must be >= 0")
+    if not 0 <= cfg.diversity_duplicate_hamming_distance <= 64:
+        raise ValueError(
+            "DIVERSITY_DUPLICATE_HAMMING_DISTANCE must be between 0 and 64"
+        )
+    if not math.isfinite(cfg.diversity_relevance_drop) or cfg.diversity_relevance_drop < 0:
+        raise ValueError("DIVERSITY_RELEVANCE_DROP must be finite and >= 0")
 
     # Validate NAS base if set (test mode may set it later).
     if cfg.nas_images_base and not Path(cfg.nas_images_base).is_dir():

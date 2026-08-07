@@ -179,20 +179,25 @@ def mmr_rerank(
         query_scores = vectors @ query
         pairwise = vectors @ vectors.T
         selected: list[int] = []
+        selected_mask = np.zeros(len(hits_with_vectors), dtype=bool)
+        max_redundancy = np.full(
+            len(hits_with_vectors), -np.inf, dtype=np.float32,
+        )
         target = min(k, len(hits_with_vectors))
         while len(selected) < target:
             if not selected:
                 remaining = np.arange(len(hits_with_vectors))
                 best = int(remaining[np.argmax(query_scores[remaining])])
             else:
-                remaining = np.asarray(
-                    [i for i in range(len(hits_with_vectors)) if i not in selected],
-                    dtype=np.int32,
+                remaining = np.flatnonzero(~selected_mask)
+                values = (
+                    lambda_ * query_scores[remaining]
+                    - (1.0 - lambda_) * max_redundancy[remaining]
                 )
-                redundancy = pairwise[np.ix_(remaining, np.asarray(selected))].max(axis=1)
-                values = lambda_ * query_scores[remaining] - (1.0 - lambda_) * redundancy
                 best = int(remaining[np.argmax(values)])
             selected.append(best)
+            selected_mask[best] = True
+            max_redundancy = np.maximum(max_redundancy, pairwise[:, best])
         return [hits_with_vectors[i][0] for i in selected]
     except ImportError:
         # Keep the pure-Python fallback for unusual deployments and make the
@@ -256,8 +261,8 @@ def rank_diverse(
         strength = DIVERSITY_MODE_STRENGTHS[mode]
     if not math.isfinite(strength) or not 0.0 <= strength <= 1.0:
         raise ValueError("diversity strength must be finite and in [0, 1]")
-    if duplicate_hamming_distance < 0:
-        raise ValueError("duplicate_hamming_distance must be >= 0")
+    if not 0 <= duplicate_hamming_distance <= 64:
+        raise ValueError("duplicate_hamming_distance must be between 0 and 64")
     if relevance_drop < 0 or not math.isfinite(relevance_drop):
         raise ValueError("relevance_drop must be finite and >= 0")
     if depth not in DIVERSITY_DEPTH_OPTIONS:
@@ -341,6 +346,8 @@ def rank_diverse(
     )
 
     selected: list[int] = []
+    selected_mask = np.zeros(len(kept_hits), dtype=bool)
+    max_redundancy = np.full(len(kept_hits), -np.inf, dtype=np.float32)
     semantic_groups = 0
     while len(selected) < target:
         if not selected:
@@ -348,14 +355,14 @@ def rank_diverse(
             best = int(candidates[np.argmax(query_scores[candidates])])
             semantic_groups = 1
         else:
-            remaining = np.asarray(
-                [i for i in range(len(kept_hits)) if i not in selected],
-                dtype=np.int32,
-            )
+            remaining = np.flatnonzero(~selected_mask)
             if not len(remaining):
                 break
-            redundancy = pairwise[np.ix_(remaining, np.asarray(selected))].max(axis=1)
-            values = (1.0 - strength) * relevance[remaining] + strength * (1.0 - redundancy)
+            redundancy = max_redundancy[remaining]
+            values = (
+                (1.0 - strength) * relevance[remaining]
+                + strength * (1.0 - redundancy)
+            )
             eligible_remaining = eligible[remaining]
             if bool(eligible_remaining.any()):
                 values = np.where(eligible_remaining, values, -np.inf)
@@ -364,6 +371,8 @@ def rank_diverse(
             if float(redundancy[best_position]) < semantic_novelty_threshold:
                 semantic_groups += 1
         selected.append(best)
+        selected_mask[best] = True
+        max_redundancy = np.maximum(max_redundancy, pairwise[:, best])
 
     ordered = [kept_hits[i] for i in selected]
     return DiversityRanking(

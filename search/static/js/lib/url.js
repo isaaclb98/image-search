@@ -97,7 +97,10 @@ export function readDiversityMode() {
   if (mode === "off") return "off";
   // The legacy alias is only a fallback. An explicit `diversity=off` must
   // win, matching the server's resolve_mode contract.
-  if (!mode && params.get("diverse") === "true") return "balanced";
+  const legacy = (params.get("diverse") || "").toLowerCase();
+  if (!mode && ["true", "1", "on", "yes", "y", "t"].includes(legacy)) {
+    return "balanced";
+  }
   return "off";
 }
 

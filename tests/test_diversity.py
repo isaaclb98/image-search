@@ -169,6 +169,23 @@ class TestSearchDiversity:
         with pytest.raises(ValueError, match="diversity_depth must be one of"):
             resolve_depth("10000", "high")
 
+    def test_rank_diverse_can_bound_result_count(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("a"), _unit_vec(1, 0, 0)),
+            (_make_hit("b"), _unit_vec(0.9, 0.1, 0)),
+            (_make_hit("c"), _unit_vec(0, 1, 0)),
+        ]
+        ranking = rank_diverse(hits, q, mode="high", max_results=2)
+        assert len(ranking.hits) == 2
+        assert ranking.stats.result_count == 2
+
+    def test_rank_diverse_rejects_unrepresentable_dhash_threshold(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="between 0 and 64"):
+            rank_diverse([], [1.0], mode="high", duplicate_hamming_distance=65)
+
     def test_relevance_drop_scales_with_strength(self):
         import pytest
 

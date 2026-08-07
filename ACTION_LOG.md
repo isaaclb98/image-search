@@ -206,3 +206,17 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Removed the obsolete configurable Auto floor so Auto always resolves to the
   distinct 500 / 1,000 / 2,000 mode depths; explicit depths remain capped by
   `DIVERSITY_MAX_CANDIDATE_POOL_SIZE`.
+
+## 2026-08-07 — Search Diversity depth review performance/config repairs
+
+- A fresh Sentinel review identified a cubic Python selection loop at deep
+  pools, incomplete dHash/relevance-drop validation, and incomplete browser
+  support for FastAPI's legacy boolean spellings.
+- Replaced repeated selected-list membership and pairwise slicing with a
+  boolean selection mask plus an incrementally maintained redundancy vector;
+  the existing vectorized pairwise matrix is now consumed without the cubic
+  loop.
+- Restricted dHash thresholds to the 0–64 bit range and required finite
+  relevance-drop configuration values, with matching ranker validation.
+- Browser URL parsing now treats `true`, `1`, `on`, `yes`, `y`, and `t` as
+  the legacy `diverse=true` alias, while explicit `diversity=off` still wins.
