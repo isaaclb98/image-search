@@ -104,17 +104,17 @@ CI runs `tw:build` before tests (`.github/workflows/dev-build.yml`), so a stale 
 - `empty_state(icon=, title=, body=, action_url=, action_label=)` — centered placeholder used when a list is empty.
 - `error_state(message)` — DaisyUI `alert alert-error` for unhandled errors.
 - `loading_skeleton(kind=)` — shimmering placeholder for `grid` or `detail` shapes.
-- `blurhash_thumb(href, src, alt=, blurhash=, score=, score_str=)` — LQIP thumbnail wrapper carrying `data-blurhash` for the upcoming client-side decoder.
+- `blurhash_thumb(href, src, alt=, blurhash=, score=, score_str=, photo_id=, path=)` — LQIP thumbnail wrapper carrying the photo/lightbox data attributes.
 
 `albums`, `saved`, `favorites`, `random`, `centroids`, `photo`, `album_detail`, and `discover_liked` opt into these at the right points. To extend the set, add a usage test in `tests/test_states.py`.
 
 ### Theme system
 
-`search/templates/base.html` carries the Alpine-driven toggle (single button, dynamic `:aria-label` + `x-show` switching the sun/moon icon, `localStorage` persistence under key `theme`). The inline `<script>` at the top reads `localStorage` / `prefers-color-scheme` and sets `data-theme` on `<html>` *before* first paint to prevent FOUC.
+`search/templates/base.html` carries the Alpine-driven toggle (single button, dynamic `:aria-label` + `x-show` switching the sun/moon icon, `localStorage` persistence under key `theme`), a responsive mobile navigation drawer, the photo lightbox shell, and the keyboard-shortcuts help panel. The inline `<script>` at the top reads `localStorage` / `prefers-color-scheme` and sets `data-theme` on `<html>` *before* first paint to prevent FOUC. `search/static/js/ui.js` wires the shared interactions.
 
 ### Blurhash / LQIP
 
-Indexed photos get a Blurhash LQIP computed at index time and stored in the Qdrant payload (`indexer/blurhash.py`). `blurhash>=1.0` is the only extra runtime dep. The client-side decoder (canvas → tinted background) is deferred to a follow-up branch; in this branch the `blurhash_thumb` macro just emits a `bg-base-300` neutral tint until the real image loads.
+Indexed photos get a Blurhash LQIP computed at index time and stored in the Qdrant payload (`indexer/blurhash.py`). `blurhash>=1.0` is the only extra runtime dep. The browser decoder (`search/static/js/lib/blurhash.js`) paints a canvas placeholder and cross-fades to the real image when it arrives.
 
 Backfill a collection without re-embedding:
 
@@ -131,7 +131,7 @@ Use this after upgrading the encoder, or for any point indexed before the `--reb
 - `tests/test_blurhash.py` — encoder edge cases + `build_payload` round-trip.
 - `tests/test_states.py` — macro rendering + per-page opt-in guards.
 - `tests/test_theme.py` — base.html / input.css file-content + Alpine-wiring checks.
+- `tests/test_ui_interactive.py` — shared shell, lightbox, blurhash, favorite, and responsive UI contracts.
 - `tests/test_indexer.py` — indexer CLI + payload schema (incl. `blurhash`).
 
 The full suite is `<1m` on a laptop (CPU only). The in-memory Qdrant `location=":memory:"` is set via the `QDRANT_URL=memory://` env var in CI.
-

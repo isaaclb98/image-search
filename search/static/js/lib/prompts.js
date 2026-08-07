@@ -90,6 +90,7 @@ export class PromptChips {
       }
       list.appendChild(frag);
     }
+    this.root.dispatchEvent(new CustomEvent("promptschanged", { detail: this.state }));
   }
 
   isSide(side) {

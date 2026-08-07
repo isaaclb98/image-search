@@ -4,17 +4,18 @@
 
 {% block content %}
 {% import "_macros.html" as ui %}
-<section class="favorites-page max-w-6xl mx-auto px-4 py-6">
+<section class="favorites-page max-w-6xl mx-auto px-4 py-6" data-favorites-page data-favorites-total="{{ total }}">
   {{ ui.page_header("Favourites", count=total, count_label="photo", count_plural_label="photos") }}
   {% if total %}
-    <p class="-mt-4 mb-6"><a class="btn btn-sm btn-primary" href="/favorites/download.zip" download>Download .zip</a></p>
+    <p class="-mt-4 mb-6" data-favorites-download><a class="btn btn-sm btn-primary inline-flex items-center gap-2" href="/favorites/download.zip" download>{{ ui.ui_icon('download', 'h-4 w-4') }}<span>Download .zip</span></a></p>
   {% endif %}
 
   {% if results %}
     {% include "_result_grid.html" %}
-  {% else %}
-    {{ ui.empty_state(icon='♡', title='No favourites yet', body='Tap the heart on any photo to add it here.', action_url='/', action_label='Browse images') }}
   {% endif %}
+  <div data-favorites-empty{% if results %} hidden{% endif %}>
+    {{ ui.empty_state(icon='heart', title='No favourites yet', body='Tap the heart on any photo to add it here.', action_url='/', action_label='Browse images') }}
+  </div>
 </section>
 {% endblock %}
 

@@ -30,6 +30,7 @@ const loadMoreHint = document.querySelector(".load-more-hint");
 const categoryBar = document.getElementById("category-bar");
 const promptRoot = document.querySelector(".prompt-composition");
 const promptError = document.querySelector(".prompt-error");
+const filterSummary = document.querySelector("[data-filter-summary]");
 const promptChips = promptRoot ? new PromptChips(promptRoot, readPrompts()) : null;
 
 let loadingMore = false;
@@ -553,6 +554,21 @@ function syncChipActiveState() {
     btn.setAttribute("aria-pressed", on ? "true" : "false");
   }
 }
+
+function updateFilterSummary() {
+  if (!filterSummary) return;
+  const promptCount = promptChips
+    ? promptChips.state.positives.length + promptChips.state.negatives.length
+    : 0;
+  const filterCount = promptCount + (readFilename() ? 1 : 0) + activeCollections().length;
+  filterSummary.textContent = filterCount
+    ? `${filterCount} active`
+    : "Optional";
+}
+
+promptRoot?.addEventListener("promptschanged", updateFilterSummary);
+filenameInput?.addEventListener("input", updateFilterSummary);
+updateFilterSummary();
 
 function onChipClick(name) {
   const url = new URL(window.location.href);

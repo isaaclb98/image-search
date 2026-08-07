@@ -1,4 +1,8 @@
-# PLAN.md — feature/polished-ui-foundation
+# PLAN.md — feature/polished-ui-tasks
+
+> The foundation plan below is historical context from the first UI pass.
+> The active Phase 4 objective at the end of this file supersedes the earlier
+> branch-2 deferral and is the acceptance contract for the current changes.
 
 ## Goal
 
@@ -173,7 +177,7 @@ New tests:
 - **Sentinel scope:** tests green, no Python behaviour regressions in existing routes, themes work, no FOUC, no accessibility regression (semantic HTML preserved; ARIA on new interactive elements). Visual taste is Isaac's call, not Sentinel's.
 - **Git workflow:** new feature branch (per GOALS.md). Hyperion never merges to `main` without Isaac's explicit greenlight, even with Sentinel PASS.
 
-## Out of scope (branch 2 — `feature/polished-ui-interactive`)
+## Out of scope (historical branch 2 — superseded by Phase 4)
 
 Sketched only; gets its own PLAN.md when it starts.
 
@@ -193,3 +197,53 @@ Sketched only; gets its own PLAN.md when it starts.
 - World maps / Places (GPS sparse on personal libs).
 - Live Photos, WebDAV.
 - Screenshot-based visual regression in CI.
+
+## Phase 4 — UI coherence and interactive polish (Isaac authorization, 2026-08-06)
+
+This phase implements the complete UI pass requested after the live review of
+`feature/polished-ui-tasks`. It supersedes the earlier branch-2 deferral for the
+interactive pieces while preserving the FastAPI + Jinja + Tailwind standalone
+CLI + DaisyUI architecture.
+
+### Objective
+
+Deliver a coherent, product-grade photo-search UI across light and dark themes,
+desktop and mobile layouts, with the search workflow as the primary surface and
+photo inspection as a fast, keyboard-accessible interaction.
+
+### Scope
+
+- Map/remove legacy dark-only CSS variables and establish one theme-aware token
+  system for surfaces, text, borders, focus, accent, and motion.
+- Make the header/navigation responsive with a mobile drawer and consistent
+  active-route treatment.
+- Recompose the search surface: primary query first, advanced filters grouped,
+  active modifiers visible, and no narrow-viewport overflow.
+- Standardize page headers, buttons, icons, empty/error/loading states, and
+  typography across search, photo, albums, saved, random, centroids, and
+  discovery pages.
+- Add a photo lightbox with metadata/action rail, keyboard navigation, escape/
+  focus handling, and quick favorite/album actions that reuse existing APIs.
+- Add client-side blurhash decoding for result thumbnails, preserving the
+  image-first loading behavior.
+- Add keyboard shortcuts/help overlay and persist the selected result view.
+- Keep routes and API response contracts stable unless a UI-only endpoint is
+  required for existing behavior; do not add authentication or deployment work.
+
+### Acceptance criteria
+
+- Light and dark themes are internally consistent across every page; no legacy
+  dark-only `--bg`/`--fg`/`--accent` values leak into light mode.
+- At 390px viewport width, the app has no horizontal overflow, search controls
+  remain usable, and all primary navigation remains reachable.
+- Search has a clear primary action; advanced controls are discoverable without
+  dominating the initial layout; active filters remain visible and removable.
+- Every result tile supports a consistent lightbox entry point, favorite state,
+  keyboard focus, and blurhash-to-image transition.
+- Lightbox supports open/close, previous/next, Escape, arrow keys, focus
+  restoration, reduced-motion behavior, and a usable narrow layout.
+- All existing API, route, and indexer tests continue to pass; add focused tests
+  for new template/keyboard/state contracts where deterministic.
+- Tailwind output is rebuilt and `git diff --check` is clean.
+- Sentinel independently reviews the final diff and returns PASS or concrete
+  findings are repaired before completion.

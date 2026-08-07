@@ -37,7 +37,14 @@
     data-has-more="{{ 'true' if has_more else 'false' }}"
   >
     {% for r in results %}
-      <li class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}" data-id="{{ r.id }}" data-score="{{ r.score }}">
+      <li
+        class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}"
+        data-id="{{ r.id }}"
+        data-score="{{ r.score }}"
+        data-photo-id="{{ r.id }}"
+        data-photo-src="{{ r.url }}"
+        data-photo-path="{{ r.path }}"
+      >
         {% if r.score_str %}
           <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }} tabular-nums">{{ r.score_str }}</span>
         {% endif %}
@@ -46,9 +53,17 @@
         {% endif %}
         {% set href = "/photo/" ~ r.id ~ ("?" ~ search_query_string if search_query_string else "") %}
         {% if r.blurhash %}
-          {{ ui.blurhash_thumb(href, r.url, alt='', blurhash=r.blurhash, score=r.score, score_str=r.score_str) }}
+          {{ ui.blurhash_thumb(href, r.url, alt='', blurhash=r.blurhash, photo_id=r.id, path=r.path) }}
         {% else %}
-          <a href="{{ href }}" class="block w-full h-full overflow-hidden">
+          <a
+            href="{{ href }}"
+            class="thumb-link block w-full h-full overflow-hidden"
+            data-lightbox-trigger
+            data-photo-id="{{ r.id }}"
+            data-photo-src="{{ r.url }}"
+            data-photo-path="{{ r.path }}"
+            aria-label="Open photo"
+          >
             <img
               src="{{ r.url }}"
               alt=""
@@ -59,6 +74,19 @@
             >
           </a>
         {% endif %}
+        <div class="photo-card-actions">
+          <button
+            type="button"
+            class="photo-card-favorite{% if r.is_favorite %} is-active{% endif %}"
+            data-favorite-toggle
+            data-favorite-id="{{ r.id }}"
+            aria-pressed="{{ 'true' if r.is_favorite else 'false' }}"
+            aria-label="{{ 'Remove from favourites' if r.is_favorite else 'Add to favourites' }}"
+            title="{{ 'Remove from favourites' if r.is_favorite else 'Add to favourites' }}"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.7c0 5.3-8.8 10.1-8.8 10.1S3.2 14 3.2 8.7A4.7 4.7 0 0 1 12 6.2a4.7 4.7 0 0 1 8.8 2.5Z"></path></svg>
+          </button>
+        </div>
       </li>
     {% endfor %}
     {% if has_more %}

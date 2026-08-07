@@ -1,5 +1,7 @@
 // lib/grid.js — render the result grid
 //
+import { enhancePhotoCards, addFavoriteButton } from "./photo-card.js";
+
 // The grid is small (50–200 items per page, up to 500 cumulative
 // across pages) so a full rebuild per *page* is fine. We just append
 // new items on subsequent pages, never re-render existing ones.
@@ -45,9 +47,19 @@ export function appendToGrid(rootEl, results) {
     li.className = "grid-item";
     li.dataset.id = r.id;
     li.dataset.score = r.score;
+    li.dataset.photoId = r.id;
+    li.dataset.photoSrc = r.url || "";
+    li.dataset.photoPath = r.path || "";
 
     const a = document.createElement("a");
+    a.className = "thumb-link";
     a.href = `/photo/${r.id}${searchParams ? `?${searchParams}` : ""}`;
+    a.dataset.lightboxTrigger = "";
+    a.dataset.photoId = r.id;
+    a.dataset.photoSrc = r.url || "";
+    a.dataset.photoPath = r.path || "";
+    a.dataset.blurhash = r.blurhash || "";
+    a.setAttribute("aria-label", "Open photo");
 
     const img = document.createElement("img");
     img.src = r.url;
@@ -65,17 +77,12 @@ export function appendToGrid(rootEl, results) {
 
     a.appendChild(img);
     if (r.score_str) li.appendChild(score);
-    if (r.is_favorite) {
-      const fav = document.createElement("span");
-      fav.className = "fav-badge";
-      fav.setAttribute("aria-label", "Favourite");
-      fav.textContent = "♥";
-      li.appendChild(fav);
-    }
     li.appendChild(a);
+    addFavoriteButton(li, r);
     frag.appendChild(li);
   }
   rootEl.appendChild(frag);
+  enhancePhotoCards(rootEl);
 }
 
 export function addSentinel(rootEl) {

@@ -143,3 +143,14 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - 445/445 tests green after both commits.
 - T2 (design tokens) + T4 (typography) effectively done as part of T1's input.css — marked complete.
 - Branch status: `feature/polished-ui-foundation` at 2 commits ahead of main. Remaining: T5-T8 (template migration), T9 (blurhash index + payload + backfill), T10 (blurhash thumb macro), T11 (tests), T12 (CI + docs).
+
+## 2026-08-06 23:30 EDT — complete UI coherence + interactive pass
+
+- Isaac authorized the full UI pass on `feature/polished-ui-tasks`.
+- Unified legacy CSS variables with the light/dark DaisyUI tokens, added responsive mobile navigation, rebuilt the search surface around a primary query plus collapsible filters, and standardized page treatments across photo, album, discovery, random, favorites, saved, and centroid views.
+- Added shared SVG icon macro, canvas BlurHash decoder, photo-card hydration, lightbox with focus restoration/trapping, clickable and keyboard navigation, quick favorite and album actions, keyboard help, reduced-motion styling, discovery-pick gallery hydration, live favorites-page state updates, and static asset cache-bust `27`.
+- Added `tests/test_ui_interactive.py` and updated README/PLAN documentation.
+- Verification: `./bin/tailwindcss ...` succeeded; `.venv/bin/pytest -q` → **488 passed, 2 warnings**; all JS files passed `node --check`; `git diff --check` passed; Playwright seeded-Qdrant smoke passed for 12 result tiles, BlurHash canvases, lightbox next/previous/Escape, shortcut help, and favorite POST with no page errors.
+- `ruff check search indexer tests` still reports 55 pre-existing repository lint findings; no lint config or unrelated cleanup was applied.
+- Branch remains uncommitted and unpushed; merge to `main` still requires Isaac's approval.
+- Sentinel final review: **PASS** after repairing clickable lightbox arrows, x-cloak, mobile lightbox scrolling, favorite/discovery state synchronization, and favorites-page shell updates.

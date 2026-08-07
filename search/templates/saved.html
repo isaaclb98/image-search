@@ -24,7 +24,7 @@
                 class="btn btn-ghost btn-xs btn-circle"
                 data-saved-delete="{{ s.id }}"
                 aria-label="Delete saved search {{ s.name }}"
-              >✕</button>
+              >{{ ui.ui_icon('x', 'h-3 w-3') }}</button>
             </div>
             <div class="saved-item-prompts flex flex-wrap gap-1.5 mt-1">
               {% if s.positives %}

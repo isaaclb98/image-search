@@ -3313,7 +3313,7 @@ def create_app(
     ) -> HTMLResponse:
         """Render the gallery of images the user picked in this session."""
         view = _coerce_view(view)
-        images = discover.list_liked(qdrant, session_id, _cfg.web_ui_url)
+        images = discover.list_liked(qdrant, session_id, _cfg.web_ui_url, index_db)
         if images is None:
             # Session gone. Render a friendly empty state with a
             # link back to /discover.

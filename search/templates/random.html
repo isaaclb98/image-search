@@ -21,13 +21,13 @@
         class="view-toggle-btn {% if view == 'grid' %}view-toggle-btn--active{% endif %}"
         data-view="grid"
         aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
-      >grid</button>
+      >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
       <button
         type="button"
         class="view-toggle-btn {% if view == 'feed' %}view-toggle-btn--active{% endif %}"
         data-view="feed"
         aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
-      >feed</button>
+      >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
     </div>
   
 
@@ -56,7 +56,7 @@
        models that Jinja serialises via .__dict__ on attribute access. #}
     <script id="random-initial-results" type="application/json">{{ results|tojson }}</script>
   {% else %}
-    {{ ui.empty_state(icon='◌', title='Nothing to sample yet', body='No photos indexed yet, or your collection filter matched nothing.') }}
+    {{ ui.empty_state(icon='shuffle', title='Nothing to sample yet', body='No photos indexed yet, or your collection filter matched nothing.') }}
   {% endif %}
 </section>
 
