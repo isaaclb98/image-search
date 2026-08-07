@@ -35,7 +35,6 @@ def album_zip_app(tmp_path, monkeypatch):
     from search.app import create_app, reset_for_tests
     from search.config import Config
     from search.qdrant_client import QdrantSearch
-    from search.text_encoder import _mock_embed
     from qdrant_client import QdrantClient
 
     reset_for_tests()

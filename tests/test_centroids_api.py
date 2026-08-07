@@ -28,8 +28,6 @@ from fastapi.testclient import TestClient
 # (re-exported through conftest.py for pytest auto-discovery).
 from _centroid_fixture import (
     CENTROID_CAT_ID as CAT_ID,
-    CENTROID_DOG_ID as DOG_ID,
-    CENTROID_CAR_ID as CAR_ID,
     WUXIA_CENTROID,
     NOIR_CENTROID,
     save_centroid as _save_centroid,
@@ -38,7 +36,6 @@ from indexer import upsert
 from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search.config import Config
-from search.text_encoder import _mock_embed
 
 
 # ----------------------- /api/centroids -----------------------

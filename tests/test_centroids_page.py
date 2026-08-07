@@ -10,7 +10,6 @@ Reuses the app_with_centroids fixture from test_centroids_api.py
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 from _centroid_fixture import WUXIA_CENTROID, NOIR_CENTROID

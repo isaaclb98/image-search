@@ -56,6 +56,16 @@ jobs:
           test -s search/static/css/app.css
           echo "app.css size: $(wc -c < search/static/css/app.css) bytes"
 
+      - name: Lint (ruff)
+        # Catches unused imports, dead code, security smells, and
+        # the cheap simplification categories before tests run.
+        # Ruff is pinned in pyproject.toml under [project.optional-
+        # dependencies] dev so `pip install -e ".[dev]"` already has
+        # it.
+        run: |
+          . .venv/bin/activate
+          ruff check .
+
       - name: Run tests
         run: |
           . .venv/bin/activate

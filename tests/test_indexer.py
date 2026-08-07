@@ -7,7 +7,6 @@ Layer 1 — indexer unit tests with in-memory Qdrant.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from PIL import Image
@@ -15,7 +14,7 @@ from qdrant_client import QdrantClient
 
 from indexer import scan, upsert
 from indexer.image_loader import LoaderError, SIGLIP_RESOLUTION, load, load_image_pil
-from indexer.upsert import DEFAULT_COLLECTION, VECTOR_DIM, build_payload, id_for
+from indexer.upsert import VECTOR_DIM, build_payload, id_for
 
 # Test UUIDs (deterministic, valid UUID format that Qdrant accepts).
 CAT_ID = "11111111-1111-1111-1111-111111111111"
@@ -105,7 +104,6 @@ def test_load_image_pil_applies_exif_transpose(tmp_path: Path):
     # Write EXIF orientation. Some PIL builds need the Ifd tag enum.
     try:
         from PIL.ExifTags import IFD
-        from PIL.TiffImagePlugin import IFDRational
 
         exif = img.getexif()
         exif[IFD.GPSInfo] = {}  # noop
@@ -351,7 +349,6 @@ def test_indexer_returns_2_on_missing_source(tmp_path, monkeypatch):
 def test_prune_removes_missing_files(tmp_path):
     """prune removes points whose source file no longer exists."""
     from qdrant_client import QdrantClient
-    from indexer import upsert
     from indexer.upsert import VECTOR_DIM, ensure_collection, upsert_batch, prune_missing
     import uuid
 
@@ -566,7 +563,7 @@ def test_cache_save_is_atomic(tmp_path):
     p.write_bytes(b"x")
     c1.add(p, "id-1", int(p.stat().st_mtime), int(p.stat().st_size))
     c1.save()
-    first_size = cache_file.stat().st_size
+    cache_file.stat().st_size
 
     # Now save a second time with different data. Simulate a crash by
     # leaving a stale .tmp file in the dir — load() should still work.

@@ -130,7 +130,6 @@ def app_with_filename_paths(qdrant_in_memory, nas_base, monkeypatch):
 
 def test_path_token_ids_token_substring_match():
     """A bare token matches paths where the token appears."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant(
         [
@@ -151,7 +150,6 @@ def test_path_token_ids_token_substring_match():
 
 def test_path_token_ids_prefix_match():
     """A trailing `*` matches any token starting with the body."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant(
         [
@@ -170,7 +168,6 @@ def test_path_token_ids_prefix_match():
 
 def test_path_token_ids_case_insensitive():
     """FTS5 with unicode61 is case-insensitive by default."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": "/photos/Kpop/Chaewon/2024.JPG"}])
     db = _make_db(qdrant)
@@ -186,7 +183,6 @@ def test_path_token_ids_case_insensitive():
 
 def test_path_token_ids_empty_returns_none():
     """Empty / whitespace-only patterns return None (skip filter)."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)
@@ -200,7 +196,6 @@ def test_path_token_ids_empty_returns_none():
 
 def test_path_token_ids_suffix_match_raises():
     """`*foo` suffix matching is not supported by FTS5."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)
@@ -216,7 +211,6 @@ def test_path_token_ids_suffix_match_raises():
 def test_path_token_ids_multi_token_raises():
     """Multiple tokens in one query are rejected — callers should
     pick one token at a time."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)
@@ -229,7 +223,6 @@ def test_path_token_ids_multi_token_raises():
 
 def test_path_token_ids_fts5_operator_raises():
     """FTS5 special characters are rejected before reaching FTS5."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)
@@ -245,7 +238,6 @@ def test_path_token_ids_fts5_operator_raises():
 def test_path_token_ids_trigger_sync_on_insert():
     """Adding a new image via INSERT makes it searchable via FTS5
     without a manual rebuild."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)
@@ -266,7 +258,6 @@ def test_path_token_ids_trigger_sync_on_insert():
 
 def test_path_token_ids_trigger_sync_on_update():
     """Updating an image's path updates the FTS index."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)
@@ -287,7 +278,6 @@ def test_path_token_ids_trigger_sync_on_update():
 
 def test_path_token_ids_trigger_sync_on_delete():
     """Deleting an image removes it from the FTS index."""
-    from search.index_db import IndexDB
 
     qdrant = _FakeQdrant([{"id": "a", "path": CHAEWON_PATH}])
     db = _make_db(qdrant)

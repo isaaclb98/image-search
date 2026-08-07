@@ -25,7 +25,6 @@ def zip_app(tmp_path):
     from search.app import create_app
     from search.config import Config
     from search.qdrant_client import QdrantSearch
-    from search.text_encoder import _mock_embed
     from qdrant_client import QdrantClient
 
     cfg = Config(

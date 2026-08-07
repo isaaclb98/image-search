@@ -7,7 +7,6 @@ Layer 2 — search API tests using FastAPI TestClient + in-memory Qdrant
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -1052,7 +1051,6 @@ def test_api_collections_endpoint_uses_facet_aggregation(
     from search.text_encoder import _mock_embed
     from search import app as app_mod
     from search.config import Config
-    from qdrant_client.http import models as qmodels
 
     q_cat = _mock_embed("cat")
     items = [

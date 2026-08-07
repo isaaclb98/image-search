@@ -53,7 +53,6 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch):
     recommend math has something to do).
     """
     from search.text_encoder import _mock_embed
-    import shutil
     from PIL import Image
 
     cfg = Config(
@@ -154,7 +153,6 @@ def test_pick_records_picked_as_liked(app_with_qdrant):
     assert data["pair"] is not None
 
     # Verify session state via list_liked.
-    from search.qdrant_client import QdrantSearch
     # The in-memory qdrant_search is wired into the app's _qdrant.
     qdrant = app_mod.get_qdrant()
     images = discover.list_liked(qdrant, sid, "http://localhost:8000")
@@ -178,7 +176,7 @@ def test_pick_records_other_image_as_implicit_disliked(app_with_qdrant):
     pair = app_with_qdrant.post(f"/api/discover/pick?session_id={sid}&image_id=00000000000000000000000000000000").json()["pair"]
     # ^ dummy id; we just want to advance the round. Real test:
     sid, pair = _start(app_with_qdrant)
-    r1 = app_with_qdrant.post(
+    app_with_qdrant.post(
         f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
     ).json()
     # The OTHER image (right) should be in disliked.
@@ -231,8 +229,10 @@ def test_seen_set_prevents_repeats(app_with_qdrant):
     """Across multiple rounds, the same image id never appears twice."""
     sid, pair = _start(app_with_qdrant)
     seen_ids: set[str] = set()
-    if pair["left"]: seen_ids.add(pair["left"]["id"])
-    if pair["right"]: seen_ids.add(pair["right"]["id"])
+    if pair["left"]:
+        seen_ids.add(pair["left"]["id"])
+    if pair["right"]:
+        seen_ids.add(pair["right"]["id"])
     for _ in range(10):
         if not pair:
             break
@@ -1011,7 +1011,7 @@ def test_mmr_select_returns_diverse_subset():
 
     n_clusters = 5
     per_cluster = 4
-    n = n_clusters * per_cluster  # 20
+    n_clusters * per_cluster  # 20
     vecs = _orthonormal_vecs(n_clusters, dim=64)
     candidates: list[tuple[str, float, list[float]]] = []
     for c in range(n_clusters):

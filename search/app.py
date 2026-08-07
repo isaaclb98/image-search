@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Streamin
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from search import config, centroids as centroids_mod, discover, text_encoder
+from search import config, discover, text_encoder
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from search.index_db import ImageNotInCacheError, IndexDB, DEFAULT_INDEX_DB_PATH
@@ -37,7 +37,6 @@ from search.models import (
     AlbumsListResponse,
     AlbumSummary,
     AlbumUpdateRequest,
-    DiscoveryLikedResponse,
     DiscoveryPair,
     DiscoveryPickResponse,
     DiscoveryStartResponse,
@@ -1465,7 +1464,7 @@ def create_app(
                     f"Centroid {active_centroid!r} is not loaded."
                     if active_centroids and len(active_centroids) == 1
                     else vec_detail
-                    or f"one of the centroids is not loaded"
+                    or "one of the centroids is not loaded"
                 )
             elif vec_err == "empty":
                 error = "At least one positive prompt is required."
@@ -1539,7 +1538,7 @@ def create_app(
                         took_ms = int((time.time() - t0) * 1000)
                         logger.warning("Qdrant unreachable for /: %s", e)
                         error = "Search is currently unavailable."
-                    except Exception as e:
+                    except Exception:
                         took_ms = int((time.time() - t0) * 1000)
                         logger.exception("search failed")
                         error = "Search is currently unavailable."
@@ -1699,7 +1698,7 @@ def create_app(
         # back here.
         active_centroids = _parse_centroids(request)
         active_weights = _parse_weights(request, len(active_centroids))
-        active_centroid = active_centroids[0] if active_centroids else None
+        active_centroids[0] if active_centroids else None
         filename_pattern = _parse_filename(request)
         cached_row = await asyncio.to_thread(index_db.get_by_id, hit.id)
         is_favorite = bool(cached_row and int(cached_row.get("is_favorite") or 0) == 1)
@@ -2389,7 +2388,7 @@ def create_app(
         # computed "now" but that's inconsistent with re-adding
         # a removed favourite (where the added_at should be the
         # most recent add, not the original one).
-        members = await asyncio.to_thread(
+        await asyncio.to_thread(
             index_db.list_album_member_ids, album_id,
         )
         # We need the added_at for this specific (album, favourite)
@@ -3030,7 +3029,7 @@ def create_app(
             rows = await asyncio.to_thread(
                 index_db.pick_random_rows, limit, clean_collections or None
             )
-        except Exception as e:
+        except Exception:
             logger.exception("random page render failed")
             return templates.TemplateResponse(
                 request,

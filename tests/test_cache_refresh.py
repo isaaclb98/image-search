@@ -13,7 +13,6 @@ def refresh_app(tmp_path, monkeypatch):
     points and a SQLite cache. Mirrors the search_api fixture shape
     so the refresh path is exercised end-to-end.
     """
-    import sqlite3
     from fastapi.testclient import TestClient
     from search.app import create_app
     from search.config import Config

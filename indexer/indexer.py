@@ -419,7 +419,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
             vectors = encoder.embed_batch(
                 [letterbox_resize(img) for _, img in new_loaded]
             )
-        except Exception as e:
+        except Exception:
             logger.exception("embed failed for batch starting at %s", new_loaded[0][0])
             errors += len(new_loaded)
             continue
@@ -440,7 +440,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                 upsert.upsert_batch(
                     client, args.qdrant_collection, items, wait=is_last_batch
                 )
-            except Exception as e:
+            except Exception:
                 logger.exception("upsert failed for batch starting at %s", new_loaded[0][0])
                 errors += len(new_loaded)
                 continue

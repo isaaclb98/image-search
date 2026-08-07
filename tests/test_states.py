@@ -19,7 +19,6 @@ test_saved_searches_api / test_search_api suites.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
