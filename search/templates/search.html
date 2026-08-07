@@ -77,7 +77,6 @@
         data-diversity-select
         name="diversity"
         aria-label="Diversity strength"
-        {% if random_picks %}disabled{% endif %}
       >
         {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
           <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
@@ -94,7 +93,7 @@
         data-diversity-depth-select
         name="diversity_depth"
         aria-label="Diversity search depth"
-        {% if random_picks or (diversity_mode|default('off')) == 'off' %}disabled{% endif %}
+        {% if (diversity_mode|default('off')) == 'off' %}disabled{% endif %}
       >
         {% for option in [('auto', 'Auto'), ('500', '500'), ('1000', '1,000'), ('2000', '2,000'), ('5000', '5,000')] %}
           <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
