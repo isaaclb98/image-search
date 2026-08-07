@@ -750,6 +750,9 @@ a:hover {
   pointer-events: none;
   transition: opacity 0.18s ease, visibility 0.18s ease, transform 0.12s ease, box-shadow 0.12s ease;
   z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .scroll-to-top--visible {
   opacity: 1;
@@ -1896,6 +1899,9 @@ a:hover {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+  }
+  .\!grid {
+    display: grid !important;
   }
   .block {
     display: block;
