@@ -1277,8 +1277,10 @@ def create_app(
         # user-configured base pool could otherwise collapse Low and
         # Balanced (for example, both would become 1,000).
         requested_pool_depth = pool_depth
+        # Candidate depth is intentionally independent from the cumulative
+        # result cap. We may rank a deep pool to improve the first N results
+        # even when MAX_RESULTS_TOTAL limits how far the user can scroll.
         candidate_limit = min(
-            _cfg.max_results_total,
             _cfg.diversity_max_candidate_pool_size,
             requested_pool_depth,
         )
@@ -1298,6 +1300,7 @@ def create_app(
             relevance_drop=relevance_drop_for_mode(
                 mode, _cfg.diversity_relevance_drop,
             ),
+            max_results=_cfg.max_results_total,
             depth=depth,
             pool_depth=len(pairs),
         )

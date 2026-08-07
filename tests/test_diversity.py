@@ -211,6 +211,22 @@ class TestSearchDiversity:
         assert ranking.stats.duplicate_images_collapsed == 1
         assert ranking.stats.applied is True
 
+    def test_rank_diverse_unions_all_transitive_dhash_matches(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("zero", payload={"dhash": "0000000000000000"}), q),
+            (_make_hit("three", payload={"dhash": "0000000000000003"}), q),
+            (_make_hit("one", payload={"dhash": "0000000000000001"}), q),
+        ]
+        ranking = rank_diverse(
+            hits,
+            q,
+            mode="balanced",
+            duplicate_hamming_distance=1,
+        )
+        assert len(ranking.hits) == 1
+        assert ranking.stats.duplicate_images_collapsed == 2
+
     def test_rank_diverse_is_deterministic_and_keeps_relevance_first(self):
         q = _unit_vec(1, 0, 0)
         hits = [

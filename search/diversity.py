@@ -399,8 +399,6 @@ def _collapse_duplicate_indices(
     duplicate_hamming_distance: int,
 ) -> list[int]:
     """Keep the highest-relevance representative of fingerprint groups."""
-    from indexer.fingerprints import hamming_distance
-
     parent = list(range(len(hits)))
 
     def find(index: int) -> int:
@@ -415,7 +413,10 @@ def _collapse_duplicate_indices(
             parent[right_root] = left_root
 
     exact: dict[str, int] = {}
-    dhashes: list[tuple[str, int]] = []
+    # Actual indexed dHash values are 64-bit (16 hexadecimal digits). Keep
+    # values grouped by width because hamming_distance intentionally rejects
+    # hashes with different widths.
+    dhash_groups: dict[int, list[tuple[int, int]]] = {}
     for index, hit in enumerate(hits):
         payload = getattr(hit, "payload", None) or {}
         content_hash = payload.get("content_sha256")
@@ -427,13 +428,51 @@ def _collapse_duplicate_indices(
                 exact[str(content_hash)] = index
         image_hash = payload.get("dhash")
         if image_hash:
-            image_hash = str(image_hash)
-            for previous_hash, previous_index in dhashes:
-                distance = hamming_distance(image_hash, previous_hash)
-                if distance is not None and distance <= duplicate_hamming_distance:
-                    union(index, previous_index)
-                    break
-            dhashes.append((image_hash, index))
+            image_hash = str(image_hash).strip().lower()
+            if (
+                len(image_hash) <= 16
+                and image_hash
+                and all(char in "0123456789abcdef" for char in image_hash)
+            ):
+                try:
+                    value = int(image_hash, 16)
+                except ValueError:
+                    value = None
+                if value is not None:
+                    dhash_groups.setdefault(len(image_hash), []).append((index, value))
+
+    # Compare dHashes in bounded NumPy chunks. A Python all-pairs scan made
+    # deep Diversity pools needlessly expensive, and stopping at the first
+    # match could leave a candidate connected to only one of several groups.
+    # Union every matching pair so transitive near-duplicate groups collapse.
+    import numpy as np
+
+    popcounts = np.asarray([value.bit_count() for value in range(256)], dtype=np.uint8)
+    for width, entries in dhash_groups.items():
+        if len(entries) < 2:
+            continue
+        max_distance = width * 4
+        if duplicate_hamming_distance >= max_distance:
+            first_index = entries[0][0]
+            for index, _value in entries[1:]:
+                union(first_index, index)
+            continue
+
+        values = np.asarray([value for _index, value in entries], dtype=np.uint64)
+        chunk_size = 256
+        for start in range(0, len(entries), chunk_size):
+            left = values[start:start + chunk_size]
+            xor = np.bitwise_xor(left[:, None], values[None, :])
+            byte_view = xor.view(np.uint8).reshape(xor.shape + (8,))
+            distances = popcounts[byte_view].sum(axis=-1)
+            matching_rows, matching_columns = np.nonzero(
+                distances <= duplicate_hamming_distance,
+            )
+            for row, column in zip(matching_rows, matching_columns):
+                left_position = start + int(row)
+                right_position = int(column)
+                if right_position > left_position:
+                    union(entries[left_position][0], entries[right_position][0])
 
     representatives: dict[int, int] = {}
     for index in range(len(hits)):

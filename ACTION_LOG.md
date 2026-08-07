@@ -220,3 +220,15 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
   relevance-drop configuration values, with matching ranker validation.
 - Browser URL parsing now treats `true`, `1`, `on`, `yes`, `y`, and `t` as
   the legacy `diverse=true` alias, while explicit `diversity=off` still wins.
+
+## 2026-08-07 — Search Diversity final review repairs
+
+- Final Sentinel review found two remaining P2 issues: the deep-pool dHash
+  scan was still quadratic Python work and only joined the first matching
+  pair; candidate depth was also capped by the separate cumulative result
+  limit.
+- Replaced dHash grouping with chunked NumPy Hamming-distance matching and
+  unioned every matching pair, including transitive near-duplicate groups.
+- Candidate retrieval now honors the selected Diversity depth independently;
+  `MAX_RESULTS_TOTAL` bounds the ranked/servable prefix rather than the
+  candidate universe.
