@@ -232,3 +232,8 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Candidate retrieval now honors the selected Diversity depth independently;
   `MAX_RESULTS_TOTAL` bounds the ranked/servable prefix rather than the
   candidate universe.
+
+## 2026-08-07 — Search Diversity final Sentinel review
+
+- Sentinel verdict: **PASS** on the final diff through `f3d5bc2`.
+- Focused review checks passed; Discovery remains untouched.
