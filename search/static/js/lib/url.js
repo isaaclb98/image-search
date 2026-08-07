@@ -98,6 +98,16 @@ export function readDiversityMode() {
   return "off";
 }
 
+// Candidate-pool depth is independent from Diversity strength. Keep the
+// public values stepped so URLs remain reproducible and the server can bound
+// the expensive vector ranking pass.
+export function readDiversityDepth() {
+  const params = new URLSearchParams(window.location.search);
+  const depth = (params.get("diversity_depth") || "").toLowerCase();
+  if (["500", "1000", "2000", "5000"].includes(depth)) return depth;
+  return "auto";
+}
+
 
 export function readView() {
   const params = new URLSearchParams(window.location.search);
@@ -116,7 +126,10 @@ export function writeQuery(q) {
   return url.pathname + (url.search || "");
 }
 
-export function buildSearchUrl(q, promptParams, collections = [], view = null, diversityMode = null) {
+export function buildSearchUrl(
+  q, promptParams, collections = [], view = null, diversityMode = null,
+  diversityDepth = null,
+) {
   // Build the canonical search URL from scratch (so old junk params
   // don't leak through). View is opt-in: pass an explicit value, or
   // we'll preserve the current `?view=` from the URL. Passing
@@ -144,6 +157,10 @@ export function buildSearchUrl(q, promptParams, collections = [], view = null, d
   const effectiveDiversity = diversityMode === null ? readDiversityMode() : diversityMode;
   if (effectiveDiversity && effectiveDiversity !== "off") {
     params.set("diversity", effectiveDiversity);
+    const effectiveDepth = diversityDepth === null ? readDiversityDepth() : diversityDepth;
+    if (effectiveDepth && effectiveDepth !== "auto") {
+      params.set("diversity_depth", effectiveDepth);
+    }
   }
   const effectiveView = view === null ? readView() : view;
   if (effectiveView && effectiveView !== "grid") {
@@ -160,6 +177,7 @@ export function buildSearchUrl(q, promptParams, collections = [], view = null, d
 // stale URL. Pass null to clear the filter.
 export function buildSearchUrlWithFilename(
   q, promptParams, collections, filename, view, diversityMode = null,
+  diversityDepth = null,
 ) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -180,6 +198,10 @@ export function buildSearchUrlWithFilename(
   const effectiveDiversity = diversityMode === null ? readDiversityMode() : diversityMode;
   if (effectiveDiversity && effectiveDiversity !== "off") {
     params.set("diversity", effectiveDiversity);
+    const effectiveDepth = diversityDepth === null ? readDiversityDepth() : diversityDepth;
+    if (effectiveDepth && effectiveDepth !== "auto") {
+      params.set("diversity_depth", effectiveDepth);
+    }
   }
   const effectiveView = view === null ? readView() : view;
   if (effectiveView && effectiveView !== "grid") {

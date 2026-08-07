@@ -57,12 +57,15 @@ Routes:
 - `/random` — random sample from the cache
 - `/discover` — feedback-driven recommendation feed
 
-Search supports an explicit **Diversity** mode in the result toolbar. `low`,
-`balanced`, and `high` settings preserve a relevance floor while suppressing
-exact/perceptual duplicates and spreading the result ordering across distinct
-embedding neighborhoods. Diversity ranks a stable candidate set before offset
-pagination, so scrolling does not independently rerank each page. The legacy
-`?diverse=true` URL remains an alias for `?diversity=balanced`.
+Search supports explicit **Diversity** controls in the result toolbar. `low`,
+`balanced`, and `high` settings control how strongly repetition is penalized;
+the separate depth control accepts `auto`, `500`, `1000`, `2000`, or `5000`
+candidate images before ranking. Auto uses progressively deeper pools for
+stronger Diversity. Diversity preserves a mode-specific relevance floor while
+suppressing exact/perceptual duplicates and spreading the result ordering
+across distinct embedding neighborhoods. It ranks one stable candidate set
+before offset pagination, so scrolling does not independently rerank each page.
+The legacy `?diverse=true` URL remains an alias for `?diversity=balanced`.
 
 JSON API at `/api/*`. Health check at `/healthz`.
 

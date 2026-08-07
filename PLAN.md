@@ -293,3 +293,31 @@ Discovery is explicitly out of scope and must not be changed.
 - Existing non-Diversity search, Discovery, and all existing tests remain green.
 - `git diff --check`, compile checks, and applicable lint/build checks pass.
 - Sentinel independently reviews the final diff before completion.
+
+## Phase 6 — Independent Diversity depth controls (Isaac authorization, 2026-08-07)
+
+### Objective
+
+Separate Diversity strength from candidate-pool depth so the personal search UI
+can trade ranking pressure against search breadth independently.
+
+### Product contract
+
+- `diversity=low|balanced|high` controls redundancy pressure and its relevance
+  guardrail; High is intentionally more permissive than Balanced.
+- `diversity_depth=auto|500|1000|2000|5000` controls the candidate universe
+  considered before ranking. Omitted depth means Auto.
+- Auto uses 500 / 1,000 / 2,000 candidates for Low / Balanced / High.
+- Depth is part of the URL, API diagnostics, cache key, and stable pagination
+  contract. Discovery remains untouched.
+
+### Acceptance criteria
+
+- Low, Balanced, and High have distinct Auto pool depths.
+- Explicit depth choices are independent from Diversity strength and are capped
+  by the configured maximum pool size.
+- API and SSR round-trip depth state; invalid depth values return a clear 400
+  from `/api/search`.
+- Changing depth cannot reuse a cached ordering produced for another depth.
+- Scrolling remains stable and non-overlapping for every supported depth.
+- Existing non-Diversity search, Discovery, and the full test suite remain green.

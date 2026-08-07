@@ -182,3 +182,13 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Sentinel review was invoked twice but both delegated review processes stayed
   running without producing a verdict and were shut down. No Sentinel PASS is
   claimed; the residual review limitation is reported at handoff.
+
+## 2026-08-07 — Search Diversity depth controls authorized
+
+- Isaac authorized separate Diversity strength and candidate-pool depth
+  controls after observing that High remained insufficiently diverse.
+- Implemented `diversity_depth=auto|500|1000|2000|5000`; Auto maps to 500,
+  1,000, and 2,000 candidates for Low, Balanced, and High respectively.
+- High now uses a stronger ranking weight and wider relevance allowance; depth
+  is included in API metadata, URL state, cache keys, and stable pagination.
+- Discovery remains explicitly out of scope.

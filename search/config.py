@@ -75,7 +75,7 @@ class Config:
     # the SSR search page; Discovery owns a separate implementation and is
     # intentionally not wired to these values.
     diversity_candidate_pool_size: int = 500
-    diversity_max_candidate_pool_size: int = 1000
+    diversity_max_candidate_pool_size: int = 5000
     diversity_cache_ttl_seconds: int = 300
     diversity_cache_max_entries: int = 64
     diversity_duplicate_hamming_distance: int = 10
@@ -209,7 +209,7 @@ def load() -> Config:
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
         test_mode=bool(os.environ.get("SEARCH_TEST_MODE")),
         diversity_candidate_pool_size=_int("DIVERSITY_CANDIDATE_POOL_SIZE", 500),
-        diversity_max_candidate_pool_size=_int("DIVERSITY_MAX_CANDIDATE_POOL_SIZE", 1000),
+        diversity_max_candidate_pool_size=_int("DIVERSITY_MAX_CANDIDATE_POOL_SIZE", 5000),
         diversity_cache_ttl_seconds=_int("DIVERSITY_CACHE_TTL_SECONDS", 300),
         diversity_cache_max_entries=_int("DIVERSITY_CACHE_MAX_ENTRIES", 64),
         diversity_duplicate_hamming_distance=_int(

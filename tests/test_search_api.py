@@ -140,10 +140,14 @@ def test_get_search_page_with_query(app_with_qdrant):
 
 
 def test_get_search_page_renders_diversity_strength_control(app_with_qdrant):
-    resp = app_with_qdrant.get("/?q=cat&diversity=high")
+    resp = app_with_qdrant.get(
+        "/?q=cat&diversity=high&diversity_depth=2000"
+    )
     assert resp.status_code == 200
     assert 'data-diversity-select' in resp.text
     assert 'value="high" selected' in resp.text
+    assert 'data-diversity-depth-select' in resp.text
+    assert 'value="2000" selected' in resp.text
 
 
 def test_get_search_page_empty_after_strip(app_with_qdrant):
@@ -221,6 +225,43 @@ def test_api_search_diversity_is_stable_across_pages(app_with_qdrant):
         result["id"] for result in first_data["results"]
     }.isdisjoint({result["id"] for result in second_data["results"]})
     assert second_data["has_more"] is False
+
+
+def test_api_search_diversity_depth_is_independent_and_reported(app_with_qdrant):
+    response = app_with_qdrant.get(
+        "/api/search",
+        params=[
+            ("q", "cat"),
+            ("diversity", "high"),
+            ("diversity_depth", "2000"),
+        ],
+    )
+    assert response.status_code == 200
+    metadata = response.json()["diversity"]
+    assert metadata["mode"] == "high"
+    assert metadata["strength"] == pytest.approx(0.88)
+    assert metadata["depth"] == "2000"
+    # The fixture has three matching points, so the actual pool is smaller
+    # than the requested depth.
+    assert metadata["pool_depth"] == 3
+
+
+def test_api_search_diversity_depth_auto_uses_mode_default(app_with_qdrant):
+    response = app_with_qdrant.get(
+        "/api/search?q=cat&diversity=high"
+    )
+    assert response.status_code == 200
+    metadata = response.json()["diversity"]
+    assert metadata["depth"] == "auto"
+    assert metadata["pool_depth"] == 3
+
+
+def test_api_search_rejects_unknown_diversity_depth(app_with_qdrant):
+    response = app_with_qdrant.get(
+        "/api/search?q=cat&diversity=balanced&diversity_depth=10000"
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "bad_request"
 
 
 def test_api_search_legacy_diverse_alias_maps_to_balanced(app_with_qdrant):

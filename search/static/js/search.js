@@ -16,7 +16,7 @@
 //     is populated from /api/collections. Each chip is a multi-select
 //     filter on the `?collection=` query param.
 
-import { buildSearchUrlWithFilename, readCentroid, readCentroidWeights, readCentroids, readCollections, readDiversityMode, readFavoritesFilter, readFilename, readPrompts, readQuery, readView } from "./lib/url.js"
+import { buildSearchUrlWithFilename, readCentroid, readCentroidWeights, readCentroids, readCollections, readDiversityDepth, readDiversityMode, readFavoritesFilter, readFilename, readPrompts, readQuery, readView } from "./lib/url.js"
 import { renderGrid, appendToGrid, addSentinel, removeSentinel } from "./lib/grid.js";
 import { renderFeed, appendToFeed } from "./lib/feed.js";
 import { PromptChips } from "./lib/prompts.js";
@@ -59,6 +59,7 @@ if (form && input) {
     const url = buildSearchUrlWithFilename(
       q, promptChips?.serialize(), activeCollections(), filename, null,
       diversitySelect?.value || readDiversityMode(),
+      diversityDepthSelect?.value || readDiversityDepth(),
     );
     history.pushState({ q }, "", url);
     if (!grid || !resultCount) {
@@ -76,7 +77,7 @@ window.addEventListener("popstate", () => {
   promptChips?.hydrate(readPrompts());
   promptChips?.render();
   syncViewToggle();
-  syncDiversitySelect();
+  syncDiversityControls();
   runSearch();
 });
 
@@ -159,6 +160,10 @@ function buildApiUrl(q, surprise = false) {
   const diversityMode = readDiversityMode();
   if (diversityMode !== "off") {
     params.set("diversity", diversityMode);
+    const diversityDepth = readDiversityDepth();
+    if (diversityDepth !== "auto") {
+      params.set("diversity_depth", diversityDepth);
+    }
   }
   if (surprise) {
     params.set("surprise", "true");
@@ -246,6 +251,10 @@ async function loadMorePage() {
     const diversityMode = readDiversityMode();
     if (diversityMode !== "off") {
       params.set("diversity", diversityMode);
+      const diversityDepth = readDiversityDepth();
+      if (diversityDepth !== "auto") {
+        params.set("diversity_depth", diversityDepth);
+      }
     }
     const view = readView();
     if (view && view !== "grid") {
@@ -412,15 +421,20 @@ for (const btn of document.querySelectorAll(".view-toggle-btn")) {
   btn.addEventListener("click", () => onViewToggleClick(btn.dataset.view));
 }
 
-// ── Diversity strength ────────────────────────────────────────────────
+// ── Diversity controls ────────────────────────────────────────────────
 //
 // Diversity remains a search mode, but its strength is explicit in the URL
 // so a saved/shared search communicates how it was ranked.
 
 const diversitySelect = document.querySelector("[data-diversity-select]");
+const diversityDepthSelect = document.querySelector("[data-diversity-depth-select]");
 
-function syncDiversitySelect() {
+function syncDiversityControls() {
   if (diversitySelect) diversitySelect.value = readDiversityMode();
+  if (diversityDepthSelect) {
+    diversityDepthSelect.value = readDiversityDepth();
+    diversityDepthSelect.disabled = readDiversityMode() === "off";
+  }
 }
 
 function onDiversityChange() {
@@ -429,16 +443,31 @@ function onDiversityChange() {
   url.searchParams.delete("diverse");
   if (nextMode === "off") {
     url.searchParams.delete("diversity");
+    url.searchParams.delete("diversity_depth");
   } else {
     url.searchParams.set("diversity", nextMode);
   }
   history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
-  syncDiversitySelect();
+  syncDiversityControls();
   if (hasPositivePrompt(readQuery())) runSearch();
 }
 
-syncDiversitySelect();
+function onDiversityDepthChange() {
+  const nextDepth = diversityDepthSelect?.value || "auto";
+  const url = new URL(window.location.href);
+  if (readDiversityMode() === "off" || nextDepth === "auto") {
+    url.searchParams.delete("diversity_depth");
+  } else {
+    url.searchParams.set("diversity_depth", nextDepth);
+  }
+  history.pushState({ q: readQuery() }, "", url.pathname + (url.search || ""));
+  syncDiversityControls();
+  if (hasPositivePrompt(readQuery())) runSearch();
+}
+
+syncDiversityControls();
 diversitySelect?.addEventListener("change", onDiversityChange);
+diversityDepthSelect?.addEventListener("change", onDiversityDepthChange);
 
 // Keep the toggle in sync with browser back/forward navigation.
 // (The main popstate listener above already calls runSearch(); the

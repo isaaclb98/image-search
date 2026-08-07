@@ -67,6 +67,8 @@ from search.diversity import (
     DiversityResultCache,
     DiversityStats,
     rank_diverse,
+    relevance_drop_for_mode,
+    resolve_depth,
     resolve_mode,
 )
 
@@ -1084,6 +1086,7 @@ def create_app(
         weights: list[float] | None = None,
         diverse: bool = False,
         diversity_mode: str = "off",
+        diversity_depth: str = "auto",
         filename: str = "",
     ) -> str:
         """
@@ -1129,6 +1132,8 @@ def create_app(
             params.append(("view", view))
         if diversity_mode and diversity_mode != "off":
             params.append(("diversity", diversity_mode))
+            if diversity_depth and diversity_depth != "auto":
+                params.append(("diversity_depth", diversity_depth))
         elif diverse:
             # Legacy callers that only know the boolean retain the old
             # URL shape; current search pages emit the explicit mode.
@@ -1187,6 +1192,8 @@ def create_app(
             result_count=stats.result_count,
             duplicate_images_collapsed=stats.duplicate_images_collapsed,
             semantic_groups_covered=stats.semantic_groups_covered,
+            depth=stats.depth,
+            pool_depth=stats.pool_depth,
         )
 
     def _digest_values(values: list[str] | set[str] | None) -> str:
@@ -1201,6 +1208,8 @@ def create_app(
     def _diversity_cache_key(
         vector: list[float],
         mode: str,
+        depth: str,
+        pool_depth: int,
         collections: list[str],
         allowed_ids: list[str] | None,
         favorite_ids: set[str] | None,
@@ -1211,6 +1220,8 @@ def create_app(
         return "|".join((
             _cfg.qdrant_collection,
             mode,
+            depth,
+            str(pool_depth),
             vector_digest,
             _digest_values(collections),
             _digest_values(allowed_ids),
@@ -1226,10 +1237,12 @@ def create_app(
         favorite_ids: set[str] | None,
         mode: str,
         strength: float,
+        depth: str,
+        pool_depth: int,
     ) -> tuple[list[SearchHit], bool, DiversityMetadata]:
         """Build or retrieve one complete, stable Diversity ordering."""
         cache_key = _diversity_cache_key(
-            vector, mode, collections, allowed_ids, favorite_ids,
+            vector, mode, depth, pool_depth, collections, allowed_ids, favorite_ids,
         )
         cached = diversity_cache.get(cache_key)
         if cached is not None:
@@ -1251,46 +1264,41 @@ def create_app(
             if not search_allowed_ids:
                 stats = DiversityStats(
                     requested=True, applied=True, mode=mode, strength=strength,
+                    depth=depth, pool_depth=0,
                 )
                 return [], False, _diversity_metadata(stats)
 
         # Fetch from offset zero and rank the complete candidate universe before
-        # slicing. The max pool is intentionally bounded for a personal search
-        # process: 1,000 vectors is broad enough to escape a duplicate burst
-        # without turning every page request into a multi-megabyte transfer.
+        # slicing. The requested depth is independent from Diversity strength:
+        # a deep, low-strength search can still preserve relevance while making
+        # more candidates available for later pages.
+        requested_pool_depth = max(
+            pool_depth,
+            _cfg.diversity_candidate_pool_size if depth == "auto" else 0,
+        )
         candidate_limit = min(
             _cfg.max_results_total,
-            max(_cfg.diversity_candidate_pool_size, effective_limit * 5),
+            _cfg.diversity_max_candidate_pool_size,
+            requested_pool_depth,
         )
-        pairs, candidate_has_more = qdrant.search_with_vectors(
+        pairs, _ = qdrant.search_with_vectors(
             vector,
             limit=candidate_limit,
             offset=0,
             collections=collections or None,
             allowed_ids=search_allowed_ids,
         )
-        # Expand before caching, so the first page and every later page use
-        # the same final candidate universe. This avoids silently changing
-        # page one when a later request needs more results.
-        max_candidate_limit = min(
-            _cfg.max_results_total,
-            _cfg.diversity_max_candidate_pool_size,
-        )
-        if candidate_has_more and candidate_limit < max_candidate_limit:
-            pairs, _ = qdrant.search_with_vectors(
-                vector,
-                limit=max_candidate_limit,
-                offset=0,
-                collections=collections or None,
-                allowed_ids=search_allowed_ids,
-            )
         ranking = rank_diverse(
             pairs,
             vector,
             mode=mode,
             strength=strength,
             duplicate_hamming_distance=_cfg.diversity_duplicate_hamming_distance,
-            relevance_drop=_cfg.diversity_relevance_drop,
+            relevance_drop=relevance_drop_for_mode(
+                mode, _cfg.diversity_relevance_drop,
+            ),
+            depth=depth,
+            pool_depth=len(pairs),
         )
         diversity_cache.put(cache_key, ranking.hits, ranking.stats)
         page = ranking.hits[offset:offset + effective_limit]
@@ -1308,6 +1316,9 @@ def create_app(
         diversity: str | None = Query(
             None, description="Diversity strength: off, low, balanced, or high",
         ),
+        diversity_depth: str | None = Query(
+            None, description="Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+        ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
     ) -> HTMLResponse:
         view = _coerce_view(view)
@@ -1317,6 +1328,13 @@ def create_app(
         except ValueError as exc:
             diversity_mode, diversity_strength = "off", 0.0
             diversity_error = str(exc)
+        try:
+            diversity_depth_mode, diversity_pool_depth = resolve_depth(
+                diversity_depth, diversity_mode,
+            )
+        except ValueError as exc:
+            diversity_depth_mode, diversity_pool_depth = "auto", 0
+            diversity_error = diversity_error or str(exc)
         diverse = diversity_mode != "off"
         # Clamp limit here so the form's "?limit=99999" still works
         # (server-rendered pages render whatever limit is given, just
@@ -1375,6 +1393,7 @@ def create_app(
                     "favorites_filter": favorites,
                     "diverse": diverse,
                     "diversity_mode": diversity_mode,
+                    "diversity_depth": diversity_depth_mode,
                     "filename": filename_pattern,
                     "search_query_string": _search_query_string(
                         prompt_state.q,
@@ -1387,6 +1406,7 @@ def create_app(
                         favorites=favorites,
                         diverse=diverse,
                         diversity_mode=diversity_mode,
+                        diversity_depth=diversity_depth_mode,
                         filename=filename_pattern,
                     ),
                     "limit": limit,
@@ -1477,6 +1497,8 @@ def create_app(
                                 favorite_ids,
                                 diversity_mode,
                                 diversity_strength,
+                                diversity_depth_mode,
+                                diversity_pool_depth,
                             )
                             results = await _results_from_hits(hits, favorite_ids)
                         elif favorites:
@@ -1578,6 +1600,7 @@ def create_app(
                 "favorites_filter": favorites,
                 "diverse": diverse,
                 "diversity_mode": diversity_mode,
+                "diversity_depth": diversity_depth_mode,
                 "filename": filename_pattern,
                 "search_query_string": _search_query_string(
                     prompt_state.q,
@@ -1589,6 +1612,7 @@ def create_app(
                     favorites=favorites,
                     diverse=diverse,
                     diversity_mode=diversity_mode,
+                    diversity_depth=diversity_depth_mode,
                     filename=filename_pattern,
                 ),
                 "limit": limit,
@@ -1831,12 +1855,21 @@ def create_app(
         diversity: str | None = Query(
             None, description="Diversity strength: off, low, balanced, or high",
         ),
+        diversity_depth: str | None = Query(
+            None, description="Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+        ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
     ):
         # Manual validation so we return 400 (not 422) for bad input.
         view = _coerce_view(view)
         try:
             diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
+        except ValueError as exc:
+            return _bad_request(str(exc))
+        try:
+            diversity_depth_mode, diversity_pool_depth = resolve_depth(
+                diversity_depth, diversity_mode,
+            )
         except ValueError as exc:
             return _bad_request(str(exc))
         diverse = diversity_mode != "off"
@@ -1895,6 +1928,8 @@ def create_app(
                     applied=False,
                     mode=diversity_mode,
                     strength=diversity_strength,
+                    depth=diversity_depth_mode,
+                    pool_depth=0,
                 ),
                 view=view,
                 centroid=active_centroid,
@@ -1929,7 +1964,14 @@ def create_app(
             hits: list = []
             has_more = False
             favorite_ids = set()
-            diversity_meta = DiversityMetadata()
+            diversity_meta = DiversityMetadata(
+                requested=diverse,
+                applied=False,
+                mode=diversity_mode,
+                strength=diversity_strength,
+                depth=diversity_depth_mode,
+                pool_depth=0,
+            )
         else:
             try:
                 diversity_meta = DiversityMetadata()
@@ -1944,6 +1986,8 @@ def create_app(
                         favorite_ids,
                         diversity_mode,
                         diversity_strength,
+                        diversity_depth_mode,
+                        diversity_pool_depth,
                     )
                 elif favorites:
                     favorite_ids = await _favorite_ids_for_filter()

@@ -14,6 +14,8 @@ from search.diversity import (
     DiversityResultCache,
     mmr_rerank,
     rank_diverse,
+    relevance_drop_for_mode,
+    resolve_depth,
     resolve_mode,
     _cosine_sim,
 )
@@ -151,8 +153,28 @@ class TestSearchDiversity:
     def test_resolve_mode_supports_legacy_boolean(self):
         assert resolve_mode(None, False) == ("off", 0.0)
         assert resolve_mode(None, True) == ("balanced", 0.5)
-        assert resolve_mode("high") == ("high", 0.78)
+        assert resolve_mode("high") == ("high", 0.88)
         assert resolve_mode("off", True) == ("off", 0.0)
+
+    def test_resolve_depth_uses_mode_specific_auto_defaults(self):
+        assert resolve_depth(None, "off") == ("auto", 0)
+        assert resolve_depth("auto", "low") == ("auto", 500)
+        assert resolve_depth("auto", "balanced") == ("auto", 1000)
+        assert resolve_depth("auto", "high") == ("auto", 2000)
+        assert resolve_depth("5000", "low") == ("5000", 5000)
+
+    def test_resolve_depth_rejects_unknown_value(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="diversity_depth must be one of"):
+            resolve_depth("10000", "high")
+
+    def test_relevance_drop_scales_with_strength(self):
+        import pytest
+
+        assert relevance_drop_for_mode("low", 0.10) == pytest.approx(0.06)
+        assert relevance_drop_for_mode("balanced", 0.10) == pytest.approx(0.10)
+        assert relevance_drop_for_mode("high", 0.10) == pytest.approx(0.18)
 
     def test_resolve_mode_rejects_unknown_mode(self):
         import pytest
@@ -179,11 +201,13 @@ class TestSearchDiversity:
             (_make_hit("b"), _unit_vec(0.98, 0.1, 0)),
             (_make_hit("c"), _unit_vec(0.65, 0, 0.76)),
         ]
-        first = rank_diverse(hits, q, mode="high")
-        second = rank_diverse(hits, q, mode="high")
+        first = rank_diverse(hits, q, mode="high", depth="2000", pool_depth=3)
+        second = rank_diverse(hits, q, mode="high", depth="2000", pool_depth=3)
         assert [hit.id for hit in first.hits] == [hit.id for hit in second.hits]
         assert first.hits[0].id == "a"
         assert first.stats.semantic_groups_covered >= 1
+        assert first.stats.depth == "2000"
+        assert first.stats.pool_depth == 3
 
     def test_diversity_cache_can_clear(self):
         cache = DiversityResultCache(ttl_seconds=60, max_entries=1)

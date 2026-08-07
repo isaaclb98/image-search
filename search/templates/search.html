@@ -94,6 +94,23 @@
         {% endfor %}
       </select>
     </label>
+    <label
+      class="diversity-control diversity-depth-control"
+      title="How many candidates to consider before applying Diversity; deeper searches may take longer"
+    >
+      <span class="diversity-depth-label">Depth</span>
+      <select
+        class="diversity-select"
+        data-diversity-depth-select
+        name="diversity_depth"
+        aria-label="Diversity search depth"
+        {% if random_picks or (diversity_mode|default('off')) == 'off' %}disabled{% endif %}
+      >
+        {% for option in [('auto', 'Auto'), ('500', '500'), ('1000', '1,000'), ('2000', '2,000'), ('5000', '5,000')] %}
+          <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+        {% endfor %}
+      </select>
+    </label>
     {% if random_picks %}
     <button
       type="button"

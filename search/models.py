@@ -38,6 +38,14 @@ class DiversityMetadata(BaseModel):
     result_count: int = 0
     duplicate_images_collapsed: int = 0
     semantic_groups_covered: int = 0
+    depth: str = Field(
+        "auto",
+        description="Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
+    )
+    pool_depth: int = Field(
+        0,
+        description="Number of candidates actually retrieved for the ranking pass.",
+    )
 
 
 class SearchResponse(BaseModel):

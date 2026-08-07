@@ -18,9 +18,26 @@ logger = logging.getLogger(__name__)
 DIVERSITY_MODE_STRENGTHS: dict[str, float] = {
     "low": 0.25,
     "balanced": 0.50,
-    "high": 0.78,
+    "high": 0.88,
 }
 DIVERSITY_MODES = ("off", *DIVERSITY_MODE_STRENGTHS)
+DIVERSITY_DEPTHS: dict[str, int] = {
+    "500": 500,
+    "1000": 1000,
+    "2000": 2000,
+    "5000": 5000,
+}
+DIVERSITY_DEPTH_OPTIONS = ("auto", *DIVERSITY_DEPTHS)
+DIVERSITY_AUTO_DEPTHS: dict[str, int] = {
+    "low": 500,
+    "balanced": 1000,
+    "high": 2000,
+}
+DIVERSITY_MODE_RELEVANCE_MULTIPLIERS: dict[str, float] = {
+    "low": 0.60,
+    "balanced": 1.00,
+    "high": 1.80,
+}
 
 
 @dataclass(frozen=True)
@@ -35,6 +52,8 @@ class DiversityStats:
     result_count: int = 0
     duplicate_images_collapsed: int = 0
     semantic_groups_covered: int = 0
+    depth: str = "auto"
+    pool_depth: int = 0
 
 
 @dataclass(frozen=True)
@@ -105,6 +124,28 @@ def resolve_mode(mode: str | None, legacy_diverse: bool = False) -> tuple[str, f
         allowed = ", ".join(DIVERSITY_MODES)
         raise ValueError(f"diversity must be one of: {allowed}")
     return normalized, DIVERSITY_MODE_STRENGTHS[normalized]
+
+
+def resolve_depth(depth: str | None, mode: str = "off") -> tuple[str, int]:
+    """Resolve the independent Diversity candidate-pool depth."""
+    normalized = (depth or "auto").strip().lower() or "auto"
+    if normalized not in DIVERSITY_DEPTH_OPTIONS:
+        allowed = ", ".join(DIVERSITY_DEPTH_OPTIONS)
+        raise ValueError(f"diversity_depth must be one of: {allowed}")
+    if mode == "off":
+        return normalized, 0
+    if normalized == "auto":
+        return normalized, DIVERSITY_AUTO_DEPTHS[mode]
+    return normalized, DIVERSITY_DEPTHS[normalized]
+
+
+def relevance_drop_for_mode(mode: str, base_drop: float) -> float:
+    """Scale the relevance guardrail with the selected Diversity strength."""
+    if mode == "off":
+        return 0.0
+    if not math.isfinite(base_drop) or base_drop < 0:
+        raise ValueError("base relevance drop must be finite and >= 0")
+    return base_drop * DIVERSITY_MODE_RELEVANCE_MULTIPLIERS[mode]
 
 
 def mmr_rerank(
@@ -185,6 +226,8 @@ def rank_diverse(
     duplicate_hamming_distance: int = 10,
     relevance_drop: float = 0.10,
     semantic_novelty_threshold: float = 0.88,
+    depth: str = "auto",
+    pool_depth: int | None = None,
 ) -> DiversityRanking:
     """Rank a complete search candidate pool for the Diversity feature.
 
@@ -217,12 +260,19 @@ def rank_diverse(
         raise ValueError("duplicate_hamming_distance must be >= 0")
     if relevance_drop < 0 or not math.isfinite(relevance_drop):
         raise ValueError("relevance_drop must be finite and >= 0")
+    if depth not in DIVERSITY_DEPTH_OPTIONS:
+        raise ValueError(f"unknown diversity depth: {depth!r}")
+    if pool_depth is not None and pool_depth < 0:
+        raise ValueError("pool_depth must be >= 0")
+    actual_pool_depth = len(hits_with_vectors) if pool_depth is None else int(pool_depth)
     if not hits_with_vectors or max_results == 0:
         return DiversityRanking(
             hits=[],
             stats=DiversityStats(
                 requested=True, applied=True, mode=mode, strength=strength,
                 candidate_count=len(hits_with_vectors),
+                depth=depth,
+                pool_depth=actual_pool_depth,
             ),
         )
 
@@ -255,6 +305,8 @@ def rank_diverse(
                 requested=True, applied=True, mode=mode, strength=strength,
                 candidate_count=len(hits_with_vectors),
                 duplicate_images_collapsed=duplicate_count,
+                depth=depth,
+                pool_depth=actual_pool_depth,
             ),
         )
 
@@ -269,6 +321,8 @@ def rank_diverse(
                 candidate_count=len(hits_with_vectors), result_count=len(ordered),
                 duplicate_images_collapsed=duplicate_count,
                 semantic_groups_covered=len(ordered),
+                depth=depth,
+                pool_depth=actual_pool_depth,
             ),
         )
 
@@ -323,6 +377,8 @@ def rank_diverse(
             result_count=len(ordered),
             duplicate_images_collapsed=duplicate_count,
             semantic_groups_covered=semantic_groups,
+            depth=depth,
+            pool_depth=actual_pool_depth,
         ),
     )
 

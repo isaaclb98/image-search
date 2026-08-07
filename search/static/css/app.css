@@ -51289,6 +51289,16 @@ body {
 .diversity-control {
   padding: 0 0.25rem 0 0.65rem;
 }
+.diversity-depth-control {
+  gap: 0.25rem;
+}
+.diversity-depth-label {
+  color: var(--color-base-content);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
 .diversity-select {
   min-height: 2.45rem;
   max-width: 10rem;
