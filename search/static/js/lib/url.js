@@ -1,8 +1,9 @@
 // lib/url.js — query string helpers
 //
 // Tiny, no-dependency URL-state utilities. We use them to keep
-// `?q=...`, multi-value prompt params, and collection filters in sync
-// and to react to popstate.
+// Legacy `?q=...`, multi-value prompt params, and collection filters in sync
+// and to react to popstate. The search UI emits prompt params; `q` remains
+// readable only for old links and API compatibility.
 
 export function readQuery() {
   const params = new URLSearchParams(window.location.search);

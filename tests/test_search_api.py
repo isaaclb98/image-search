@@ -139,6 +139,21 @@ def test_get_search_page_with_query(app_with_qdrant):
     assert CAT_ID in resp.text
 
 
+def test_get_search_page_with_include_and_exclude_prompts(app_with_qdrant):
+    resp = app_with_qdrant.get(
+        "/?positives=cat&positives=portrait&negatives=blurry"
+    )
+    assert resp.status_code == 200
+    assert 'data-prompt-input="positives"' in resp.text
+    assert 'data-prompt-input="negatives"' in resp.text
+    assert "cat" in resp.text
+    assert "portrait" in resp.text
+    assert "blurry" in resp.text
+    assert 'name="q"' not in resp.text
+    assert "Search your library" not in resp.text
+    assert 'id="result-grid"' in resp.text
+
+
 def test_get_search_page_renders_diversity_strength_control(app_with_qdrant):
     resp = app_with_qdrant.get(
         "/?q=cat&diversity=high&diversity_depth=2000"

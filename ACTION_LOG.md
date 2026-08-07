@@ -237,3 +237,13 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 
 - Sentinel verdict: **PASS** on the final diff through `f3d5bc2`.
 - Focused review checks passed; Discovery remains untouched.
+
+## 2026-08-07 — Search-submit gate and prompt-first UI authorized
+
+- Isaac authorized replacing immediate control-triggered searches with an
+  explicit Search-button commit gate.
+- Include/Exclude prompts are now the primary search surface; the legacy
+  `Search your library…` input is removed from the UI.
+- Draft controls are being kept separate from committed URL state so collection,
+  Diversity, depth, filename, view, and saved-search changes do not fetch until
+  Search is clicked.

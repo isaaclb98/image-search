@@ -321,3 +321,26 @@ can trade ranking pressure against search breadth independently.
 - Changing depth cannot reuse a cached ordering produced for another depth.
 - Scrolling remains stable and non-overlapping for every supported depth.
 - Existing non-Diversity search, Discovery, and the full test suite remain green.
+
+## Phase 7 — Explicit search-submit gate and prompt-first UI (Isaac authorization, 2026-08-07)
+
+### Objective
+
+Make Search the explicit commit gate for ordinary search. Include/Exclude
+prompts become the primary search mode; collections, filename, Diversity, depth,
+and view controls remain draft state until Search is clicked. Saved searches
+continue to store prompts only and apply them to the draft without searching.
+
+### Acceptance criteria
+
+- The `Search your library…` input is removed from the search UI.
+- Include and Exclude prompt controls are visible by default.
+- Editing prompts, collections, filename, Diversity, depth, or view does not
+  update the URL, fetch `/api/search`, or replace the current result grid.
+- Clicking Search flushes pending prompt text, validates Include/filename,
+  commits one canonical prompt-based URL, and starts the new search.
+- Selecting a saved search hydrates the draft only; it does not submit or fetch.
+- Infinite scroll reads only committed URL state, not unfinished draft state.
+- Legacy `?q=` links remain readable, while newly committed UI searches emit
+  `positives=` / `negatives=` parameters.
+- Existing routes, Discovery, and the full test suite remain green.

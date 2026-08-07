@@ -74,3 +74,16 @@ def test_remaining_pages_use_the_shared_state_language():
         assert '{% import "_macros.html" as ui %}' in source
     assert "ui.empty_state(" in read(TEMPLATES / "album_detail.html")
     assert "ui.empty_state(" in read(TEMPLATES / "discover_liked.html")
+
+
+def test_search_surface_uses_prompts_and_explicit_submit_gate():
+    search = read(TEMPLATES / "search.html")
+    controller = read(STATIC / "js" / "search.js")
+    assert 'name="q"' not in search
+    assert 'data-prompt-input="positives"' in search
+    assert 'data-prompt-input="negatives"' in search
+    assert 'data-search-draft-status' in search
+    assert "history.pushState({ search: url }" in controller
+    assert "function markDraftDirty()" in controller
+    assert "form.requestSubmit()" not in controller
+    assert "if (hasPositivePrompt(readQuery())) runSearch()" not in controller

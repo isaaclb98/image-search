@@ -42,21 +42,11 @@
 
 <form class="search-form" method="get" action="/">
   <div class="search-controls search-primary">
-    <label class="sr-only" for="search-query">Search your library</label>
-    <div class="search-input-wrap">
-      {{ ui.ui_icon('search', 'h-5 w-5') }}
-      <input
-        id="search-query"
-        type="search"
-        name="q"
-        value="{{ q }}"
-        placeholder="Search your library…"
-        autocomplete="off"
-        {% if not q and not results %}autofocus{% endif %}
-        {% if error or active_centroids %}disabled{% endif %}
-      >
+    <div class="search-intro">
+      <span class="search-intro-title">Build a search</span>
+      <span class="search-intro-hint" data-search-draft-status>Set your prompts and filters, then click Search.</span>
     </div>
-    <button class="search-submit" type="submit" {% if error or active_centroids %}disabled{% endif %}>
+    <button class="search-submit" type="submit" {% if active_centroids %}disabled{% endif %}>
       {{ ui.ui_icon('search', 'h-4 w-4') }}<span>Search</span>
     </button>
   </div>
@@ -123,102 +113,109 @@
     {% endif %}
   </div>
 
-{# Prompt composition is hidden in centroid mode — the input above is
-   disabled and prompts would be misleading. The mutex is enforced
-   server-side; the dim/hide is just to keep the UI honest. #}
+{# Prompt composition is hidden in centroid mode — text prompts would be
+   misleading beside a centroid anchor. The mutex is enforced server-side;
+   the hide keeps the UI honest. #}
 {% if not active_centroids %}
-<details class="search-advanced"{% if positive_chips or negative_chips or filename or collections %} open{% endif %}>
-  <summary>
-    <span class="search-advanced-label">Filters &amp; prompts</span>
-    <span class="search-advanced-summary" data-filter-summary>Optional</span>
-    {{ ui.ui_icon('filter', 'h-4 w-4') }}
-  </summary>
-  <div class="search-advanced-body">
-    <div class="filename-filter">
-      <label for="filename-filter-input">Path filter</label>
-      <input
-        id="filename-filter-input"
-        type="search"
-        name="filename"
-        value="{{ filename or '' }}"
-        placeholder="folder or filename…"
-        class="filename-input"
-        aria-label="Filter by filename or path substring"
-        title="Restrict results to photos whose path matches this token (FTS5 substring or prefix)."
-        {% if error %}disabled{% endif %}
-      >
+  <section class="prompt-composition prompt-composition--primary" aria-label="Search prompts">
+    <div class="prompt-composition-heading">
+      <div>
+        <span class="prompt-composition-title">Prompts</span>
+        <span class="prompt-composition-hint">Include what you want to find; optionally exclude what you do not.</span>
+      </div>
+      <div class="saved-search-bar" data-saved-bar>
+        <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
+        <select
+          id="saved-search-select"
+          class="saved-search-select"
+          data-saved-select
+          aria-label="Apply a saved search"
+        >
+          <option value="" data-saved-default-option>— pick a saved search —</option>
+          {% for s in saved_searches %}
+            <option
+              value="{{ s.id }}"
+              data-saved-positives='{{ s.positives|tojson }}'
+              data-saved-negatives='{{ s.negatives|tojson }}'
+            >{{ s.name }}</option>
+          {% endfor %}
+        </select>
+        <button
+          type="button"
+          class="saved-search-save"
+          data-saved-save
+          disabled
+          title="Add an Include prompt to save"
+        >Save current</button>
+        <span class="saved-search-error" role="alert" data-saved-error hidden></span>
+      </div>
     </div>
-    <section class="prompt-composition" aria-label="Prompt composition">
-  <div class="saved-search-bar" data-saved-bar>
-    <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
-    <select
-      id="saved-search-select"
-      class="saved-search-select"
-      data-saved-select
-      aria-label="Apply a saved search"
-    >
-      <option value="" data-saved-default-option>— pick a saved search —</option>
-      {% for s in saved_searches %}
-        <option
-          value="{{ s.id }}"
-          data-saved-positives='{{ s.positives|tojson }}'
-          data-saved-negatives='{{ s.negatives|tojson }}'
-        >{{ s.name }}</option>
-      {% endfor %}
-    </select>
-    <button
-      type="button"
-      class="saved-search-save"
-      data-saved-save
-      disabled
-      title="Type at least one prompt to save"
-    >Save current</button>
-    <span class="saved-search-error" role="alert" data-saved-error hidden></span>
-  </div>
-  <div class="prompt-row" data-prompt-row="positives">
-    <span class="prompt-row-label">include</span>
-    <div class="prompt-chip-list" data-prompt-chips="positives">
-      {% for prompt in positive_chips %}
-        <button class="prompt-chip prompt-chip--positive" type="button" data-prompt-chip="{{ prompt }}">
-          <span>{{ prompt }}</span>
-          <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
-        </button>
-      {% endfor %}
+    <div class="prompt-row prompt-row--primary" data-prompt-row="positives">
+      <span class="prompt-row-label">Include</span>
+      <div class="prompt-chip-list" data-prompt-chips="positives">
+        {% for prompt in positive_chips %}
+          <button class="prompt-chip prompt-chip--positive" type="button" data-prompt-chip="{{ prompt }}">
+            <span>{{ prompt }}</span>
+            <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
+          </button>
+        {% endfor %}
+      </div>
+      <div class="prompt-add">
+        <input type="text" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
+        <button type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
+      </div>
+      <span class="prompt-hint">required</span>
     </div>
-    <div class="prompt-add">
-      <input type="text" data-prompt-input="positives" placeholder="add prompt">
-      <button type="button" data-prompt-add="positives" aria-label="Add include prompt">+</button>
+    <div class="prompt-row prompt-row--negatives" data-prompt-row="negatives">
+      <span class="prompt-row-label">Exclude</span>
+      <div class="prompt-chip-list" data-prompt-chips="negatives">
+        {% for prompt in negative_chips %}
+          <button class="prompt-chip prompt-chip--negative" type="button" data-prompt-chip="{{ prompt }}">
+            <span>{{ prompt }}</span>
+            <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
+          </button>
+        {% endfor %}
+      </div>
+      <div class="prompt-add">
+        <input type="text" data-prompt-input="negatives" placeholder="e.g. blurry, screenshot" aria-label="Add Exclude prompt">
+        <button type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
+      </div>
+      <span class="prompt-hint">optional</span>
     </div>
-    <span class="prompt-hint">prompts to search toward</span>
-  </div>
-  <div class="prompt-row prompt-row--negatives" data-prompt-row="negatives">
-    <span class="prompt-row-label">exclude</span>
-    <div class="prompt-chip-list" data-prompt-chips="negatives">
-      {% for prompt in negative_chips %}
-        <button class="prompt-chip prompt-chip--negative" type="button" data-prompt-chip="{{ prompt }}">
-          <span>{{ prompt }}</span>
-          <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
-        </button>
-      {% endfor %}
+    <p class="prompt-error" role="alert" hidden></p>
+  </section>
+
+  <details class="search-advanced"{% if filename or collections %} open{% endif %}>
+    <summary>
+      <span class="search-advanced-label">Filters</span>
+      <span class="search-advanced-summary" data-filter-summary>Optional</span>
+      {{ ui.ui_icon('filter', 'h-4 w-4') }}
+    </summary>
+    <div class="search-advanced-body">
+      <div class="filename-filter">
+        <label for="filename-filter-input">Path filter</label>
+        <input
+          id="filename-filter-input"
+          type="search"
+          name="filename"
+          value="{{ filename or '' }}"
+          placeholder="folder or filename…"
+          class="filename-input"
+          aria-label="Filter by filename or path substring"
+          title="Restrict results to photos whose path matches this token (FTS5 substring or prefix)."
+          {% if error %}disabled{% endif %}
+        >
+      </div>
+      <nav id="category-bar" class="category-bar" aria-label="Filter by library"></nav>
     </div>
-    <div class="prompt-add">
-      <input type="text" data-prompt-input="negatives" placeholder="add prompt">
-      <button type="button" data-prompt-add="negatives" aria-label="Add exclude prompt">+</button>
-    </div>
-    <span class="prompt-hint">prompts to subtract</span>
-  </div>
-  <p class="prompt-error" role="alert" hidden></p>
-</section>
-    <nav id="category-bar" class="category-bar" aria-label="Filter by library"></nav>
-  </div>
-</details>
+  </details>
 {% endif %}
 </form>
 
 {% if error %}
   <p class="state state-error" role="alert">
     {{ error }}
-    <a href="/?q={{ q|urlencode }}">retry</a>
+    <a href="/{% if search_query_string %}?{{ search_query_string }}{% endif %}">retry</a>
   </p>
 {% elif source_photo_id %}
   {# "Most similar to this photo" mode. Driven by the /photo/{id}/similar
@@ -299,7 +296,7 @@
     {% endwith %}
   </section>
 {% else %}
-  <p class="state state-idle">Enter a query to search.</p>
+  <p class="state state-idle">Add an Include prompt, then click Search.</p>
 {% endif %}
 {% endblock %}
 
