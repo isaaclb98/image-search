@@ -280,6 +280,7 @@ def list_liked(
     qdrant: "QdrantSearch",
     session_id: str,
     web_ui_url: str = "",
+    index_db: "IndexDB | None" = None,
 ) -> list[DiscoveryImage] | None:
     """
     Return the user's picked images for the gallery view, in the
@@ -293,6 +294,7 @@ def list_liked(
     if not liked_ids:
         return []
     hits = qdrant.retrieve_batch(liked_ids)
+    favorite_ids = set(index_db.list_favorite_ids()) if index_db is not None else set()
     # Preserve pick order. retrieve_batch may omit missing points
     # (e.g. if the qdrant collection was reindexed mid-session).
     by_id = {h.id: h for h in hits}
@@ -308,6 +310,8 @@ def list_liked(
             id=h.id,
             path=h.path,
             url=resolve_url(h.id, web_ui_url),
+            blurhash=(h.payload or {}).get("blurhash"),
+            is_favorite=h.id in favorite_ids,
             picked_round=i + 1,
         ))
     return images
@@ -592,6 +596,7 @@ def _build_pair(
             id=h.id,
             path=h.path,
             url="",  # the route layer fills this with resolve_url(..., web_ui_url)
+            blurhash=(h.payload or {}).get("blurhash"),
         )
 
     return DiscoveryPair(

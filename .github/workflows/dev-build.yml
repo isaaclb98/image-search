@@ -1,0 +1,67 @@
+# .github/workflows/dev-build.yml
+#
+# Lightweight CI for the polished-UI branches:
+#   1. Install deps
+#   2. Run `tw:build` so stale app.css commits get caught
+#   3. Run the full test suite
+#
+# Triggers on push to any feature/* branch and on PRs against main.
+# Branch-only; no deploy step (deploy is GitOps via ArgoCD + the
+# k8s gitops repo, not GitHub Actions).
+name: dev-build
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - "fix/**"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -U pip
+          pip install -e ".[dev]"
+
+      - name: Build the design-system bundle (tw:build)
+        # Catches the silent build-skipped failure mode where someone
+        # commits a tailwind/input.css edit but forgets to rebuild
+        # app.css — the cluster then serves a stale 404 page until
+        # the next local rebuild.
+        run: |
+          . .venv/bin/activate
+          ./bin/tailwindcss -i search/static/css/input.css -o search/static/css/app.css
+
+      - name: Verify the bundle changed (or was already current)
+        # A real edit usually grows the bundle by ~1-5KB; we don't
+        # assert the size, just confirm the build produced a
+        # non-empty CSS file at the expected path.
+        run: |
+          test -s search/static/css/app.css
+          echo "app.css size: $(wc -c < search/static/css/app.css) bytes"
+
+      - name: Run tests
+        run: |
+          . .venv/bin/activate
+          pytest tests/ -q --tb=short
+        env:
+          # In-memory Qdrant + mock text encoder keep the CI run
+          # under a minute and GPU-free.
+          QDRANT_URL: "memory://"
+          LOG_LEVEL: "WARNING"

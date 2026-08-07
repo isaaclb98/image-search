@@ -1,0 +1,168 @@
+{#
+  _macros.html — reusable design-system macros for state design (T7).
+
+  Macros:
+    page_header(title, count, count_label, count_plural_label)
+        Sticky header bar with title (h1) on the left and an optional
+        tabular-numeral count on the right. Replaces hand-rolled
+        <header class="*-header"><h1>...</h1><p class="result-count">N ...</p>
+        patterns across pages.
+
+    empty_state(icon, title, body, action_url, action_label)
+        Centered empty state with icon, heading, body, and optional
+        action button. Replaces hand-rolled <p class="state state-idle">.
+
+    error_state(message)
+        DaisyUI alert with an error icon. Used by the Starlette
+        exception handler (app.py) for unhandled errors.
+
+    loading_skeleton(kind='grid' | 'detail')
+        Skeleton placeholders for client-side loads and page states.
+
+  All macros use DaisyUI / Tailwind classes; no site.css dependencies.
+#}
+
+{# ---------- icons ---------- #}
+{% macro ui_icon(name, class_name='h-4 w-4', label='') %}
+  <svg class="ui-icon {{ class_name }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"{% if label %} role="img" aria-label="{{ label }}"{% else %} aria-hidden="true"{% endif %}>
+    {% if name == 'search' %}
+      <circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path>
+    {% elif name == 'grid' %}
+      <rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect>
+    {% elif name == 'feed' %}
+      <rect x="4" y="4" width="16" height="4" rx="1"></rect><rect x="4" y="10" width="16" height="4" rx="1"></rect><rect x="4" y="16" width="16" height="4" rx="1"></rect>
+    {% elif name == 'menu' %}
+      <path d="M4 6h16M4 12h16M4 18h16"></path>
+    {% elif name == 'filter' %}
+      <path d="M4 6h16M7 12h10M10 18h4"></path>
+    {% elif name == 'shuffle' %}
+      <path d="M4 7h3c4 0 5 10 10 10h3"></path><path d="m17 14 3 3-3 3"></path><path d="M4 17h3c1.4 0 2.4-.8 3.2-1.8M14.8 8.8C15.5 7.7 16.4 7 18 7h2"></path><path d="m17 4 3 3-3 3"></path>
+    {% elif name == 'heart' %}
+      <path d="M20.8 8.7c0 5.3-8.8 10.1-8.8 10.1S3.2 14 3.2 8.7A4.7 4.7 0 0 1 12 6.2a4.7 4.7 0 0 1 8.8 2.5Z"></path>
+    {% elif name == 'plus' %}
+      <path d="M12 5v14M5 12h14"></path>
+    {% elif name == 'x' %}
+      <path d="m6 6 12 12M18 6 6 18"></path>
+    {% elif name == 'chevron-left' %}
+      <path d="m15 18-6-6 6-6"></path>
+    {% elif name == 'chevron-right' %}
+      <path d="m9 18 6-6-6-6"></path>
+    {% elif name == 'arrow-up' %}
+      <path d="M12 19V5M6 11l6-6 6 6"></path>
+    {% elif name == 'sun' %}
+      <circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+    {% elif name == 'moon' %}
+      <path d="M20.7 15.2A8.5 8.5 0 0 1 8.8 3.3 8.5 8.5 0 1 0 20.7 15.2Z"></path>
+    {% elif name == 'download' %}
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"></path>
+    {% elif name == 'help' %}
+      <circle cx="12" cy="12" r="9"></circle><path d="M9.8 9a2.3 2.3 0 1 1 3.8 1.7c-.9.7-1.6 1.1-1.6 2.6M12 17h.01"></path>
+    {% elif name == 'sparkles' %}
+      <path d="m12 3-1.2 4.2L7 8.5l3.8 1.3L12 14l1.2-4.2L17 8.5l-3.8-1.3L12 3ZM19 14l-.7 2.3L16 17l2.3.7L19 20l.7-2.3L22 17l-2.3-.7L19 14ZM5 14l-.6 1.9L2.5 17l1.9.6L5 19.5l.6-1.9 1.9-.6-1.9-.6L5 14Z"></path>
+    {% elif name == 'folder' %}
+      <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h5l2 2h8A1.5 1.5 0 0 1 21 9.5v7A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5v-9Z"></path>
+    {% elif name == 'bookmark' %}
+      <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3-6 3V4.5Z"></path>
+    {% else %}
+      <circle cx="12" cy="12" r="8"></circle>
+    {% endif %}
+  </svg>
+{% endmacro %}
+
+{# ---------- page_header ---------- #}
+{% macro page_header(title, count=none, count_label='', count_plural_label='') %}
+  <div class="page-header flex items-baseline justify-between gap-4 mb-6">
+    <h1 class="text-2xl font-bold tracking-tight text-base-content">{{ title }}</h1>
+    {% if count is not none %}
+      <span class="page-count text-sm text-base-content/70 tabular-nums shrink-0" data-page-count>
+        {% if count_plural_label %}
+          {{ count }} {{ count_plural_label if count != 1 else count_label }}
+        {% else %}
+          {{ count }} {{ count_label }}
+        {% endif %}
+      </span>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# ---------- empty_state ---------- #}
+{% macro empty_state(icon='', title='', body='', action_url='', action_label='') %}
+  <div class="ui-empty-state flex flex-col items-center justify-center text-center py-16 px-6 max-w-md mx-auto">
+    {% if icon %}
+      <div class="ui-empty-state__icon text-base-content" aria-hidden="true">
+        {% if icon in ['search', 'grid', 'feed', 'filter', 'shuffle', 'heart', 'folder', 'sparkles'] %}
+          {{ ui_icon(icon, 'h-8 w-8') }}
+        {% else %}
+          <span>{{ icon }}</span>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if title %}
+      <h2 class="text-lg font-semibold mb-2 text-base-content">{{ title }}</h2>
+    {% endif %}
+    {% if body %}
+      <p class="text-sm text-base-content/70 mb-4">{{ body }}</p>
+    {% endif %}
+    {% if action_url and action_label %}
+      <a href="{{ action_url }}" class="btn btn-primary">{{ action_label }}</a>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# ---------- error_state ---------- #}
+{% macro error_state(message='Something went wrong.') %}
+  <div role="alert" class="alert alert-error max-w-2xl mx-auto my-8">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <span>{{ message }}</span>
+  </div>
+{% endmacro %}
+
+{# ---------- loading_skeleton ---------- #}
+{% macro loading_skeleton(kind='grid') %}
+  {% if kind == 'grid' %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+      {% for _ in range(20) %}
+        <div class="skeleton aspect-square bg-base-300 rounded-lg"></div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="space-y-3 max-w-2xl mx-auto">
+      <div class="skeleton h-8 bg-base-300 rounded w-1/3"></div>
+      <div class="skeleton h-4 bg-base-300 rounded w-full"></div>
+      <div class="skeleton h-4 bg-base-300 rounded w-5/6"></div>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{# ---------- blurhash_thumb ----------
+   Renders a thumbnail wrapped in a tinted LQIP placeholder. The
+   `data-blurhash` attribute carries the encoded hash forward to
+   the shared client-side decoder paints the canvas before the real
+   image fills in, then reveals the image on load. #}
+{% macro blurhash_thumb(href, src, alt='', blurhash=none, score=none, score_str='', photo_id='', path='') %}
+  <a
+    href="{{ href }}"
+    class="thumb-link block w-full h-full bg-base-300 relative overflow-hidden"
+    data-lightbox-trigger
+    data-photo-id="{{ photo_id }}"
+    data-photo-src="{{ src }}"
+    data-photo-path="{{ path }}"
+    data-blurhash="{{ blurhash or '' }}"
+    aria-label="Open photo"
+  >
+    {% if blurhash %}<canvas class="blurhash-canvas" aria-hidden="true"></canvas>{% endif %}
+    {% if score is not none and score_str %}
+      <span class="grid-score tabular-nums">{{ score_str }}</span>
+    {% endif %}
+    <img
+      src="{{ src }}"
+      alt="{{ alt }}"
+      loading="lazy"
+      decoding="async"
+      onerror="this.classList.add('img-error')"
+      class="block w-full h-full object-cover transition-opacity duration-150"
+    >
+  </a>
+{% endmacro %}

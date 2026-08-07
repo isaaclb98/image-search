@@ -17,6 +17,14 @@ class SearchResult(BaseModel):
     )
     url: str = Field("", description="Public URL for the /photo/{id}/raw endpoint")
     is_favorite: bool = Field(False, description="True when the image is marked as a favourite")
+    blurhash: str | None = Field(
+        None,
+        description=(
+            "LQIP (low-quality image placeholder). Decoded client-side into a tinted"
+            " background while the real image loads. None when the encoder failed"
+            " or the point was indexed before the blurhash feature shipped."
+        ),
+    )
 
 
 class SearchResponse(BaseModel):
@@ -82,6 +90,10 @@ class DiscoveryImage(BaseModel):
     id: str
     path: str
     url: str = Field("", description="Public URL for /photo/{id}/raw")
+    blurhash: str | None = Field(
+        None, description="Optional client-decoded low-quality image placeholder."
+    )
+    is_favorite: bool = Field(False, description="True when the image is in favourites.")
     # When present (gallery only), the round in which the user
     # picked this image. Pairs in the live feed don't set this.
     picked_round: int | None = None

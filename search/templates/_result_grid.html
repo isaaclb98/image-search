@@ -1,3 +1,4 @@
+{% import "_macros.html" as ui %}
 {#
   _result_grid.html — result grid partial, shared by /?q=... and /photo/{id}/similar.
 
@@ -5,6 +6,12 @@
   "load more" / "capped" hint, and nothing else. The "Showing N-M
   for X" preamble stays in the parent template (the wording depends
   on the page's mode — text query, positive chips, or similar).
+
+  T6 polish (2026-08-05):
+    - Edge-to-edge thumbs (image fills the card).
+    - No border; hover raises shadow-md → shadow-lg.
+    - Score / favourite overlays stay in the top corners (small, semantic).
+    - Loading="lazy" + decoding="async" preserved.
 
   Required context:
     results               list[SearchResult] (each has .id, .url, .score, .score_str)
@@ -30,22 +37,56 @@
     data-has-more="{{ 'true' if has_more else 'false' }}"
   >
     {% for r in results %}
-      <li class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}" data-id="{{ r.id }}" data-score="{{ r.score }}">
+      <li
+        class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}"
+        data-id="{{ r.id }}"
+        data-score="{{ r.score }}"
+        data-photo-id="{{ r.id }}"
+        data-photo-src="{{ r.url }}"
+        data-photo-path="{{ r.path }}"
+      >
         {% if r.score_str %}
-          <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }}">{{ r.score_str }}</span>
+          <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }} tabular-nums">{{ r.score_str }}</span>
         {% endif %}
         {% if r.is_favorite %}
           <span class="fav-badge" aria-label="Favourite">♥</span>
         {% endif %}
-        <a href="/photo/{{ r.id }}{% if search_query_string %}?{{ search_query_string }}{% endif %}">
-          <img
-            src="{{ r.url }}"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onerror="this.classList.add('img-error')"
+        {% set href = "/photo/" ~ r.id ~ ("?" ~ search_query_string if search_query_string else "") %}
+        {% if r.blurhash %}
+          {{ ui.blurhash_thumb(href, r.url, alt='', blurhash=r.blurhash, photo_id=r.id, path=r.path) }}
+        {% else %}
+          <a
+            href="{{ href }}"
+            class="thumb-link block w-full h-full overflow-hidden"
+            data-lightbox-trigger
+            data-photo-id="{{ r.id }}"
+            data-photo-src="{{ r.url }}"
+            data-photo-path="{{ r.path }}"
+            aria-label="Open photo"
           >
-        </a>
+            <img
+              src="{{ r.url }}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onerror="this.classList.add('img-error')"
+              class="block w-full h-full object-cover"
+            >
+          </a>
+        {% endif %}
+        <div class="photo-card-actions">
+          <button
+            type="button"
+            class="photo-card-favorite{% if r.is_favorite %} is-active{% endif %}"
+            data-favorite-toggle
+            data-favorite-id="{{ r.id }}"
+            aria-pressed="{{ 'true' if r.is_favorite else 'false' }}"
+            aria-label="{{ 'Remove from favourites' if r.is_favorite else 'Add to favourites' }}"
+            title="{{ 'Remove from favourites' if r.is_favorite else 'Add to favourites' }}"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.7c0 5.3-8.8 10.1-8.8 10.1S3.2 14 3.2 8.7A4.7 4.7 0 0 1 12 6.2a4.7 4.7 0 0 1 8.8 2.5Z"></path></svg>
+          </button>
+        </div>
       </li>
     {% endfor %}
     {% if has_more %}

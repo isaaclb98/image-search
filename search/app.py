@@ -1148,6 +1148,9 @@ def create_app(
                 score_str=f"{h.score:.3f}",
                 url=resolve_url(h.id, _cfg.web_ui_url),
                 is_favorite=h.id in favorite_ids,
+                # LQIP from the Qdrant payload (set at index time, T9).
+                # None when the point was indexed before blurhash landed.
+                blurhash=(h.payload or {}).get("blurhash"),
             )
             for h in hits
         ]
@@ -3310,7 +3313,7 @@ def create_app(
     ) -> HTMLResponse:
         """Render the gallery of images the user picked in this session."""
         view = _coerce_view(view)
-        images = discover.list_liked(qdrant, session_id, _cfg.web_ui_url)
+        images = discover.list_liked(qdrant, session_id, _cfg.web_ui_url, index_db)
         if images is None:
             # Session gone. Render a friendly empty state with a
             # link back to /discover.

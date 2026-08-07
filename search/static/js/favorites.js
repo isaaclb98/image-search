@@ -23,9 +23,34 @@ import { appendToFeed } from "./lib/feed.js";
 
 const grid = document.getElementById("result-grid");
 const loadMoreHint = document.querySelector(".load-more-hint");
+const favoritesPage = document.querySelector("[data-favorites-page]");
+const favoritesCount = document.querySelector("[data-page-count]");
+const favoritesDownload = document.querySelector("[data-favorites-download]");
+const favoritesEmpty = document.querySelector("[data-favorites-empty]");
+let totalFavorites = Number(favoritesPage?.dataset.favoritesTotal || "0");
 
 let loadingMore = false;
 let observer = null;
+
+function updateFavoritesShell() {
+  if (favoritesCount) {
+    favoritesCount.textContent = `${totalFavorites} ${totalFavorites === 1 ? "photo" : "photos"}`;
+  }
+  if (favoritesDownload) favoritesDownload.hidden = totalFavorites === 0;
+  if (favoritesEmpty) favoritesEmpty.hidden = totalFavorites > 0;
+  if (totalFavorites === 0) {
+    grid?.remove();
+    loadMoreHint?.remove();
+    teardownObserver();
+  }
+}
+
+window.addEventListener("favoritechanged", (event) => {
+  if (event.detail?.on === false && totalFavorites > 0) {
+    totalFavorites -= 1;
+    updateFavoritesShell();
+  }
+});
 
 // Sentinel observer lifecycle. Each loadMorePage tears down and
 // recreates the observer after appending, because the old sentinel

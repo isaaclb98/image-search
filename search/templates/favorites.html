@@ -3,24 +3,19 @@
 {% block title %}Favourites — Isaac Image Search{% endblock %}
 
 {% block content %}
-<section class="favorites-page">
-  <header class="favorites-header">
-    <h1>Favourites</h1>
-    <p class="result-count">
-      {{ total }} {{ 'photo' if total == 1 else 'photos' }}
-    </p>
-    {% if total %}
-      <a class="favorites-download" href="/favorites/download.zip" download>
-        Download .zip
-      </a>
-    {% endif %}
-  </header>
+{% import "_macros.html" as ui %}
+<section class="favorites-page max-w-6xl mx-auto px-4 py-6" data-favorites-page data-favorites-total="{{ total }}">
+  {{ ui.page_header("Favourites", count=total, count_label="photo", count_plural_label="photos") }}
+  {% if total %}
+    <p class="-mt-4 mb-6" data-favorites-download><a class="btn btn-sm btn-primary inline-flex items-center gap-2" href="/favorites/download.zip" download>{{ ui.ui_icon('download', 'h-4 w-4') }}<span>Download .zip</span></a></p>
+  {% endif %}
 
   {% if results %}
     {% include "_result_grid.html" %}
-  {% else %}
-    <p class="state state-idle">No favourites yet.</p>
   {% endif %}
+  <div data-favorites-empty{% if results %} hidden{% endif %}>
+    {{ ui.empty_state(icon='heart', title='No favourites yet', body='Tap the heart on any photo to add it here.', action_url='/', action_label='Browse images') }}
+  </div>
 </section>
 {% endblock %}
 

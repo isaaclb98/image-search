@@ -19,37 +19,36 @@
     data-selection-cta
     href="/"
     aria-label="Search with the selected centroids"
-  >Search with blend →</a>
+  >{{ ui.ui_icon('search', 'h-4 w-4') }}<span>Search with blend</span></a>
   <button
     type="button"
     class="centroid-selection-clear"
     data-selection-clear
     aria-label="Clear current selection"
-  >clear</button>
+  >Clear</button>
 </aside>
 
-<section class="centroids" aria-label="Custom centroids">
-  <header class="centroids-header">
-    <h1 class="centroids-title">Centroids</h1>
-    <p class="centroids-subtitle">
-      Pre-computed embedding vectors saved by
-      <code>isaac-image-scoring</code>. Pick one or more to blend,
-      or click a card name to search against just that one.
+{% import "_macros.html" as ui %}
+<section class="centroids max-w-6xl mx-auto px-4 py-6" aria-label="Custom centroids">
+  {{ ui.page_header("Centroids") }}
+  <p class="text-sm text-base-content/70 -mt-4 mb-6">
+    Pre-computed embedding vectors saved by
+    <code>isaac-image-scoring</code>. Pick one or more to blend,
+    or click a card name to search against just that one.
+  </p>
+  {% if centroids_dir %}
+    <p class="text-xs text-base-content/60 -mt-2 mb-6">
+      <span class="font-medium">source</span>
+      <code>{{ centroids_dir }}</code>
+      <button
+        type="button"
+        class="btn btn-xs btn-ghost"
+        data-centroids-reload
+        aria-label="Reload centroids from disk"
+      >reload</button>
+      <span data-centroids-reload-status aria-live="polite"></span>
     </p>
-    {% if centroids_dir %}
-      <p class="centroids-meta">
-        <span class="centroids-meta-label">source</span>
-        <code>{{ centroids_dir }}</code>
-        <button
-          type="button"
-          class="centroids-reload-btn"
-          data-centroids-reload
-          aria-label="Reload centroids from disk"
-        >reload</button>
-        <span class="centroids-reload-status" data-centroids-reload-status aria-live="polite"></span>
-      </p>
-    {% endif %}
-  </header>
+  {% endif %}
 
   {# Dynamic centroids — runtime-computed from application state
      (currently just `favourites`). Rendered first as a dedicated
@@ -156,8 +155,8 @@
     </ul>
     </section>
   {% else %}
-    <p class="centroid-list-empty">
-      No centroids loaded.
+    <div class="alert alert-info max-w-2xl mx-auto my-8"><div>
+      <strong>No centroids loaded.</strong>
       {% if not centroids_dir %}
         Set <code>CENTROIDS_DIR</code> to a directory of
         <code>.pt</code> files produced by
@@ -167,7 +166,7 @@
         <code>isaac-image-scoring extract</code> to generate a
         centroid, then click <em>reload</em> above.
       {% endif %}
-    </p>
+    </div></div>
   {% endif %}
 </section>
 {% endblock %}

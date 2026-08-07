@@ -1,96 +1,91 @@
 {% extends "base.html" %}
 
+{% import "_macros.html" as ui %}
+
 {% block title %}photo {{ id[:8] }}…{% endblock %}
 
 {% block content %}
-<nav class="photo-nav">
-  {% if from_favorites %}
-    <a href="/favorites">← Back to favourites</a>
-  {% elif search_query_string %}
-    <a href="/?{{ search_query_string }}">← Back to results</a>
-  {% else %}
-    <a href="/">← Home</a>
+<section class="photo-page">
+  <nav class="photo-nav">
+    {% if from_favorites %}
+      <a href="/favorites">← Back to favourites</a>
+    {% elif search_query_string %}
+      <a href="/?{{ search_query_string }}">← Back to results</a>
+    {% else %}
+      <a href="/">← Home</a>
+    {% endif %}
+  </nav>
+
+  {% if file_missing %}
+    {{ ui.error_state("File not found on disk. The image has been indexed but the source file is missing.") }}
   {% endif %}
-</nav>
 
-{% if file_missing %}
-  <p class="state state-warn" role="alert">
-    File not found on disk. The image has been indexed but the source file is missing.
-  </p>
-{% endif %}
+  <div class="photo-layout">
+    <figure class="photo">
+      <img src="{{ url }}" alt="" onerror="this.classList.add('img-error')">
+    </figure>
 
-<figure class="photo">
-  <img src="{{ url }}" alt="" onerror="this.classList.add('img-error')">
-</figure>
+    <aside class="photo-detail-panel">
+      <p class="eyebrow">Photo details</p>
+      <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
+        <button
+          type="submit"
+          class="fav-toggle"
+          data-fav-id="{{ id }}"
+          data-fav-state="{{ 'on' if is_favorite else 'off' }}"
+          aria-pressed="{{ 'true' if is_favorite else 'false' }}"
+          aria-label="Toggle favourite"
+        >
+          <span class="fav-icon" aria-hidden="true">♥</span>
+          <span class="fav-label">{{ 'favourite' if is_favorite else 'add to favourites' }}</span>
+        </button>
+      </form>
 
-<form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
-  <button
-    type="submit"
-    class="fav-toggle"
-    data-fav-id="{{ id }}"
-    data-fav-state="{{ 'on' if is_favorite else 'off' }}"
-    aria-pressed="{{ 'true' if is_favorite else 'false' }}"
-    aria-label="Toggle favourite"
-  >
-    <span class="fav-icon" aria-hidden="true">♥</span>
-    <span class="fav-label">{{ 'favourite' if is_favorite else 'add to favourites' }}</span>
-  </button>
-</form>
+      {% if all_albums %}
+        <section class="album-pills" aria-label="Albums containing this photo">
+          <h2 class="album-pills__heading">Albums</h2>
+          <ul class="album-pills__list">
+            {% for a in all_albums %}
+              {% set is_in = (a.id|string) in photo_album_ids %}
+              <li>
+                <button
+                  type="button"
+                  class="album-pill{% if is_in %} album-pill--on{% endif %}"
+                  data-album-pill="{{ a.id }}"
+                  data-album-pill-state="{{ 'on' if is_in else 'off' }}"
+                  data-fav-id="{{ id }}"
+                  aria-pressed="{{ 'true' if is_in else 'false' }}"
+                >{{ a.name }}</button>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% else %}
+        <p class="text-sm text-base-content/70 mt-4"><a href="/albums" class="link link-primary">Create an album</a> to curate this photo into.</p>
+      {% endif %}
 
-{# Album pills: every user album as a toggle. Click to add/remove
-   this photo from the album. Membership is independent of the
-   favourites toggle above — a photo can be in an album without
-   being favourited. #}
-{% if all_albums %}
-  <section class="album-pills" aria-label="Albums containing this photo">
-    <h2 class="album-pills__heading">Albums</h2>
-    <ul class="album-pills__list">
-      {% for a in all_albums %}
-        {% set is_in = (a.id|string) in photo_album_ids %}
-        <li>
-          <button
-            type="button"
-            class="album-pill{% if is_in %} album-pill--on{% endif %}"
-            data-album-pill="{{ a.id }}"
-            data-album-pill-state="{{ 'on' if is_in else 'off' }}"
-            data-fav-id="{{ id }}"
-            aria-pressed="{{ 'true' if is_in else 'false' }}"
-          >{{ a.name }}</button>
-        </li>
-      {% endfor %}
-    </ul>
-  </section>
-{% else %}
-  <p class="album-pills__empty">
-    <a href="/albums">Create an album</a> to curate this photo into.
-  </p>
-{% endif %}
+      <dl class="meta">
+        <dt>id</dt><dd><code>{{ id }}</code></dd>
+        <dt>path</dt><dd><code>{{ path }}</code></dd>
+        {% if payload.get("shard") %}
+          <dt>shard</dt><dd><code>{{ payload.shard }}</code></dd>
+        {% endif %}
+        {% if payload.get("indexed_at") %}
+          <dt>indexed_at</dt><dd>{{ payload.indexed_at }}</dd>
+        {% endif %}
+        {% if payload.get("model_name") %}
+          <dt>model</dt><dd><code>{{ payload.model_name }}</code></dd>
+        {% endif %}
+      </dl>
 
-<dl class="meta">
-  <dt>id</dt><dd><code>{{ id }}</code></dd>
-  <dt>path</dt><dd><code>{{ path }}</code></dd>
-  {% if payload.get("shard") %}
-    <dt>shard</dt><dd><code>{{ payload.shard }}</code></dd>
-  {% endif %}
-  {% if payload.get("indexed_at") %}
-    <dt>indexed_at</dt><dd>{{ payload.indexed_at }}</dd>
-  {% endif %}
-  {% if payload.get("model_name") %}
-    <dt>model</dt><dd><code>{{ payload.model_name }}</code></dd>
-  {% endif %}
-</dl>
-
-{# Action row: a real <a>, not a JS click handler, so bookmarking,
-   right-click "open in new tab", and the browser back button all
-   work for free. The button is omitted when the source file is
-   missing on disk — similarity search still works (it only needs
-   the embedding, not the file), but surfacing the action when the
-   user already sees a "file missing" warning is confusing. #}
-{% if not file_missing %}
-  <p class="photo-actions">
-    <a class="btn btn-primary" href="/photo/{{ id }}/similar">Most similar images →</a>
-  </p>
-{% endif %}
+      {% if not file_missing %}
+        <p class="photo-actions">
+          <a class="btn btn-primary" href="/photo/{{ id }}/similar">Most similar images →</a>
+        </p>
+      {% endif %}
+    </aside>
+  </div>
+</section>
 {% endblock %}
 
 

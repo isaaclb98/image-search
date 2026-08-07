@@ -135,3 +135,28 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - `feature/polished-ui-interactive` — T10-T13 (lightbox, hover-stack, grid consolidation, shortcuts) + client blurhash decoder. Depends on branch 1.
 - PLAN.md rewritten for branch 1 only. Branch 2 sketched in Out-of-scope.
 - Status: plan ready, awaiting greenlight to cut `feature/polished-ui-foundation`.
+
+## 2026-08-05 23:01 EDT — T3 (theme system) complete
+
+- T1 (foundation) committed: `de6356c`. Tailwind v4.3.3 + DaisyUI v5.7.16 vendored, design tokens, custom light/dark re-skins, base.html → app.css, blurhash dep added.
+- T3 (theme system) committed. FOUC-prevention inline script in <head>, theme toggle in header with sun/moon SVG, Alpine.js 3.14.1 via CDN, data-theme="light" default on <html>.
+- 445/445 tests green after both commits.
+- T2 (design tokens) + T4 (typography) effectively done as part of T1's input.css — marked complete.
+- Branch status: `feature/polished-ui-foundation` at 2 commits ahead of main. Remaining: T5-T8 (template migration), T9 (blurhash index + payload + backfill), T10 (blurhash thumb macro), T11 (tests), T12 (CI + docs).
+
+## 2026-08-06 23:30 EDT — complete UI coherence + interactive pass
+
+- Isaac authorized the full UI pass on `feature/polished-ui-tasks`.
+- Unified legacy CSS variables with the light/dark DaisyUI tokens, added responsive mobile navigation, rebuilt the search surface around a primary query plus collapsible filters, and standardized page treatments across photo, album, discovery, random, favorites, saved, and centroid views.
+- Added shared SVG icon macro, canvas BlurHash decoder, photo-card hydration, lightbox with focus restoration/trapping, clickable and keyboard navigation, quick favorite and album actions, keyboard help, reduced-motion styling, discovery-pick gallery hydration, live favorites-page state updates, and static asset cache-bust `27`.
+- Added `tests/test_ui_interactive.py` and updated README/PLAN documentation.
+- Verification: `./bin/tailwindcss ...` succeeded; `.venv/bin/pytest -q` → **488 passed, 2 warnings**; all JS files passed `node --check`; `git diff --check` passed; Playwright seeded-Qdrant smoke passed for 12 result tiles, BlurHash canvases, lightbox next/previous/Escape, shortcut help, and favorite POST with no page errors.
+- `ruff check search indexer tests` still reports 55 pre-existing repository lint findings; no lint config or unrelated cleanup was applied.
+- Commits `2096f2b` and `ba30f6b` are pushed to `origin/feature/polished-ui-tasks`; merge approval was pending at feature completion.
+- Sentinel final review: **PASS** after repairing clickable lightbox arrows, x-cloak, mobile lightbox scrolling, favorite/discovery state synchronization, and favorites-page shell updates.
+
+## 2026-08-07 — merge approved
+
+- Isaac explicitly approved merging `feature/polished-ui-tasks` into `main`.
+- The merge resolution restored the complete reviewed feature tree, including the inherited BlurHash indexer, CI workflow, and state/theme regression tests that `main`'s prior revert had removed.
+- Merge-result verification: Tailwind build, JavaScript syntax checks, Python compileall, `git diff --check`, and **488 tests passed with 2 known warnings**.
