@@ -8,6 +8,7 @@ See templates/ for the HTML side and static/ for assets.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import random
 import re
@@ -41,6 +42,7 @@ from search.models import (
     DiscoveryPickResponse,
     DiscoveryStartResponse,
     ErrorResponse,
+    DiversityMetadata,
     FavoriteToggleResponse,
     FavoritesListResponse,
     SavedSearch,
@@ -49,7 +51,7 @@ from search.models import (
     SearchResponse,
     SearchResult,
 )
-from search.qdrant_client import QdrantSearch
+from search.qdrant_client import QdrantSearch, SearchHit
 from search.random import RandomPicker
 from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search.centroids import (
@@ -60,6 +62,12 @@ from search.centroids import (
     calibrate_near_dup_threshold,
     composite_centroid_name,
     filter_near_duplicates,
+)
+from search.diversity import (
+    DiversityResultCache,
+    DiversityStats,
+    rank_diverse,
+    resolve_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -484,6 +492,10 @@ def create_app(
         index_db = IndexDB(db_path=db_path, qdrant_client=qdrant)
     _index_db = index_db
     random_picker = RandomPicker(index_db)
+    diversity_cache = DiversityResultCache(
+        ttl_seconds=_cfg.diversity_cache_ttl_seconds,
+        max_entries=_cfg.diversity_cache_max_entries,
+    )
 
     # ---------------- Dynamic centroids ----------------
     #
@@ -659,6 +671,7 @@ def create_app(
 
     app.state.index_db = index_db
     app.state.random_picker = random_picker
+    app.state.diversity_cache = diversity_cache
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     # ---------------------- Routes ----------------------
@@ -1070,6 +1083,7 @@ def create_app(
         centroids: list[str] | None = None,
         weights: list[float] | None = None,
         diverse: bool = False,
+        diversity_mode: str = "off",
         filename: str = "",
     ) -> str:
         """
@@ -1113,7 +1127,11 @@ def create_app(
             params.append(("filename", filename.strip()))
         if view and view != _cfg.default_view:
             params.append(("view", view))
-        if diverse:
+        if diversity_mode and diversity_mode != "off":
+            params.append(("diversity", diversity_mode))
+        elif diverse:
+            # Legacy callers that only know the boolean retain the old
+            # URL shape; current search pages emit the explicit mode.
             params.append(("diverse", "true"))
         return urlencode(params)
 
@@ -1159,6 +1177,125 @@ def create_app(
         rows = await asyncio.to_thread(index_db.list_favorites, _cfg.max_results_total, 0)
         return {str(row["id"]) for row in rows}
 
+    def _diversity_metadata(stats: DiversityStats) -> DiversityMetadata:
+        return DiversityMetadata(
+            requested=stats.requested,
+            applied=stats.applied,
+            mode=stats.mode,
+            strength=stats.strength,
+            candidate_count=stats.candidate_count,
+            result_count=stats.result_count,
+            duplicate_images_collapsed=stats.duplicate_images_collapsed,
+            semantic_groups_covered=stats.semantic_groups_covered,
+        )
+
+    def _digest_values(values: list[str] | set[str] | None) -> str:
+        digest = hashlib.sha256()
+        if values is None:
+            digest.update(b"<none>\0")
+        for value in sorted(str(item) for item in (values or [])):
+            digest.update(value.encode("utf-8", "replace"))
+            digest.update(b"\0")
+        return digest.hexdigest()[:20]
+
+    def _diversity_cache_key(
+        vector: list[float],
+        mode: str,
+        collections: list[str],
+        allowed_ids: list[str] | None,
+        favorite_ids: set[str] | None,
+    ) -> str:
+        vector_digest = hashlib.sha256(
+            repr(tuple(round(float(value), 8) for value in vector)).encode("ascii")
+        ).hexdigest()[:20]
+        return "|".join((
+            _cfg.qdrant_collection,
+            mode,
+            vector_digest,
+            _digest_values(collections),
+            _digest_values(allowed_ids),
+            _digest_values(favorite_ids),
+        ))
+
+    def _diversity_page(
+        vector: list[float],
+        effective_limit: int,
+        offset: int,
+        collections: list[str],
+        allowed_ids: list[str] | None,
+        favorite_ids: set[str] | None,
+        mode: str,
+        strength: float,
+    ) -> tuple[list[SearchHit], bool, DiversityMetadata]:
+        """Build or retrieve one complete, stable Diversity ordering."""
+        cache_key = _diversity_cache_key(
+            vector, mode, collections, allowed_ids, favorite_ids,
+        )
+        cached = diversity_cache.get(cache_key)
+        if cached is not None:
+            hits = list(cached.hits)
+            page = hits[offset:offset + effective_limit]
+            return page, len(hits) > offset + effective_limit, _diversity_metadata(cached.stats)
+
+        search_allowed_ids = allowed_ids
+        if favorite_ids is not None:
+            favorite_list = sorted(favorite_ids)
+            if search_allowed_ids is None:
+                search_allowed_ids = favorite_list
+            else:
+                favorite_set = set(favorite_list)
+                search_allowed_ids = [
+                    point_id for point_id in search_allowed_ids
+                    if point_id in favorite_set
+                ]
+            if not search_allowed_ids:
+                stats = DiversityStats(
+                    requested=True, applied=True, mode=mode, strength=strength,
+                )
+                return [], False, _diversity_metadata(stats)
+
+        # Fetch from offset zero and rank the complete candidate universe before
+        # slicing. The max pool is intentionally bounded for a personal search
+        # process: 1,000 vectors is broad enough to escape a duplicate burst
+        # without turning every page request into a multi-megabyte transfer.
+        candidate_limit = min(
+            _cfg.max_results_total,
+            max(_cfg.diversity_candidate_pool_size, effective_limit * 5),
+        )
+        pairs, candidate_has_more = qdrant.search_with_vectors(
+            vector,
+            limit=candidate_limit,
+            offset=0,
+            collections=collections or None,
+            allowed_ids=search_allowed_ids,
+        )
+        # Expand before caching, so the first page and every later page use
+        # the same final candidate universe. This avoids silently changing
+        # page one when a later request needs more results.
+        max_candidate_limit = min(
+            _cfg.max_results_total,
+            _cfg.diversity_max_candidate_pool_size,
+        )
+        if candidate_has_more and candidate_limit < max_candidate_limit:
+            pairs, _ = qdrant.search_with_vectors(
+                vector,
+                limit=max_candidate_limit,
+                offset=0,
+                collections=collections or None,
+                allowed_ids=search_allowed_ids,
+            )
+        ranking = rank_diverse(
+            pairs,
+            vector,
+            mode=mode,
+            strength=strength,
+            duplicate_hamming_distance=_cfg.diversity_duplicate_hamming_distance,
+            relevance_drop=_cfg.diversity_relevance_drop,
+        )
+        diversity_cache.put(cache_key, ranking.hits, ranking.stats)
+        page = ranking.hits[offset:offset + effective_limit]
+        return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
+
     @app.get("/", response_class=HTMLResponse)
     async def search_page(
         request: Request,
@@ -1168,9 +1305,19 @@ def create_app(
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
         favorites: bool = Query(False, description="restrict results to favourites"),
         diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
+        diversity: str | None = Query(
+            None, description="Diversity strength: off, low, balanced, or high",
+        ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
     ) -> HTMLResponse:
         view = _coerce_view(view)
+        diversity_error: str | None = None
+        try:
+            diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
+        except ValueError as exc:
+            diversity_mode, diversity_strength = "off", 0.0
+            diversity_error = str(exc)
+        diverse = diversity_mode != "off"
         # Clamp limit here so the form's "?limit=99999" still works
         # (server-rendered pages render whatever limit is given, just
         # capped). The /api/search endpoint returns 400 on out-of-range.
@@ -1227,6 +1374,7 @@ def create_app(
                     "view": view,
                     "favorites_filter": favorites,
                     "diverse": diverse,
+                    "diversity_mode": diversity_mode,
                     "filename": filename_pattern,
                     "search_query_string": _search_query_string(
                         prompt_state.q,
@@ -1238,6 +1386,7 @@ def create_app(
                         weights=active_weights,
                         favorites=favorites,
                         diverse=diverse,
+                        diversity_mode=diversity_mode,
                         filename=filename_pattern,
                     ),
                     "limit": limit,
@@ -1259,7 +1408,7 @@ def create_app(
             )
 
         results: list[dict] = []
-        error: str | None = None
+        error: str | None = diversity_error
         took_ms: int = 0
         has_more = False
         attempted_search = bool(
@@ -1270,9 +1419,11 @@ def create_app(
             or filename_pattern
         )
 
-        if attempted_search and not active_centroids and not prompt_state.positives and not filename_pattern and not surprise:
+        if surprise and diverse:
+            error = "Diversity cannot be combined with Surprise Me. Choose one search mode."
+        elif attempted_search and not active_centroids and not prompt_state.positives and not filename_pattern and not surprise and not error:
             error = "At least one positive prompt is required."
-        elif attempted_search and limit > 0:
+        elif attempted_search and limit > 0 and not error:
             if surprise and not prompt_state.positives and not active_centroids:
                 # Surprise with no query: use zero vector so Qdrant
                 # returns results from the whole collection.
@@ -1314,7 +1465,21 @@ def create_app(
                     try:
                         # Don't let one page exceed the total cap.
                         effective_limit = min(limit, _cfg.max_results_total - offset)
-                        if favorites:
+                        diversity_meta = DiversityMetadata()
+                        if diverse:
+                            favorite_ids = await _favorite_ids_for_filter() if favorites else None
+                            hits, has_more, diversity_meta = _diversity_page(
+                                vec,
+                                effective_limit,
+                                offset,
+                                collections,
+                                allowed_ids,
+                                favorite_ids,
+                                diversity_mode,
+                                diversity_strength,
+                            )
+                            results = await _results_from_hits(hits, favorite_ids)
+                        elif favorites:
                             favorite_ids = await _favorite_ids_for_filter()
                             hits_all, _ = qdrant.search(
                                 vec, limit=_cfg.max_results_total, offset=0,
@@ -1337,32 +1502,11 @@ def create_app(
                             has_more = False
                             results = await _results_from_hits(hits)
                         else:
-                            if diverse:
-                                # Fetch extra candidates for MMR to
-                                # work with, then re-rank down to the
-                                # requested limit. The pool is capped
-                                # at 2x the effective limit so the
-                                # extra Qdrant cost is bounded.
-                                mmr_pool = min(
-                                    effective_limit * 2,
-                                    _cfg.top_k_max,
-                                )
-                                pairs, _ = qdrant.search_with_vectors(
-                                    vec, limit=mmr_pool, offset=offset,
-                                    collections=collections or None,
-                                    allowed_ids=allowed_ids,
-                                )
-                                from search.diversity import mmr_rerank
-                                hits = mmr_rerank(
-                                    pairs, vec, k=effective_limit,
-                                )
-                                has_more = len(pairs) >= mmr_pool
-                            else:
-                                hits, has_more = qdrant.search(
-                                    vec, limit=effective_limit, offset=offset,
-                                    collections=collections or None,
-                                    allowed_ids=allowed_ids,
-                                )
+                            hits, has_more = qdrant.search(
+                                vec, limit=effective_limit, offset=offset,
+                                collections=collections or None,
+                                allowed_ids=allowed_ids,
+                            )
                             results = await _results_from_hits(hits)
                         took_ms = int((time.time() - t0) * 1000)
                     except (ConnectionError, OSError) as e:
@@ -1433,6 +1577,7 @@ def create_app(
                 "view": view,
                 "favorites_filter": favorites,
                 "diverse": diverse,
+                "diversity_mode": diversity_mode,
                 "filename": filename_pattern,
                 "search_query_string": _search_query_string(
                     prompt_state.q,
@@ -1443,6 +1588,7 @@ def create_app(
                     centroid=active_centroid,
                     favorites=favorites,
                     diverse=diverse,
+                    diversity_mode=diversity_mode,
                     filename=filename_pattern,
                 ),
                 "limit": limit,
@@ -1682,10 +1828,22 @@ def create_app(
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
         favorites: bool = Query(False, description="restrict results to favourites"),
         diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
+        diversity: str | None = Query(
+            None, description="Diversity strength: off, low, balanced, or high",
+        ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
     ):
         # Manual validation so we return 400 (not 422) for bad input.
         view = _coerce_view(view)
+        try:
+            diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
+        except ValueError as exc:
+            return _bad_request(str(exc))
+        diverse = diversity_mode != "off"
+        if surprise and diverse:
+            return _bad_request(
+                "Diversity cannot be combined with Surprise Me. Choose one search mode."
+            )
         prompt_state = _normalize_prompt_state(
             q,
             _parse_prompts(request, "positives"),
@@ -1731,6 +1889,13 @@ def create_app(
                 query=prompt_state.q,
                 positives=prompt_state.positives,
                 negatives=prompt_state.negatives,
+                diverse=diverse,
+                diversity=DiversityMetadata(
+                    requested=diverse,
+                    applied=False,
+                    mode=diversity_mode,
+                    strength=diversity_strength,
+                ),
                 view=view,
                 centroid=active_centroid,
                 centroids=list(active_centroids),
@@ -1764,9 +1929,23 @@ def create_app(
             hits: list = []
             has_more = False
             favorite_ids = set()
+            diversity_meta = DiversityMetadata()
         else:
             try:
-                if favorites:
+                diversity_meta = DiversityMetadata()
+                if diverse:
+                    favorite_ids = await _favorite_ids_for_filter() if favorites else None
+                    hits, has_more, diversity_meta = _diversity_page(
+                        vec,
+                        effective_limit,
+                        offset,
+                        collections,
+                        allowed_ids,
+                        favorite_ids,
+                        diversity_mode,
+                        diversity_strength,
+                    )
+                elif favorites:
                     favorite_ids = await _favorite_ids_for_filter()
                     hits_all, _ = qdrant.search(
                         vec, limit=_cfg.max_results_total, offset=0,
@@ -1787,27 +1966,11 @@ def create_app(
                     hits = _surprise_search(hits, k)
                     has_more = False
                 else:
-                    if diverse:
-                        mmr_pool = min(
-                            effective_limit * 2,
-                            _cfg.top_k_max,
-                        )
-                        pairs, _ = qdrant.search_with_vectors(
-                            vec, limit=mmr_pool, offset=offset,
-                            collections=collections or None,
-                            allowed_ids=allowed_ids,
-                        )
-                        from search.diversity import mmr_rerank
-                        hits = mmr_rerank(
-                            pairs, vec, k=effective_limit,
-                        )
-                        has_more = len(pairs) >= mmr_pool
-                    else:
-                        hits, has_more = qdrant.search(
-                            vec, limit=effective_limit, offset=offset,
-                            collections=collections or None,
-                            allowed_ids=allowed_ids,
-                        )
+                    hits, has_more = qdrant.search(
+                        vec, limit=effective_limit, offset=offset,
+                        collections=collections or None,
+                        allowed_ids=allowed_ids,
+                    )
             except (ConnectionError, OSError) as e:
                 logger.warning("Qdrant unreachable for /api/search: %s", e)
                 return _qdrant_unreachable(str(e))
@@ -1826,6 +1989,7 @@ def create_app(
             negatives=prompt_state.negatives,
             diverse=diverse,
             surprise=surprise,
+            diversity=diversity_meta,
             view=view,
             centroid=active_centroid,
             centroids=list(active_centroids),

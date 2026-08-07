@@ -133,6 +133,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              "re-embed. Idempotent: re-running on a current collection is a no-op. Mutually "
              "exclusive with the normal index path.",
     )
+    p.add_argument(
+        "--refingerprint",
+        action="store_true",
+        help="walk the existing collection, recompute content_sha256 and dhash from each "
+             "source file, and rewrite only those payload fields. Does NOT re-embed. "
+             "Idempotent and mutually exclusive with the normal index path.",
+    )
     return p.parse_args(argv)
 
 
@@ -170,6 +177,10 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         return 2
 
     client = make_qdrant_client(args)
+
+    if args.reblurhash and args.refingerprint:
+        logger.error("--reblurhash and --refingerprint are mutually exclusive")
+        return 2
 
     # Ensure the collection (and its payload index) exist BEFORE
     # the cache init, so the cache's `rebuild_from_qdrant` has
@@ -281,6 +292,50 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
             offset = next_offset
         logger.info(
             "reblurhash complete: updated=%d skipped=%d failed=%d",
+            updated, skipped, failed,
+        )
+        return 0
+
+    if args.refingerprint:
+        from indexer.fingerprints import compute_fingerprints as _compute_fingerprints
+
+        logger.info("refingerprint: walking collection %s", args.qdrant_collection)
+        updated = skipped = failed = 0
+        offset = None
+        while True:
+            points, next_offset = client.scroll(
+                collection_name=args.qdrant_collection,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            if not points:
+                break
+            for rec in points:
+                payload = rec.payload or {}
+                path_str = payload.get("path")
+                if not path_str:
+                    failed += 1
+                    continue
+                fingerprints = _compute_fingerprints(Path(path_str))
+                if not fingerprints["content_sha256"]:
+                    failed += 1
+                    continue
+                if all(payload.get(key) == value for key, value in fingerprints.items()):
+                    skipped += 1
+                    continue
+                client.set_payload(
+                    collection_name=args.qdrant_collection,
+                    payload=fingerprints,
+                    points=[rec.id],
+                )
+                updated += 1
+            if next_offset is None:
+                break
+            offset = next_offset
+        logger.info(
+            "refingerprint complete: updated=%d skipped=%d failed=%d",
             updated, skipped, failed,
         )
         return 0

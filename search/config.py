@@ -71,6 +71,15 @@ class Config:
     # In test mode the real model is replaced with a deterministic mock.
     # Set SEARCH_TEST_MODE=1 from conftest to enable.
     test_mode: bool
+    # Search Diversity. These knobs apply only to ordinary /api/search and
+    # the SSR search page; Discovery owns a separate implementation and is
+    # intentionally not wired to these values.
+    diversity_candidate_pool_size: int = 500
+    diversity_max_candidate_pool_size: int = 1000
+    diversity_cache_ttl_seconds: int = 300
+    diversity_cache_max_entries: int = 64
+    diversity_duplicate_hamming_distance: int = 10
+    diversity_relevance_drop: float = 0.10
     # Surprise Me: fetch a deep pool (no vectors), shuffle, return a
     # small random slice. Pool size controls the diversity-relevance
     # trade-off (bigger = more diverse but slower).
@@ -101,7 +110,7 @@ class Config:
     # All env-driven so an operator can tune the running service without
     # a code change. Defaults match the prior hardcoded values exactly.
     max_results_total: int = 5000
-    static_assets_version: int = 27
+    static_assets_version: int = 28
     max_prompt_chars: int = 512
     max_prompts_total: int = 16
     # `valid_views` and `default_view` are a closed enum; not env-driven.
@@ -199,12 +208,20 @@ def load() -> Config:
         web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
         test_mode=bool(os.environ.get("SEARCH_TEST_MODE")),
+        diversity_candidate_pool_size=_int("DIVERSITY_CANDIDATE_POOL_SIZE", 500),
+        diversity_max_candidate_pool_size=_int("DIVERSITY_MAX_CANDIDATE_POOL_SIZE", 1000),
+        diversity_cache_ttl_seconds=_int("DIVERSITY_CACHE_TTL_SECONDS", 300),
+        diversity_cache_max_entries=_int("DIVERSITY_CACHE_MAX_ENTRIES", 64),
+        diversity_duplicate_hamming_distance=_int(
+            "DIVERSITY_DUPLICATE_HAMMING_DISTANCE", 10
+        ),
+        diversity_relevance_drop=_float("DIVERSITY_RELEVANCE_DROP", 0.10),
         centroids_dir=os.environ.get("CENTROIDS_DIR") or None,
         centroid_expected_model=expected_model,
         centroid_expected_feature_dim=expected_dim,
         index_db_path=index_db_path,
         max_results_total=_int("MAX_RESULTS_TOTAL", 5000),
-        static_assets_version=_int("STATIC_ASSETS_VERSION", 27),
+        static_assets_version=_int("STATIC_ASSETS_VERSION", 28),
         max_prompt_chars=_int("MAX_PROMPT_CHARS", 512),
         max_prompts_total=_int("MAX_PROMPTS_TOTAL", 16),
         filename_cardinality_guard=_float("FILENAME_CARDINALITY_GUARD", 0.5),
@@ -217,6 +234,21 @@ def load() -> Config:
         index_db_refresh_interval_seconds=_int("INDEX_DB_REFRESH_INTERVAL_SECONDS", 21600),
         path_liveness_ttl_seconds=_int("PATH_LIVENESS_TTL_SECONDS", 60),
     )
+
+    if cfg.diversity_candidate_pool_size < cfg.top_k_default:
+        raise ValueError(
+            "DIVERSITY_CANDIDATE_POOL_SIZE must be >= TOP_K_DEFAULT"
+        )
+    if cfg.diversity_max_candidate_pool_size < cfg.diversity_candidate_pool_size:
+        raise ValueError(
+            "DIVERSITY_MAX_CANDIDATE_POOL_SIZE must be >= DIVERSITY_CANDIDATE_POOL_SIZE"
+        )
+    if cfg.diversity_cache_ttl_seconds < 0 or cfg.diversity_cache_max_entries < 1:
+        raise ValueError("Diversity cache settings must be non-negative and non-empty")
+    if cfg.diversity_duplicate_hamming_distance < 0:
+        raise ValueError("DIVERSITY_DUPLICATE_HAMMING_DISTANCE must be >= 0")
+    if cfg.diversity_relevance_drop < 0:
+        raise ValueError("DIVERSITY_RELEVANCE_DROP must be >= 0")
 
     # Validate NAS base if set (test mode may set it later).
     if cfg.nas_images_base and not Path(cfg.nas_images_base).is_dir():

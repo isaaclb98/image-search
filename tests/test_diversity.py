@@ -1,16 +1,22 @@
 """
-tests/test_diversity.py — Unit tests for MMR re-ranking.
+tests/test_diversity.py — Unit tests for search Diversity and legacy MMR.
 
 Verifies the core algorithm, edge cases, and the embedding-normalisation
-helper. Does NOT require Qdrant or a SigLIP2 model — the diversity
-module is pure Python + math.
+helper. Does NOT require Qdrant or a SigLIP2 model — the ranking
+module accepts plain hit-like objects and small vectors.
 """
 
 from __future__ import annotations
 
 import math
 
-from search.diversity import mmr_rerank, _cosine_sim
+from search.diversity import (
+    DiversityResultCache,
+    mmr_rerank,
+    rank_diverse,
+    resolve_mode,
+    _cosine_sim,
+)
 
 
 def _unit_vec(*components) -> list[float]:
@@ -19,12 +25,13 @@ def _unit_vec(*components) -> list[float]:
     return [c / norm for c in components]
 
 
-def _make_hit(hit_id: str, score: float = 0.0):
+def _make_hit(hit_id: str, score: float = 0.0, payload: dict | None = None):
     """Minimal hit-like object for testing."""
     class FakeHit:
         def __init__(self, id_, score_):
             self.id = id_
             self.score = score_
+            self.payload = payload or {}
     return FakeHit(hit_id, score)
 
 
@@ -137,3 +144,51 @@ class TestCosineSim:
         b = _unit_vec(3, 4)
         sim = _cosine_sim(a, b)
         assert abs(sim - 1.0) < 1e-6
+
+
+class TestSearchDiversity:
+
+    def test_resolve_mode_supports_legacy_boolean(self):
+        assert resolve_mode(None, False) == ("off", 0.0)
+        assert resolve_mode(None, True) == ("balanced", 0.5)
+        assert resolve_mode("high") == ("high", 0.78)
+        assert resolve_mode("off", True) == ("off", 0.0)
+
+    def test_resolve_mode_rejects_unknown_mode(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="diversity must be one of"):
+            resolve_mode("random")
+
+    def test_rank_diverse_collapses_exact_duplicate_payloads(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("best", payload={"content_sha256": "same"}), q),
+            (_make_hit("copy", payload={"content_sha256": "same"}), _unit_vec(0.99, 0.1, 0)),
+            (_make_hit("different", payload={"content_sha256": "other"}), _unit_vec(0.7, 0, 0.7)),
+        ]
+        ranking = rank_diverse(hits, q, mode="balanced")
+        assert [hit.id for hit in ranking.hits] == ["best", "different"]
+        assert ranking.stats.duplicate_images_collapsed == 1
+        assert ranking.stats.applied is True
+
+    def test_rank_diverse_is_deterministic_and_keeps_relevance_first(self):
+        q = _unit_vec(1, 0, 0)
+        hits = [
+            (_make_hit("a"), _unit_vec(1, 0, 0)),
+            (_make_hit("b"), _unit_vec(0.98, 0.1, 0)),
+            (_make_hit("c"), _unit_vec(0.65, 0, 0.76)),
+        ]
+        first = rank_diverse(hits, q, mode="high")
+        second = rank_diverse(hits, q, mode="high")
+        assert [hit.id for hit in first.hits] == [hit.id for hit in second.hits]
+        assert first.hits[0].id == "a"
+        assert first.stats.semantic_groups_covered >= 1
+
+    def test_diversity_cache_can_clear(self):
+        cache = DiversityResultCache(ttl_seconds=60, max_entries=1)
+        stats = rank_diverse([], [1.0], mode="balanced").stats
+        cache.put("one", ["a"], stats)
+        assert cache.get("one").hits == ("a",)
+        cache.clear()
+        assert cache.get("one") is None

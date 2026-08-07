@@ -160,3 +160,25 @@ Isaac: "do all" at 18:56 EDT. Did #3 first (constants → Config) since it's the
 - Isaac explicitly approved merging `feature/polished-ui-tasks` into `main`.
 - The merge resolution restored the complete reviewed feature tree, including the inherited BlurHash indexer, CI workflow, and state/theme regression tests that `main`'s prior revert had removed.
 - Merge-result verification: Tailwind build, JavaScript syntax checks, Python compileall, `git diff --check`, and **488 tests passed with 2 known warnings**.
+
+## 2026-08-07 — Search Diversity implementation authorized
+
+- Isaac authorized implementation of the search-only Diversity overhaul.
+- Scope: stable pre-pagination ranking, duplicate awareness, relevance-preserving
+  coverage, explicit Diversity strength, API metadata, and focused verification.
+- Explicit exclusion: Discovery is not part of this change and must remain
+  behaviorally untouched.
+- Created feature branch `feature/search-diversity` from `main`.
+- Preserved pre-existing untracked `REVIEW.md`.
+
+## 2026-08-07 — Search Diversity verification
+
+- Focused search/indexer/Diversity tests passed; final full suite reached
+  **503 passed, 2 warnings**.
+- Tailwind output was rebuilt and confirmed current; Python compilation,
+  JavaScript syntax checks, and `git diff --check` passed.
+- Discovery scope guard passed: `search/discover.py` and
+  `search/static/js/discover.js` have no diff from `main`.
+- Sentinel review was invoked twice but both delegated review processes stayed
+  running without producing a verdict and were shut down. No Sentinel PASS is
+  claimed; the residual review limitation is reported at handoff.

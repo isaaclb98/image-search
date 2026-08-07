@@ -139,6 +139,13 @@ def test_get_search_page_with_query(app_with_qdrant):
     assert CAT_ID in resp.text
 
 
+def test_get_search_page_renders_diversity_strength_control(app_with_qdrant):
+    resp = app_with_qdrant.get("/?q=cat&diversity=high")
+    assert resp.status_code == 200
+    assert 'data-diversity-select' in resp.text
+    assert 'value="high" selected' in resp.text
+
+
 def test_get_search_page_empty_after_strip(app_with_qdrant):
     """Whitespace-only query is stripped to empty, landing-page state
     with random picks. Still surfaces a useful page rather than a
@@ -182,6 +189,60 @@ def test_api_search_q_param_still_works(app_with_qdrant):
     assert data["query"] == "cat"
     assert data["positives"] == ["cat"]
     assert data["results"][0]["id"] == CAT_ID
+
+
+def test_api_search_diversity_is_stable_across_pages(app_with_qdrant):
+    first = app_with_qdrant.get(
+        "/api/search",
+        params=[("q", "cat"), ("diversity", "balanced"), ("limit", "2")],
+    )
+    assert first.status_code == 200
+    first_data = first.json()
+    assert first_data["diverse"] is True
+    assert first_data["diversity"]["requested"] is True
+    assert first_data["diversity"]["applied"] is True
+    assert first_data["diversity"]["mode"] == "balanced"
+    assert first_data["diversity"]["candidate_count"] == 3
+    assert first_data["has_more"] is True
+
+    second = app_with_qdrant.get(
+        "/api/search",
+        params=[
+            ("q", "cat"),
+            ("diversity", "balanced"),
+            ("limit", "2"),
+            ("offset", "2"),
+        ],
+    )
+    assert second.status_code == 200
+    second_data = second.json()
+    assert second_data["diversity"]["mode"] == "balanced"
+    assert {
+        result["id"] for result in first_data["results"]
+    }.isdisjoint({result["id"] for result in second_data["results"]})
+    assert second_data["has_more"] is False
+
+
+def test_api_search_legacy_diverse_alias_maps_to_balanced(app_with_qdrant):
+    response = app_with_qdrant.get("/api/search?q=cat&diverse=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["diverse"] is True
+    assert data["diversity"]["mode"] == "balanced"
+
+
+def test_api_search_rejects_unknown_diversity_mode(app_with_qdrant):
+    response = app_with_qdrant.get("/api/search?q=cat&diversity=random")
+    assert response.status_code == 400
+    assert response.json()["code"] == "bad_request"
+
+
+def test_api_search_rejects_surprise_and_diversity_together(app_with_qdrant):
+    response = app_with_qdrant.get(
+        "/api/search?q=cat&diversity=balanced&surprise=true"
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "bad_request"
 
 
 def test_api_search_positives_multi_value(app_with_qdrant):

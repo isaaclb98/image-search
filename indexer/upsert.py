@@ -23,6 +23,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
 from indexer.blurhash import compute_blurhash
+from indexer.fingerprints import compute_fingerprints
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ def build_payload(
     """
     stat = path.stat()
     blurhash = compute_blurhash(path)
+    fingerprints = compute_fingerprints(path)
     return {
         "id": id_for(path, shard),
         "path": str(path.resolve()),
@@ -89,6 +91,10 @@ def build_payload(
         # T9 — LQIP. None when compute failed (file missing / unreadable /
         # non-image); the client skips the placeholder render in that case.
         "blurhash": blurhash,
+        # Search Diversity metadata. These are intentionally not indexed
+        # as Qdrant payload fields; the ranker reads them from candidates
+        # after the vector search.
+        **fingerprints,
         "mtime": int(stat.st_mtime),
         "size": int(stat.st_size),
         "model_name": model_name,

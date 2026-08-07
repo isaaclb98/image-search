@@ -79,13 +79,21 @@
       aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
       {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}
     >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
-    <button
-      type="button"
-      class="diverse-btn {% if diverse %}diverse-btn--active{% endif %}"
-      data-diverse
-      aria-pressed="{{ 'true' if diverse else 'false' }}"
-      {% if random_picks %}disabled title="Type a query to use the diversity toggle"{% endif %}
-    >{{ ui.ui_icon('shuffle', 'h-4 w-4') }}<span>Diverse</span></button>
+    <label class="diversity-control" title="Balance relevance against visual repetition">
+      {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+      <span class="sr-only">Diversity strength</span>
+      <select
+        class="diversity-select"
+        data-diversity-select
+        name="diversity"
+        aria-label="Diversity strength"
+        {% if random_picks %}disabled{% endif %}
+      >
+        {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+          <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+        {% endfor %}
+      </select>
+    </label>
     {% if random_picks %}
     <button
       type="button"

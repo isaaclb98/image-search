@@ -490,7 +490,8 @@ body {
 
 .view-toggle-btn,
 .diverse-btn,
-.surprise-btn {
+.surprise-btn,
+.diversity-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -507,9 +508,30 @@ body {
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
+.diversity-control {
+  padding: 0 0.25rem 0 0.65rem;
+}
+
+.diversity-select {
+  min-height: 2.45rem;
+  max-width: 10rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.diversity-select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .view-toggle-btn:hover,
 .diverse-btn:hover,
-.surprise-btn:hover {
+.surprise-btn:hover,
+.diversity-control:hover {
   background: var(--color-base-200);
   border-color: var(--color-primary);
 }

@@ -247,3 +247,49 @@ photo inspection as a fast, keyboard-accessible interaction.
 - Tailwind output is rebuilt and `git diff --check` is clean.
 - Sentinel independently reviews the final diff and returns PASS or concrete
   findings are repaired before completion.
+
+## Phase 5 — Search Diversity overhaul (Isaac authorization, 2026-08-07)
+
+### Objective
+
+Improve the search-only `Diversity` feature for this personal image library.
+Discovery is explicitly out of scope and must not be changed.
+
+### Product contract
+
+- `diverse=false` preserves ordinary relevance-ranked search.
+- `diverse=true` returns relevant results with fewer exact/near duplicates and
+  broader visual/semantic coverage.
+- Diversity is applied to the complete candidate ordering before pagination.
+- The same query/filter/mode produces a stable ordering during a short-lived
+  result session; pages must not overlap.
+- Favorites, collections, filename filters, and centroid searches remain
+  ordinary search filters. Diversity is not silently ignored when combined
+  with them.
+- Discovery code and behavior are excluded from this phase.
+
+### Implementation scope
+
+- Add a shared search-only Diversity ranking pipeline with vectorized scoring,
+  calibrated relevance, a relevance floor, and adaptive candidate expansion.
+- Add exact and perceptual image fingerprints to index payloads, plus a safe
+  backfill command for existing Qdrant points.
+- Collapse duplicate groups before semantic reranking and expose ranking
+  metadata in the API response.
+- Cache the ordered Diversity result IDs briefly so offset pagination slices a
+  single ranked set.
+- Replace the binary search control with an explicit Diversity strength while
+  retaining the `Diversity` name.
+- Add endpoint, ranking, fingerprint, pagination, and template tests.
+
+### Acceptance criteria
+
+- Exact duplicate IDs never repeat in a Diversity result set.
+- Diversity page 2 does not repeat page 1 and does not rerank independently.
+- Diversity ordering is stable for the same query, filters, and strength.
+- Balanced Diversity preserves a relevance floor while reducing near-duplicate
+  results; higher strength increases coverage without random sampling.
+- `diverse` and its applied metadata accurately describe the actual behavior.
+- Existing non-Diversity search, Discovery, and all existing tests remain green.
+- `git diff --check`, compile checks, and applicable lint/build checks pass.
+- Sentinel independently reviews the final diff before completion.
