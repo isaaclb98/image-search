@@ -719,7 +719,14 @@ def test_api_search_result_stability(app_with_qdrant):
     s2 = [x["score"] for x in r2["results"]]
     assert len(s1) == len(s2)
     for a, b in zip(s1, s2, strict=False):
-        assert abs(a - b) < 1e-9, f"score drift: {a} vs {b}"
+        # Tolerate float drift across CPU/BLAS implementations. The
+        # mock embedder is deterministic in principle, but reduction
+        # order varies between x86 + OpenBLAS (local), GitHub Actions
+        # x86, and ARM, producing ~1e-9 to ~1e-7 of drift even with
+        # identical inputs. 1e-6 is still tight enough to catch any
+        # real regression (a meaningful scoring change would move by
+        # orders of magnitude, not micro-units).
+        assert abs(a - b) < 1e-6, f"score drift: {a} vs {b}"
 
 
 # ---------------- Layer 2: LRU cache ----------------
