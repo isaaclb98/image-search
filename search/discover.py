@@ -116,7 +116,7 @@ class DiscoverOptions:
     session_ttl_seconds: int
 
     @classmethod
-    def from_config(cls, cfg) -> "DiscoverOptions":
+    def from_config(cls, cfg) -> DiscoverOptions:
         """Build a DiscoverOptions snapshot from the search-side Config.
 
         The discover routes use this once per session at creation time
@@ -207,9 +207,9 @@ def _gc_expired(now: float, ttl_seconds: int) -> None:
 
 
 def start_session(
-    qdrant: "QdrantSearch",
+    qdrant: QdrantSearch,
     opts: DiscoverOptions,
-    index_db: "IndexDB | None" = None,
+    index_db: IndexDB | None = None,
 ) -> tuple[str, DiscoveryPair]:
     """
     Create a new discovery session and return the first pair.
@@ -228,11 +228,11 @@ def start_session(
 
 
 def submit_pick(
-    qdrant: "QdrantSearch",
+    qdrant: QdrantSearch,
     session_id: str,
     picked_id: str,
     opts: DiscoverOptions,
-    index_db: "IndexDB | None" = None,
+    index_db: IndexDB | None = None,
 ) -> DiscoveryPair | None:
     """
     Record the user's pick for this round and return the next pair.
@@ -277,10 +277,10 @@ def get_session(session_id: str) -> DiscoverySession | None:
 
 
 def list_liked(
-    qdrant: "QdrantSearch",
+    qdrant: QdrantSearch,
     session_id: str,
     web_ui_url: str = "",
-    index_db: "IndexDB | None" = None,
+    index_db: IndexDB | None = None,
 ) -> list[DiscoveryImage] | None:
     """
     Return the user's picked images for the gallery view, in the
@@ -327,9 +327,9 @@ def reset_for_tests() -> None:
 
 
 def _next_pair(
-    qdrant: "QdrantSearch",
+    qdrant: QdrantSearch,
     session: DiscoverySession,
-    index_db: "IndexDB | None" = None,
+    index_db: IndexDB | None = None,
 ) -> DiscoveryPair:
     """
     Compute the next pair for `session`, update its state, and
@@ -363,15 +363,19 @@ def _next_pair(
     # Decide source.
     use_recommend = session.round >= session.opts.seed_rounds and bool(session.liked)
 
-    if use_recommend:
-        # A fresh recommend is needed when:
-        #  - we don't have a cached burst pool yet (first
-        #    rabbithole round), or
-        #  - we've already shown current_burst_size rounds in the
-        #    current burst and need to refresh the query. Every
-        #    burst uses session.opts.burst_size — no first-burst
-        #    special case.
-        if not session.burst_pool or session.burst_rounds_shown >= session.current_burst_size:
+    # A fresh recommend is needed when:
+    #  - we don't have a cached burst pool yet (first
+    #    rabbithole round), or
+    #  - we've already shown current_burst_size rounds in the
+    #    current burst and need to refresh the query. Every
+    #    burst uses session.opts.burst_size — no first-burst
+    #    special case.
+    need_fresh_recomm = (
+        use_recommend
+        and (not session.burst_pool or session.burst_rounds_shown >= session.current_burst_size)
+    )
+
+    if need_fresh_recomm:
             new_burst_size = session.opts.burst_size
             hits = qdrant.recommend(
                 positive=session.liked,
@@ -458,8 +462,8 @@ def _next_pair(
             n = len(available)
             third = n // 3
             if third >= 1 and 2 * third < n:
-                img_a = random.choice(available[:third])
-                img_b = random.choice(available[2 * third:])
+                img_a = random.choice(available[:third])  # noqa: S311 - UI sampling, not crypto
+                img_b = random.choice(available[2 * third:])  # noqa: S311 - UI sampling, not crypto
             else:
                 sampled = random.sample(available, k=2)
                 img_a, img_b = sampled[0], sampled[1]
@@ -571,7 +575,7 @@ def _mmr_select(
 
 
 def _build_pair(
-    qdrant: "QdrantSearch",
+    qdrant: QdrantSearch,
     round_number: int,
     left_id: str | None,
     right_id: str | None,

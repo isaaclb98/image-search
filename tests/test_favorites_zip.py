@@ -10,7 +10,6 @@ import pytest
 from indexer import upsert
 from indexer.upsert import VECTOR_DIM
 
-
 # ---------------------------------------------------------------------------
 # Fixture: app + Qdrant + SQLite + a tmp dir for real image files.
 # ---------------------------------------------------------------------------
@@ -22,11 +21,11 @@ def zip_app(tmp_path):
     written under it resolves to a real local file.
     """
     from fastapi.testclient import TestClient
+    from qdrant_client import QdrantClient
+
     from search.app import create_app
     from search.config import Config
     from search.qdrant_client import QdrantSearch
-    from search.text_encoder import _mock_embed
-    from qdrant_client import QdrantClient
 
     cfg = Config(
         qdrant_url="memory://",
@@ -63,6 +62,7 @@ def _seed_point(client, collection, point_id: str, path: str,
     `base_dir` so resolve_local finds it. Returns the point id.
     """
     import pathlib
+
     from search.text_encoder import _mock_embed
     if base_dir is not None:
         full_path = pathlib.Path(base_dir) / path

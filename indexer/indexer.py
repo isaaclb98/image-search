@@ -50,15 +50,15 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
 from indexer import scan, upsert
 from indexer.cache import DEFAULT_CACHE_PATH, IndexerCache
-from indexer.image_loader import LoaderError, load, letterbox_resize
+from indexer.image_loader import LoaderError, letterbox_resize, load
 from indexer.vision_encoder import VisionEncoder
 from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
 
@@ -164,10 +164,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    if isinstance(argv, argparse.Namespace):
-        args = argv
-    else:
-        args = parse_args(argv)
+    args = argv if isinstance(argv, argparse.Namespace) else parse_args(argv)
 
     if not args.source.exists():
         logger.error("source does not exist: %s", args.source)
@@ -372,7 +369,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         # We also time the load and WARN on slow files so you can see
         # when a particular share/folder is the problem without
         # waiting for the timeout to fire.
-        new_loaded: list[tuple[Path, "object"]] = []  # (path, PIL.Image)
+        new_loaded: list[tuple[Path, object]] = []  # (path, PIL.Image)
         batch_skipped = 0
         for p in batch:
             if use_cache and cache is not None and cache.has(p):
@@ -409,7 +406,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                 client, args.qdrant_collection, ids_to_check
             )
             new_loaded = [
-                (p, img) for (p, img), pid in zip(new_loaded, ids_to_check) if pid not in already
+                (p, img) for (p, img), pid in zip(new_loaded, ids_to_check, strict=False) if pid not in already
             ]
             if not new_loaded:
                 continue
@@ -419,7 +416,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
             vectors = encoder.embed_batch(
                 [letterbox_resize(img) for _, img in new_loaded]
             )
-        except Exception as e:
+        except Exception:
             logger.exception("embed failed for batch starting at %s", new_loaded[0][0])
             errors += len(new_loaded)
             continue
@@ -433,14 +430,14 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                     p, args.shard, args.model, "", args.collection,
                 ),
             )
-            for (p, _), vec in zip(new_loaded, vectors)
+            for (p, _), vec in zip(new_loaded, vectors, strict=False)
         ]
         if not args.dry_run:
             try:
                 upsert.upsert_batch(
                     client, args.qdrant_collection, items, wait=is_last_batch
                 )
-            except Exception as e:
+            except Exception:
                 logger.exception("upsert failed for batch starting at %s", new_loaded[0][0])
                 errors += len(new_loaded)
                 continue
@@ -450,7 +447,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         # per batch (not per upsert) — at most 16 entries are lost
         # on a crash, vs 16 file writes × 1ms = trivial I/O.
         if use_cache and cache is not None and not args.dry_run:
-            for (p, _), vec in zip(new_loaded, vectors):
+            for (p, _), _vec in zip(new_loaded, vectors, strict=False):
                 try:
                     stat = p.stat()
                 except OSError:

@@ -15,7 +15,6 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-import pytest
 import torch
 
 from search.centroids import CentroidStore

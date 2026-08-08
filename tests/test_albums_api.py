@@ -15,7 +15,6 @@ from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search.config import Config
 
-
 CAT_ID = "11111111-1111-1111-1111-111111111111"
 DOG_ID = "22222222-2222-2222-2222-222222222222"
 BIRD_ID = "33333333-3333-3333-3333-333333333333"
@@ -24,6 +23,7 @@ BIRD_ID = "33333333-3333-3333-3333-333333333333"
 @pytest.fixture
 def app_with_qdrant(qdrant_in_memory, nas_base):
     from PIL import Image
+
     from search.text_encoder import _mock_embed
 
     cfg = Config(

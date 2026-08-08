@@ -17,6 +17,8 @@ from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search import discover
 from search.config import Config
+
+
 def _seed_rounds() -> int:
     """Read the discover seed-rounds knob from the live app's Config.
 
@@ -52,9 +54,9 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch):
     20 test points (each with a distinct mock embedding so the
     recommend math has something to do).
     """
-    from search.text_encoder import _mock_embed
-    import shutil
     from PIL import Image
+
+    from search.text_encoder import _mock_embed
 
     cfg = Config(
         qdrant_url="memory://",
@@ -154,7 +156,6 @@ def test_pick_records_picked_as_liked(app_with_qdrant):
     assert data["pair"] is not None
 
     # Verify session state via list_liked.
-    from search.qdrant_client import QdrantSearch
     # The in-memory qdrant_search is wired into the app's _qdrant.
     qdrant = app_mod.get_qdrant()
     images = discover.list_liked(qdrant, sid, "http://localhost:8000")
@@ -178,7 +179,7 @@ def test_pick_records_other_image_as_implicit_disliked(app_with_qdrant):
     pair = app_with_qdrant.post(f"/api/discover/pick?session_id={sid}&image_id=00000000000000000000000000000000").json()["pair"]
     # ^ dummy id; we just want to advance the round. Real test:
     sid, pair = _start(app_with_qdrant)
-    r1 = app_with_qdrant.post(
+    app_with_qdrant.post(
         f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
     ).json()
     # The OTHER image (right) should be in disliked.
@@ -231,8 +232,10 @@ def test_seen_set_prevents_repeats(app_with_qdrant):
     """Across multiple rounds, the same image id never appears twice."""
     sid, pair = _start(app_with_qdrant)
     seen_ids: set[str] = set()
-    if pair["left"]: seen_ids.add(pair["left"]["id"])
-    if pair["right"]: seen_ids.add(pair["right"]["id"])
+    if pair["left"]:
+        seen_ids.add(pair["left"]["id"])
+    if pair["right"]:
+        seen_ids.add(pair["right"]["id"])
     for _ in range(10):
         if not pair:
             break
@@ -622,8 +625,8 @@ def test_recommend_failure_falls_back_to_random(app_with_qdrant):
         # Simulate the production failure: qdrant-client wrapping
         # an httpx.ReadTimeout in ResponseHandlingException. This
         # is the exact exception type Isaac hit in the bug report.
-        from qdrant_client.http.exceptions import ResponseHandlingException
         import httpcore
+        from qdrant_client.http.exceptions import ResponseHandlingException
         raise ResponseHandlingException(
             httpcore.ReadTimeout("The read operation timed out")
         )
@@ -728,8 +731,9 @@ def test_get_liked_page_unknown_session_renders_gracefully(app_with_qdrant):
 
 def test_list_liked_unknown_session_returns_none():
     """list_liked returns None for unknown sessions, not an empty list."""
-    from search.qdrant_client import QdrantSearch
     from qdrant_client import QdrantClient
+
+    from search.qdrant_client import QdrantSearch
     q = QdrantSearch(client=QdrantClient(location=":memory:"), collection="x", timeout_ms=2000)
     result = discover.list_liked(q, "nonexistent")
     assert result is None
@@ -984,14 +988,14 @@ def _orthonormal_vecs(n: int, dim: int = 32) -> list[list[float]]:
     maximally diverse from every other candidate.
     """
     import random
-    rng = random.Random(0xC0FFEE)
+    rng = random.Random(0xC0FFEE)  # noqa: S311 - test fixture
     assert dim >= n
     vecs = [[rng.gauss(0, 1) for _ in range(dim)] for _ in range(n)]
     out: list[list[float]] = []
     for v in vecs:
         for u in out:
-            dot = sum(a * b for a, b in zip(v, u))
-            v = [a - dot * b for a, b in zip(v, u)]
+            dot = sum(a * b for a, b in zip(v, u, strict=False))
+            v = [a - dot * b for a, b in zip(v, u, strict=False)]
         norm = sum(a * a for a in v) ** 0.5
         if norm == 0:
             v = [0.0] * dim
@@ -1011,7 +1015,7 @@ def test_mmr_select_returns_diverse_subset():
 
     n_clusters = 5
     per_cluster = 4
-    n = n_clusters * per_cluster  # 20
+    n_clusters * per_cluster  # 20
     vecs = _orthonormal_vecs(n_clusters, dim=64)
     candidates: list[tuple[str, float, list[float]]] = []
     for c in range(n_clusters):
@@ -1104,7 +1108,7 @@ def test_burst_pool_spans_clusters(app_with_qdrant):
 
     def _vec(cluster: int, idx: int) -> list[float]:
         import random
-        rng = random.Random(cluster * 1000 + idx)
+        rng = random.Random(cluster * 1000 + idx)  # noqa: S311 - test fixture
         # Three orthogonal-ish directions; jitter within a
         # cluster is small, jitter between clusters is large.
         base = [0.0] * VECTOR_DIM

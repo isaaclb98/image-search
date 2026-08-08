@@ -13,7 +13,6 @@ synthesis is fast (~10ms for a 64x64 gradient).
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -125,8 +124,9 @@ def test_is_valid_blurhash_rejects_non_printable():
 def test_build_payload_includes_blurhash(sample_png, monkeypatch):
     """Smoke-test the wire-in: every point we upsert should have a
     `blurhash` field on its payload."""
-    from indexer import upsert
     from qdrant_client import QdrantClient
+
+    from indexer import upsert
 
     # Use an in-memory Qdrant so the wire-in doesn't touch disk.
     client = QdrantClient(location=":memory:")

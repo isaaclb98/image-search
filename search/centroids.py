@@ -35,9 +35,9 @@ exists in the directory via the file path (handy for debugging).
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
 
 import torch
 
@@ -339,7 +339,7 @@ def blend_centroids(
         )
 
     blended = [0.0] * dim
-    for (vec, _name), w in zip(entries, weights_list):
+    for (vec, _name), w in zip(entries, weights_list, strict=False):
         if len(vec) != dim:
             raise ValueError(
                 f"centroid {entries[0][1]!r} dim {dim} != "
@@ -632,7 +632,7 @@ class DynamicCentroidRegistry:
 # numpy matrix, and hands it to these helpers.
 
 
-def calibrate_near_dup_threshold(seed_vectors: "list[list[float]] | None") -> float:
+def calibrate_near_dup_threshold(seed_vectors: list[list[float]] | None) -> float:
     """Return the cosine-distance cutoff below which a candidate
     is treated as a near-duplicate of the seed set.
 
@@ -704,8 +704,8 @@ def calibrate_near_dup_threshold(seed_vectors: "list[list[float]] | None") -> fl
 
 
 def filter_near_duplicates(
-    candidate_vectors: "list[list[float]]",
-    seed_vectors: "list[list[float]]",
+    candidate_vectors: list[list[float]],
+    seed_vectors: list[list[float]],
     threshold: float,
 ) -> list[bool]:
     """Return a per-candidate keep-mask for Layer 2.

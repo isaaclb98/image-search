@@ -15,13 +15,13 @@ from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search.config import Config
 
-
 CAT_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
 def app_with_qdrant(qdrant_in_memory, nas_base):
     from PIL import Image
+
     from search.text_encoder import _mock_embed
 
     cfg = Config(

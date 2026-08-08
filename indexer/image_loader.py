@@ -114,13 +114,13 @@ def load(path: Path) -> Image.Image:
         future = executor.submit(load_image_pil, path)
         try:
             img = future.result(timeout=_LOAD_TIMEOUT_S)
-        except concurrent.futures.TimeoutError:
+        except concurrent.futures.TimeoutError as err:
             raise LoaderError(
                 path,
                 f"timed out after {_LOAD_TIMEOUT_S}s reading (likely a "
                 f"slow/stalled network share; raise INDEXER_LOAD_TIMEOUT_S "
                 f"if your network is just consistently slow)",
-            )
+            ) from err
     return letterbox_resize(img)
 
 
@@ -128,7 +128,7 @@ def load(path: Path) -> Image.Image:
 # We don't import torchvision here to keep this module testable on machines
 # without GPU/torchvision wheels; the vision_encoder wraps with the
 # processor at embed time.
-def to_chw_float(img: Image.Image) -> "list[list[list[float]]]":
+def to_chw_float(img: Image.Image) -> list[list[list[float]]]:
     """
     Convert a PIL.Image (RGB, square) to a CHW float list in [0, 1].
 

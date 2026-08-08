@@ -13,6 +13,7 @@ from indexer.upsert import VECTOR_DIM
 @pytest.fixture
 def random_app(tmp_path, monkeypatch):
     import sqlite3
+
     from search.app import create_app
     from search.config import Config
 
@@ -102,7 +103,7 @@ def test_api_random_returns_rows(random_app):
 def test_api_random_filters_by_collection(random_app):
     resp = random_app.get("/api/random?limit=10&collections=kpop")
     assert resp.status_code == 200
-    ids = {r["id"] for r in data["results"]} if False else {r["id"] for r in resp.json()["results"]}
+    ids = {r["id"] for r in resp.json()["results"]}
     assert ids == {"a", "b"}
 
 

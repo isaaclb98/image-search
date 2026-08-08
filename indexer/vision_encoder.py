@@ -20,7 +20,7 @@ Torch is imported lazily so the file is importable on machines without GPU.
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
