@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -298,8 +299,8 @@ def test_path_token_ids_legacy_db_backfill(tmp_path):
 
     # Build a legacy DB without the FTS table.
     legacy = sqlite3.connect(str(tmp_path / "legacy.db"))
-    legacy.executescript(
-        """
+    # Test fixture: values are static module constants, not user input.
+    legacy_ddl = f"""
         CREATE TABLE images (
           id TEXT PRIMARY KEY,
           path TEXT NOT NULL,
@@ -308,10 +309,10 @@ def test_path_token_ids_legacy_db_backfill(tmp_path):
           size INTEGER,
           indexed_at TEXT
         );
-        INSERT INTO images VALUES ('a', '""" + CHAEWON_PATH + """', '', 100, 200, '2026-01-01');
-        INSERT INTO images VALUES ('b', '""" + KAZUHA_PATH + """', '', 100, 200, '2026-01-01');
-        """
-    )
+        INSERT INTO images VALUES ('a', '{CHAEWON_PATH}', '', 100, 200, '2026-01-01');
+        INSERT INTO images VALUES ('b', '{KAZUHA_PATH}', '', 100, 200, '2026-01-01');
+        """  # noqa: S608 - test fixture, static module constants only
+    legacy.executescript(legacy_ddl)
     legacy.commit()
     legacy.close()
 
@@ -495,7 +496,6 @@ def test_api_search_filename_cardinality_guard_skips_filter(caplog):
     optimisation for very-broad patterns."""
     from indexer import upsert
     from indexer.upsert import VECTOR_DIM
-
     from search import app as app_mod
     from search.config import Config
     from search.text_encoder import _mock_embed
@@ -514,7 +514,7 @@ def test_api_search_filename_cardinality_guard_skips_filter(caplog):
         top_k_default=50,
         top_k_max=200,
         query_timeout_ms=2000,
-        nas_images_base=str(Path("/tmp").resolve()),
+        nas_images_base=str(Path(tempfile.gettempdir()).resolve()),
         path_prefix="",
         web_ui_url="http://localhost:8000",
         log_level="INFO",
@@ -546,21 +546,20 @@ def test_api_search_filename_cardinality_guard_skips_filter(caplog):
 
     app_mod.reset_for_tests()
     app = app_mod.create_app(cfg=cfg, qdrant=qdrant)
-    with TestClient(app) as tc:
-        with caplog.at_level(logging.INFO, logger="search.app"):
-            # `chaewon` matches ALL 10 images (100% > 50%). The
-            # guard should kick in and log the skip.
-            resp = tc.get("/api/search?q=query0&filename=chaewon")
-            assert resp.status_code == 200
-            data = resp.json()
-            # All 10 results should come back (semantic ranking of
-            # the full collection, no HasId filter applied).
-            assert len(data["results"]) == 10
-            # The skip was logged.
-            assert any(
-                "cardinality guard" in record.message
-                for record in caplog.records
-            )
+    with TestClient(app) as tc, caplog.at_level(logging.INFO, logger="search.app"):
+        # `chaewon` matches ALL 10 images (100% > 50%). The
+        # guard should kick in and log the skip.
+        resp = tc.get("/api/search?q=query0&filename=chaewon")
+        assert resp.status_code == 200
+        data = resp.json()
+        # All 10 results should come back (semantic ranking of
+        # the full collection, no HasId filter applied).
+        assert len(data["results"]) == 10
+        # The skip was logged.
+        assert any(
+            "cardinality guard" in record.message
+            for record in caplog.records
+        )
     app_mod.reset_for_tests()
 
 
@@ -652,9 +651,11 @@ def _make_db(qdrant, tmp_path_factory=None):
 
     from search.index_db import IndexDB
 
-    handle = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    handle.close()
-    db = IndexDB(handle.name, qdrant, refresh_interval_seconds=3600)
+    with tempfile.NamedTemporaryFile(  # noqa: S108 - test scratch db
+        suffix=".db", delete=False
+    ) as handle:
+        db_path = handle.name
+    db = IndexDB(db_path, qdrant, refresh_interval_seconds=3600)
     db.init_from_qdrant()
     return db
 
@@ -662,5 +663,6 @@ def _make_db(qdrant, tmp_path_factory=None):
 # Re-import the constants from the shared centroid fixture so we
 # don't redeclare them.
 from _centroid_fixture import (  # noqa: E402
-    CENTROID_DOG_ID, WUXIA_CENTROID,
+    CENTROID_DOG_ID,
+    WUXIA_CENTROID,
 )

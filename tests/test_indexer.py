@@ -13,7 +13,7 @@ from PIL import Image
 from qdrant_client import QdrantClient
 
 from indexer import scan, upsert
-from indexer.image_loader import LoaderError, SIGLIP_RESOLUTION, load, load_image_pil
+from indexer.image_loader import SIGLIP_RESOLUTION, LoaderError, load, load_image_pil
 from indexer.upsert import VECTOR_DIM, build_payload, id_for
 
 # Test UUIDs (deterministic, valid UUID format that Qdrant accepts).
@@ -348,9 +348,11 @@ def test_indexer_returns_2_on_missing_source(tmp_path, monkeypatch):
 
 def test_prune_removes_missing_files(tmp_path):
     """prune removes points whose source file no longer exists."""
-    from qdrant_client import QdrantClient
-    from indexer.upsert import VECTOR_DIM, ensure_collection, upsert_batch, prune_missing
     import uuid
+
+    from qdrant_client import QdrantClient
+
+    from indexer.upsert import VECTOR_DIM, ensure_collection, prune_missing, upsert_batch
 
     client = QdrantClient(location=":memory:")
     ensure_collection(client, "test_prune", dim=VECTOR_DIM)
@@ -528,8 +530,8 @@ def test_cache_remove_missing_drops_deleted_files(tmp_path):
 def test_cache_rebuild_from_qdrant(qdrant_in_memory, tmp_path):
     """rebuild_from_qdrant walks the collection and populates the cache,
     but skips entries whose paths no longer exist on disk."""
-    from indexer.cache import IndexerCache
     from indexer import upsert
+    from indexer.cache import IndexerCache
 
     existing = tmp_path / "exists.jpg"
     existing.write_bytes(b"x")
@@ -563,7 +565,8 @@ def test_cache_save_is_atomic(tmp_path):
     p.write_bytes(b"x")
     c1.add(p, "id-1", int(p.stat().st_mtime), int(p.stat().st_size))
     c1.save()
-    cache_file.stat().st_size
+    # Sanity check: file exists on disk after save().
+    assert cache_file.stat().st_size > 0
 
     # Now save a second time with different data. Simulate a crash by
     # leaving a stale .tmp file in the dir — load() should still work.
@@ -624,8 +627,9 @@ def test_indexer_modified_file_reembeds(tmp_path, fixture_images, monkeypatch, c
     """
     A touched file (mtime change) should re-embed, not be skipped.
     """
-    from indexer import indexer as indexer_mod
     import os
+
+    from indexer import indexer as indexer_mod
 
     class MockEncoder:
         def __init__(self, *a, **kw):
@@ -772,6 +776,7 @@ def test_load_times_out_on_slow_read(monkeypatch, tmp_path):
     converts the thread's TimeoutError into LoaderError.
     """
     import time
+
     from indexer import image_loader
     from indexer.image_loader import LoaderError, load
 
@@ -797,6 +802,7 @@ def test_load_timeout_configurable_via_env(monkeypatch):
     monkeypatch.setenv("INDEXER_LOAD_TIMEOUT_S", "99.5")
     # Re-import so the env var is read at module load.
     import importlib
+
     from indexer import image_loader
     importlib.reload(image_loader)
     assert image_loader._LOAD_TIMEOUT_S == 99.5

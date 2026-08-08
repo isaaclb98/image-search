@@ -10,11 +10,12 @@ non-rebuildable per-photo user state owned by the search side.
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import sqlite3
 import threading
 import time
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -47,7 +48,7 @@ class IndexDB:
     def __init__(
         self,
         db_path: str,
-        qdrant_client: "QdrantSearch",
+        qdrant_client: QdrantSearch,
         refresh_interval_seconds: int = 21600,
     ):
         self.db_path = db_path
@@ -347,34 +348,35 @@ class IndexDB:
         silently leave the DB in a half-built state.
         """
         with self._lock:
-            self._conn.executescript(
-                f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS {self.FTS_TABLE} USING fts5(
+            # FTS_TABLE and FTS_TOKENIZER are static class constants
+            # inlined here as literal identifiers — no user input.
+            ddl = """
+                CREATE VIRTUAL TABLE IF NOT EXISTS images_fts USING fts5(
                   path,
-                  tokenize='{self.FTS_TOKENIZER}'
+                  tokenize='unicode61 remove_diacritics 2'
                 );
 
                 CREATE TRIGGER IF NOT EXISTS images_ai
                 AFTER INSERT ON images BEGIN
-                  INSERT INTO {self.FTS_TABLE}(rowid, path)
+                  INSERT INTO images_fts(rowid, path)
                   VALUES (new.rowid, new.path);
                 END;
 
                 CREATE TRIGGER IF NOT EXISTS images_au
                 AFTER UPDATE ON images BEGIN
-                  DELETE FROM {self.FTS_TABLE}
+                  DELETE FROM images_fts
                   WHERE rowid = old.rowid;
-                  INSERT INTO {self.FTS_TABLE}(rowid, path)
+                  INSERT INTO images_fts(rowid, path)
                   VALUES (new.rowid, new.path);
                 END;
 
                 CREATE TRIGGER IF NOT EXISTS images_ad
                 AFTER DELETE ON images BEGIN
-                  DELETE FROM {self.FTS_TABLE}
+                  DELETE FROM images_fts
                   WHERE rowid = old.rowid;
                 END;
                 """
-            )
+            self._conn.executescript(ddl)
             self._conn.commit()
 
     def _migrate_images_fts(self) -> None:
@@ -422,7 +424,7 @@ class IndexDB:
                 return
             fts_count = int(
                 self._conn.execute(
-                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"
+                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"  # noqa: S608 - FTS_TABLE is a static class constant
                 ).fetchone()["n"]
             )
             images_count = int(
@@ -459,9 +461,9 @@ class IndexDB:
             # this direct INSERT into images_fts is the one-time
             # migration path. The leading DELETE clears any
             # partial state from a previous failed migration.
-            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")
+            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")  # noqa: S608 - FTS_TABLE is a static class constant
             self._conn.execute(
-                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "
+                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "  # noqa: S608 - FTS_TABLE is a static class constant
                 f"SELECT rowid, path FROM images"
             )
             self._conn.execute(
@@ -569,7 +571,7 @@ class IndexDB:
                     SELECT images.id FROM {self.FTS_TABLE}
                     INNER JOIN images ON images.rowid = {self.FTS_TABLE}.rowid
                     WHERE {self.FTS_TABLE} MATCH ?
-                    """,
+                    """,  # noqa: S608 - FTS_TABLE is static, fts_query is parameterized
                     (fts_query,),
                 ).fetchall()
             except sqlite3.OperationalError as e:
@@ -671,7 +673,7 @@ class IndexDB:
                     WHERE id NOT IN ({placeholders})
                     ORDER BY RANDOM()
                     LIMIT ?
-                    """,
+                    """,  # noqa: S608 - placeholders are parameterized, values bound separately
                     params,
                 ).fetchall()
         return [str(row["id"]) for row in rows]
@@ -1220,10 +1222,8 @@ class IndexDB:
 
     def release_refresh_lock(self) -> None:
         """Release the refresh lock. No-op if not held."""
-        try:
+        with suppress(RuntimeError):
             self._refresh_lock.release()
-        except RuntimeError:
-            pass  # not held
 
     def last_refresh_time(self) -> float:
         """Unix timestamp of the last successful refresh (init_from_qdrant),
@@ -1302,7 +1302,7 @@ class IndexDB:
                     WHERE i.collection IN ({placeholders})
                     ORDER BY RANDOM()
                     LIMIT ?
-                    """,
+                    """,  # noqa: S608 - placeholders are parameterized, values bound separately
                     [*collections, int(n)],
                 ).fetchall()
             else:

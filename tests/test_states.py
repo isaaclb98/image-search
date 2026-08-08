@@ -23,7 +23,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ---------- _macros.html source-level checks ----------
 
 _MACROS_PATH = Path(__file__).resolve().parent.parent / "search" / "templates" / "_macros.html"

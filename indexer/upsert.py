@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels

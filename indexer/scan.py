@@ -44,9 +44,7 @@ def should_skip_name(name: str) -> bool:
     """True if `name` is junk (hidden, OS metadata, etc.)."""
     if name.startswith("."):  # hidden files, ._foo (macOS resource forks)
         return True
-    if name.lower() in SKIP_NAMES:
-        return True
-    return False
+    return name.lower() in SKIP_NAMES
 
 
 def is_image(path: Path) -> bool:

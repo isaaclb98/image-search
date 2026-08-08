@@ -8,6 +8,7 @@ Two layers:
 from __future__ import annotations
 
 import math
+
 import pytest
 
 from indexer import upsert
@@ -184,8 +185,10 @@ def test_registry_list_returns_sorted():
 @pytest.fixture
 def fav_app(tmp_path):
     import uuid
+
     from fastapi.testclient import TestClient
     from qdrant_client import QdrantClient
+
     from search.app import create_app
     from search.config import Config
     from search.qdrant_client import QdrantSearch
@@ -413,10 +416,10 @@ def test_compute_returns_seed_ids():
 
 def test_calibrate_threshold_tight_cluster():
     """A tight seed cluster yields a small threshold."""
-    from search.centroids import calibrate_near_dup_threshold
-
     # Two seeds 0.01 rad apart (cosine distance ~ 5e-5).
     import math
+
+    from search.centroids import calibrate_near_dup_threshold
     a = [1.0, 0.0, 0.0]
     b = [math.cos(0.01), math.sin(0.01), 0.0]
     threshold = calibrate_near_dup_threshold([a, b])
@@ -439,11 +442,11 @@ def test_calibrate_threshold_single_seed_returns_zero():
 def test_calibrate_threshold_normalises_non_unit_inputs():
     """Defensive: non-unit-length inputs are renormalised so a
     future indexer change can't silently bias the calibration."""
-    from search.centroids import calibrate_near_dup_threshold
-
     # A scaled by 2.0 and B by 0.5 — same directions, different
     # magnitudes. Calibration should match the unit-length case.
     import math
+
+    from search.centroids import calibrate_near_dup_threshold
     a_unit = [1.0, 0.0, 0.0]
     b_unit = [math.cos(0.1), math.sin(0.1), 0.0]
     a = [2.0 * x for x in a_unit]
@@ -456,12 +459,12 @@ def test_calibrate_threshold_normalises_non_unit_inputs():
 def test_filter_drops_within_cluster_keeps_outside():
     """A near-duplicate of a seed (vector inside the seed cluster)
     is dropped; a distinct vector outside the cluster is kept."""
+    import math
+
     from search.centroids import (
         calibrate_near_dup_threshold,
         filter_near_duplicates,
     )
-
-    import math
     a = [1.0, 0.0, 0.0]
     b = [math.cos(0.01), math.sin(0.01), 0.0]  # 0.01 rad from a
     # near-dup: tiny perturbation of `a` (well within the cluster)
@@ -489,9 +492,9 @@ def test_filter_dim_mismatch_raises():
     """A dim mismatch between candidates and seeds raises — the
     only failure mode that could silently manifest as "everything
     kept" or "everything dropped" if we let it through."""
-    from search.centroids import filter_near_duplicates
-
     import pytest
+
+    from search.centroids import filter_near_duplicates
     with pytest.raises(ValueError):
         filter_near_duplicates(
             [[1.0, 0.0]], [[0.0, 1.0, 0.0]], 0.0,

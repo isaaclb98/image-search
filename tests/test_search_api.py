@@ -7,7 +7,6 @@ Layer 2 — search API tests using FastAPI TestClient + in-memory Qdrant
 
 from __future__ import annotations
 
-
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -553,6 +552,7 @@ def test_api_search_long_query_returns_400(app_with_qdrant):
 def test_api_search_qdrant_unreachable(qdrant_in_memory, nas_base, monkeypatch):
     """Mock the qdrant client to raise ConnectionError on search."""
     from unittest.mock import MagicMock
+
     from search import app as app_mod
     from search.config import Config
 
@@ -718,7 +718,7 @@ def test_api_search_result_stability(app_with_qdrant):
     s1 = [x["score"] for x in r1["results"]]
     s2 = [x["score"] for x in r2["results"]]
     assert len(s1) == len(s2)
-    for a, b in zip(s1, s2):
+    for a, b in zip(s1, s2, strict=False):
         assert abs(a - b) < 1e-9, f"score drift: {a} vs {b}"
 
 
@@ -744,7 +744,7 @@ def test_api_search_lru_cache(app_with_qdrant):
     # Same ids + paths come back, with float32-tolerant score matching.
     assert [h["id"] for h in r1["results"]] == [h["id"] for h in r2["results"]]
     assert [h["path"] for h in r1["results"]] == [h["path"] for h in r2["results"]]
-    for a, b in zip(r1["results"], r2["results"]):
+    for a, b in zip(r1["results"], r2["results"], strict=False):
         assert a["score"] == pytest.approx(b["score"], abs=1e-5)
 
 
@@ -952,9 +952,9 @@ def test_api_search_multi_collection_filter(qdrant_in_memory, nas_base):
     Multi-value ?collection=kpop&collection=general returns points
     in EITHER library (MatchAny semantics, not intersection).
     """
-    from search.text_encoder import _mock_embed
     from search import app as app_mod
     from search.config import Config
+    from search.text_encoder import _mock_embed
 
     # Re-create the app with a payload that has points in two
     # different collections.
@@ -1000,9 +1000,9 @@ def test_api_collections_endpoint_distinct_counts(
     qdrant_in_memory, nas_base, monkeypatch,
 ):
     """/api/collections returns per-library counts when more than one is populated."""
-    from search.text_encoder import _mock_embed
     from search import app as app_mod
     from search.config import Config
+    from search.text_encoder import _mock_embed
 
     q_cat = _mock_embed("cat")
     items = [
@@ -1048,9 +1048,9 @@ def test_api_collections_endpoint_uses_facet_aggregation(
     distinct-counts test, so the assertion is the same — the value
     is that we verified `facet()` was the actual call site.
     """
-    from search.text_encoder import _mock_embed
     from search import app as app_mod
     from search.config import Config
+    from search.text_encoder import _mock_embed
 
     q_cat = _mock_embed("cat")
     items = [
@@ -1111,9 +1111,9 @@ def test_api_collections_endpoint_skips_empty_collection_values(
 
     The old scroll-based code already filtered these. Lock it in.
     """
-    from search.text_encoder import _mock_embed
     from search import app as app_mod
     from search.config import Config
+    from search.text_encoder import _mock_embed
 
     q_cat = _mock_embed("cat")
     items = [

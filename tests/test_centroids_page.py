@@ -10,10 +10,8 @@ Reuses the app_with_centroids fixture from test_centroids_api.py
 
 from __future__ import annotations
 
+from _centroid_fixture import NOIR_CENTROID, WUXIA_CENTROID
 from fastapi.testclient import TestClient
-
-from _centroid_fixture import WUXIA_CENTROID, NOIR_CENTROID
-
 
 # ----------------------- /centroids HTML page -----------------------
 
@@ -59,12 +57,13 @@ def test_centroids_page_loads_centroids_js(app_with_centroids):
 
 def test_centroids_page_empty_state_when_no_dir():
     """When CENTROIDS_DIR is unset, the page shows the empty-state hint."""
+    from qdrant_client import QdrantClient
+
     from indexer import upsert
     from indexer.upsert import VECTOR_DIM
     from search import app as app_mod
     from search.config import Config
     from search.qdrant_client import QdrantSearch
-    from qdrant_client import QdrantClient
 
     client = QdrantClient(location=":memory:")
     qdrant = QdrantSearch(client=client, collection="images_test_empty_page", timeout_ms=2000)
@@ -76,7 +75,7 @@ def test_centroids_page_empty_state_when_no_dir():
         qdrant_api_key=None,
         model_name="mock", model_revision="", device="cpu",
         top_k_default=50, top_k_max=200, query_timeout_ms=2000,
-        nas_images_base="/tmp", path_prefix="", web_ui_url="http://localhost:8000",
+        nas_images_base="/tmp", path_prefix="", web_ui_url="http://localhost:8000",  # noqa: S108 - test fixture
         log_level="WARNING", test_mode=True,
         centroids_dir=None,
     )

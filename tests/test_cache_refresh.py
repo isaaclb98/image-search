@@ -14,9 +14,6 @@ def refresh_app(tmp_path, monkeypatch):
     so the refresh path is exercised end-to-end.
     """
     from fastapi.testclient import TestClient
-    from search.app import create_app
-    from search.config import Config
-    from search.qdrant_client import QdrantSearch
 
     # Lazy liveness check (added in fix/dual-store-cleanup) calls
     # Path(path).exists() on every row the random route returns.
@@ -25,6 +22,9 @@ def refresh_app(tmp_path, monkeypatch):
     # check would filter every row out. Mock the helper to return
     # True so the seeded rows survive the /api/random read path.
     from search import app as _app_mod
+    from search.app import create_app
+    from search.config import Config
+    from search.qdrant_client import QdrantSearch
     monkeypatch.setattr(_app_mod, "_is_path_alive", lambda path: True)
 
     cfg = Config(
@@ -48,6 +48,7 @@ def refresh_app(tmp_path, monkeypatch):
     # Seed three points in Qdrant. Qdrant in-memory requires UUID
     # point ids, so generate one per row instead of using "a"/"b"/"c".
     import uuid
+
     from qdrant_client import QdrantClient
     client = QdrantClient(location=":memory:")
     upsert.ensure_collection(client, cfg.qdrant_collection, dim=VECTOR_DIM)

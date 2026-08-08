@@ -69,7 +69,7 @@ def _normalize_query_for_siglip2(text: str) -> str:
 def _mean_vector(vectors: list[list[float]]) -> list[float]:
     """Return the elementwise mean for a non-empty list of equal-length vectors."""
     count = len(vectors)
-    return [sum(values) / count for values in zip(*vectors)]
+    return [sum(values) / count for values in zip(*vectors, strict=False)]
 
 
 def _l2_normalize(values: list[float]) -> list[float]:
@@ -154,7 +154,7 @@ class TextEncoder:
             if pos_embeds and neg_embeds:
                 pos_mean = _mean_vector(pos_embeds)
                 neg_mean = _mean_vector(neg_embeds)
-                return _l2_normalize([p - n for p, n in zip(pos_mean, neg_mean)])
+                return _l2_normalize([p - n for p, n in zip(pos_mean, neg_mean, strict=False)])
             if pos_embeds:
                 return _l2_normalize(_mean_vector(pos_embeds))
             if neg_embeds:

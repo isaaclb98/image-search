@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def compute_blurhash(
     path: Path,
     x_components: int = _DEFAULT_X_COMPONENTS,
     y_components: int = _DEFAULT_Y_COMPONENTS,
-) -> Optional[str]:
+) -> str | None:
     """
     Compute a Blurhash string for `path`. Returns None on any failure
     (missing/corrupt file, decode error, encode error) so callers can
@@ -58,9 +57,9 @@ def compute_blurhash(
         Blurhash string, or None if compute failed.
     """
     try:
-        from PIL import Image
-        import numpy as _np
         import blurhash as _blurhash
+        import numpy as _np
+        from PIL import Image
     except ImportError as exc:  # pragma: no cover — installs are pinned
         logger.debug("blurhash or Pillow not available: %s", exc)
         return None

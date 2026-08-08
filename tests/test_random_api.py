@@ -13,6 +13,7 @@ from indexer.upsert import VECTOR_DIM
 @pytest.fixture
 def random_app(tmp_path, monkeypatch):
     import sqlite3
+
     from search.app import create_app
     from search.config import Config
 

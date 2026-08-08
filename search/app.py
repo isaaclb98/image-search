@@ -13,46 +13,20 @@ import logging
 import random
 import re
 import time
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncIterator
-from urllib.parse import urlencode, urlparse, parse_qsl
+from typing import Annotated
+from urllib.parse import parse_qsl, urlencode, urlparse
 
+import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from search import config, discover, text_encoder
-from search.image_resolver import guess_content_type, resolve_local, resolve_url
-import zipstream  # streaming ZIP writer for /favorites/download.zip
-from search.index_db import ImageNotInCacheError, IndexDB, DEFAULT_INDEX_DB_PATH
-from search.models import (
-    AlbumCreateRequest,
-    AlbumDetailResponse,
-    AlbumMemberItem,
-    AlbumMemberResponse,
-    AlbumMembershipsResponse,
-    AlbumsListResponse,
-    AlbumSummary,
-    AlbumUpdateRequest,
-    DiscoveryPair,
-    DiscoveryPickResponse,
-    DiscoveryStartResponse,
-    ErrorResponse,
-    DiversityMetadata,
-    FavoriteToggleResponse,
-    FavoritesListResponse,
-    SavedSearch,
-    SavedSearchCreateRequest,
-    SavedSearchListResponse,
-    SearchResponse,
-    SearchResult,
-)
-from search.qdrant_client import QdrantSearch, SearchHit
-from search.random import RandomPicker
-from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -70,6 +44,33 @@ from search.diversity import (
     resolve_depth,
     resolve_mode,
 )
+from search.image_resolver import guess_content_type, resolve_local, resolve_url
+from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
+from search.models import (
+    AlbumCreateRequest,
+    AlbumDetailResponse,
+    AlbumMemberItem,
+    AlbumMemberResponse,
+    AlbumMembershipsResponse,
+    AlbumsListResponse,
+    AlbumSummary,
+    AlbumUpdateRequest,
+    DiscoveryPair,
+    DiscoveryPickResponse,
+    DiscoveryStartResponse,
+    DiversityMetadata,
+    ErrorResponse,
+    FavoritesListResponse,
+    FavoriteToggleResponse,
+    SavedSearch,
+    SavedSearchCreateRequest,
+    SavedSearchListResponse,
+    SearchResponse,
+    SearchResult,
+)
+from search.qdrant_client import QdrantSearch, SearchHit
+from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
+from search.random import RandomPicker
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +373,11 @@ def _invalidate_album_centroid(album_id: int) -> None:
 HERE = Path(__file__).parent
 TEMPLATES_DIR = HERE / "templates"
 STATIC_DIR = HERE / "static"
+# Module-level sentinel for FastAPI `Query([])` default — using a literal
+# list in a default arg would call `Query()` once at import time, which
+# ruff B008 forbids. Use `None` as the default and resolve to a fresh
+# list inside the handler.
+_EMPTY_COLLECTIONS: list[str] = []
 
 
 @dataclass(frozen=True)
@@ -421,10 +427,8 @@ def reset_for_tests() -> None:
     """Drop module state so the next create_app() rebuilds. Test-only."""
     global _qdrant, _cfg, _centroid_store, _dynamic_centroids, _index_db
     if _index_db is not None:
-        try:
+        with suppress(Exception):
             _index_db.close()
-        except Exception:
-            pass
     _qdrant = None
     _cfg = None
     _centroid_store = None
@@ -785,11 +789,11 @@ def create_app(
         if len(flat) == 1:
             try:
                 w = float(flat[0])
-            except ValueError:
+            except ValueError as err:
                 raise HTTPException(
                     status_code=400,
                     detail=f"weight {flat[0]!r} is not a number",
-                )
+                ) from err
             if w <= 0:
                 raise HTTPException(
                     status_code=400,
@@ -807,11 +811,11 @@ def create_app(
             )
         try:
             out = [float(x) for x in flat]
-        except ValueError:
+        except ValueError as err:
             raise HTTPException(
                 status_code=400,
                 detail=f"weights must be numbers (got {flat!r})",
-            )
+            ) from err
         if any(w <= 0 for w in out):
             raise HTTPException(
                 status_code=400,
@@ -824,7 +828,7 @@ def create_app(
         prompt_state: PromptState,
         weights: list[float] | None = None,
         filename_pattern: str = "",
-        centroid_specs: list["DynamicCentroidSpec"] | None = None,
+        centroid_specs: list[DynamicCentroidSpec] | None = None,
     ) -> tuple[list[float], str | None, str | None]:
         """
         Resolve the query vector for a search request.
@@ -1669,7 +1673,7 @@ def create_app(
             hit = qdrant.retrieve(point_id)
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /photo/%s: %s", point_id, e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable")
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
         # Lazy liveness: if the file is gone from disk, 404 immediately.
@@ -1761,7 +1765,7 @@ def create_app(
             hit = qdrant.retrieve(point_id)
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /photo/%s/raw: %s", point_id, e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable")
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
         # Lazy liveness at the raw route too. The page route has its
@@ -1811,7 +1815,7 @@ def create_app(
             logger.warning(
                 "Qdrant unreachable for /photo/%s/similar: %s", point_id, e
             )
-            raise HTTPException(status_code=502, detail="Qdrant unreachable")
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         if fetched is None:
             raise HTTPException(status_code=404, detail="Photo not found")
         vec, hit = fetched
@@ -1829,7 +1833,7 @@ def create_app(
                 "Qdrant unreachable during similar-search for %s: %s",
                 point_id, e,
             )
-            raise HTTPException(status_code=502, detail="Qdrant unreachable")
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         took_ms = int((time.time() - t0) * 1000)
 
         results = await _results_from_hits(hits)
@@ -2177,8 +2181,8 @@ def create_app(
     async def mark_favorite(point_id: str) -> FavoriteToggleResponse:
         try:
             await asyncio.to_thread(index_db.mark_favorite, point_id)
-        except ImageNotInCacheError:
-            raise HTTPException(status_code=404, detail="Photo not found in index cache")
+        except ImageNotInCacheError as err:
+            raise HTTPException(status_code=404, detail="Photo not found in index cache") from err
         # Invalidate the favourites dynamic centroid so the next
         # search through it reflects the new favourite.
         _invalidate_favourites_centroid()
@@ -2267,7 +2271,7 @@ def create_app(
                 index_db.create_album, body.name, body.description,
             )
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         # Register the centroid so the album is immediately usable
         # as a search primitive (lazy compute — the first /api/search
         # call that uses it pays the cost).
@@ -2350,7 +2354,7 @@ def create_app(
                 index_db.rename_album, album_id, name, description,
             )
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         if not ok:
             raise HTTPException(status_code=404, detail="Album not found")
         # Re-register so the centroid label picks up the new name.
@@ -2954,9 +2958,7 @@ def create_app(
     async def api_random(
         request: Request,
         limit: int = Query(RANDOM_DEFAULT_LIMIT, description="max results"),
-        collections: list[str] = Query(
-            [], description="restrict to one or more collections; empty = whole set"
-        ),
+        collections: Annotated[list[str], Query(description="restrict to one or more collections; empty = whole set")] = [],  # noqa: B006
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> SearchResponse:
         view = _coerce_view(view)
@@ -3007,9 +3009,7 @@ def create_app(
     async def random_page(
         request: Request,
         limit: int = Query(RANDOM_DEFAULT_LIMIT, description="max results"),
-        collections: list[str] = Query(
-            [], description="restrict to one or more collections; empty = whole set"
-        ),
+        collections: Annotated[list[str], Query(description="restrict to one or more collections; empty = whole set")] = [],  # noqa: B006
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> HTMLResponse:
         view = _coerce_view(view)
@@ -3309,7 +3309,7 @@ def create_app(
                         )
                         before_count = len(pairs)
                         kept_pairs = [
-                            p for p, keep in zip(pairs, keep_mask) if keep
+                            p for p, keep in zip(pairs, keep_mask, strict=False) if keep
                         ]
                         dropped = before_count - len(kept_pairs)
                         # Trim back to what the user asked for.
@@ -3503,7 +3503,7 @@ def create_app(
             )
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/discover/start: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable")
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         return DiscoveryStartResponse(
             session_id=session_id,
             pair=_hydrate_pair_urls(pair),  # type: ignore[arg-type]
@@ -3527,7 +3527,7 @@ def create_app(
             )
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/discover/pick: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable")
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         session = discover.get_session(session_id)
         liked_count = len(session.liked) if session else 0
         round_completed = session.round if session else 0
@@ -3617,4 +3617,4 @@ def _build_default_app() -> FastAPI:
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run("search.app:_build_default_app", factory=True, host="0.0.0.0", port=8000)
+    uvicorn.run("search.app:_build_default_app", factory=True, host="0.0.0.0", port=8000)  # noqa: S104

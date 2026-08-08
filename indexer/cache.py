@@ -25,6 +25,7 @@ silently ignored on load.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -144,10 +145,8 @@ class IndexerCache:
                 json.dump(payload, f, indent=1)
             os.replace(tmp_path, self._path)
         except Exception:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
 
     # ---- Queries ----
@@ -194,7 +193,7 @@ class IndexerCache:
 
     # ---- Rebuild from Qdrant ----
 
-    def rebuild_from_qdrant(self, client: "QdrantClient", name: str) -> None:
+    def rebuild_from_qdrant(self, client: QdrantClient, name: str) -> None:
         """
         Build the cache from a Qdrant scroll of every point in the
         collection. Reads only the `path` payload field; other

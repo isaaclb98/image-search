@@ -18,7 +18,6 @@ import pytest
 from indexer import upsert
 from indexer.upsert import VECTOR_DIM
 
-
 # ---------------------------------------------------------------------------
 # Fixture: app + Qdrant + SQLite + tmp dir for real image files.
 # ---------------------------------------------------------------------------
@@ -32,10 +31,11 @@ def album_zip_app(tmp_path, monkeypatch):
     # Pin the index DB inside tmp_path so each test gets a clean DB.
     monkeypatch.setenv("IMAGE_SEARCH_INDEX_DB", str(tmp_path / "images.db"))
     from fastapi.testclient import TestClient
+    from qdrant_client import QdrantClient
+
     from search.app import create_app, reset_for_tests
     from search.config import Config
     from search.qdrant_client import QdrantSearch
-    from qdrant_client import QdrantClient
 
     reset_for_tests()
     cfg = Config(
@@ -73,6 +73,7 @@ def _seed_point(client, collection, point_id: str, path: str,
     `base_dir` so resolve_local finds it. Returns the point id.
     """
     import pathlib
+
     from search.text_encoder import _mock_embed
     if base_dir is not None:
         full_path = pathlib.Path(base_dir) / path

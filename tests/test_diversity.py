@@ -12,12 +12,12 @@ import math
 
 from search.diversity import (
     DiversityResultCache,
+    _cosine_sim,
     mmr_rerank,
     rank_diverse,
     relevance_drop_for_mode,
     resolve_depth,
     resolve_mode,
-    _cosine_sim,
 )
 
 

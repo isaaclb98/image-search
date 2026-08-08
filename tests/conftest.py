@@ -35,6 +35,7 @@ os.environ.setdefault("TOP_K_MAX", "200")
 def qdrant_in_memory():
     """A QdrantClient in :memory: mode, function-scoped (fresh per test)."""
     from qdrant_client import QdrantClient
+
     from search.qdrant_client import QdrantSearch
 
     client = QdrantClient(location=":memory:")
@@ -92,6 +93,7 @@ def _set_nas_base_env(nas_base: Path, monkeypatch):
 # that file's docstring for why we don't put them directly here.
 import sys  # noqa: E402
 from pathlib import Path  # noqa: E402
+
 _TESTS_DIR = Path(__file__).resolve().parent
 if str(_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(_TESTS_DIR))

@@ -57,6 +57,8 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
 # Defaults are F (pyflakes) + E/W (pycodestyle). Add I (isort) so
 # imports stay sorted as the codebase grows. Security (S) + comprehensions
 # (C4) + simplification (SIM) catch the cheap categories without

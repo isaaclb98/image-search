@@ -10,8 +10,8 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ def mmr_rerank(
         while len(selected) < min(k, len(hits_with_vectors)) and candidates:
             best_idx = 0
             best_score = -float("inf")
-            for i, (hit, vec) in enumerate(candidates):
+            for i, (_hit, vec) in enumerate(candidates):
                 q_sim = _cosine_sim(query_vector, vec)
                 max_sim = max(
                     (_cosine_sim(vec, selected_vec) for _hit, selected_vec in selected),
@@ -468,7 +468,7 @@ def _collapse_duplicate_indices(
             matching_rows, matching_columns = np.nonzero(
                 distances <= duplicate_hamming_distance,
             )
-            for row, column in zip(matching_rows, matching_columns):
+            for row, column in zip(matching_rows, matching_columns, strict=False):
                 left_position = start + int(row)
                 right_position = int(column)
                 if right_position > left_position:
@@ -501,7 +501,7 @@ def _normalise_matrix(matrix):
 
 def _cosine_sim(a: list[float], b: list[float]) -> float:
     """Dot product between two unit-norm vectors."""
-    return sum(ai * bi for ai, bi in zip(a, b))
+    return sum(ai * bi for ai, bi in zip(a, b, strict=False))
 
 
 def _as_float_list(v) -> list[float]:
