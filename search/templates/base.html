@@ -121,6 +121,22 @@
       <button type="button" class="keyboard-help-trigger" data-keyboard-help aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">
         {{ ui.ui_icon('help', 'h-5 w-5') }}
       </button>
+      {# Logout button — only rendered when an authenticated user
+         is attached to the request. `current_user` is injected by
+         AuthAwareTemplates (see search/app.py). The form posts to
+         /logout, which clears the session cookie and redirects to
+         /login. Kept as a small ghost-style button so it doesn't
+         compete visually with the theme toggle or help trigger. #}
+      {% if current_user %}
+        <form method="post" action="/logout" class="ml-1">
+          <button
+            type="submit"
+            class="nav-link"
+            aria-label="Log out"
+            title="Log out"
+          >Logout</button>
+        </form>
+      {% endif %}
     </div>
   </header>
 

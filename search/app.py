@@ -25,8 +25,21 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import Form
+from starlette.responses import RedirectResponse
 
 from search import config, discover, text_encoder
+from search.auth import (
+    AUTH_PUBLIC_PATHS,
+    SESSION_COOKIE_NAME,
+    AuthConfig,
+    AuthGateMiddleware,
+    auth_config_from,
+    clear_session_cookie,
+    is_enabled,
+    set_session_cookie,
+    verify_password,
+)
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -437,6 +450,48 @@ def reset_for_tests() -> None:
     text_encoder.reset_encoder_for_tests()
 
 
+# ---------------------- Auth-aware templates ----------------------
+
+
+class AuthAwareTemplates(Jinja2Templates):
+    """Jinja2Templates subclass that injects the current authenticated
+    user into the template context automatically.
+
+    The auth gate middleware (see AuthGateMiddleware below) sets
+    `request.state.current_user` before any route runs; templates
+    that extend base.html can read `{{ current_user }}` to
+    conditionally render the logout link and any other auth-aware
+    chrome. When auth is disabled the value is always `None`.
+
+    Subclassing instead of monkey-patching keeps the override
+    discoverable (one grep finds it) and means every existing
+    `templates.TemplateResponse(request, name, context)` call in
+    create_app gets the auth context for free — no per-callsite
+    changes.
+    """
+
+    def TemplateResponse(  # type: ignore[override]
+        self,
+        request: Request,
+        name: str,
+        context: dict | None = None,
+        status_code: int = 200,
+        headers: dict | None = None,
+        **kwargs,
+    ):
+        ctx = dict(context or {})
+        ctx.setdefault("request", request)
+        ctx.setdefault("current_user", getattr(request.state, "current_user", None))
+        return super().TemplateResponse(
+            request,
+            name,
+            ctx,
+            status_code=status_code,
+            headers=headers,
+            **kwargs,
+        )
+
+
 # ---------------------- App factory ----------------------
 
 
@@ -528,7 +583,7 @@ def create_app(
             _make_album_centroid_spec(qdrant, index_db, existing["id"])
         )
 
-    templates = templates or Jinja2Templates(directory=str(TEMPLATES_DIR))
+    templates = templates or AuthAwareTemplates(directory=str(TEMPLATES_DIR))
 
     def _strip_query_param(url, name: str, value: str | None = None) -> str:
         """Return `url` with every `name=` param removed.
@@ -678,6 +733,101 @@ def create_app(
     app.state.random_picker = random_picker
     app.state.diversity_cache = diversity_cache
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    # ---------------------- Auth gate + login routes ----------------------
+    #
+    # Single-user app-level login (see search/auth.py). When
+    # AUTH_PASSWORD_HASH is configured in the environment, every
+    # request except /login, /logout, /static/* and /healthz is
+    # gated on a valid signed session cookie. When the hash is
+    # blank (dev / tests), the middleware is a no-op and /login
+    # itself redirects home so the route isn't reachable in the
+    # first place.
+    auth_cfg = auth_config_from(_cfg)
+
+    if is_enabled(auth_cfg):
+        # add_middleware order: later-added = outermost = runs first.
+        # Putting auth after the no-cache middleware means an
+        # unauthenticated request gets the 302 before any other
+        # middleware has a chance to do work (e.g. set cache headers
+        # on a response we're about to discard).
+        app.add_middleware(AuthGateMiddleware, auth=auth_cfg, enabled=True)
+
+    @app.get("/login", response_class=HTMLResponse)
+    def login_get(request: Request, next: str = "/") -> HTMLResponse:
+        # If auth is disabled there's nothing to log into. Bounce
+        # home so the route can't be poked at in dev / tests.
+        if not is_enabled(auth_cfg):
+            return RedirectResponse("/", status_code=302)
+        error = request.query_params.get("error")
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "next": next,
+                "error": error,
+                "auth_username": auth_cfg.username,
+                "static_assets_version": _cfg.static_assets_version,
+            },
+        )
+
+    @app.post("/login")
+    def login_post(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        remember: str | None = Form(None),
+        next: str = Form("/"),
+    ):
+        if not is_enabled(auth_cfg):
+            return RedirectResponse("/", status_code=302)
+
+        # Sanitize `next` to a same-origin relative path. Anything
+        # else (absolute URL, protocol-relative //foo, empty) falls
+        # back to "/" — prevents open-redirect via crafted form
+        # submissions or third-party links to /login?next=https://evil.
+        if not next or not next.startswith("/") or next.startswith("//"):
+            next = "/"
+
+        if (
+            username != auth_cfg.username
+            or not verify_password(password, auth_cfg.password_hash)
+        ):
+            # Re-render with an inline error. 401 status so the
+            # browser doesn't try to cache or auto-fill the form
+            # body on back-navigation.
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {
+                    "next": next,
+                    "error": "Invalid username or password.",
+                    "auth_username": auth_cfg.username,
+                    "static_assets_version": _cfg.static_assets_version,
+                },
+                status_code=401,
+            )
+
+        response = RedirectResponse(next, status_code=302)
+        set_session_cookie(
+            response,
+            secret_key=auth_cfg.secret_key,
+            username=username,
+            remember=bool(remember),
+            cookie_secure=auth_cfg.cookie_secure,
+            remember_days=auth_cfg.remember_days,
+        )
+        return response
+
+    @app.post("/logout")
+    def logout(request: Request):
+        # Always available (it's in AUTH_PUBLIC_PATHS) so the user
+        # can end their session even if the auth middleware is in
+        # the way. Redirects to /login regardless of auth state.
+        response = RedirectResponse("/login", status_code=302)
+        if is_enabled(auth_cfg):
+            clear_session_cookie(response, cookie_secure=auth_cfg.cookie_secure)
+        return response
 
     # ---------------------- Routes ----------------------
 
