@@ -83,6 +83,59 @@ def test_compute_blurhash_handles_tiny_image(tiny_png):
     assert h is not None
 
 
+def test_compute_blurhash_returns_none_for_invalid_encoder_output(sample_png, monkeypatch):
+    """Defense-in-depth: if the upstream encoder returns a string
+    that fails the structural validator (length / printable-ASCII),
+    treat the encode as a failure and return None instead of
+    storing poison in the Qdrant payload.
+
+    The real `blurhash` library is stable, but a future encoder
+    change or a numpy / Pillow interaction edge case could produce
+    malformed output — this guards the indexer against that path
+    without taking a hard dependency on the library's correctness.
+    """
+    import blurhash as _bh
+
+    def fake_encode(*_args, **_kwargs):
+        # 1 printable-ASCII char — well below the 6-char minimum
+        # legal blurhash length, so the validator rejects it.
+        return "x"
+
+    monkeypatch.setattr(_bh, "encode", fake_encode)
+    from indexer.blurhash import compute_blurhash
+    assert compute_blurhash(sample_png) is None
+
+
+def test_compute_blurhash_returns_none_for_non_ascii_encoder_output(sample_png, monkeypatch):
+    """Variant of the defense-in-depth test: even a string of valid
+    length with a NUL byte must be rejected, because the validator
+    requires printable ASCII only."""
+    import blurhash as _bh
+
+    def fake_encode(*_args, **_kwargs):
+        # 30 printable chars + 1 NUL byte — passes the length check,
+        # fails the printable-ASCII check.
+        return ("a" * 30) + "\x00"
+
+    monkeypatch.setattr(_bh, "encode", fake_encode)
+    from indexer.blurhash import compute_blurhash
+    assert compute_blurhash(sample_png) is None
+
+
+def test_compute_blurhash_returns_none_when_encoder_returns_non_string(sample_png, monkeypatch):
+    """Variant: the validator also rejects non-string returns. A
+    future encoder that accidentally returns bytes (or None, or an
+    int) must not get stored as `payload.blurhash`."""
+    import blurhash as _bh
+
+    def fake_encode(*_args, **_kwargs):
+        return b"\x00\x01\x02\x03"  # bytes, not str
+
+    monkeypatch.setattr(_bh, "encode", fake_encode)
+    from indexer.blurhash import compute_blurhash
+    assert compute_blurhash(sample_png) is None
+
+
 # ---------- is_valid_blurhash ----------
 
 def test_is_valid_blurhash_accepts_typical_payload(sample_png):
@@ -105,9 +158,13 @@ def test_is_valid_blurhash_rejects_wrong_types():
 
 def test_is_valid_blurhash_rejects_too_short_and_too_long():
     from indexer.blurhash import is_valid_blurhash
-    # Floor is 20 chars; pad with garbage within printable ASCII.
-    assert is_valid_blurhash("a" * 19) is False
-    assert is_valid_blurhash("a" * 20) is True
+    # The absolute minimum legal blurhash is 6 chars (1×1 components):
+    # 2 prefix chars + 4 DC chars + 0 AC chars = 6. Anything shorter
+    # is structurally impossible and must be rejected. The default
+    # (4×3) produces 28 chars; 8×8 (the largest we ever call with) is
+    # 132 chars. 200 is a sanity cap.
+    assert is_valid_blurhash("a" * 5) is False
+    assert is_valid_blurhash("a" * 6) is True
     assert is_valid_blurhash("a" * 200) is True
     assert is_valid_blurhash("a" * 201) is False
 

@@ -346,7 +346,20 @@ document.addEventListener("keydown", (event) => {
 
 enhancePhotoCards(document);
 if ("MutationObserver" in window) {
-  const observer = new MutationObserver(() => enhancePhotoCards(document));
+  // Only scan newly-added subtrees, not the whole document. Infinite
+  // scroll, view toggles, and search re-renders each fire dozens of
+  // mutations; rescanning every photo card in the DOM on every one of
+  // them is wasted work — the `photoCardReady` guard short-circuits the
+  // per-card work, but the document-wide selector query itself still
+  // runs. `enhancePhotoCards(node)` walks just the added subtree,
+  // which is what we actually need.
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === 1) enhancePhotoCards(node);
+      }
+    }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
 }
 

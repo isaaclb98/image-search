@@ -78,9 +78,23 @@ def compute_blurhash(
             # treats it as a 1-D array and the component decode
             # misaligns.
             arr = _np.array(rgb, dtype=_np.uint8)
-            return _blurhash.encode(
+            encoded = _blurhash.encode(
                 arr, x_components, y_components,
             )
+            # Defense-in-depth: the upstream `blurhash` library is
+            # stable, but a future encoder change, a numpy / Pillow
+            # interaction edge case, or a corrupted input could
+            # produce a string the client decoder can't read. Reject
+            # malformed output here so the indexer stores `None`
+            # instead of poison, and the client falls through to "no
+            # placeholder" cleanly.
+            if not is_valid_blurhash(encoded):
+                logger.debug(
+                    "blurhash: encoder returned invalid output for %s (len=%d)",
+                    path, len(encoded) if isinstance(encoded, str) else 0,
+                )
+                return None
+            return encoded
     except FileNotFoundError:
         logger.debug("blurhash: file missing — %s", path)
         return None
@@ -106,10 +120,14 @@ def is_valid_blurhash(value) -> bool:
     """
     if not value or not isinstance(value, str):
         return False
-    # Real blurhash strings are between ~20 and ~120 chars. 6 is the
-    # smallest legal size; we use a slightly higher floor to avoid
-    # catching test fixtures / placeholder stings.
-    if len(value) < 20 or len(value) > 200:
+    # The absolute minimum legal blurhash is 6 chars (size flag +
+    # max value + DC + zero ACs, for a 1×1 component hash). Anything
+    # shorter than that is structurally impossible and therefore
+    # garbage. The upper bound is a sanity cap — real outputs from
+    # the (4×3) default are 28 chars; even 8×8 (the most we ever
+    # call the encoder with) is only 132 chars. 200 leaves room for
+    # future bumps without letting truly absurd strings through.
+    if len(value) < 6 or len(value) > 200:
         return False
     # Printable ASCII only (no newlines, no non-ASCII).
     return all(0x20 <= ord(c) <= 0x7E for c in value)
