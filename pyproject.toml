@@ -18,6 +18,11 @@ dependencies = [
     "python-dotenv>=1.0",
     # SigLIP2 model loading — open_clip (matches isaac-image-scoring)
     "open_clip_torch>=2.31.0",
+    # open_clip's tokenizer path lazy-imports `transformers.AutoTokenizer`
+    # at runtime (see vendor/open_clip/tokenizer.py:451). Without this,
+    # the Dockerfile pre-warm step (Dockerfile.search:37) fails with
+    # `ModuleNotFoundError: No module named 'transformers'`.
+    "transformers>=4.40",
     "timm>=1.0.15",
     "torch>=2.1",
     "torchvision>=0.16",
