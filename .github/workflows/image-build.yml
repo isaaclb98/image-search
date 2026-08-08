@@ -1,0 +1,78 @@
+# .github/workflows/image-build.yml
+#
+# Build the search-side container on every push to main and push
+# it to GitHub Container Registry so the k8s cluster (synced by
+# ArgoCD from ~/projects/gitops) can pull a fresh image without a
+# local Docker build.
+#
+# Tags:
+#   - `:dev`            — always latest on main; what the cluster's
+#                         Deployment pins to.
+#   - `:sha-<7-char>`   — per-commit; useful for rollback or for
+#                         promoting a specific commit to a stable
+#                         tag later.
+#
+# Layer cache: GHA backend (type=gha, mode=max) — keyed off the
+# final layer hash so unchanged Dockerfile steps reuse the previous
+# build's cache. The SigLIP2 model download layer in particular
+# saves ~1.5 GB of network + disk per rebuild when only source
+# changed.
+#
+# Required permission: `packages: write` (scoped to this job) so
+# GITHUB_TOKEN can push to ghcr.io/<owner>/<repo> without storing
+# a PAT as a secret. ArgoCD pulls the same image anonymously
+# because ghcr.io packages default to public for GH Actions pushes
+# from public repos.
+
+name: image-build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image metadata (tags + OCI labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=dev
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.title=image-search
+            org.opencontainers.image.description=Self-hosted semantic image search (SigLIP2 → Qdrant)
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.search
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

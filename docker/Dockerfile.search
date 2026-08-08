@@ -17,20 +17,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps first (cached separately from source)
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir \
-        "fastapi>=0.110" \
-        "uvicorn[standard]>=0.27" \
-        "jinja2>=3.1" \
-        "python-multipart>=0.0.9" \
-        "qdrant-client>=1.7" \
-        "transformers>=4.40" \
-        "torch>=2.1" \
-        "torchvision>=0.16" \
-        "pillow>=10" \
-        "pillow-heif>=0.16" \
-        "tqdm>=4.66"
+# Single source of truth for dependencies: pyproject.toml. We copy
+# everything needed for `pip install .` (project metadata, README,
+# and both packages) and install in one shot. The dep resolution
+# is fast on rebuilds because pip's wheel cache is keyed on the
+# pyproject content; source-only edits invalidate the layer but
+# pip skips re-downloading wheels it already has.
+COPY pyproject.toml README.md ./
+COPY search ./search
+COPY indexer ./indexer
+RUN pip install --no-cache-dir .
 
 # Pre-download the SigLIP2 model so cold-start is fast.
 # Loaded via open_clip from the HuggingFace hub. We run a tiny
@@ -41,11 +37,6 @@ ARG MODEL_NAME=hf-hub:timm/ViT-gopt-16-SigLIP2-384
 RUN python -c "import open_clip; \
     open_clip.create_model_from_pretrained('${MODEL_NAME}'); \
     open_clip.get_tokenizer('${MODEL_NAME}')"
-
-# Copy source
-COPY search ./search
-COPY indexer ./indexer
-COPY README.md ./
 
 ENV MODEL_NAME=${MODEL_NAME} \
     MODEL_DIR=/root/.cache/huggingface \
