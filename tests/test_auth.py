@@ -16,8 +16,6 @@ Covers:
 
 from __future__ import annotations
 
-import time
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -378,7 +376,7 @@ class TestLoginFlow:
         assert "2592000" in set_cookie or any(
             2500000 <= int(part.split("=")[1]) <= 2700000
             for part in set_cookie.split(";")
-            if part.strip().lower().startswith(("max-age="))
+            if part.strip().lower().startswith("max-age=")
         )
 
     def test_no_remember_me_omits_max_age(self, app_with_auth):

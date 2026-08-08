@@ -208,7 +208,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                 logger.info("cache: no existing cache, building from Qdrant")
             try:
                 cache.rebuild_from_qdrant(client, args.qdrant_collection)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     "cache: rebuild from Qdrant failed: %s; falling back to per-batch checks",
                     e,
@@ -217,7 +217,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
             else:
                 try:
                     cache.save()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning("cache: initial save failed: %s", e)
                 use_cache = True
         else:
@@ -239,7 +239,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         if dropped and cache is not None:
             try:
                 cache.save()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("cache: prune save failed: %s", e)
         logger.info(
             "prune complete: removed %d points, %d cache entries", removed, dropped,
@@ -460,7 +460,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                 )
             try:
                 cache.save()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("cache: save failed (will rebuild next run): %s", e)
 
         logger.info(

@@ -170,7 +170,7 @@ class CentroidStore:
         """
         try:
             blob = torch.load(path, map_location="cpu", weights_only=False)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("CentroidStore: failed to load %s: %s", path, e)
             return None
         if not isinstance(blob, dict):

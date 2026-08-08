@@ -91,13 +91,13 @@ def _set_nas_base_env(nas_base: Path, monkeypatch):
 # The fixture + constants + helper live in `_centroid_fixture.py`
 # (a regular module that's also importable from test files). See
 # that file's docstring for why we don't put them directly here.
-import sys  # noqa: E402
-from pathlib import Path  # noqa: E402
+import sys
+from pathlib import Path
 
 _TESTS_DIR = Path(__file__).resolve().parent
 if str(_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(_TESTS_DIR))
-from _centroid_fixture import app_with_centroids  # noqa: E402,F401
+from _centroid_fixture import app_with_centroids  # noqa: F401
 
 
 @pytest.fixture(autouse=True)

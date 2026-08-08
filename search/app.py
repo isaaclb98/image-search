@@ -21,18 +21,14 @@ from typing import Annotated
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Form
 from starlette.responses import RedirectResponse
 
 from search import config, discover, text_encoder
 from search.auth import (
-    AUTH_PUBLIC_PATHS,
-    SESSION_COOKIE_NAME,
-    AuthConfig,
     AuthGateMiddleware,
     auth_config_from,
     clear_session_cookie,
@@ -624,7 +620,7 @@ def create_app(
         refresh_task: asyncio.Task | None = None
         try:
             text_encoder.get_encoder(test_mode=_cfg.test_mode)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("text encoder warm-up failed: %s", e)
         if not qdrant.healthz():
             logger.warning(
@@ -633,7 +629,7 @@ def create_app(
             )
         try:
             await asyncio.to_thread(index_db.init_from_qdrant)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("index cache warm-up failed: %s", e)
 
         # Periodic IndexDB refresh. Picks up bulk indexer runs without
@@ -682,7 +678,7 @@ def create_app(
                             index_db.release_refresh_lock()
                     except asyncio.CancelledError:
                         raise
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         logger.warning("periodic IndexDB refresh failed: %s", e)
             refresh_task = asyncio.create_task(_periodic_refresh_loop())
         try:
@@ -694,7 +690,7 @@ def create_app(
                     await refresh_task
                 except asyncio.CancelledError:
                     pass
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning("refresh task shutdown: %s", e)
             await asyncio.to_thread(index_db.close)
 
@@ -1645,7 +1641,7 @@ def create_app(
                         diversity_meta = DiversityMetadata()
                         if diverse:
                             favorite_ids = await _favorite_ids_for_filter() if favorites else None
-                            hits, has_more, diversity_meta = _diversity_page(
+                            hits, has_more, diversity_meta = _diversity_page(  # noqa: RUF059  (used downstream in SearchResponse.diversity)
                                 vec,
                                 effective_limit,
                                 offset,
@@ -1716,7 +1712,7 @@ def create_app(
                     index_db.pick_random_rows, HOME_RANDOM_PICKS
                 )
                 random_picks = [r.model_dump() for r in _random_rows_to_results(random_rows)]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Random picks are a nicety, not critical. If the
                 # sample fails, render the page without them.
                 logger.warning("home random picks failed: %s", e)
@@ -1739,7 +1735,7 @@ def create_app(
                 }
                 for r in saved_rows
             ]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("saved searches list failed: %s", e)
             saved_searches_for_template = []
 
@@ -2352,7 +2348,6 @@ def create_app(
         # centroid, and we don't try to detect whether it moved enough
         # to matter. Cheap, simple, correct.
         _invalidate_favourites_centroid()
-        return None
 
     @app.get("/api/favorites")
     async def api_favorites(
@@ -2837,7 +2832,6 @@ def create_app(
         ok = await asyncio.to_thread(index_db.delete_saved_search, saved_id)
         if not ok:
             raise HTTPException(status_code=404, detail="Saved search not found")
-        return None
 
     @app.get("/saved", response_class=HTMLResponse)
     async def saved_searches_index(request: Request) -> HTMLResponse:

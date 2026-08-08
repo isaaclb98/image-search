@@ -651,7 +651,7 @@ def _make_db(qdrant, tmp_path_factory=None):
 
     from search.index_db import IndexDB
 
-    with tempfile.NamedTemporaryFile(  # noqa: S108 - test scratch db
+    with tempfile.NamedTemporaryFile(
         suffix=".db", delete=False
     ) as handle:
         db_path = handle.name
@@ -662,7 +662,7 @@ def _make_db(qdrant, tmp_path_factory=None):
 
 # Re-import the constants from the shared centroid fixture so we
 # don't redeclare them.
-from _centroid_fixture import (  # noqa: E402
+from _centroid_fixture import (
     CENTROID_DOG_ID,
     WUXIA_CENTROID,
 )

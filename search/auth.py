@@ -197,7 +197,7 @@ def parse_cookie_header(header: str | None) -> dict[str, str]:
         c = SimpleCookie()
         c.load(header)
         return {k: v.value for k, v in c.items()}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {}
 
 

@@ -76,7 +76,16 @@ target-version = "py310"
 extend-select = ["I", "S", "C4", "SIM", "B", "UP"]
 # Per-file opt-outs for paths that legitimately don't need linting.
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]  # `assert` is the whole point of tests
+"tests/*" = [
+    "S101",  # `assert` is the whole point of tests
+    # Tests legitimately catch broad exceptions (PIL feature probes,
+    # mock fall-throughs, etc.) and use fixture passwords.
+    "BLE001",
+    "S105",
+    # Cheap-to-fix style nits we don't want blocking CI for tests.
+    "C408",
+    "RUF059",
+]
 "bin/*" = ["T201", "S"]  # CLI helpers may print freely
 # Don't touch vendored / generated artifacts.
 "**/__pycache__" = ["F401", "F403"]

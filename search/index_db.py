@@ -1241,7 +1241,7 @@ class IndexDB:
         try:
             info = self.qdrant_client.client.get_collection(self.qdrant_client.collection)
             return int(info.points_count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("qdrant_point_count failed: %s", e)
             return -1
 
