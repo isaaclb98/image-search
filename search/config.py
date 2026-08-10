@@ -44,14 +44,21 @@ def centroid_compat_for(model_name: str) -> tuple[str, int]:
     given open_clip arch tag. Raises ValueError on unknown models
     so the search container fails to start with a clear error
     rather than silently loading mismatched centroids.
+
+    open_clip tags carry an "hf-hub:<vendor>/" prefix (e.g.
+    ``hf-hub:timm/ViT-gopt-16-SigLIP2-384``); the map is keyed by
+    the bare arch tag. Normalize by splitting on ``/`` and taking
+    the last segment so the deployment's MODEL_NAME matches
+    regardless of how open_clip names the model.
     """
-    if model_name not in _CENTROID_MODEL_COMPAT:
+    bare = model_name.split("/")[-1] if "/" in model_name else model_name
+    if bare not in _CENTROID_MODEL_COMPAT:
         raise ValueError(
             f"MODEL_NAME={model_name!r} has no centroid-compat mapping. "
             f"Add one in search/config.py _CENTROID_MODEL_COMPAT. "
             f"Known models: {sorted(_CENTROID_MODEL_COMPAT)}"
         )
-    return _CENTROID_MODEL_COMPAT[model_name]
+    return _CENTROID_MODEL_COMPAT[bare]
 
 
 @dataclass(frozen=True)
