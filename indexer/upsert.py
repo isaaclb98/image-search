@@ -212,6 +212,7 @@ def prune_missing(
     batch_size: int = 1000,
     prefix: str = "",
     base: str = "",
+    source_names: list[str] | None = None,
 ) -> int:
     """
     Scroll all points in the collection and delete the ones whose
@@ -232,6 +233,13 @@ def prune_missing(
     collection. With `base`+`prefix` set, each walked file is
     translated to its canonical form before the check, so live points
     survive and only genuinely-missing files get pruned.
+
+    `source_names` scopes the deletion to points whose `source`
+    payload field is in the list. Without it, a partial run (e.g. one
+    source) would delete points belonging to other sources — the
+    scroll covers the whole collection, so an alive-set built from one
+    dir makes every other source look dead. Pass the full set of
+    sources being managed by this run and only those get pruned.
 
     Returns the number of points deleted.
     """
@@ -295,7 +303,13 @@ def prune_missing(
 
         to_delete: list[str | int] = []
         for p in batch:
-            path_str = (p.payload or {}).get("path", "")
+            payload = p.payload or {}
+            src = payload.get("source", "")
+            if source_names is not None and src not in source_names:
+                # Out of scope for this run — other sources are
+                # managed by other runs; never touch them.
+                continue
+            path_str = payload.get("path", "")
             if not _is_alive(path_str):
                 to_delete.append(str(p.id))
 

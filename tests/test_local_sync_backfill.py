@@ -261,3 +261,44 @@ def test_prune_with_prefix_base_deletes_missing_file(monkeypatch, backfill_env, 
     assert rc == 0
     pts = raw.retrieve(collection_name=COLLECTION, ids=[_pid("gone")], with_payload=True)
     assert not pts, "point whose file is missing should be pruned"
+
+
+def test_prune_one_source_does_not_delete_other_source(monkeypatch, backfill_env, tmp_path):
+    """Isaac's exact scenario: run with ONLY kpop/collections managed
+    and --prune. Points belonging to kpop/data (not in this run's
+    source_names) must survive, even though their files aren't in the
+    collections walk."""
+    raw = backfill_env["raw"]
+    # managed source: kpop/collections nested under the base, with a
+    # live file — mirrors the real layout (Z:/images/kpop/collections
+    # with base Z:/images) so the walk's rel includes kpop/collections.
+    collections_dir = tmp_path / "kpop" / "collections"
+    collections_dir.mkdir(parents=True)
+    live = _make_png(tmp_path, "live.png")
+    (collections_dir / "live.png").write_bytes(live.read_bytes())
+
+    # unmanaged source: data — a point whose file does NOT exist on
+    # disk. It must NOT be pruned because it's out of this run's scope.
+    prefix = "\\\\nas\\\\files\\\\images"
+    data_canonical = str(Path(prefix) / Path("kpop") / "data" / "missing.png")
+    _seed_point(raw, "data_gone", data_canonical, source="kpop/data",
+                blurhash=None, dhash=None, sha=None)
+
+    # managed source point that IS alive (also seed, for completeness)
+    coll_canonical = str(Path(prefix) / Path("kpop") / "collections" / "live.png")
+    _seed_point(raw, "coll_live", coll_canonical, source="kpop/collections",
+                blurhash=None, dhash=None, sha=None)
+
+    rc = _run_with_fixture_client(
+        monkeypatch, raw,
+        ["--source", str(collections_dir), "--source-name", "kpop/collections",
+         "--qdrant-collection", COLLECTION,
+         "--prefix", prefix, "--base", str(tmp_path),
+         "--device", "cpu", "--prune"],
+    )
+    assert rc == 0
+    # unmanaged source survives even though its file is gone
+    pts = raw.retrieve(collection_name=COLLECTION, ids=[_pid("data_gone")], with_payload=True)
+    assert pts, "kpop/data point must NOT be pruned by a kpop/collections-only run"
+    # managed source live point survives
+    assert _get_point(raw, "coll_live") is not None

@@ -144,6 +144,22 @@ def main(argv=None):
             limit=args.limit,
         )
 
+    # Prune once per run, scoped to the full set of sources this run
+    # manages. Doing it inside the per-source loop would let each
+    # source's prune delete points owned by the other sources (the
+    # alive-set is built from one dir but the scroll covers the whole
+    # collection). Walking all source dirs + passing every source-name
+    # means only genuinely-missing files under the managed sources are
+    # removed — points from unmanaged sources are never touched.
+    if args.prune and not args.dry_run:
+        removed = upsert.prune_missing(
+            client, args.qdrant_collection,
+            source_dirs=args.source,
+            prefix=args.prefix, base=args.base,
+            source_names=source_names,
+        )
+        logger.info("prune removed %d point(s)", removed)
+
     for src_path, src_name in zip(args.source, source_names, strict=True):
         logger.info("=== %s -> %s ===", src_path, src_name)
         snap = scan_mod.snapshot(src_path)
@@ -152,13 +168,6 @@ def main(argv=None):
         logger.info("found %d files in %s", len(snap), src_path)
         if not snap:
             continue
-        if args.prune and not args.dry_run:
-            removed = upsert.prune_missing(
-                client, args.qdrant_collection,
-                source_dirs=[src_path],
-                prefix=args.prefix, base=args.base,
-            )
-            logger.info("prune removed %d", removed)
 
         for i in range(0, len(snap), args.batch_size):
             batch = snap[i:i+args.batch_size]
