@@ -3,7 +3,7 @@
 {% import "_macros.html" as ui %}
 
 {% block title %}
-  {% if source_photo_id %}most similar to {{ source_photo_id[:8] }}…{% elif q %}{{ q }} — search{% else %}search{% endif %}
+  {% if source_photo_id %}Similar to {{ source_photo_id[:8] }}…{% elif q %}{{ q }}{% else %}Search{% endif %} — Image Search
 {% endblock %}
 
 {% block content %}
