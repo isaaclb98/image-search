@@ -95,3 +95,21 @@ def test_search_surface_uses_prompts_and_explicit_submit_gate():
     assert "let searchGeneration = 0;" in controller
     assert "signal: controller.signal" in controller
     assert "requestGeneration !== searchGeneration" in controller
+
+
+def test_random_page_grid_uses_seven_columns():
+    """The Random tab should render exactly 7 columns of images,
+    not the responsive default the search/favorites grid uses.
+
+    The user prefers a denser layout on /random. The fix overrides
+    .grid inside .random-page to force 7 columns at every viewport.
+    """
+    css = read(STATIC / "css" / "app.css")
+    # Find the override block.
+    block_idx = css.find(".random-page .grid")
+    assert block_idx != -1, ".random-page .grid override not found"
+    close = css.find("}", block_idx)
+    block = css[block_idx:close + 1]
+    assert "repeat(7," in block, (
+        f".random-page .grid should force 7 columns, got: {block!r}"
+    )

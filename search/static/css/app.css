@@ -303,6 +303,14 @@ a:hover {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
 }
+.random-page .grid {
+  /* Random tab pins to 7 columns at every viewport (user
+     preference — denser than the responsive search/favorites grid).
+     minmax(0, 1fr) lets items shrink below their min-content so
+     very narrow viewports still fit 7 columns without horizontal
+     overflow. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
 .grid-item {
   position: relative;
   aspect-ratio: 1 / 1;
