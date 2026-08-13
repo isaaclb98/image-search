@@ -6,32 +6,34 @@ Walks a folder of images, embeds each with SigLIP2, upserts to Qdrant.
 Idempotent: re-running on the same folder is a no-op (skips already-indexed).
 
 Usage:
-    python -m indexer.indexer <SOURCE_DIR> --collection NAME [options]
+    python -m indexer.indexer --source PATH --source-name NAME [options]
 
 Options:
-    --batch-size N    Embedding batch size (default 16; saturates 24GB GPU)
-    --shard LABEL     Optional shard label stored in payload
-    --limit N         Stop after N files (0 = no limit; useful for smoke tests)
-    --dry-run         Walk + embed; do not upsert. Prints counts.
-    --model NAME      open_clip arch tag (default ViT-gopt-16-SigLIP2-384)
-    --device DEV      cuda or cpu (default: cuda)
-    --qdrant-url URL  Qdrant endpoint (default http://localhost:6333)
+    --source PATH         Folder to scan (required).
+    --source-name NAME    Logical library name (photos, portrait, kpop/data, ...).
+                          Required. Matches indexer/sync.py's --source-name so
+                          the two CLIs tag points identically.
+    --batch-size N        Embedding batch size (default 16; saturates 24GB GPU)
+    --limit N             Stop after N files (0 = no limit; useful for smoke tests)
+    --dry-run             Walk + embed; do not upsert. Prints counts.
+    --model NAME          open_clip arch tag (default ViT-gopt-16-SigLIP2-384)
+    --device DEV          cuda or cpu (default: cuda)
+    --qdrant-url URL      Qdrant endpoint (default http://localhost:6333)
     --qdrant-api-key KEY  Qdrant API key (default: $QDRANT_API_KEY or unset)
-    --collection NAME  Logical library name (kpop, portrait, general, ...).
-                       Required. Stored in payload and indexed for fast filter.
-                       Qdrant collection name itself is fixed (default images).
-    --qdrant-collection NAME  Qdrant collection name (default images)
-    --qdrant-in-memory  Use in-memory Qdrant (for tests; overrides --qdrant-url)
-    --prune           Remove points whose source file no longer exists on disk
-    --cache-file PATH  Path to the indexer cache file (default state/indexer_cache.json).
-                       Tracks "what's already indexed" so re-runs don't need to
-                       ask Qdrant per file.
-    --no-cache        Skip the local cache; ask Qdrant per batch (slow but
-                       always fresh). Use this for one-off runs when you don't
-                       want the cache to mask out-of-band changes.
-    --refresh-cache   Discard the local cache and rebuild from a Qdrant scroll
-                       on startup. Use after manual point deletions, restores,
-                       or anything that desyncs the cache from reality.
+    --qdrant-collection NAME  Qdrant collection name (default images).
+                          All logical libraries share one collection;
+                          --source-name tags each point with its library.
+    --qdrant-in-memory    Use in-memory Qdrant (for tests; overrides --qdrant-url)
+    --prune               Remove points whose source file no longer exists on disk
+    --cache-file PATH    Path to the indexer cache file (default state/indexer_cache.json).
+                          Tracks "what's already indexed" so re-runs don't need to
+                          ask Qdrant per file.
+    --no-cache            Skip the local cache; ask Qdrant per batch (slow but
+                          always fresh). Use this for one-off runs when you don't
+                          want the cache to mask out-of-band changes.
+    --refresh-cache       Discard the local cache and rebuild from a Qdrant scroll
+                          on startup. Use after manual point deletions, restores,
+                          or anything that desyncs the cache from reality.
 
     --reblurhash       Walk the existing collection, recompute blurhash per point
                        from its source file, and rewrite only the 'blurhash' payload
@@ -74,9 +76,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="indexer",
         description="Embed images with SigLIP2 and upsert to Qdrant.",
     )
-    p.add_argument("source", type=Path, help="folder to scan")
+    p.add_argument("--source", type=Path, required=True, help="folder to scan")
+    p.add_argument("--source-name", type=str, required=True,
+                   help="Logical library name (photos, portrait, kpop/data, ...). "
+                        "Matches indexer/sync.py's --source-name so both CLIs "
+                        "tag points identically. Stored in the payload and "
+                        "indexed for fast search-side filtering.")
     p.add_argument("--batch-size", type=int, default=16)
-    p.add_argument("--shard", type=str, default="")
     p.add_argument("--limit", type=int, default=0, help="0 = no limit")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--model", type=str, default="ViT-gopt-16-SigLIP2-384")
@@ -85,18 +91,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--qdrant-api-key", type=str, default=os.environ.get("QDRANT_API_KEY") or None,
                    help="Qdrant API key (default: $QDRANT_API_KEY)")
     p.add_argument(
-        "--collection",
-        type=str,
-        required=True,
-        help="Logical library name (kpop, portrait, general, ...). "
-             "Stored in the payload and indexed for fast search-side filtering.",
-    )
-    p.add_argument(
         "--qdrant-collection",
         type=str,
         default="images",
         help="Qdrant collection name (default: images). All logical "
-             "libraries share one collection; --collection tags each "
+             "libraries share one collection; --source-name tags each "
              "point with its library.",
     )
     p.add_argument(
@@ -338,7 +337,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         return 0
 
     t0 = time.time()
-    logger.info("scanning %s (collection=%s)", args.source, args.collection)
+    logger.info("scanning %s (source-name=%s)", args.source, args.source_name)
     paths = scan.snapshot(args.source)
     if args.limit:
         paths = paths[: args.limit]
@@ -401,7 +400,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         # cache is disabled and we're not in dry-run). In the cache
         # path the filter already happened in step 1.
         if not (use_cache and cache is not None) and not args.dry_run:
-            ids_to_check = [upsert.id_for(p, args.shard) for p, _ in new_loaded]
+            ids_to_check = [upsert.id_for(p, "") for p, _ in new_loaded]
             already = upsert.existing_ids(
                 client, args.qdrant_collection, ids_to_check
             )
@@ -424,10 +423,10 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
         # Step 4: upsert
         items = [
             (
-                upsert.id_for(p, args.shard),
+                upsert.id_for(p, ""),
                 vec,
                 upsert.build_payload(
-                    p, args.shard, args.model, "", args.collection,
+                    p, "", args.model, "", args.source_name,
                 ),
             )
             for (p, _), vec in zip(new_loaded, vectors, strict=False)
@@ -454,7 +453,7 @@ def main(argv: list[str] | argparse.Namespace | None = None) -> int:
                     continue
                 cache.add(
                     p,
-                    upsert.id_for(p, args.shard),
+                    upsert.id_for(p, ""),
                     int(stat.st_mtime),
                     int(stat.st_size),
                 )

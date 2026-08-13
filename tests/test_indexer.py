@@ -245,9 +245,9 @@ def test_end_to_end_indexer_skips_already_indexed(tmp_path, fixture_images, monk
     # also empty). All 5 images get indexed; cache gets saved.
     args = indexer_mod.parse_args(
         [
-            str(fixture_images),
+            "--source", str(fixture_images),
             "--qdrant-in-memory",
-            "--collection", "e2e_lib",
+            "--source-name", "e2e_lib",
             "--qdrant-collection", "e2e_test",
             "--cache-file", str(cache_path),
             "--batch-size", "2",
@@ -267,9 +267,9 @@ def test_end_to_end_indexer_skips_already_indexed(tmp_path, fixture_images, monk
     counter["calls"] = 0
     args2 = indexer_mod.parse_args(
         [
-            str(fixture_images),
+            "--source", str(fixture_images),
             "--qdrant-in-memory",
-            "--collection", "e2e_lib",
+            "--source-name", "e2e_lib",
             "--qdrant-collection", "e2e_test",
             "--cache-file", str(cache_path),
             "--batch-size", "2",
@@ -300,10 +300,10 @@ def test_end_to_end_with_dry_run(tmp_path, fixture_images, monkeypatch, capsys):
     # dry-run bypasses the cache entirely (no upsert, no cache IO).
     args = indexer_mod.parse_args(
         [
-            str(fixture_images),
+            "--source", str(fixture_images),
             "--dry-run",
             "--qdrant-in-memory",
-            "--collection",
+            "--source-name",
             "dryrun_lib",
             "--qdrant-collection",
             "dryrun_test",
@@ -334,9 +334,9 @@ def test_indexer_returns_2_on_missing_source(tmp_path, monkeypatch):
     monkeypatch.setattr(indexer_mod, "VisionEncoder", MockEncoder)
     args = indexer_mod.parse_args(
         [
-            str(tmp_path / "nope"),
+            "--source", str(tmp_path / "nope"),
             "--qdrant-in-memory",
-            "--collection",
+            "--source-name",
             "missing_lib",
             "--device",
             "cpu",
@@ -602,8 +602,8 @@ def test_indexer_cache_picks_up_new_files(tmp_path, fixture_images, monkeypatch,
 
     cache_path = tmp_path / "cache.json"
     common = [
-        str(fixture_images), "--qdrant-in-memory",
-        "--collection", "newfiles_lib",
+        "--source", str(fixture_images), "--qdrant-in-memory",
+        "--source-name", "newfiles_lib",
         "--qdrant-collection", "newfiles_test",
         "--cache-file", str(cache_path),
         "--batch-size", "2", "--device", "cpu",
@@ -642,8 +642,8 @@ def test_indexer_modified_file_reembeds(tmp_path, fixture_images, monkeypatch, c
 
     cache_path = tmp_path / "cache.json"
     common = [
-        str(fixture_images), "--qdrant-in-memory",
-        "--collection", "modified_lib",
+        "--source", str(fixture_images), "--qdrant-in-memory",
+        "--source-name", "modified_lib",
         "--qdrant-collection", "modified_test",
         "--cache-file", str(cache_path),
         "--batch-size", "2", "--device", "cpu",
@@ -687,8 +687,8 @@ def test_indexer_no_cache_flag_falls_back_to_per_batch(
 
     # Run 1: index with cache (populates the cache).
     rc1 = indexer_mod.main(indexer_mod.parse_args([
-        str(fixture_images), "--qdrant-in-memory",
-        "--collection", "nocache_lib",
+        "--source", str(fixture_images), "--qdrant-in-memory",
+        "--source-name", "nocache_lib",
         "--qdrant-collection", "nocache_test",
         "--cache-file", str(cache_path),
         "--batch-size", "2", "--device", "cpu",
@@ -699,8 +699,8 @@ def test_indexer_no_cache_flag_falls_back_to_per_batch(
     # so all 5 get re-indexed (per-batch Qdrant retrieve sees an
     # empty collection).
     rc2 = indexer_mod.main(indexer_mod.parse_args([
-        str(fixture_images), "--qdrant-in-memory",
-        "--collection", "nocache_lib",
+        "--source", str(fixture_images), "--qdrant-in-memory",
+        "--source-name", "nocache_lib",
         "--qdrant-collection", "nocache_test",
         "--cache-file", str(cache_path),
         "--no-cache",
@@ -737,8 +737,8 @@ def test_indexer_refresh_cache_rebuilds_from_qdrant(
 
     # Run 1: index, cache populated.
     indexer_mod.main(indexer_mod.parse_args([
-        str(fixture_images), "--qdrant-in-memory",
-        "--collection", "refresh_lib",
+        "--source", str(fixture_images), "--qdrant-in-memory",
+        "--source-name", "refresh_lib",
         "--qdrant-collection", "refresh_test",
         "--cache-file", str(cache_path),
         "--batch-size", "2", "--device", "cpu",
@@ -753,8 +753,8 @@ def test_indexer_refresh_cache_rebuilds_from_qdrant(
     # re-index all 5 (cache is now empty). This is the expected
     # behavior when Qdrant itself has been wiped.
     rc2 = indexer_mod.main(indexer_mod.parse_args([
-        str(fixture_images), "--qdrant-in-memory",
-        "--collection", "refresh_lib",
+        "--source", str(fixture_images), "--qdrant-in-memory",
+        "--source-name", "refresh_lib",
         "--qdrant-collection", "refresh_test",
         "--cache-file", str(cache_path),
         "--refresh-cache",
