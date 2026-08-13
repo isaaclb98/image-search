@@ -38,6 +38,20 @@ def parse_args(argv=None):
     p.add_argument("--qdrant-in-memory", action="store_true")
     p.add_argument("--prefix", type=str, default=os.environ.get("PATH_PREFIX", ""))
     p.add_argument("--base", type=str, default=os.environ.get("NAS_IMAGES_BASE", ""))
+    p.add_argument(
+        "--reblurhash",
+        action="store_true",
+        help="Walk the existing collection, recompute blurhash for each point from its source "
+             "file, and rewrite only the 'blurhash' payload field. Does NOT re-embed. Idempotent. "
+             "Mutually exclusive with --refingerprint.",
+    )
+    p.add_argument(
+        "--refingerprint",
+        action="store_true",
+        help="Same as --reblurhash but for content_sha256 + dhash (diversity / near-duplicate "
+             "detection in the search side). Does NOT re-embed. Idempotent. Mutually exclusive "
+             "with --reblurhash.",
+    )
     return p.parse_args(argv)
 
 
@@ -100,14 +114,35 @@ def main(argv=None):
         upsert.ensure_collection(client, args.qdrant_collection)
         upsert.ensure_payload_index(client, args.qdrant_collection, "source", "keyword")
 
+    if args.reblurhash and args.refingerprint:
+        logger.error("--reblurhash and --refingerprint are mutually exclusive")
+        return 2
+
     encoder = None
-    if not args.dry_run:
+    if not args.dry_run and not args.reblurhash and not args.refingerprint:
+        # Backfill paths don't embed — they just read source files
+        # and `set_payload` a single field. Skip the VisionEncoder
+        # init so that --reblurhash / --refingerprint work on machines
+        # without a CUDA driver (CI, CPU-only test fixtures, etc).
         encoder = VisionEncoder(arch=args.model, device=args.device)
 
     total_indexed = 0
     total_skipped = 0
     total_errors = 0
     t0 = time.time()
+
+    if args.reblurhash or args.refingerprint:
+        return _backfill_payload_field(
+            client=client,
+            collection=args.qdrant_collection,
+            field="blurhash" if args.reblurhash else "fingerprint",
+            sources=args.source,
+            source_names=source_names,
+            prefix=args.prefix,
+            base=args.base,
+            batch_size=args.batch_size,
+            limit=args.limit,
+        )
 
     for src_path, src_name in zip(args.source, source_names, strict=True):
         logger.info("=== %s -> %s ===", src_path, src_name)
@@ -171,6 +206,164 @@ def main(argv=None):
     dt = time.time() - t0
     print(f"Done indexed={total_indexed} skipped={total_skipped} errors={total_errors} ({dt:.1f}s)")
     return 0
+
+
+def _backfill_payload_field(
+    client,
+    collection: str,
+    field: str,  # "blurhash" or "fingerprint"
+    sources: list,
+    source_names: list,
+    prefix: str,
+    base: str,
+    batch_size: int,
+    limit: int,
+) -> int:
+    """
+    Walk the existing collection, recompute `field` for each point from
+    its source file, and `set_payload` only that field in-place. No
+    re-embedding; the 1536-dim vector stays untouched.
+
+    Used as a backfill: existing points indexed before [field] support
+    was added to the indexer have `field=None` in their payload. The
+    client side reads `field` for instant placeholder rendering (LQIP)
+    or near-duplicate detection; without it, those features degrade
+    silently. This is the cheap way to fix that without re-embedding
+    1M+ points.
+
+    For `--reblurhash`: reads the JPEG/PNG/HEIC, downsamples to 32x32,
+    encodes to a ~28-char blurhash string. ~30-60s per 1k images on
+    a fast disk (most of that is file I/O + Pillow decode).
+
+    For `--refingerprint`: reads the file, computes SHA-256 of the
+    bytes and a 64-bit dHash of a tiny downsampled version. Used
+    by the diversity ranker in the search side. Cheaper than blurhash
+    because the SHA-256 is bytes-only (no decode).
+
+    Source-scoped: only points whose payload.path falls under one of
+    the `--source` roots are touched. This is intentional — the Windows
+    runs only know about the kpop sources, so a backfill shouldn't
+    rewrite points that were indexed by a different machine with
+    different path conventions.
+
+    Idempotent: points whose computed value already matches the
+    existing payload value are skipped.
+    """
+    if not sources:
+        logger.error("--%s requires at least one --source", field)
+        return 2
+
+    if field == "blurhash":
+        from indexer.blurhash import compute_blurhash
+
+        def compute(path):
+            return compute_blurhash(path)
+    elif field == "fingerprint":
+        from indexer.fingerprints import compute_fingerprints
+
+        def compute(path):
+            fp = compute_fingerprints(path)
+            # compute_fingerprints returns the full dict; set_payload
+            # expects a single key. We only rewrite the bytes-hash + dhash
+            # pair; the 'blurhash' is a separate field.
+            return {"content_sha256": fp.get("content_sha256"), "dhash": fp.get("dhash")}
+    else:
+        logger.error("unknown backfill field %r", field)
+        return 2
+
+    total_updated = total_skipped = total_failed = 0
+    t0 = time.time()
+    offset = None
+    while True:
+        points, next_offset = client.scroll(
+            collection_name=collection,
+            limit=batch_size * 8,  # scroll a chunk; we filter by source
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        if not points:
+            break
+
+        # Filter to points under one of the configured sources.
+        # The payload.path is the canonical UNC form; --base + --prefix
+        # translate a local file path back to its canonical form so we
+        # can match. But the simpler + robust path: take a point's
+        # payload.path and check whether it starts with any of our
+        # canonical source roots (which we know by --source-name mapping).
+        # The source-name field is already in the payload, so the
+        # simplest source-scoping is: points whose payload.source is
+        # in source_names are the ones to backfill.
+        scoped = [p for p in points if (p.payload or {}).get("source") in source_names]
+        if not scoped:
+            if next_offset is None:
+                break
+            offset = next_offset
+            continue
+
+        for p in scoped:
+            payload = p.payload or {}
+            path_str = str(payload.get("path") or "")
+            if not path_str:
+                total_failed += 1
+                continue
+            try:
+                load_path = path_str
+                if prefix and base:
+                    mapped = canonical_payload_path(Path(path_str), prefix, base)
+                    if mapped is not None:
+                        load_path = mapped
+                # compute() is either (blurhash: str | None) or
+                # (fingerprint: dict). For blurhash we need to map the
+                # scalar value; for fingerprint we already have a dict.
+                computed = compute(Path(load_path))
+                if field == "blurhash":
+                    new_value = computed  # str | None
+                else:
+                    new_value = {k: v for k, v in computed.items() if v}
+            except Exception as exc:
+                logger.warning("backfill: failed to compute %s for %s: %s", field, path_str, exc)
+                total_failed += 1
+                continue
+
+            existing = payload.get(field)
+            if field == "blurhash":
+                if existing == new_value:
+                    total_skipped += 1
+                    continue
+            else:
+                # fingerprint: dict of {content_sha256, dhash}; skip
+                # when both already match.
+                if existing and all(existing.get(k) == new_value.get(k) for k in new_value):
+                    total_skipped += 1
+                    continue
+
+            try:
+                client.set_payload(
+                    collection_name=collection,
+                    payload={field: new_value} if field == "blurhash" else new_value,
+                    points=[p.id],
+                )
+                total_updated += 1
+            except Exception as exc:
+                logger.warning("backfill: set_payload failed for %s: %s", p.id, exc)
+                total_failed += 1
+
+            if limit and total_updated + total_failed >= limit:
+                break
+
+        if limit and total_updated + total_failed >= limit:
+            break
+        if next_offset is None:
+            break
+        offset = next_offset
+
+    dt = time.time() - t0
+    print(
+        f"backfill[{field}] done updated={total_updated} skipped={total_skipped} "
+        f"failed={total_failed} ({dt:.1f}s)"
+    )
+    return 0 if total_failed == 0 else 1
 
 
 if __name__ == "__main__":
