@@ -153,7 +153,11 @@ def main(argv=None):
         if not snap:
             continue
         if args.prune and not args.dry_run:
-            removed = upsert.prune_missing(client, args.qdrant_collection, source_dirs=[src_path])
+            removed = upsert.prune_missing(
+                client, args.qdrant_collection,
+                source_dirs=[src_path],
+                prefix=args.prefix, base=args.base,
+            )
             logger.info("prune removed %d", removed)
 
         for i in range(0, len(snap), args.batch_size):

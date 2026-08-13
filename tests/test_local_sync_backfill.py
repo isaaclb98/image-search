@@ -193,3 +193,71 @@ def test_backfill_handles_missing_file(monkeypatch, backfill_env, tmp_path):
     # non-zero). Both are acceptable; the key is "no crash".
     assert rc in (0, 1)
     assert _get_point(raw, "a") is not None
+
+
+def test_prune_with_prefix_base_keeps_live_points(monkeypatch, backfill_env, tmp_path):
+    """The killer regression: prune with --prefix/--base must NOT delete
+    live points whose payload.path is the canonical UNC form while the
+    filesystem walk produces local Z:-style paths. The raw string
+    membership check would classify everything as dead and nuke the
+    collection.
+
+    Simulate: payload stores canonical \\\\nas\\files\\images\\kpop\\a.jpg,
+    local file lives at <tmp>/kpop/a.jpg, --base=<tmp>, --prefix=\\\\nas\\files\\images.
+    """
+    raw = backfill_env["raw"]
+    img = _make_png(tmp_path, "a.png")
+    # local file at <tmp>/kpop/a.jpg
+    kpop_dir = tmp_path / "kpop"
+    kpop_dir.mkdir()
+    local_file = kpop_dir / "a.png"
+    local_file.write_bytes(img.read_bytes())
+
+    # payload.path is canonical — computed with the same
+    # Path(prefix) / rel logic as local_sync.canonical_payload_path
+    # so separators match the platform (Windows: backslash,
+    # Linux: forward slash). Hardcoding backslashes breaks the
+    # membership check on Linux because Path() normalizes.
+    prefix = "\\\\nas\\\\files\\\\images"
+    canonical = str(Path(prefix) / Path("kpop") / "a.png")
+    _seed_point(raw, "a", canonical, source="x", blurhash=None)
+
+    rc = _run_with_fixture_client(
+        monkeypatch, raw,
+        ["--source", str(kpop_dir), "--source-name", "x",
+         "--qdrant-collection", COLLECTION,
+         "--prefix", prefix, "--base", str(tmp_path),
+         "--device", "cpu", "--prune"],
+    )
+    assert rc == 0
+    # live point survives
+    assert _get_point(raw, "a") is not None, "live canonical-path point must NOT be pruned"
+
+
+def test_prune_with_prefix_base_deletes_missing_file(monkeypatch, backfill_env, tmp_path):
+    """A point whose canonical payload path has no corresponding local
+    file (deleted from disk) should be pruned even with prefix/base set.
+    The source dir needs at least one live file so the prune branch
+    actually runs (it lives inside the per-source loop after the
+    empty-snapshot early-continue)."""
+    raw = backfill_env["raw"]
+    kpop_dir = tmp_path / "kpop"
+    kpop_dir.mkdir()
+    # a live file so the scan finds something and prune executes
+    live = _make_png(tmp_path, "live.png")
+    (kpop_dir / "live.png").write_bytes(live.read_bytes())
+    # seed a point whose file does NOT exist on disk
+    prefix = "\\\\nas\\\\files\\\\images"
+    missing_canonical = str(Path(prefix) / Path("kpop") / "missing.png")
+    _seed_point(raw, "gone", missing_canonical, source="x", blurhash=None)
+
+    rc = _run_with_fixture_client(
+        monkeypatch, raw,
+        ["--source", str(kpop_dir), "--source-name", "x",
+         "--qdrant-collection", COLLECTION,
+         "--prefix", prefix, "--base", str(tmp_path),
+         "--device", "cpu", "--prune"],
+    )
+    assert rc == 0
+    pts = raw.retrieve(collection_name=COLLECTION, ids=[_pid("gone")], with_payload=True)
+    assert not pts, "point whose file is missing should be pruned"

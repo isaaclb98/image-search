@@ -210,6 +210,8 @@ def prune_missing(
     name: str,
     source_dirs: list[str] | None = None,
     batch_size: int = 1000,
+    prefix: str = "",
+    base: str = "",
 ) -> int:
     """
     Scroll all points in the collection and delete the ones whose
@@ -220,6 +222,16 @@ def prune_missing(
     (much faster at 1.5M+ scale than per-point `Path.exists()`).
     When `source_dirs` is None, the slower per-point check is used —
     fine for small collections but hours on a slow share at scale.
+
+    `prefix` / `base` make the walk canonical-aware, matching the
+    translation local_sync applies at upsert time. Stored payload
+    paths are canonical UNC (`\\192.168.250.108\files\images\...`)
+    while the filesystem walk produces local paths
+    (`Z:/images/kpop/...`); a raw string membership test between the
+    two would classify every point as dead and delete the whole
+    collection. With `base`+`prefix` set, each walked file is
+    translated to its canonical form before the check, so live points
+    survive and only genuinely-missing files get pruned.
 
     Returns the number of points deleted.
     """
@@ -233,6 +245,7 @@ def prune_missing(
     existing_paths: set[str] | None = None
     if source_dirs:
         existing_paths = set()
+        base_path = Path(base).resolve() if (prefix and base) else None
         for src in source_dirs:
             src_path = Path(src)
             if not src_path.exists() or not src_path.is_dir():
@@ -242,10 +255,19 @@ def prune_missing(
                 continue
             for p in src_path.rglob("*"):
                 if p.is_file():
-                    existing_paths.add(str(p.resolve()))
+                    lp = p.resolve()
+                    if base_path is not None:
+                        try:
+                            rel = lp.relative_to(base_path)
+                            existing_paths.add(str(Path(prefix) / rel))
+                            continue
+                        except ValueError:
+                            pass  # outside base — fall through to raw
+                    existing_paths.add(str(lp))
         logger.info(
-            "prune: pre-walked %d files under %d source dir(s)",
-            len(existing_paths), len(source_dirs),
+            "prune: pre-walked %d files under %d source dir(s) "
+            "(prefix=%r base=%r)",
+            len(existing_paths), len(source_dirs), prefix, base,
         )
 
     def _is_alive(path_str: str) -> bool:
