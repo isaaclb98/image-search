@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from indexer.sync_meta import META_COLLECTION, META_POINT_ID
+
 if TYPE_CHECKING:
     from search.qdrant_client import QdrantSearch
 
@@ -78,7 +80,7 @@ class IndexDB:
                   id            TEXT PRIMARY KEY,
                   path          TEXT NOT NULL,
                   shard         TEXT DEFAULT '',
-                  collection    TEXT DEFAULT '',
+                  source        TEXT DEFAULT '',
                   mtime         INTEGER,
                   size          INTEGER,
                   indexed_at    TEXT,
@@ -161,9 +163,25 @@ class IndexDB:
                   key   TEXT PRIMARY KEY,
                   value TEXT NOT NULL
                 );
+
+                -- Marker snapshot for the drift-aware refresh path
+                -- (see refresh_if_changed): last-seen scanner run id
+                -- and Qdrant point count. Written by the periodic
+                -- task; lets the next tick skip the full scroll when
+                -- nothing changed.
+                CREATE TABLE IF NOT EXISTS sync_state (
+                  key   TEXT PRIMARY KEY,
+                  value TEXT NOT NULL
+                );
                 """
             )
             self._conn.commit()
+            # One-shot rename of the legacy `collection` column to
+            # `source`. Pre-rename DBs have `collection`; new installs
+            # only have `source` (declared in CREATE TABLE above). After
+            # the rename, _ensure_column("source", ...) below becomes a
+            # no-op so a fresh install still gets the column too.
+            self._migrate_collection_column_to_source()
             # Lightweight migrations for additive columns. Idempotent —
             # _ensure_column checks PRAGMA table_info before issuing
             # ALTER TABLE ADD COLUMN, so re-opens are no-ops. Must run
@@ -171,13 +189,13 @@ class IndexDB:
             # since a pre-migration DB doesn't have them yet.
             self._ensure_column("images", "width", "INTEGER")
             self._ensure_column("images", "height", "INTEGER")
-            self._ensure_column("images", "collection", "TEXT DEFAULT ''")
+            self._ensure_column("images", "source", "TEXT DEFAULT ''")
             self._conn.executescript(
                 """
                 CREATE INDEX IF NOT EXISTS idx_images_path
                   ON images(path);
-                CREATE INDEX IF NOT EXISTS idx_images_collection
-                  ON images(collection) WHERE collection != '';
+                CREATE INDEX IF NOT EXISTS idx_images_source
+                  ON images(source) WHERE source != '';
                 """
             )
             self._conn.commit()
@@ -217,10 +235,10 @@ class IndexDB:
             # populated but `images_fts` is empty).
             #
             # Patterns accepted by `path_token_ids()`:
-            #   * `chaewon`           — token substring match
+            #   * `subject_a`           — token substring match
             #                            (FTS5 default).
-            #   * `chaewon*`          — token prefix match.
-            #   Anything else (notably `*chaewon` suffix or
+            #   * `subject_a*`          — token prefix match.
+            #   Anything else (notably `*subject_a` suffix or
             #   `*.jpg` glob) raises ValueError — FTS5 doesn't
             #   support suffix matching and fnmatch semantics are
             #   not native. Callers that need suffix should
@@ -255,6 +273,34 @@ class IndexDB:
                     f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}"
                 )
                 self._conn.commit()
+
+    def _migrate_collection_column_to_source(self) -> None:
+        """One-shot rename of the legacy `collection` column to `source`.
+
+        Pre-rename DBs have `collection`; new installs only have
+        `source` (declared in CREATE TABLE above). After the rename,
+        the `_ensure_column("source", ...)` call below becomes a no-op
+        on the migrated DB while still adding the column on a fresh
+        install.
+
+        Idempotent: a no-op when `source` already exists or `collection`
+        never did. Requires SQLite >= 3.25 (RENAME COLUMN) — the
+        version on Python 3.12+ is well above that.
+        """
+        with self._lock:
+            cols = {
+                row["name"]
+                for row in self._conn.execute(
+                    "PRAGMA table_info(images)"
+                ).fetchall()
+            }
+            if "source" in cols or "collection" not in cols:
+                return
+            self._conn.execute(
+                "ALTER TABLE images RENAME COLUMN collection TO source"
+            )
+            self._conn.execute("DROP INDEX IF EXISTS idx_images_collection")
+            self._conn.commit()
 
     def _migrate_favorites_to_dedicated_table(self) -> None:
         """Move is_favorite/favorited_at columns off `images` into the
@@ -312,9 +358,9 @@ class IndexDB:
     # (drift risk) or built lazily on read (slow).
     #
     # Patterns accepted by `path_token_ids()`:
-    #   * `chaewon`           — token substring match (FTS5 default).
-    #   * `chaewon*`          — token prefix match.
-    #   Anything else (notably `*chaewon` suffix or `*.jpg` glob)
+    #   * `subject_a`           — token substring match (FTS5 default).
+    #   * `subject_a*`          — token prefix match.
+    #   Anything else (notably `*subject_a` suffix or `*.jpg` glob)
     #   raises ValueError — FTS5 doesn't support suffix matching
     #   and fnmatch semantics are not native. Callers that need
     #   suffix should switch to a substring (drop the leading `*`).
@@ -487,17 +533,17 @@ class IndexDB:
         returns the list of image ids whose `path` matches the
         pattern under the FTS5 token-substring / prefix rules:
 
-          * `chaewon`  → token-substring match. FTS5 splits the path
+          * `subject_a`  → token-substring match. FTS5 splits the path
             into tokens on `/`, `-`, `_`, `.` etc, and matches each
-            token as a substring. So `/photos/kpop/chaewon/2024.jpg`
-            tokenises to [photos, kpop, chaewon, 2024, jpg] and any
-            single-token query (e.g. `chaewon`, `kpop`, `2024`)
+            token as a substring. So `/photos/gallery/subject_a/2024.jpg`
+            tokenises to [photos, gallery, subject_a, 2024, jpg] and any
+            single-token query (e.g. `subject_a`, `gallery`, `2024`)
             hits. The match is anchored to token boundaries — `won`
-            does NOT match `chaewon` (substring but not token-aligned).
-          * `chaewon*` → token-prefix match. `won*` would NOT match
-            `chaewon` (token prefix, not substring prefix).
+            does NOT match `subject_a` (substring but not token-aligned).
+          * `subject_a*` → token-prefix match. `ject*` would NOT match
+            `subject_a` (token prefix, not substring prefix).
 
-        Anything else (notably `*ewon` or `*.jpg`) raises a
+        Anything else (notably `*ject` or `*.jpg`) raises a
         ValueError so the caller surfaces a 400 with a clear error.
         The fnmatch-style suffix / bracket / question-mark syntax is
         intentionally NOT supported — FTS5 has no native equivalent,
@@ -629,8 +675,8 @@ class IndexDB:
                         continue
                     self._conn.executemany(
                         """
-                        INSERT INTO images (id, path, shard, collection, mtime, size, indexed_at)
-                        VALUES (:id, :path, :shard, :collection, :mtime, :size, :indexed_at)
+                        INSERT INTO images (id, path, shard, source, mtime, size, indexed_at)
+                        VALUES (:id, :path, :shard, :source, :mtime, :size, :indexed_at)
                         """,
                         rows,
                     )
@@ -643,6 +689,187 @@ class IndexDB:
             self._last_refresh = time.time()
         logger.info("index cache built from Qdrant: %d points", count)
         return count
+
+    # ------------------------------------------------------------------
+    # Drift-aware refresh (marker/count driven)
+    # ------------------------------------------------------------------
+
+    def merge_from_qdrant(self) -> dict:
+        """
+        Incremental merge of the `images` cache from a Qdrant scroll.
+
+        Unlike `init_from_qdrant(force=True)` this does not wipe and
+        repopulate: rows whose (path, shard, source, mtime, size,
+        indexed_at) are unchanged stay put, changed rows are updated
+        in place, and rows whose id vanished from Qdrant are deleted.
+        Favourites/albums live in separate tables and are untouched.
+
+        Returns {"added", "updated", "removed"} counts.
+        """
+        incoming: dict[str, dict] = {}
+        for batch in self.qdrant_client.scroll_all():
+            for point in batch:
+                try:
+                    row = self._row_from_point(point)
+                except ValueError:
+                    continue
+                incoming[row["id"]] = row
+
+        added = updated = removed = 0
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT id, path, shard, source, mtime, size, indexed_at FROM images"
+            ).fetchall()
+            existing_by_id = {str(r["id"]): r for r in existing}
+
+            to_update: list[dict] = []
+            stale_ids: list[str] = []
+            for rid, row in existing_by_id.items():
+                inc = incoming.get(rid)
+                if inc is None:
+                    stale_ids.append(rid)
+                elif (
+                    row["path"], row["shard"], row["source"],
+                    row["mtime"], row["size"], row["indexed_at"],
+                ) != (
+                    inc["path"], inc["shard"], inc["source"],
+                    inc["mtime"], inc["size"], inc["indexed_at"],
+                ):
+                    to_update.append(inc)
+
+            for rid in stale_ids:
+                self._conn.execute("DELETE FROM images WHERE id = ?", (rid,))
+                removed += 1
+
+            upsert_sql = """
+                INSERT INTO images (id, path, shard, source, mtime, size, indexed_at)
+                VALUES (:id, :path, :shard, :source, :mtime, :size, :indexed_at)
+                ON CONFLICT(id) DO UPDATE SET
+                    path=excluded.path, shard=excluded.shard,
+                    source=excluded.source, mtime=excluded.mtime,
+                    size=excluded.size, indexed_at=excluded.indexed_at
+            """
+            if to_update:
+                self._conn.executemany(upsert_sql, to_update)
+                updated = len(to_update)
+            for rid, row in incoming.items():
+                if rid in existing_by_id:
+                    continue
+                self._conn.execute(upsert_sql, row)
+                added += 1
+            self._conn.commit()
+
+        self._last_refresh = time.time()
+        logger.info(
+            "index cache merged from Qdrant: +%d ~%d -%d",
+            added, updated, removed,
+        )
+        return {"added": added, "updated": updated, "removed": removed}
+
+    def refresh_if_changed(self) -> dict:
+        """
+        Drift-aware refresh: cheap marker/count check, full merge only
+        when something actually changed.
+
+        The scanner (`indexer.sync scan`) writes a `_sync_meta` marker
+        point after every run. This tick:
+
+          - no marker at all -> legacy behaviour: always merge
+            (pre-scanner deployments keep the old 6h cadence);
+          - marker present -> merge only when the scanner reported
+            changes (new/modified/orphans) OR the Qdrant point count
+            drifted from the last-seen count (catches out-of-band
+            deletes/adds the scanner didn't make).
+
+        Returns {"refreshed": bool, "counts": {...}} — counts only
+        when a merge actually ran.
+        """
+        marker: dict = {}
+        try:
+            points = self.qdrant_client.client.retrieve(
+                collection_name=META_COLLECTION,
+                ids=[META_POINT_ID],
+                with_payload=True,
+                with_vectors=False,
+            )
+            if points:
+                marker = points[0].payload or {}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("refresh_if_changed: marker read failed: %s", e)
+
+        stored_raw = self._read_sync_state("marker")
+        stored: dict = {}
+        if stored_raw:
+            try:
+                stored = json.loads(stored_raw)
+            except (TypeError, ValueError):
+                stored = {}
+
+        qdrant_count = self.qdrant_point_count()
+        sqlite_count = self.count_images()
+
+        changed = False
+        if marker:
+            run_id = str(marker.get("scanner_run_id") or "")
+            scanner_changed = bool(marker.get("scanner_changed"))
+            run_changed = (
+                stored.get("run_id") != run_id and scanner_changed
+            )
+            count_drift = (
+                qdrant_count >= 0 and sqlite_count != qdrant_count
+            )
+            changed = run_changed or count_drift
+        else:
+            # No scanner in play (fresh/dev/pre-sync): keep the legacy
+            # always-merge cadence so nothing silently goes stale.
+            changed = True
+
+        if not changed:
+            logger.debug(
+                "refresh_if_changed: no drift (run_id=%r, counts sqlite=%d qdrant=%d)",
+                stored.get("run_id"), sqlite_count, qdrant_count,
+            )
+            return {"refreshed": False}
+
+        counts = self.merge_from_qdrant()
+        self._write_sync_state(
+            "marker",
+            json.dumps({
+                "run_id": str(marker.get("scanner_run_id") or ""),
+                "qdrant_count": qdrant_count,
+            }),
+        )
+        return {"refreshed": True, "counts": counts}
+
+    def _read_sync_state(self, key: str) -> str | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM sync_state WHERE key = ?", (key,)
+            ).fetchone()
+        return str(row["value"]) if row else None
+
+    def _write_sync_state(self, key: str, value: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+            self._conn.commit()
+
+    def pending_count(self) -> int:
+        """Points currently in the _pending queue; -1 if unreachable."""
+        try:
+            res = self.qdrant_client.client.count(
+                collection_name="_pending", exact=True
+            )
+            return int(res.count)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("pending_count failed: %s", e)
+            return -1
+
+    def last_scanner_run_id(self) -> str | None:
+        """Last-seen scanner run id stored by refresh_if_changed."""
+        return self._read_sync_state("marker")
 
     def pick_random(self, n: int) -> list[str]:
         if n <= 0:
@@ -741,7 +968,7 @@ class IndexDB:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                SELECT i.id, i.path, i.shard, i.source, i.mtime,
                        i.size, i.indexed_at, i.width, i.height,
                        f.favorited_at
                 FROM images i
@@ -1001,7 +1228,7 @@ class IndexDB:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                SELECT i.id, i.path, i.shard, i.source, i.mtime,
                        i.size, i.indexed_at, i.width, i.height,
                        m.added_at
                 FROM album_memberships m
@@ -1187,7 +1414,7 @@ class IndexDB:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                SELECT i.id, i.path, i.shard, i.source, i.mtime,
                        i.size, i.indexed_at, i.width, i.height,
                        (f.id IS NOT NULL) AS is_favorite,
                        f.favorited_at
@@ -1266,18 +1493,18 @@ class IndexDB:
             "id": point_id,
             "path": path,
             "shard": str(payload.get("shard") or ""),
-            "collection": str(payload.get("collection") or ""),
+            "source": str(payload.get("source") or ""),
             "mtime": _optional_int(payload.get("mtime")),
             "size": _optional_int(payload.get("size")),
             "indexed_at": payload.get("indexed_at"),
         }
 
     def pick_random_rows(
-        self, n: int, collections: list[str] | None = None
+        self, n: int, sources: list[str] | None = None
     ) -> list[dict]:
-        """Sample N rows from the cache, optionally filtered by collection.
+        """Sample N rows from the cache, optionally filtered by source.
 
-        Returns a list of row dicts (id, path, shard, collection, mtime,
+        Returns a list of row dicts (id, path, shard, source, mtime,
         size, indexed_at, is_favorite, favorited_at, width, height) —
         everything the random page needs to render without going back
         to Qdrant. Uses SQLite's ORDER BY RANDOM() which is fine for
@@ -1287,28 +1514,28 @@ class IndexDB:
         """
         if n <= 0:
             return []
-        collections = [c for c in (collections or []) if c]
+        sources = [s for s in (sources or []) if s]
         with self._lock:
-            if collections:
-                placeholders = ",".join("?" for _ in collections)
+            if sources:
+                placeholders = ",".join("?" for _ in sources)
                 rows = self._conn.execute(
                     f"""
-                    SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                    SELECT i.id, i.path, i.shard, i.source, i.mtime,
                            i.size, i.indexed_at, i.width, i.height,
                            (f.id IS NOT NULL) AS is_favorite,
                            f.favorited_at
                     FROM images i
                     LEFT JOIN favorites f ON i.id = f.id
-                    WHERE i.collection IN ({placeholders})
+                    WHERE i.source IN ({placeholders})
                     ORDER BY RANDOM()
                     LIMIT ?
                     """,  # noqa: S608 - placeholders are parameterized, values bound separately
-                    [*collections, int(n)],
+                    [*sources, int(n)],
                 ).fetchall()
             else:
                 rows = self._conn.execute(
                     """
-                    SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                    SELECT i.id, i.path, i.shard, i.source, i.mtime,
                            i.size, i.indexed_at, i.width, i.height,
                            (f.id IS NOT NULL) AS is_favorite,
                            f.favorited_at
