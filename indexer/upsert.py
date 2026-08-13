@@ -261,7 +261,10 @@ def prune_missing(
                     "prune: source dir does not exist or is not a directory: %s", src
                 )
                 continue
+            logger.info("prune: walking %s ...", src_path)
+            walked = 0
             for p in src_path.rglob("*"):
+                walked += 1
                 if p.is_file():
                     lp = p.resolve()
                     if base_path is not None:
@@ -272,6 +275,10 @@ def prune_missing(
                         except ValueError:
                             pass  # outside base — fall through to raw
                     existing_paths.add(str(lp))
+                if walked % 50_000 == 0:
+                    logger.info(
+                        "prune: walked %d entries so far (in %s)", walked, src_path
+                    )
         logger.info(
             "prune: pre-walked %d files under %d source dir(s) "
             "(prefix=%r base=%r)",

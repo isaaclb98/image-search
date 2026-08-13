@@ -21,8 +21,11 @@ extra stat call per file.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Image extensions we know how to embed.
 IMAGE_EXTENSIONS: frozenset[str] = frozenset(
@@ -57,7 +60,7 @@ def should_skip(path: Path) -> bool:
     return should_skip_name(path.name)
 
 
-def snapshot(source: Path) -> list[Path]:
+def snapshot(source: Path, progress_every: int = 10_000) -> list[Path]:
     """
     Return a stable, sorted list of image paths under `source`.
 
@@ -66,24 +69,34 @@ def snapshot(source: Path) -> list[Path]:
 
     Recurses through subdirectories. Filters by extension and skips
     junk files.
+
+    `progress_every` controls how often a progress line is logged
+    (every N image files found). The walk is otherwise silent and can
+    take many minutes on a network share, so the heartbeat keeps the
+    user informed that it is still working.
     """
     if not source.exists():
         raise FileNotFoundError(f"source path does not exist: {source}")
     if not source.is_dir():
         raise NotADirectoryError(f"source is not a directory: {source}")
 
+    logger.info("scan: walking %s ...", source)
     results: list[Path] = []
-    _walk_into(source, results)
+    state = {"count": 0, "next": progress_every}
+    _walk_into(source, results, state, progress_every)
     results.sort()
     return results
 
 
-def _walk_into(source: Path, out: list[Path]) -> None:
+def _walk_into(source: Path, out: list[Path], state: dict, progress_every: int) -> None:
     """
     Recursive scandir-based walk. Appends matching Path objects to `out`.
 
     Uses DirEntry attributes (is_file, name, suffix) which are already
     cached by the underlying syscall — no extra stat() per entry.
+
+    `state` carries the running file count and the next threshold to
+    log at; `progress_every` is the increment between thresholds.
     """
     try:
         with os.scandir(source) as it:
@@ -95,10 +108,17 @@ def _walk_into(source: Path, out: list[Path]) -> None:
                             continue
                         if is_image_suffix(Path(name).suffix):
                             out.append(Path(entry.path))
+                            state["count"] += 1
+                            if state["count"] >= state["next"]:
+                                logger.info(
+                                    "scan: %d image files so far (walking %s)",
+                                    state["count"], source,
+                                )
+                                state["next"] += progress_every
                     elif entry.is_dir(follow_symlinks=False):
                         # Recurse into subdirectories. Skip symlinks to
                         # avoid loops on weird NAS layouts.
-                        _walk_into(Path(entry.path), out)
+                        _walk_into(Path(entry.path), out, state, progress_every)
                 except OSError:
                     # Permission errors, broken links, etc. — skip silently.
                     continue
