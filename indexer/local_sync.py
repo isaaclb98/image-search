@@ -162,7 +162,29 @@ def main(argv=None):
 
     for src_path, src_name in zip(args.source, source_names, strict=True):
         logger.info("=== %s -> %s ===", src_path, src_name)
-        snap = scan_mod.snapshot(src_path)
+        # Estimate the total for this source from Qdrant's per-source
+        # point count (cheap: filtered count against the `source`
+        # payload index) so the walk progress can show a time-to-go.
+        expected_total = None
+        if not args.dry_run:
+            try:
+                from qdrant_client.http import models as _qm
+                cnt = client.count(
+                    collection_name=args.qdrant_collection,
+                    count_filter=_qm.Filter(
+                        must=[
+                            _qm.FieldCondition(
+                                key="source",
+                                match=_qm.MatchValue(value=src_name),
+                            )
+                        ]
+                    ),
+                    exact_count=False,
+                )
+                expected_total = int(cnt.count)
+            except Exception as exc:  # noqa: BLE001 — best-effort estimate
+                logger.debug("count for %s failed: %s", src_name, exc)
+        snap = scan_mod.snapshot(src_path, expected_total=expected_total)
         if args.limit:
             snap = snap[:args.limit]
         logger.info("found %d files in %s", len(snap), src_path)

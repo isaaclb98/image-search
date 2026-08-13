@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,21 @@ def should_skip(path: Path) -> bool:
     return should_skip_name(path.name)
 
 
-def snapshot(source: Path, progress_every: int = 10_000) -> list[Path]:
+def _format_eta(seconds: float) -> str:
+    """Format a duration as mm:ss (or h:mm:ss past an hour)."""
+    seconds = max(0, int(seconds))
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    if h:
+        return f"{h}h {m:02d}m {s:02d}s"
+    return f"{m}m {s:02d}s"
+
+
+def snapshot(
+    source: Path,
+    progress_every: int = 10_000,
+    expected_total: int | None = None,
+) -> list[Path]:
     """
     Return a stable, sorted list of image paths under `source`.
 
@@ -71,9 +86,10 @@ def snapshot(source: Path, progress_every: int = 10_000) -> list[Path]:
     junk files.
 
     `progress_every` controls how often a progress line is logged
-    (every N image files found). The walk is otherwise silent and can
-    take many minutes on a network share, so the heartbeat keeps the
-    user informed that it is still working.
+    (every N image files found). `expected_total` is an optional
+    estimate of the total image count (e.g. from Qdrant's per-source
+    count) used to print a time-to-completion estimate alongside the
+    running rate; without it the line shows elapsed time instead.
     """
     if not source.exists():
         raise FileNotFoundError(f"source path does not exist: {source}")
@@ -81,22 +97,31 @@ def snapshot(source: Path, progress_every: int = 10_000) -> list[Path]:
         raise NotADirectoryError(f"source is not a directory: {source}")
 
     logger.info("scan: walking %s ...", source)
+    if expected_total is not None:
+        logger.info("scan: expecting ~%d image files for this source", expected_total)
     results: list[Path] = []
-    state = {"count": 0, "next": progress_every}
-    _walk_into(source, results, state, progress_every)
+    state = {"count": 0, "next": progress_every, "t0": time.monotonic()}
+    _walk_into(source, results, state, progress_every, expected_total)
     results.sort()
     return results
 
 
-def _walk_into(source: Path, out: list[Path], state: dict, progress_every: int) -> None:
+def _walk_into(
+    source: Path,
+    out: list[Path],
+    state: dict,
+    progress_every: int,
+    expected_total: int | None,
+) -> None:
     """
     Recursive scandir-based walk. Appends matching Path objects to `out`.
 
     Uses DirEntry attributes (is_file, name, suffix) which are already
     cached by the underlying syscall — no extra stat() per entry.
 
-    `state` carries the running file count and the next threshold to
-    log at; `progress_every` is the increment between thresholds.
+    `state` carries the running file count, the next threshold to log
+    at, and the walk start time; `progress_every` is the increment
+    between thresholds; `expected_total` (optional) drives the ETA.
     """
     try:
         with os.scandir(source) as it:
@@ -110,15 +135,12 @@ def _walk_into(source: Path, out: list[Path], state: dict, progress_every: int) 
                             out.append(Path(entry.path))
                             state["count"] += 1
                             if state["count"] >= state["next"]:
-                                logger.info(
-                                    "scan: %d image files so far (walking %s)",
-                                    state["count"], source,
-                                )
                                 state["next"] += progress_every
+                                _log_scan_progress(state, source, expected_total)
                     elif entry.is_dir(follow_symlinks=False):
                         # Recurse into subdirectories. Skip symlinks to
                         # avoid loops on weird NAS layouts.
-                        _walk_into(Path(entry.path), out, state, progress_every)
+                        _walk_into(Path(entry.path), out, state, progress_every, expected_total)
                 except OSError:
                     # Permission errors, broken links, etc. — skip silently.
                     continue
@@ -127,3 +149,21 @@ def _walk_into(source: Path, out: list[Path], state: dict, progress_every: int) 
         # checks in snapshot() before we ever get here; if it does fail
         # mid-walk, just stop — the partial result is still useful.
         pass
+
+
+def _log_scan_progress(state: dict, source: Path, expected_total: int | None) -> None:
+    """Emit one heartbeat line: count, rate, and ETA (if known) or elapsed."""
+    elapsed = time.monotonic() - state["t0"]
+    count = state["count"]
+    rate = count / elapsed if elapsed > 0 else 0.0
+    if expected_total is not None and rate > 0:
+        remaining = max(0, expected_total - count) / rate
+        logger.info(
+            "scan: %d image files so far (%.0f/s, ETA %s) walking %s",
+            count, rate, _format_eta(remaining), source,
+        )
+    else:
+        logger.info(
+            "scan: %d image files so far (%.0f/s, %s elapsed) walking %s",
+            count, rate, _format_eta(elapsed), source,
+        )

@@ -15,6 +15,7 @@ This means:
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -263,6 +264,7 @@ def prune_missing(
                 continue
             logger.info("prune: walking %s ...", src_path)
             walked = 0
+            t0 = time.monotonic()
             for p in src_path.rglob("*"):
                 walked += 1
                 if p.is_file():
@@ -276,8 +278,11 @@ def prune_missing(
                             pass  # outside base — fall through to raw
                     existing_paths.add(str(lp))
                 if walked % 50_000 == 0:
+                    elapsed = time.monotonic() - t0
+                    rate = walked / elapsed if elapsed > 0 else 0.0
                     logger.info(
-                        "prune: walked %d entries so far (in %s)", walked, src_path
+                        "prune: walked %d entries so far (%.0f/s, %dm %02ds elapsed) in %s",
+                        walked, rate, int(elapsed) // 60, int(elapsed) % 60, src_path,
                     )
         logger.info(
             "prune: pre-walked %d files under %d source dir(s) "
