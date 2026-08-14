@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% import "_macros.html" as ui %}
+
 {% block title %}Centroids — Image Search{% endblock %}
 
 {% block content %}
@@ -28,7 +30,6 @@
   >Clear</button>
 </aside>
 
-{% import "_macros.html" as ui %}
 <section class="centroids max-w-6xl mx-auto px-4 py-6" aria-label="Custom centroids">
   {{ ui.page_header("Centroids") }}
   <p class="text-sm text-base-content/70 -mt-4 mb-6">
@@ -155,17 +156,11 @@
     </ul>
     </section>
   {% else %}
-    <div class="alert alert-info max-w-2xl mx-auto my-8"><div>
-      {% if not centroids_dir %}
-        Set <code>CENTROIDS_DIR</code> to a directory of
-        <code>.pt</code> files produced by
-        <code>isaac-image-scoring</code> and restart the container.
-      {% else %}
-        The directory is empty or every file was skipped. Run
-        <code>isaac-image-scoring extract</code> to generate a
-        centroid, then click <em>reload</em> above.
-      {% endif %}
-    </div></div>
+    {{ ui.empty_state(
+        icon='sparkles',
+        title='No centroids to show',
+        body='Set CENTROIDS_DIR to a directory of .pt files produced by isaac-image-scoring, then restart the container. If the directory is set but empty, run `isaac-image-scoring extract` to generate a centroid and click reload above.',
+    ) }}
   {% endif %}
 </section>
 {% endblock %}
