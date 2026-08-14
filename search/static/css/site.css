@@ -257,8 +257,8 @@ a:hover { color: var(--accent-hover); }
   gap: 0.3rem;
 }
 .prompt-add input {
-  width: 13rem;
-  max-width: 50vw;
+  width: 22rem;
+  max-width: min(36rem, 100%);
   padding: 0.35rem 0.5rem;
   color: var(--fg);
   background: var(--card);

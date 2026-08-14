@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Centroids — Isaac Image Search{% endblock %}
+{% block title %}Centroids — Image Search{% endblock %}
 
 {% block content %}
 {# Sticky multi-select bar. Always rendered (even with zero selection)
@@ -156,7 +156,6 @@
     </section>
   {% else %}
     <div class="alert alert-info max-w-2xl mx-auto my-8"><div>
-      <strong>No centroids loaded.</strong>
       {% if not centroids_dir %}
         Set <code>CENTROIDS_DIR</code> to a directory of
         <code>.pt</code> files produced by
