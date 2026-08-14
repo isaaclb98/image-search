@@ -61,7 +61,7 @@ def _seed_point(raw, name: str, path_str: str, source: str, blurhash=None, dhash
             vector=[0.0] * VECTOR_DIM,
             payload={
                 "id": _pid(name), "path": path_str, "shard": "",
-                "source": source, "mtime": 100, "size": 200,
+                "collection": source, "mtime": 100, "size": 200,
                 "indexed_at": "2026-01-01T00:00:00+00:00",
                 # nullable fields the backfill will rewrite:
                 "blurhash": blurhash, "dhash": dhash,

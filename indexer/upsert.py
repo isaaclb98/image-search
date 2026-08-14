@@ -316,7 +316,7 @@ def prune_missing(
         to_delete: list[str | int] = []
         for p in batch:
             payload = p.payload or {}
-            src = payload.get("source", "")
+            src = payload.get("collection", "")
             if source_names is not None and src not in source_names:
                 # Out of scope for this run — other sources are
                 # managed by other runs; never touch them.

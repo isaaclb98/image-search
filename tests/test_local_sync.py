@@ -41,7 +41,7 @@ def test_build_payload_includes_blurhash(tmp_path: Path) -> None:
     """
     png = _make_png(tmp_path)
     payload = build_payload(png, shard="", model_name="ViT-gopt-16-SigLIP2-384",
-                           model_revision="", source="kpop/data")
+                           model_revision="", collection="kpop/data")
     assert "blurhash" in payload, (
         "build_payload must include 'blurhash' — local_sync relies on it for LQIP"
     )
@@ -53,16 +53,16 @@ def test_build_payload_includes_blurhash(tmp_path: Path) -> None:
 
 
 def test_build_payload_uses_source_name(tmp_path: Path) -> None:
-    """The source-name flag flows through to the payload.source field,
+    """The source-name flag flows through to the payload.collection field,
     which the search UI uses for filtering. If local_sync ever drops
     or misnames this field, source filters break silently.
     """
     png = _make_png(tmp_path)
     for source_name in ("kpop/data", "kpop/collections", "my-lib"):
         payload = build_payload(png, shard="", model_name="ViT-gopt-16-SigLIP2-384",
-                               model_revision="", source=source_name)
-        assert payload.get("source") == source_name, (
-            f"source mismatch: passed {source_name!r}, got {payload.get('source')!r}"
+                               model_revision="", collection=source_name)
+        assert payload.get("collection") == source_name, (
+            f"source mismatch: passed {source_name!r}, got {payload.get('collection')!r}"
         )
 
 

@@ -112,7 +112,7 @@ def main(argv=None):
     client = make_client(args)
     if not args.dry_run:
         upsert.ensure_collection(client, args.qdrant_collection)
-        upsert.ensure_payload_index(client, args.qdrant_collection, "source", "keyword")
+        upsert.ensure_payload_index(client, args.qdrant_collection, "collection", "keyword")
 
     if args.reblurhash and args.refingerprint:
         logger.error("--reblurhash and --refingerprint are mutually exclusive")
@@ -174,7 +174,7 @@ def main(argv=None):
                     count_filter=_qm.Filter(
                         must=[
                             _qm.FieldCondition(
-                                key="source",
+                                key="collection",
                                 match=_qm.MatchValue(value=src_name),
                             )
                         ]
@@ -327,9 +327,9 @@ def _backfill_payload_field(
         # payload.path and check whether it starts with any of our
         # canonical source roots (which we know by --source-name mapping).
         # The source-name field is already in the payload, so the
-        # simplest source-scoping is: points whose payload.source is
+        # simplest source-scoping is: points whose payload.collection is
         # in source_names are the ones to backfill.
-        scoped = [p for p in points if (p.payload or {}).get("source") in source_names]
+        scoped = [p for p in points if (p.payload or {}).get("collection") in source_names]
         if not scoped:
             if next_offset is None:
                 break
