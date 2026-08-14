@@ -1,16 +1,24 @@
 # .github/workflows/image-build.yml
 #
-# Build the search-side container on every push to main and push
-# it to GitHub Container Registry so the k8s cluster (synced by
-# ArgoCD from ~/projects/gitops) can pull a fresh image without a
-# local Docker build.
+# Build the search-side container and push it to GitHub Container
+# Registry so the k8s cluster (synced by ArgoCD from ~/projects/gitops)
+# can pull a fresh image without a local Docker build.
 #
 # Tags:
-#   - `:dev`            — always latest on main; what the cluster's
-#                         Deployment pins to.
+#   - `:latest`         — always tracks main; what the cluster's
+#                         StatefulSet pins to.
 #   - `:sha-<7-char>`   — per-commit; useful for rollback or for
 #                         promoting a specific commit to a stable
 #                         tag later.
+#
+# Trigger filter: `on.push.paths` is an allowlist of paths whose
+# presence in the diff is necessary to trigger a build. The Dockerfile
+# only depends on `docker/Dockerfile.search`, `pyproject.toml`,
+# `README.md`, `search/`, and `indexer/`; the workflow file itself
+# is in the allowlist so editing CI still rebuilds. Touching tests/,
+# LICENSE, plain markdown, or other non-build artifacts skips the
+# build entirely — which is what we want, since the `dev-build.yml`
+# workflow already covers tests/lint for feature branches.
 #
 # Layer cache: GHA backend (type=gha, mode=max) — keyed off the
 # final layer hash so unchanged Dockerfile steps reuse the previous
@@ -30,6 +38,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - docker/Dockerfile.search
+      - pyproject.toml
+      - README.md
+      - search/**
+      - indexer/**
+      - .github/workflows/image-build.yml
 
 jobs:
   build-and-push:
@@ -58,7 +73,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=dev
+            type=raw,value=latest
             type=sha,format=short
           labels: |
             org.opencontainers.image.title=image-search
