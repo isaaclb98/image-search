@@ -41,7 +41,19 @@ def random_app(tmp_path, monkeypatch):
     # SQL — they're not real files on disk, so the liveness check
     # correctly filters every row out. Mock the helper to return True
     # so the seeded rows survive.
+    #
+    # The fix for the UNC-payload bug (2026-08-15) calls resolve_local
+    # before _is_path_alive. The fixture's seeded paths don't match
+    # the production prefix, so resolve_local would return None and
+    # drop every row. Mock it to a no-op identity so the seeded paths
+    # round-trip through the filter.
+    from pathlib import Path as _Path
     from search import app as _app_mod
+    monkeypatch.setattr(
+        _app_mod,
+        "resolve_local",
+        lambda path, *a, **kw: _Path(path) if path else None,
+    )
     monkeypatch.setattr(_app_mod, "_is_path_alive", lambda path: True)
 
     # Seed the SQLite cache directly — the random page reads from
