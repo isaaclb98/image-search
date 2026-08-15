@@ -185,6 +185,20 @@ def test_api_search_with_centroid(app_with_centroids):
     assert len(data["results"]) == 3
 
 
+def test_api_search_with_centroid_supports_diversity(app_with_centroids):
+    """Centroid vectors can use the same Diversity ranking pass as text searches."""
+    resp = app_with_centroids.get(
+        f"/api/search?centroid={WUXIA_CENTROID}&diversity=balanced&limit=10"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["centroid"] == WUXIA_CENTROID
+    assert data["diverse"] is True
+    assert data["diversity"]["requested"] is True
+    assert data["diversity"]["applied"] is True
+    assert data["diversity"]["mode"] == "balanced"
+
+
 def test_api_search_centroid_mutex_with_q(app_with_centroids):
     """?centroid=foo&q=bar is rejected with 400 — they can't coexist."""
     resp = app_with_centroids.get(f"/api/search?centroid={WUXIA_CENTROID}&q=cat")

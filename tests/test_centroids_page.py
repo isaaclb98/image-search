@@ -134,13 +134,24 @@ def test_search_page_hides_prompt_composition_in_centroid_mode(app_with_centroid
     assert "prompt-composition" not in resp.text
 
 
-def test_search_page_disables_search_in_centroid_mode(app_with_centroids):
-    """The prompt composer is hidden and Search is disabled in centroid mode."""
+def test_search_page_keeps_search_enabled_in_centroid_mode(app_with_centroids):
+    """The prompt composer is hidden, but Search remains available so
+    centroid users can apply Diversity and other search controls."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
     assert resp.status_code == 200
     assert 'data-prompt-input="positives"' not in resp.text
-    assert 'class="search-submit" type="submit" disabled' in resp.text
-    assert "disabled" in resp.text
+    assert 'class="search-submit" type="submit" disabled' not in resp.text
+
+
+def test_search_page_centroid_diversity_control_is_selected(app_with_centroids):
+    """Centroid searches expose the active Diversity mode for resubmission."""
+    resp = app_with_centroids.get(
+        f"/?centroid={WUXIA_CENTROID}&diversity=balanced&diversity_depth=2000"
+    )
+    assert resp.status_code == 200
+    assert 'value="balanced" selected' in resp.text
+    assert 'value="2000" selected' in resp.text
+    assert 'class="search-submit" type="submit" disabled' not in resp.text
 
 
 def test_search_page_no_indicator_without_centroid(app_with_centroids):

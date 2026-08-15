@@ -118,7 +118,7 @@ class Config:
     # All env-driven so an operator can tune the running service without
     # a code change. Defaults match the prior hardcoded values exactly.
     max_results_total: int = 5000
-    static_assets_version: int = 31
+    static_assets_version: int = 32
     max_prompt_chars: int = 512
     max_prompts_total: int = 16
     # `valid_views` and `default_view` are a closed enum; not env-driven.
@@ -258,7 +258,7 @@ def load() -> Config:
         centroid_expected_feature_dim=expected_dim,
         index_db_path=index_db_path,
         max_results_total=_int("MAX_RESULTS_TOTAL", 5000),
-        static_assets_version=_int("STATIC_ASSETS_VERSION", 31),
+        static_assets_version=_int("STATIC_ASSETS_VERSION", 32),
         max_prompt_chars=_int("MAX_PROMPT_CHARS", 512),
         max_prompts_total=_int("MAX_PROMPTS_TOTAL", 16),
         filename_cardinality_guard=_float("FILENAME_CARDINALITY_GUARD", 0.5),

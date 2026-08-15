@@ -107,6 +107,17 @@ def test_result_page_javascript_fallback_limits_are_35():
     assert 'grid?.dataset.limit || "35"' in favorites
 
 
+def test_centroid_search_submit_preserves_centroid_and_weights():
+    url = read(STATIC / "js" / "lib" / "url.js")
+    search = read(STATIC / "js" / "search.js")
+
+    assert "readCentroids()" in url
+    assert 'params.append("centroid", centroid)' in url
+    assert "readCentroidWeights()" in url
+    assert 'params.set("weights", weights.join(","))' in url
+    assert "buildSearchUrlWithFilename(" in search
+
+
 def test_download_zip_buttons_keep_text_centered_and_inside():
     source = read(STATIC / "css" / "input.css")
     bundle = read(STATIC / "css" / "app.css")

@@ -151,6 +151,7 @@ export function buildSearchUrl(
   for (const collection of collections) {
     params.append("collection", collection);
   }
+  appendCentroidState(params);
   // Filename: round-trip from the URL so the state mirror stays
   // in sync with the server. Empty values are stripped to keep
   // canonical URLs clean (matching the server's behaviour).
@@ -177,6 +178,21 @@ export function buildSearchUrl(
   return `/${query ? `?${query}` : ""}`;
 }
 
+// Centroid searches are already committed in the current URL when the
+// user changes a search-only control such as Diversity. Preserve those
+// anchors while rebuilding the URL so clicking Search does not silently
+// turn a centroid search into an empty text search.
+function appendCentroidState(params) {
+  const centroids = readCentroids();
+  for (const centroid of centroids) {
+    params.append("centroid", centroid);
+  }
+  const weights = readCentroidWeights();
+  if (weights && centroids.length > 1 && weights.length === centroids.length) {
+    params.set("weights", weights.join(","));
+  }
+}
+
 // Like buildSearchUrl but lets the caller pass an explicit filename
 // (the form's current input value) rather than reading from the
 // URL. The form submit handler needs this because the user's typed
@@ -196,6 +212,7 @@ export function buildSearchUrlWithFilename(
   for (const collection of collections) {
     params.append("collection", collection);
   }
+  appendCentroidState(params);
   if (filename) {
     params.set("filename", filename);
   }
