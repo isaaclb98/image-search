@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fafaf9">
-  <title>{% block title %}Isaac Image Search{% endblock %}</title>
+  <title>{% block title %}Image Search{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -55,12 +55,16 @@
           {% endfor %}
         </nav>
       </details>
-      {# Brand link — plain text, no btn. DaisyUI btn-ghost + bg-clip-text
-         on an inline span didn't render the gradient cleanly (looked
-         broken / off). Clean text styling is more reliable; gradient
-         can come back as polish once the rest of the navbar is stable. #}
-      <a class="app-brand px-3 py-1.5 rounded-md text-base font-semibold hover:bg-base-200 transition-colors text-base-content" href="/">
-        <span class="app-brand__mark" aria-hidden="true">I</span>
+      {# Brand link. `aria-label` makes the link's accessible name
+         deterministic across screen readers — without it, some
+         screen readers compose an awkward name from the inline spans. #}
+      <a class="app-brand px-3 py-1.5 rounded-md text-base font-semibold hover:bg-base-200 transition-colors text-base-content" href="/" aria-label="Image Search home">
+        <span class="app-brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor" opacity="0.55" />
+            <rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" />
+          </svg>
+        </span>
         <span>Image Search</span>
       </a>
     </div>
@@ -106,7 +110,7 @@
         }"
         @click="toggle()"
         :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-        :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        title="Toggle theme"
       >
         {# x-cloak hides both icons until Alpine hydrates, so neither
            renders in the wrong position during FOUC. SVG paths are
@@ -154,8 +158,8 @@
       <div class="photo-lightbox-body">
         <figure class="photo-lightbox-figure">
           <img data-lightbox-image src="" alt="">
-          <button type="button" class="photo-lightbox-nav photo-lightbox-nav--prev" data-lightbox-prev aria-label="Previous photo" title="Previous (←)">{{ ui.ui_icon('chevron-left', 'h-6 w-6') }}</button>
-          <button type="button" class="photo-lightbox-nav photo-lightbox-nav--next" data-lightbox-next aria-label="Next photo" title="Next (→)">{{ ui.ui_icon('chevron-right', 'h-6 w-6') }}</button>
+          <button type="button" class="photo-lightbox-nav photo-lightbox-nav--prev" data-lightbox-prev aria-label="Previous photo" aria-keyshortcuts="ArrowLeft" title="Previous (←)">{{ ui.ui_icon('chevron-left', 'h-6 w-6') }}</button>
+          <button type="button" class="photo-lightbox-nav photo-lightbox-nav--next" data-lightbox-next aria-label="Next photo" aria-keyshortcuts="ArrowRight" title="Next (→)">{{ ui.ui_icon('chevron-right', 'h-6 w-6') }}</button>
         </figure>
         <aside class="photo-lightbox-details">
           <p class="photo-lightbox-eyebrow">Selected image</p>

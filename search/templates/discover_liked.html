@@ -2,7 +2,7 @@
 
 {% import "_macros.html" as ui %}
 
-{% block title %}Discover Liked — Isaac Image Search{% endblock %}
+{% block title %}Discover Liked — Image Search{% endblock %}
 
 {% block content %}
 <section class="discover-liked discover-liked-page max-w-6xl mx-auto px-4 py-6">
@@ -40,7 +40,13 @@
         <a class="discover-new-link" href="/discover">start a new discovery →</a>
       </div>
     {% else %}
-      {{ ui.empty_state(icon='sparkles', title='No picks in this session.', body='Choose an image in Discovery to build a personal feed.', action_url='/discover', action_label='Start discovery') }}
+      {{ ui.empty_state(
+          icon='sparkles',
+          title='Nothing here yet',
+          body='Start a discovery session and pick the photos you like. We\'ll learn what you enjoy and build a personal feed from there.',
+          action_url='/discover',
+          action_label='Start discovery',
+      ) }}
     {% endif %}
   </header>
 

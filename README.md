@@ -28,7 +28,7 @@ pip install -e ".[dev]"
 docker run -p 6333:6333 qdrant/qdrant
 
 # Index a photo library
-python -m indexer.indexer /path/to/photos --qdrant-url http://localhost:6333
+python -m indexer.local_sync --source /path/to/photos --source-name photos --qdrant-url http://localhost:6333
 
 # Start the web app — defaults to 0.0.0.0:8000
 python -m search.app
@@ -129,7 +129,7 @@ Indexed photos get a Blurhash LQIP computed at index time and stored in the Qdra
 Backfill a collection without re-embedding:
 
 ```bash
-python -m indexer.indexer /path/to/photos --qdrant-url http://localhost:6333 --reblurhash
+python -m indexer.local_sync --source /path/to/photos --source-name photos --qdrant-url http://localhost:6333 --reblurhash
 ```
 
 Use this after upgrading the encoder, or for any point indexed before the `--reblurhash` feature shipped (those have `payload.blurhash == null` until the walk touches them). The walk is cursor-paginated, idempotent (a point whose current hash matches the recompute is skipped), and never re-embeds — it only writes the `blurhash` payload field.
@@ -137,7 +137,7 @@ Use this after upgrading the encoder, or for any point indexed before the `--reb
 Search Diversity fingerprints can be backfilled independently:
 
 ```bash
-python -m indexer.indexer /path/to/photos --qdrant-url http://localhost:6333 --refingerprint
+python -m indexer.local_sync --source /path/to/photos --source-name photos --qdrant-url http://localhost:6333 --refingerprint
 ```
 
 `--refingerprint` writes `content_sha256` and `dhash` payload fields without

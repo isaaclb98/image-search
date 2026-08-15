@@ -153,7 +153,7 @@
       <span class="prompt-row-label">Include</span>
       <div class="prompt-chip-list" data-prompt-chips="positives">
         {% for prompt in positive_chips %}
-          <button class="prompt-chip prompt-chip--positive" type="button" data-prompt-chip="{{ prompt }}">
+          <button class="prompt-chip prompt-chip--positive" type="button" data-prompt-chip="{{ prompt }}" aria-label='Remove include prompt "{{ prompt }}"'>
             <span>{{ prompt }}</span>
             <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
           </button>
@@ -170,7 +170,7 @@
       <span class="prompt-row-label">Exclude</span>
       <div class="prompt-chip-list" data-prompt-chips="negatives">
         {% for prompt in negative_chips %}
-          <button class="prompt-chip prompt-chip--negative" type="button" data-prompt-chip="{{ prompt }}">
+          <button class="prompt-chip prompt-chip--negative" type="button" data-prompt-chip="{{ prompt }}" aria-label='Remove exclude prompt "{{ prompt }}"'>
             <span>{{ prompt }}</span>
             <span class="prompt-chip-remove" aria-hidden="true">&times;</span>
           </button>

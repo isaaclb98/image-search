@@ -82,6 +82,11 @@ export class PromptChips {
         chip.type = "button";
         chip.className = `prompt-chip prompt-chip--${side === "positives" ? "positive" : "negative"}`;
         chip.dataset.promptChip = prompt;
+        // `aria-label` makes the chip announce as "Remove prompt
+        // X" rather than the bare text inside (which a screen reader
+        // would otherwise read verbatim, with no indication the chip
+        // is interactive).
+        chip.setAttribute("aria-label", `Remove ${side === "positives" ? "include" : "exclude"} prompt "${prompt}"`);
         chip.innerHTML =
           `<span>${escapeHtml(prompt)}</span>` +
           `<span class="prompt-chip-remove" aria-hidden="true">&times;</span>`;

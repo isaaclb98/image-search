@@ -250,8 +250,8 @@ a:hover {
   gap: 0.3rem;
 }
 .prompt-add input {
-  width: 13rem;
-  max-width: 50vw;
+  width: 22rem;
+  max-width: min(36rem, 100%);
   padding: 0.35rem 0.5rem;
   color: var(--fg);
   background: var(--card);
@@ -302,14 +302,6 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
-}
-.random-page .grid {
-  /* Random tab pins to 7 columns at every viewport (user
-     preference — denser than the responsive search/favorites grid).
-     minmax(0, 1fr) lets items shrink below their min-content so
-     very narrow viewports still fit 7 columns without horizontal
-     overflow. */
-  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 .grid-item {
   position: relative;
@@ -706,8 +698,7 @@ a:hover {
   margin: 1.5rem 0 0;
 }
 .btn {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
   padding: 0.5rem 1rem;
   border: 1px solid var(--glass-border);
   border-radius: 6px;
@@ -1621,6 +1612,7 @@ a:hover {
     --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
     --color-black: #000;
     --spacing: 0.25rem;
+    --container-sm: 24rem;
     --container-md: 28rem;
     --container-2xl: 42rem;
     --container-4xl: 56rem;
@@ -1633,6 +1625,8 @@ a:hover {
     --text-base--line-height: 1.6;
     --text-lg: 1.125rem;
     --text-lg--line-height: 1.5;
+    --text-xl: 1.25rem;
+    --text-xl--line-height: 1.4;
     --text-2xl: 1.5rem;
     --text-2xl--line-height: 1.3;
     --text-4xl: 3rem;
@@ -1903,6 +1897,9 @@ a:hover {
   .mb-8 {
     margin-bottom: calc(var(--spacing) * 8);
   }
+  .ml-1 {
+    margin-left: var(--spacing);
+  }
   .line-clamp-2 {
     overflow: hidden;
     display: -webkit-box;
@@ -1963,6 +1960,9 @@ a:hover {
   .h-full {
     height: 100%;
   }
+  .min-h-screen {
+    min-height: 100vh;
+  }
   .w-1\/3 {
     width: calc(1 / 3 * 100%);
   }
@@ -2002,6 +2002,9 @@ a:hover {
   .max-w-md {
     max-width: var(--container-md);
   }
+  .max-w-sm {
+    max-width: var(--container-sm);
+  }
   .min-w-48 {
     min-width: calc(var(--spacing) * 48);
   }
@@ -2020,8 +2023,8 @@ a:hover {
   .basis-full {
     flex-basis: 100%;
   }
-  .transform {
-    transform: var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,);
+  .cursor-pointer {
+    cursor: pointer;
   }
   .resize {
     resize: both;
@@ -2059,6 +2062,9 @@ a:hover {
   .justify-center {
     justify-content: center;
   }
+  .justify-start {
+    justify-content: flex-start;
+  }
   .gap-1 {
     gap: var(--spacing);
   }
@@ -2073,6 +2079,11 @@ a:hover {
   }
   .gap-4 {
     gap: calc(var(--spacing) * 4);
+  }
+  :where(.space-y-1 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(var(--spacing) * var(--tw-space-y-reverse));
+    margin-block-end: calc(var(--spacing) * calc(1 - var(--tw-space-y-reverse)));
   }
   :where(.space-y-3 > :not(:last-child)) {
     --tw-space-y-reverse: 0;
@@ -2094,16 +2105,9 @@ a:hover {
   .rounded-md {
     border-radius: var(--radius-md);
   }
-  .border {
-    border-style: var(--tw-border-style);
-    border-width: 1px;
-  }
   .border-b {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 1px;
-  }
-  .bg-clip-text {
-    background-clip: text;
   }
   .stroke-current {
     stroke: currentcolor;
@@ -2123,11 +2127,20 @@ a:hover {
   .px-6 {
     padding-inline: calc(var(--spacing) * 6);
   }
+  .py-1 {
+    padding-block: var(--spacing);
+  }
   .py-1\.5 {
     padding-block: calc(var(--spacing) * 1.5);
   }
+  .py-2 {
+    padding-block: calc(var(--spacing) * 2);
+  }
   .py-6 {
     padding-block: calc(var(--spacing) * 6);
+  }
+  .py-10 {
+    padding-block: calc(var(--spacing) * 10);
   }
   .py-16 {
     padding-block: calc(var(--spacing) * 16);
@@ -2154,6 +2167,10 @@ a:hover {
   .text-sm {
     font-size: var(--text-sm);
     line-height: var(--tw-leading, var(--text-sm--line-height));
+  }
+  .text-xl {
+    font-size: var(--text-xl);
+    line-height: var(--tw-leading, var(--text-xl--line-height));
   }
   .text-xs {
     font-size: var(--text-xs);
@@ -2192,12 +2209,12 @@ a:hover {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
-  .shadow-lg {
-    --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
-    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-  }
   .shadow-md {
     --tw-shadow: 0 4px 8px var(--tw-shadow-color, rgba(0, 0, 0, 0.08));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  .shadow-xl {
+    --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .shadow-xs {
@@ -51090,8 +51107,6 @@ body {
   border-radius: 0.5rem;
   background: var(--color-primary);
   color: var(--color-primary-content);
-  font-size: 0.9rem;
-  font-weight: 700;
 }
 .menu.menu-horizontal {
   gap: 0.2rem;
@@ -51106,13 +51121,22 @@ body {
   font-weight: 500;
   transition: background 150ms ease, color 150ms ease, opacity 150ms ease;
 }
-.menu.menu-horizontal .nav-link:hover, .menu.menu-horizontal .nav-link:focus-visible, .menu.menu-horizontal .nav-link.is-active {
+.menu.menu-horizontal .nav-link:hover, .menu.menu-horizontal .nav-link:focus-visible {
   background: var(--color-base-200);
   color: var(--color-base-content);
   opacity: 1;
 }
 .menu.menu-horizontal .nav-link.is-active {
+  background: var(--color-primary);
+  @supports (color: color-mix(in lab, red, red)) {
+    background: color-mix(in oklch, var(--color-primary) 14%, transparent);
+  }
+  color: var(--color-primary);
+  opacity: 1;
   box-shadow: inset 0 -2px 0 var(--color-primary);
+  @supports (color: color-mix(in lab, red, red)) {
+    box-shadow: inset 0 -2px 0 color-mix(in oklch, var(--color-primary) 60%, transparent);
+  }
 }
 .theme-toggle, .keyboard-help-trigger, .icon-button, .mobile-nav-toggle {
   color: var(--color-base-content);
@@ -51183,11 +51207,11 @@ body {
 .mobile-nav-kicker, .eyebrow {
   margin: 0 0 0.35rem;
   color: var(--color-base-content);
-  opacity: 0.55;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  opacity: 0.6;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 .mobile-nav-link {
   display: flex;
@@ -51288,15 +51312,20 @@ body {
   min-height: 2.9rem;
   padding-inline: 1rem;
   border: 1px solid var(--color-primary);
-  border-radius: 0.75rem;
+  @supports (color: color-mix(in lab, red, red)) {
+    border: 1px solid color-mix(in oklch, var(--color-primary) 50%, transparent);
+  }
+  border-radius: 0.6rem;
   background: var(--color-primary);
   color: var(--color-primary-content);
   font-weight: 650;
   cursor: pointer;
-  transition: filter 150ms ease, transform 150ms ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 .search-submit:hover {
   filter: brightness(1.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 .search-submit:active {
   transform: translateY(1px);
@@ -51328,7 +51357,7 @@ body {
   font: inherit;
   font-size: 0.8rem;
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 .diversity-control {
   padding: 0 0.25rem 0 0.65rem;
@@ -51357,6 +51386,12 @@ body {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+.diversity-select.is-active {
+  box-shadow: 0 0 0 3px var(--color-primary);
+  @supports (color: color-mix(in lab, red, red)) {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 14%, transparent);
+  }
+}
 .view-toggle-btn:hover, .diverse-btn:hover, .surprise-btn:hover, .diversity-control:hover {
   background: var(--color-base-200);
   border-color: var(--color-primary);
@@ -51368,6 +51403,10 @@ body {
   }
   border-color: var(--color-primary);
   color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary);
+  @supports (color: color-mix(in lab, red, red)) {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 14%, transparent);
+  }
 }
 .surprise-btn {
   color: var(--color-accent);
@@ -51448,7 +51487,7 @@ body {
   width: 100%;
   min-height: 2.45rem;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.55rem;
+  border-radius: 0.6rem;
 }
 .prompt-composition {
   display: grid;
@@ -51559,6 +51598,7 @@ body {
   color: var(--color-base-content);
   opacity: 0.68;
   font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 .result-count a, .similar-back-link a {
   color: var(--color-primary);
@@ -51677,7 +51717,7 @@ body {
   color: var(--color-base-content);
 }
 .photo-page, .album-detail-page, .discover-page, .discover-liked-page {
-  max-width: 1200px;
+  max-width: 1152px;
   margin-inline: auto;
 }
 .photo-nav, .album-nav {
@@ -52078,26 +52118,6 @@ kbd {
     animation-iteration-count: 1 !important;
   }
 }
-@property --tw-rotate-x {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-rotate-y {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-rotate-z {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-skew-x {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-skew-y {
-  syntax: "*";
-  inherits: false;
-}
 @property --tw-space-y-reverse {
   syntax: "*";
   inherits: false;
@@ -52317,11 +52337,6 @@ kbd {
 @layer properties {
   @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
     *, ::before, ::after, ::backdrop {
-      --tw-rotate-x: initial;
-      --tw-rotate-y: initial;
-      --tw-rotate-z: initial;
-      --tw-skew-x: initial;
-      --tw-skew-y: initial;
       --tw-space-y-reverse: 0;
       --tw-border-style: solid;
       --tw-font-weight: initial;
