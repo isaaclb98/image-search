@@ -25,6 +25,17 @@ def refresh_app(tmp_path, monkeypatch):
     from search.app import create_app
     from search.config import Config
     from search.qdrant_client import QdrantSearch
+    # The fix for the UNC-payload bug (2026-08-15) calls resolve_local
+    # before _is_path_alive. The fixture's seeded paths don't match
+    # the production prefix, so resolve_local would return None and
+    # drop every row. Mock it to a no-op identity so the seeded paths
+    # round-trip through the filter.
+    from pathlib import Path as _Path
+    monkeypatch.setattr(
+        _app_mod,
+        "resolve_local",
+        lambda path, *a, **kw: _Path(path) if path else None,
+    )
     monkeypatch.setattr(_app_mod, "_is_path_alive", lambda path: True)
 
     cfg = Config(

@@ -1825,16 +1825,18 @@ def create_app(
         # Lazy liveness: if the file is gone from disk, 404 immediately.
         # The raw-image route would 404 anyway, but a 404 at the page
         # level is a cleaner signal than rendering "File not found" in
-        # the middle of the photo detail page.
-        if not _is_path_alive(str(hit.path)):
-            raise HTTPException(status_code=404, detail="Photo file missing")
-
+        # the middle of the photo detail page. Resolve the payload path
+        # to its local mount first — the payload path is often a Windows
+        # UNC that is never alive on the search server, so checking it
+        # directly would 404 every photo.
         local = resolve_local(hit.path, _cfg.nas_images_base, _cfg.path_prefix)
         file_missing = local is None
         # Belt-and-braces: even if `resolve_local` succeeded, the file
         # may have been deleted since the last IndexDB refresh.
         if not file_missing and not _is_path_alive(str(local)):
             file_missing = True
+        if file_missing:
+            raise HTTPException(status_code=404, detail="Photo file missing")
         prompt_state = _normalize_prompt_state(
             q,
             _parse_prompts(request, "positives"),
@@ -1914,12 +1916,11 @@ def create_app(
             raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
-        # Lazy liveness at the raw route too. The page route has its
-        # own check; this is the last line of defense before serving
-        # bytes from disk.
-        if not _is_path_alive(str(hit.path)):
-            raise HTTPException(status_code=404, detail="Photo file missing")
-
+        # Lazy liveness: resolve the payload path to its local mount
+        # first, then check the resolved path. The payload path is
+        # often a Windows UNC (or any source-side path) that is
+        # never alive on the search server, so checking it directly
+        # 404s every photo.
         local = resolve_local(hit.path, _cfg.nas_images_base, _cfg.path_prefix)
         if local is None or not _is_path_alive(str(local)):
             raise HTTPException(status_code=404, detail="File not found on disk")
@@ -2252,9 +2253,20 @@ def create_app(
         in IndexDB.get_by_id; album rows from list_album_members
         don't include it so default False is fine for v1).
         """
-        # Lazy liveness: drop dead rows from album tiles. Same
-        # defence as the random helper below.
-        alive = [r for r in rows if _is_path_alive(str(r.get("path") or ""))]
+        # Lazy liveness: drop dead rows from album tiles. Resolve the
+        # payload path to its local mount first — the row's `path`
+        # is the source-side path (often a Windows UNC) that is
+        # never alive on the search server, so checking it directly
+        # would drop every row.
+        alive = []
+        for r in rows:
+            local = resolve_local(
+                str(r.get("path") or ""),
+                _cfg.nas_images_base,
+                _cfg.path_prefix,
+            )
+            if local is not None and _is_path_alive(str(local)):
+                alive.append(r)
         if len(alive) < len(rows):
             logger.debug(
                 "album members: dropped %d dead row(s) from %d via lazy liveness",
@@ -2292,8 +2304,20 @@ def create_app(
         # IndexDB periodic refresh (force=True, every
         # index_db_refresh_interval_seconds) keeps the cache clean
         # in the long term; this is the always-on defense so /random
-        # doesn't show broken tiles within the TTL window.
-        alive = [r for r in rows if _is_path_alive(str(r.get("path") or ""))]
+        # doesn't show broken tiles within the TTL window. Resolve the
+        # payload path to its local mount first — the cached `path`
+        # is the source-side path (often a Windows UNC) that is
+        # never alive on the search server, so checking it directly
+        # would drop every row.
+        alive = []
+        for r in rows:
+            local = resolve_local(
+                str(r.get("path") or ""),
+                _cfg.nas_images_base,
+                _cfg.path_prefix,
+            )
+            if local is not None and _is_path_alive(str(local)):
+                alive.append(r)
         if len(alive) < len(rows):
             logger.debug(
                 "random: dropped %d dead row(s) from %d via lazy liveness",
