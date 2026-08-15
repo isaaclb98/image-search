@@ -51699,6 +51699,22 @@ body {
 .ui-empty-state__icon > span {
   font-size: 1.8rem;
 }
+.random-page .grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.download-zip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  line-height: 1.2;
+  text-align: center;
+}
+.download-zip-btn > svg, .download-zip-btn > span {
+  flex: 0 0 auto;
+}
 .state.state-idle {
   padding: 3rem 1rem;
   text-align: center;

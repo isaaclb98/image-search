@@ -66,7 +66,7 @@ function buildApiUrl() {
   const url = new URL("/api/favorites", window.location.origin);
   url.searchParams.set("as_results", "true");
   const offset = Number(grid?.dataset.offset || "0");
-  const limit = Number(grid?.dataset.limit || "70");
+  const limit = Number(grid?.dataset.limit || "35");
   url.searchParams.set("offset", String(offset));
   url.searchParams.set("limit", String(limit));
   return url.toString();

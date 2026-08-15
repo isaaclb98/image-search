@@ -797,6 +797,30 @@ body {
 .ui-empty-state { min-height: 16rem; }
 .ui-empty-state__icon { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; margin-bottom: 1rem; border: 1px solid var(--glass-border); border-radius: 1rem; color: var(--color-primary); opacity: 0.78; }
 .ui-empty-state__icon > span { font-size: 1.8rem; }
+
+/* Random is intentionally denser than the responsive result grids. */
+.random-page .grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+/* Download links also carry legacy `.btn` / DaisyUI button classes.
+   Keep this override after those imports so the links stay real,
+   centered flex buttons instead of collapsing into inline content. */
+.download-zip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  line-height: 1.2;
+  text-align: center;
+}
+.download-zip-btn > svg,
+.download-zip-btn > span {
+  flex: 0 0 auto;
+}
+
 /* Inline idle/error states used by search.html and friends. Kept
    as a thin pattern so a missing-result condition reads without a
    full empty-state card. */

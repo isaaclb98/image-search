@@ -99,7 +99,7 @@ def app_with_centroids(qdrant_in_memory, nas_base, tmp_path):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),

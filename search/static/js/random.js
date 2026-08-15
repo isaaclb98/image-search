@@ -56,7 +56,7 @@ function readLimit() {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("limit");
   const n = parseInt(raw || "", 10);
-  return Number.isFinite(n) && n > 0 ? n : 70;
+  return Number.isFinite(n) && n > 0 ? n : 35;
 }
 
 function syncViewToggle() {

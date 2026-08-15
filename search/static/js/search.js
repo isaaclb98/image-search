@@ -338,7 +338,7 @@ async function loadMorePage() {
   const filename = readFilename();
   if (!hasActiveSearch(q)) return;
   const currentOffset = Number(grid.dataset.offset || "0");
-  const limit = Number(grid.dataset.limit || "50");
+  const limit = Number(grid.dataset.limit || "35");
   const nextOffset = currentOffset;
 
   loadingMore = true;

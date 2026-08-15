@@ -41,7 +41,7 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -197,6 +197,12 @@ def test_api_search_happy_path(app_with_qdrant):
     # in the mock embedder's L2 normalization. Allow a small epsilon.
     assert -1.001 <= r["score"] <= 1.001
     assert "took_ms" in data
+
+
+def test_api_search_default_limit_is_35(app_with_qdrant):
+    response = app_with_qdrant.get("/api/search?q=cat")
+    assert response.status_code == 200
+    assert response.json()["limit"] == 35
 
 
 def test_api_search_q_param_still_works(app_with_qdrant):
@@ -569,7 +575,7 @@ def test_api_search_qdrant_unreachable(qdrant_in_memory, nas_base, monkeypatch):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -664,10 +670,11 @@ def test_get_photo_similar_unknown_id_returns_404(app_with_qdrant):
     assert resp.status_code == 404
 
 
-def test_get_photo_similar_caps_at_70(app_with_qdrant):
-    """K is hard-capped at 70. With 3 indexed points, all are returned."""
+def test_get_photo_similar_uses_35_default(app_with_qdrant):
+    """The similar-photo page defaults to 35 results."""
     resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar")
     assert resp.status_code == 200
+    assert 'data-limit="35"' in resp.text
     # The 3 indexed test points (cat, dog, car) should all show up.
     assert resp.text.count('class="grid-item"') == 3
     # And the "load more" sentinel / hint should NOT render (no has_more).
@@ -981,7 +988,7 @@ def test_api_search_multi_collection_filter(qdrant_in_memory, nas_base):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -1027,7 +1034,7 @@ def test_api_collections_endpoint_distinct_counts(
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -1084,7 +1091,7 @@ def test_api_collections_endpoint_uses_facet_aggregation(
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -1137,7 +1144,7 @@ def test_api_collections_endpoint_skips_empty_collection_values(
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),

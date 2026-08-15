@@ -25,7 +25,7 @@ def app_with_qdrant(qdrant_in_memory, nas_base):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -88,6 +88,20 @@ def test_get_favorites_paginates(app_with_qdrant):
     assert data["total"] == 2
     assert data["limit"] == 1
     assert len(data["favorites"]) == 1
+
+
+def test_api_favorites_default_limit_is_35(app_with_qdrant):
+    app_with_qdrant.post(f"/api/favorites/{CAT_ID}")
+    response = app_with_qdrant.get("/api/favorites")
+    assert response.status_code == 200
+    assert response.json()["limit"] == 35
+
+
+def test_favorites_page_default_limit_is_35(app_with_qdrant):
+    app_with_qdrant.post(f"/api/favorites/{CAT_ID}")
+    response = app_with_qdrant.get("/favorites")
+    assert response.status_code == 200
+    assert 'data-limit="35"' in response.text
 
 
 def test_search_favorites_filter(app_with_qdrant):

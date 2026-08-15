@@ -1951,10 +1951,11 @@ def create_app(
 
         Two Qdrant round-trips per request:
           1. retrieve_with_vector(point_id) — get the source embedding
-          2. query_points(query=<vec>, limit=70) — top-K HNSW
+          2. query_points(query=<vec>, limit=top_k_default) — top-K HNSW
         Both are O(1) / O(log N). Worst case latency is the sum of
         the two timeout windows; the second call dominates.
         """
+        cfg = get_cfg()
         view = _coerce_view(view)
         try:
             fetched = qdrant.retrieve_with_vector(point_id)
@@ -1974,7 +1975,7 @@ def create_app(
             # is always the source itself at score ~1.0. That's
             # intentional: it doubles as a "this is the right point"
             # confirmation when the page renders.
-            hits, _ = qdrant.search(vec, limit=70)
+            hits, _ = qdrant.search(vec, limit=cfg.top_k_default)
         except (ConnectionError, OSError) as e:
             logger.warning(
                 "Qdrant unreachable during similar-search for %s: %s",
@@ -2004,10 +2005,10 @@ def create_app(
                 # Mirror the SearchResponse shape so the template
                 # has no special cases for the result grid.
                 "offset": 0,
-                "limit": 70,
-                "has_more": False,  # K=70 is the whole answer, no pagination
+                "limit": cfg.top_k_default,
+                "has_more": False,  # The configured K is the whole answer, no pagination
                 "took_ms": took_ms,
-                "max_results_total": 70,
+                "max_results_total": cfg.top_k_default,
                 # Mode marker: when set, search.html branches into
                 # the "most similar" header + back-link shape.
                 "source_photo_id": hit.id,
@@ -2375,7 +2376,7 @@ def create_app(
 
     @app.get("/api/favorites")
     async def api_favorites(
-        limit: int = Query(200, description="max favourites"),
+        limit: int = Query(_cfg.top_k_default, description="max favourites"),
         offset: int = Query(0, description="offset into favourites"),
         as_results: bool = Query(False, description="return SearchResponse-compatible shape"),
     ):
@@ -2460,7 +2461,7 @@ def create_app(
     @app.get("/api/albums/{album_id}", response_model=AlbumDetailResponse)
     async def get_album(
         album_id: int,
-        limit: int = Query(200, description="max members to return"),
+        limit: int = Query(_cfg.top_k_default, description="max members to return"),
         offset: int = Query(0, description="offset into members"),
     ) -> AlbumDetailResponse:
         album = await asyncio.to_thread(index_db.get_album, album_id)
@@ -2469,7 +2470,7 @@ def create_app(
         try:
             limit = max(1, min(int(limit), 1000))
         except (TypeError, ValueError):
-            limit = 200
+            limit = get_cfg().top_k_default
         try:
             offset = max(0, int(offset))
         except (TypeError, ValueError):
@@ -2718,7 +2719,7 @@ def create_app(
     @app.get("/favorites", response_class=HTMLResponse)
     async def favorites_page(
         request: Request,
-        limit: int = Query(70, description="max favourites"),
+        limit: int = Query(_cfg.top_k_default, description="max favourites"),
         offset: int = Query(0, description="offset into favourites"),
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> HTMLResponse:
@@ -2726,7 +2727,7 @@ def create_app(
         try:
             limit = max(1, min(int(limit), 1000))
         except (TypeError, ValueError):
-            limit = 70
+            limit = get_cfg().top_k_default
         try:
             offset = max(0, int(offset))
         except (TypeError, ValueError):
@@ -2885,7 +2886,7 @@ def create_app(
     async def album_detail_page(
         request: Request,
         album_id: int,
-        limit: int = Query(70, description="max members to render"),
+        limit: int = Query(_cfg.top_k_default, description="max members to render"),
         offset: int = Query(0, description="offset into members"),
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> HTMLResponse:
@@ -2896,7 +2897,7 @@ def create_app(
         try:
             limit = max(1, min(int(limit), 1000))
         except (TypeError, ValueError):
-            limit = 70
+            limit = get_cfg().top_k_default
         try:
             offset = max(0, int(offset))
         except (TypeError, ValueError):
@@ -3113,7 +3114,7 @@ def create_app(
     # Collection filter is a list (multi-value query param), so the
     # UI can offer chips; passing no filter means "from the whole set".
 
-    RANDOM_DEFAULT_LIMIT = 70
+    RANDOM_DEFAULT_LIMIT = _cfg.top_k_default
     RANDOM_MAX_LIMIT = 200
 
     # Number of random photos shown on the default landing page

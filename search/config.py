@@ -22,6 +22,7 @@ load_dotenv()
 
 DEFAULT_MODEL: str = "ViT-gopt-16-SigLIP2-384"
 DEFAULT_COLLECTION: str = "images"
+DEFAULT_RESULT_LIMIT: int = 35
 
 # Mapping from open_clip arch tag → (centroid-file `model` string,
 # expected feature dim). The centroid's `model` field is a short
@@ -117,7 +118,7 @@ class Config:
     # All env-driven so an operator can tune the running service without
     # a code change. Defaults match the prior hardcoded values exactly.
     max_results_total: int = 5000
-    static_assets_version: int = 28
+    static_assets_version: int = 31
     max_prompt_chars: int = 512
     max_prompts_total: int = 16
     # `valid_views` and `default_view` are a closed enum; not env-driven.
@@ -212,7 +213,7 @@ def load() -> Config:
         # In test mode the NAS base may be a fixture path, set by conftest.
         raise ValueError("NAS_IMAGES_BASE is required")
 
-    top_k_default = _int("TOP_K_DEFAULT", 70)
+    top_k_default = _int("TOP_K_DEFAULT", DEFAULT_RESULT_LIMIT)
     top_k_max = _int("TOP_K_MAX", 200)
     if not (1 <= top_k_default <= top_k_max):
         raise ValueError(
@@ -257,7 +258,7 @@ def load() -> Config:
         centroid_expected_feature_dim=expected_dim,
         index_db_path=index_db_path,
         max_results_total=_int("MAX_RESULTS_TOTAL", 5000),
-        static_assets_version=_int("STATIC_ASSETS_VERSION", 28),
+        static_assets_version=_int("STATIC_ASSETS_VERSION", 31),
         max_prompt_chars=_int("MAX_PROMPT_CHARS", 512),
         max_prompts_total=_int("MAX_PROMPTS_TOTAL", 16),
         filename_cardinality_guard=_float("FILENAME_CARDINALITY_GUARD", 0.5),

@@ -110,7 +110,7 @@
         }"
         @click="toggle()"
         :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-        title="Toggle theme"
+        :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
       >
         {# x-cloak hides both icons until Alpine hydrates, so neither
            renders in the wrong position during FOUC. SVG paths are

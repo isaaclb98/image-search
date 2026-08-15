@@ -24,7 +24,7 @@ def random_app(tmp_path, monkeypatch):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(tmp_path),
@@ -110,6 +110,18 @@ def test_api_random_returns_rows(random_app):
     # All four seeded rows are present (no collection filter).
     ids = {r["id"] for r in data["results"]}
     assert ids == {"a", "b", "c", "d"}
+
+
+def test_api_random_default_limit_is_35(random_app):
+    response = random_app.get("/api/random")
+    assert response.status_code == 200
+    assert response.json()["limit"] == 35
+
+
+def test_random_page_default_limit_is_35(random_app):
+    response = random_app.get("/random")
+    assert response.status_code == 200
+    assert 'data-limit="35"' in response.text
 
 
 def test_api_random_filters_by_collection(random_app):

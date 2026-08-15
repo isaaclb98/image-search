@@ -33,7 +33,7 @@ def app_with_qdrant(qdrant_in_memory, nas_base):
         model_name="mock",
         model_revision="",
         device="cpu",
-        top_k_default=50,
+        top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
         nas_images_base=str(nas_base),
@@ -178,6 +178,39 @@ def test_get_album_returns_members(app_with_qdrant):
     assert data["member_total"] == 2
     member_ids = {m["id"] for m in data["members"]}
     assert member_ids == {CAT_ID, DOG_ID}
+
+
+def test_get_album_api_default_limit_is_35(app_with_qdrant, monkeypatch):
+    album_id = app_with_qdrant.post(
+        "/api/albums", json={"name": "api default limit"},
+    ).json()["id"]
+    app_with_qdrant.post(f"/api/albums/{album_id}/members/{CAT_ID}")
+
+    index_db = app_mod.get_index_db()
+    original = index_db.list_album_members
+    observed = {}
+
+    def record_limit(album, limit, offset):
+        observed["limit"] = limit
+        return original(album, limit, offset)
+
+    monkeypatch.setattr(index_db, "list_album_members", record_limit)
+    response = app_with_qdrant.get(f"/api/albums/{album_id}")
+
+    assert response.status_code == 200
+    assert observed["limit"] == 35
+
+
+def test_album_page_default_limit_is_35(app_with_qdrant):
+    album_id = app_with_qdrant.post(
+        "/api/albums", json={"name": "default limit"},
+    ).json()["id"]
+    app_with_qdrant.post(f"/api/albums/{album_id}/members/{CAT_ID}")
+
+    response = app_with_qdrant.get(f"/albums/{album_id}")
+
+    assert response.status_code == 200
+    assert 'data-limit="35"' in response.text
 
 
 def test_get_album_unknown_returns_404(app_with_qdrant):

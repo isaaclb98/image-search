@@ -97,6 +97,41 @@ def test_search_surface_uses_prompts_and_explicit_submit_gate():
     assert "requestGeneration !== searchGeneration" in controller
 
 
+def test_result_page_javascript_fallback_limits_are_35():
+    search = read(STATIC / "js" / "search.js")
+    random = read(STATIC / "js" / "random.js")
+    favorites = read(STATIC / "js" / "favorites.js")
+
+    assert 'grid.dataset.limit || "35"' in search
+    assert "Number.isFinite(n) && n > 0 ? n : 35" in random
+    assert 'grid?.dataset.limit || "35"' in favorites
+
+
+def test_download_zip_buttons_keep_text_centered_and_inside():
+    source = read(STATIC / "css" / "input.css")
+    bundle = read(STATIC / "css" / "app.css")
+    favorites = read(TEMPLATES / "favorites.html")
+    album = read(TEMPLATES / "album_detail.html")
+    selector = ".download-zip-btn"
+
+    assert selector.removeprefix(".") in favorites
+    assert selector.removeprefix(".") in album
+    assert selector in source
+    for declaration in (
+        "display: inline-flex",
+        "align-items: center",
+        "justify-content: center",
+        "white-space: nowrap",
+        "line-height: 1.2",
+    ):
+        assert declaration in source
+        assert declaration in bundle
+
+    # The custom rule must be emitted after DaisyUI's `.btn` rule so
+    # the legacy import cannot turn the link back into inline content.
+    assert bundle.rfind(selector) > bundle.find("    .btn {")
+
+
 def test_random_page_grid_uses_seven_columns():
     """The Random tab should render exactly 7 columns of images,
     not the responsive default the search/favorites grid uses.

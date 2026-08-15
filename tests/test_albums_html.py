@@ -141,6 +141,19 @@ def test_album_detail_renders_members(app_with_qdrant):
     assert "1 photo" in resp.text
 
 
+def test_album_detail_download_button_uses_shared_layout_class(app_with_qdrant):
+    album_id = app_with_qdrant.post(
+        "/api/albums", json={"name": "downloadable"},
+    ).json()["id"]
+    app_with_qdrant.post(f"/api/albums/{album_id}/members/{CAT_ID}")
+
+    resp = app_with_qdrant.get(f"/albums/{album_id}")
+
+    assert resp.status_code == 200
+    assert f"/albums/{album_id}/download.zip" in resp.text
+    assert "download-zip-btn" in resp.text
+
+
 def test_album_detail_unknown_returns_404(app_with_qdrant):
     resp = app_with_qdrant.get("/albums/9999")
     assert resp.status_code == 404

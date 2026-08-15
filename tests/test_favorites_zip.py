@@ -226,4 +226,5 @@ def test_zip_download_button_on_favorites_page(zip_app):
 
     resp = app.get("/favorites")
     assert "/favorites/download.zip" in resp.text
+    assert "download-zip-btn" in resp.text
     assert "download" in resp.text.lower()
