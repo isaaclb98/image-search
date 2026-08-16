@@ -5,14 +5,14 @@
 {% block title %}{{ album.name }} — Album — Image Search{% endblock %}
 
 {% block content %}
-<section class="album-detail-page max-w-6xl mx-auto px-4 py-6">
+<section class="album-detail-page max-w-6xl mx-auto px-4 py-6 app-page">
   <nav class="album-nav">
     <a href="/albums">← Back to albums</a>
   </nav>
 
-  <header class="album-detail-header page-header">
+  <header class="album-detail-header page-header app-page-header glass--sharp">
     <div>
-      <p class="eyebrow">Album</p>
+      <p class="eyebrow" data-glass-page-header>Album</p>
       <h1>{{ album.name }}</h1>
     </div>
     {% if album.description %}

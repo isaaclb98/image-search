@@ -476,7 +476,7 @@ def test_get_search_page_view_appears_in_toggle(app_with_qdrant):
     # data-view and aria-pressed on separate lines, so check the
     # aria-pressed state with regex-ish containment (the feed button
     # is the only one whose data-view is followed by aria-pressed="true").
-    assert 'view-toggle-btn--active' in text
+    assert 'is-active' in text  # view-toggle-btn--active → is-active (glass.css)
     # The result list uses the feed class, not the default grid class.
     assert 'class="feed"' in text
     assert 'class="photo-card feed-item"' in text
@@ -490,7 +490,7 @@ def test_get_search_page_view_default_uses_grid_class(app_with_qdrant):
     assert 'class="grid"' in text
     assert 'class="feed"' not in text
     # The grid button is the active one.
-    assert 'view-toggle-btn--active' in text
+    assert 'is-active' in text  # view-toggle-btn--active → is-active (glass.css)
     # Both buttons still render.
     assert 'data-view="grid"' in text
     assert 'data-view="feed"' in text

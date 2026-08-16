@@ -42,7 +42,7 @@
 
 <form class="search-form" method="get" action="/">
   <div class="search-controls search-primary">
-    <div class="search-intro">
+    <div class="search-intro search-bar">
       <span class="search-intro-title">Build a search</span>
       <span class="search-intro-hint" data-search-draft-status>Set your prompts and filters, then click Search.</span>
     </div>
@@ -50,21 +50,21 @@
       {{ ui.ui_icon('search', 'h-4 w-4') }}<span>Search</span>
     </button>
   </div>
-  <div class="search-meta search-toolbar">
+  <div class="search-meta search-toolbar app-toolbar">
     {# View toggle: grid (default) vs feed (phone-style single column).
        Server-rendered with the current view selected so the first paint
        already shows the right state — no flash on hydration. The JS
        handles the click and re-renders in place. #}
     <button
       type="button"
-      class="view-toggle-btn {% if view == 'grid' %}view-toggle-btn--active{% endif %}"
+      class="glass-pill view-toggle-btn {% if view == 'grid' %}is-active{% endif %}"
       data-view="grid"
       aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
       {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}
     >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
     <button
       type="button"
-      class="view-toggle-btn {% if view == 'feed' %}view-toggle-btn--active{% endif %}"
+      class="glass-pill view-toggle-btn {% if view == 'feed' %}is-active{% endif %}"
       data-view="feed"
       aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
       {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}

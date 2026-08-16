@@ -17,13 +17,12 @@
 <section class="photo-page" data-page-accent-from="{{ blurhash or '' }}" data-photo-blurhash="{{ blurhash or '' }}">
   <div class="photo-page-bg" data-photo-src="{{ url }}" aria-hidden="true"></div>
   <nav class="photo-nav">
-    {% if from_favorites %}
-      <a href="/favorites">← Back to favourites</a>
-    {% elif search_query_string %}
-      <a href="/?{{ search_query_string }}">← Back to results</a>
-    {% else %}
-      <a href="/">← Home</a>
-    {% endif %}
+    <a href="{{ '/favorites' if from_favorites else ('/?' + search_query_string if search_query_string else '/') }}" class="glass-pill">
+      {% if from_favorites %}← Back to favourites
+      {% elif search_query_string %}← Back to results
+      {% else %}← Home
+      {% endif %}
+    </a>
   </nav>
 
   {% if file_missing %}
@@ -31,11 +30,11 @@
   {% endif %}
 
   <div class="photo-layout">
-    <figure class="photo">
+    <figure class="photo glass-frost">
       <img src="{{ url }}" alt="" onerror="this.classList.add('img-error')">
     </figure>
 
-    <aside class="photo-detail-panel">
+    <aside class="photo-detail-panel glass-tinted">
       <p class="eyebrow">Photo details</p>
       <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
         <button
