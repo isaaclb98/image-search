@@ -138,6 +138,104 @@
   outline-offset: 3px;
 }
 
+/* Button-system override.
+   DaisyUI's .btn-primary / .btn-danger / .btn-ghost pull from the
+   Tailwind theme. We rewire them to our token system so CTAs across
+   the app read as one consistent surface vocabulary. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  background: hsl(var(--surface) / 50%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--fg));
+  box-shadow: var(--shadow-glass);
+  transition:
+    background var(--dur-glass) var(--ease-glass),
+    border-color var(--dur-glass) var(--ease-glass),
+    transform 120ms var(--ease-glass),
+    box-shadow var(--dur-glass) var(--ease-glass);
+}
+
+.btn:hover {
+  background: hsl(var(--surface) / 70%);
+  border-color: hsl(var(--border-strong));
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: hsl(var(--photo-dominant) / 45%);
+  border-color: hsl(var(--photo-dominant) / 65%);
+  color: hsl(var(--fg));
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: hsl(var(--photo-dominant) / 65%);
+  border-color: hsl(var(--photo-dominant) / 80%);
+}
+
+.btn-danger {
+  background: hsl(5 80% 60% / 18%);
+  border-color: hsl(5 80% 60% / 38%);
+  color: hsl(5 80% 70%);
+}
+
+.btn-danger:hover {
+  background: hsl(5 80% 60% / 28%);
+  border-color: hsl(5 80% 60% / 55%);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.btn-ghost:hover {
+  background: hsl(var(--surface) / 25%);
+  border-color: hsl(var(--border-glass));
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-xs {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.btn-circle {
+  border-radius: 999px;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+}
+
+.btn:focus-visible {
+  outline: 2px solid hsl(var(--accent-cool));
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+  .btn:hover {
+    transform: none;
+  }
+}
+
 /* Reduced motion: kill the transform lift on hover. */
 @media (prefers-reduced-motion: reduce) {
   .glass-pill {

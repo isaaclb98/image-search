@@ -37,7 +37,7 @@
   </script>
 </head>
 <body class="app-body" data-route="{{ request.url.path }}">
-  <header class="navbar app-navbar bg-base-100 backdrop-blur-md sticky top-0 z-50 border-b border-base-300 shadow-xs">
+  <header class="app-navbar" role="banner">
     <div class="navbar-start">
       <details class="mobile-nav md:hidden">
         <summary class="mobile-nav-toggle" aria-label="Open navigation" title="Open navigation">
@@ -65,7 +65,7 @@
       {# Brand link. `aria-label` makes the link's accessible name
          deterministic across screen readers — without it, some
          screen readers compose an awkward name from the inline spans. #}
-      <a class="app-brand px-3 py-1.5 rounded-md text-base font-semibold hover:bg-base-200 transition-colors text-base-content" href="/" aria-label="Image Search home">
+      <a class="app-brand" href="/" aria-label="Image Search home">
         <span class="app-brand__mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor" opacity="0.55" />
@@ -106,7 +106,7 @@
          reliably). 40x40 round button, 20x20 icon, 10px breathing room. #}
       <button
         type="button"
-        class="theme-toggle inline-grid place-items-center w-10 h-10 rounded-full text-base-content hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 transition-colors"
+        class="theme-toggle"
         x-data="{
           theme: document.documentElement.dataset.theme || 'light',
           toggle() {
