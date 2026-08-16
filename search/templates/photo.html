@@ -4,6 +4,15 @@
 
 {% block title %}Photo {{ id[:8] }}… — Image Search{% endblock %}
 
+{# Preload the LCP image so the photo is in-flight by the time the
+   browser parses the markup. Skipped when the source file is
+   missing on disk — the URL would 404 and waste a round trip. #}
+{% block head %}
+  {% if not file_missing %}
+    <link rel="preload" as="image" href="{{ url }}" fetchpriority="high">
+  {% endif %}
+{% endblock %}
+
 {% block content %}
 <section class="photo-page">
   <nav class="photo-nav">
@@ -90,6 +99,6 @@
 
 
 {% block scripts %}
-<script type="module" src="/static/js/photo.js?v={{ static_assets_version }}"></script>
-<script type="module" src="/static/js/album_pills.js?v={{ static_assets_version }}"></script>
+<script type="module" src="{{ asset('js/photo.js') }}"></script>
+<script type="module" src="{{ asset('js/album_pills.js') }}"></script>
 {% endblock %}

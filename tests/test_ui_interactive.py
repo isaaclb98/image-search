@@ -35,7 +35,7 @@ def test_base_exposes_mobile_navigation_viewer_and_shortcuts():
     assert "data-lightbox-prev" in base
     assert "data-lightbox-next" in base
     assert "data-shortcuts-dialog" in base
-    assert '/static/js/ui.js?v={{ static_assets_version }}' in base
+    assert "{{ asset('js/ui.js') }}" in base
 
 
 def test_result_grid_exposes_photo_and_favorite_contracts():

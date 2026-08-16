@@ -167,6 +167,6 @@
 
 {% block scripts %}
 {% if centroids_dir %}
-<script type="module" src="/static/js/centroids.js?v={{ static_assets_version }}"></script>
+<script type="module" src="{{ asset('js/centroids.js') }}"></script>
 {% endif %}
 {% endblock %}
