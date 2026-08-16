@@ -98,3 +98,44 @@
     --mesh-speed: 0s;
   }
 }
+
+/* Print: blow out glass to fully opaque, no blur, no backdrop-filter,
+   no shadow. The user wants a clean print, not a frosted mess. */
+@media print {
+  :root {
+    --blur-glass: 0px;
+    --blur-pill: 0px;
+    --blur-bg: 0px;
+    --saturate-glass: 100%;
+    --highlight-strength: 0%;
+    --mesh-speed: 0s;
+    --shadow-glass: none;
+    --shadow-glass-strong: none;
+  }
+
+  .glass,
+  .glass--sharp,
+  .glass-frost,
+  .glass-pill,
+  .glass-tinted {
+    background: hsl(var(--surface-strong));
+    border: 1px solid hsl(var(--border-strong));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .app-body::before,
+  .app-body::after {
+    display: none;
+  }
+
+  .photo-page-bg {
+    display: none;
+  }
+
+  .photo-card {
+    box-shadow: none;
+    background: white;
+  }
+}
