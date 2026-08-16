@@ -173,6 +173,162 @@
   }
 }
 
+/* Brand mark + theme toggle — sit inside .app-navbar, share its
+   surface vocabulary. */
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  color: hsl(var(--fg));
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  transition:
+    background var(--dur-glass) var(--ease-glass),
+    transform 120ms var(--ease-glass);
+}
+
+.app-brand:hover {
+  background: hsl(var(--surface) / 70%);
+  transform: translateY(-0.5px);
+}
+
+.app-brand__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  color: hsl(var(--fg-muted));
+  background: hsl(var(--surface) / 50%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  cursor: pointer;
+  transition:
+    background var(--dur-glass) var(--ease-glass),
+    color var(--dur-glass) var(--ease-glass),
+    transform 120ms var(--ease-glass);
+}
+
+.theme-toggle:hover {
+  background: hsl(var(--surface) / 75%);
+  color: hsl(var(--fg));
+  transform: translateY(-1px);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid hsl(var(--accent-cool));
+  outline-offset: 2px;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  color: hsl(var(--fg-muted));
+  text-decoration: none;
+  transition:
+    background var(--dur-glass) var(--ease-glass),
+    color var(--dur-glass) var(--ease-glass);
+}
+
+.mobile-nav-link:hover {
+  background: hsl(var(--surface) / 50%);
+  color: hsl(var(--fg));
+}
+
+.mobile-nav-link.is-active {
+  background: hsl(var(--photo-dominant) / 25%);
+  color: hsl(var(--fg));
+}
+
+.mobile-nav-link.is-active svg {
+  color: hsl(var(--photo-dominant));
+}
+
+/* Login body — different from app pages (centered single card). */
+.login-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2.5rem 1rem;
+}
+
+/* Album card — link wrapper that contains the cover, name, photo count.
+   Promoted from DaisyUI .card.card-compact to .glass-tinted so it
+   shares the app's surface vocabulary. */
+.album-card {
+  display: block;
+  padding: 0.85rem;
+  border-radius: 20px;
+  text-decoration: none;
+  color: hsl(var(--fg));
+  transition:
+    transform var(--dur-glass) var(--ease-glass),
+    box-shadow var(--dur-glass) var(--ease-glass);
+}
+
+.album-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 hsl(0 0% 100% / 22%) inset,
+    0 18px 44px hsl(var(--shadow-color) / 28%);
+}
+
+.album-card__cover {
+  border-radius: 14px;
+  margin-bottom: 0.7rem;
+}
+
+.album-card__name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.45rem 0 0.2rem;
+  letter-spacing: -0.01em;
+}
+
+.album-card__meta {
+  font-size: 0.8rem;
+  color: hsl(var(--fg-muted));
+  margin: 0;
+}
+
+/* Saved-search card — same vocabulary, slightly different proportions. */
+.saved-card {
+  display: block;
+  padding: 1.1rem 1.25rem;
+  border-radius: 16px;
+  transition: transform var(--dur-glass) var(--ease-glass);
+}
+
+.saved-card:hover {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-card,
+  .saved-card {
+    transition: none;
+  }
+  .album-card:hover,
+  .saved-card:hover {
+    transform: none;
+  }
+}
+
 /* Forms inside glass — input fields that "feel" like glass too. */
 .glass-input {
   appearance: none;
