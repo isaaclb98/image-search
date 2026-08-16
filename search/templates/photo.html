@@ -14,7 +14,8 @@
 {% endblock %}
 
 {% block content %}
-<section class="photo-page">
+<section class="photo-page" data-page-accent-from="{{ blurhash or '' }}" data-photo-blurhash="{{ blurhash or '' }}">
+  <div class="photo-page-bg" data-photo-src="{{ url }}" aria-hidden="true"></div>
   <nav class="photo-nav">
     {% if from_favorites %}
       <a href="/favorites">← Back to favourites</a>

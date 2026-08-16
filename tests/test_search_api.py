@@ -479,7 +479,7 @@ def test_get_search_page_view_appears_in_toggle(app_with_qdrant):
     assert 'view-toggle-btn--active' in text
     # The result list uses the feed class, not the default grid class.
     assert 'class="feed"' in text
-    assert 'class="feed-item"' in text
+    assert 'class="photo-card feed-item"' in text
 
 
 def test_get_search_page_view_default_uses_grid_class(app_with_qdrant):
@@ -676,7 +676,7 @@ def test_get_photo_similar_uses_35_default(app_with_qdrant):
     assert resp.status_code == 200
     assert 'data-limit="35"' in resp.text
     # The 3 indexed test points (cat, dog, car) should all show up.
-    assert resp.text.count('class="grid-item"') == 3
+    assert resp.text.count('class="photo-card grid-item"') == 3
     # And the "load more" sentinel / hint should NOT render (no has_more).
     assert "grid-sentinel" not in resp.text
     assert "Scroll for more results" not in resp.text
@@ -688,8 +688,8 @@ def test_get_photo_similar_source_first(app_with_qdrant):
     resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar")
     assert resp.status_code == 200
     # First grid-item should reference the source.
-    first_idx = resp.text.find('class="grid-item"')
-    next_idx = resp.text.find('class="grid-item"', first_idx + 1)
+    first_idx = resp.text.find('class="photo-card grid-item"')
+    next_idx  = resp.text.find('class="photo-card grid-item"', first_idx + 1)
     first_block = resp.text[first_idx:next_idx]
     assert f'data-id="{CAT_ID}"' in first_block
     # Source score should be very high (cosine ~1.0 to itself).
@@ -702,7 +702,7 @@ def test_get_photo_similar_view_param_preserved(app_with_qdrant):
     assert resp.status_code == 200
     # feed view → ul class="feed", items become feed-items.
     assert 'class="feed"' in resp.text
-    assert 'class="feed-item"' in resp.text
+    assert 'class="photo-card feed-item"' in resp.text
 
 
 def test_get_photo_similar_view_invalid_falls_back_to_grid(app_with_qdrant):

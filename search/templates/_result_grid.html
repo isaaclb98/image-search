@@ -39,12 +39,13 @@
   >
     {% for r in results %}
       <li
-        class="{{ 'feed-item' if view == 'feed' else 'grid-item' }}"
+        class="photo-card {{ 'feed-item' if view == 'feed' else 'grid-item' }}"
         data-id="{{ r.id }}"
         data-score="{{ r.score }}"
         data-photo-id="{{ r.id }}"
         data-photo-src="{{ r.url }}"
         data-photo-path="{{ r.path }}"
+        data-photo-blurhash="{{ r.blurhash or '' }}"
       >
         {% if r.score_str %}
           <span class="{{ 'feed-score' if view == 'feed' else 'grid-score' }} tabular-nums">{{ r.score_str }}</span>
