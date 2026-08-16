@@ -22,7 +22,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
@@ -54,6 +54,10 @@ from search.diversity import (
     resolve_mode,
 )
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
+from search.assets import HashedStaticApp as _HashedStaticApp
+from search.assets import is_hashed_path as _is_hashed_static_path
+from search.assets import init as _init_asset_manifest
+from search.assets import MANIFEST as _ASSET_MANIFEST
 from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
 from search.models import (
     AlbumCreateRequest,
@@ -382,6 +386,11 @@ def _invalidate_album_centroid(album_id: int) -> None:
 HERE = Path(__file__).parent
 TEMPLATES_DIR = HERE / "templates"
 STATIC_DIR = HERE / "static"
+# Build the content-hashed asset manifest once at import. Templates
+# use ``{{ asset('js/app.js') }}`` to get ``/static/js/app.<hash>.js``
+# so the cached-forever headers below are safe in prod. Devs iterating
+# on a file get a new hash the next process restart.
+_init_asset_manifest(STATIC_DIR)
 # Module-level sentinel for FastAPI `Query([])` default — using a literal
 # list in a default arg would call `Query()` once at import time, which
 # ruff B008 forbids. Use `None` as the default and resolve to a fresh
@@ -580,6 +589,8 @@ def create_app(
         )
 
     templates = templates or AuthAwareTemplates(directory=str(TEMPLATES_DIR))
+    templates.env.globals["asset"] = _ASSET_MANIFEST.url
+    templates.env.globals["static_url"] = _ASSET_MANIFEST.url
 
     def _strip_query_param(url, name: str, value: str | None = None) -> str:
         """Return `url` with every `name=` param removed.
@@ -703,32 +714,44 @@ def create_app(
     )
 
     @app.middleware("http")
-    async def _no_cache_static_middleware(request, call_next):
+    async def _static_cache_middleware(request, call_next):
         """
-        Force browsers to re-validate /static/* on every request.
+        Cache headers for ``/static/*``.
 
-        Why: ES module imports (`import { ... } from "./lib/grid.js"`
-        in search.js) are fetched as separate requests, and the
-        versioned `?v=N` on the entry-point script doesn't reach
-        them. Without `no-cache`, the imported files (grid.js,
-        url.js, etc.) get cached for the session and updates to
-        them don't appear in the browser. The versioned URL on the
-        HTML <link>/<script> becomes the entry point; everything
-        else is always re-validated.
+        - Content-hashed paths (``js/app.abc12345.js``) get
+          ``public, max-age=31536000, immutable``. Edits change the
+          hash → new URL → no stale-content risk.
+        - Any other request to ``/static/*`` falls back to
+          ``no-cache, must-revalidate`` so dev iteration without a
+          restart is still visible.
 
-        For production with a build step, switch to
-        `public, max-age=31536000, immutable` on content-hashed
-        filenames instead — this is the dev-friendly default.
+        The dev fallback is rare in prod: templates go through the
+        ``asset()`` helper, which always produces the hashed URL.
+        The fallback covers direct links, hand-written test URLs,
+        and stale HTML referencing old query-string versions.
         """
         response = await call_next(request)
-        if request.url.path.startswith("/static/"):
+        if not request.url.path.startswith("/static/"):
+            return response
+        if _is_hashed_static_path(request.url.path):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
             response.headers["Cache-Control"] = "no-cache, must-revalidate"
         return response
 
     app.state.index_db = index_db
     app.state.random_picker = random_picker
     app.state.diversity_cache = diversity_cache
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    # HashedStaticApp rewrites /static/<name>.<hash>.<ext> → /static/<name>.<ext>
+    # so StaticFiles serves the real file without build artifacts.
+    app.mount(
+        "/static",
+        _HashedStaticApp(
+            StaticFiles(directory=str(STATIC_DIR)),
+            _ASSET_MANIFEST,
+        ),
+        name="static",
+    )
 
     # ---------------------- Auth gate + login routes ----------------------
     #
@@ -1908,7 +1931,7 @@ def create_app(
         )
 
     @app.get("/photo/{point_id}/raw")
-    async def photo_raw(point_id: str) -> FileResponse:
+    async def photo_raw(request: Request, point_id: str) -> Response:
         try:
             hit = qdrant.retrieve(point_id)
         except (ConnectionError, OSError) as e:
@@ -1925,13 +1948,34 @@ def create_app(
         if local is None or not _is_path_alive(str(local)):
             raise HTTPException(status_code=404, detail="File not found on disk")
 
+        stat = local.stat()
+        etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()
+
+        # Per-spec If-None-Match: respond 304 with no body if the
+        # client's cached ETag matches. Saves bandwidth on every
+        # cache hit (back/forward, grid re-render, etc.).
+        if request.headers.get("if-none-match") == etag:
+            return Response(
+                status_code=304,
+                headers={
+                    "ETag": etag,
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                },
+            )
+
         filename = local.name
         return FileResponse(
             local,
             media_type=guess_content_type(local),
             filename=filename,
             content_disposition_type="inline",
-            headers={"Cache-Control": "public, max-age=3600"},
+            headers={
+                "ETag": etag,
+                # immutable: same photo id never produces different
+                # bytes while its on-disk mtime+size match. A new
+                # ETag is issued on any byte change.
+                "Cache-Control": "public, max-age=31536000, immutable",
+            },
         )
 
     @app.get("/photo/{point_id}/similar", response_class=HTMLResponse)

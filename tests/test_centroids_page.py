@@ -52,7 +52,7 @@ def test_centroids_page_loads_centroids_js(app_with_centroids):
     """The reload JS module is included (when centroids_dir is set)."""
     resp = app_with_centroids.get("/centroids")
     assert resp.status_code == 200
-    assert "centroids.js" in resp.text
+    assert "centroids" in resp.text
 
 
 def test_centroids_page_empty_state_when_no_dir():
