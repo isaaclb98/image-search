@@ -47,7 +47,7 @@
         <nav class="mobile-nav-panel" aria-label="Mobile navigation">
           <p class="mobile-nav-kicker">Navigate</p>
           {% set mobile_nav_items = [
-            ('/centroids', 'Centroids', 'sparkles'),
+            ('/for-you', 'For you', 'sparkles'),
             ('/discover', 'Discover', 'search'),
             ('/random', 'Random', 'shuffle'),
             ('/favorites', 'Favourites', 'heart'),
@@ -79,6 +79,7 @@
     <div class="navbar-center hidden md:flex">
       <ul class="menu menu-horizontal gap-1 px-1">
         {% set nav_items = [
+          ('/for-you', 'For you'),
           ('/centroids', 'Centroids'),
           ('/discover', 'Discover'),
           ('/random', 'Random'),

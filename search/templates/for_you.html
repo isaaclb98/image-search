@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% import "_macros.html" as ui %}
+
+{% block title %}For You — Image Search{% endblock %}
+
+{% block content %}
+<section class="for-you-page app-page" data-freshest="{{ for_you_freshest or '' }}">
+  <header class="app-page-header glass--sharp for-you-header">
+    <div>
+      <p class="eyebrow">Recommendations</p>
+      <h1 class="for-you-title">For you</h1>
+    </div>
+    {% if for_you_n_likes > 0 or for_you_n_dislikes > 0 %}
+      <div class="for-you-meta">
+        <span class="glass-pill" data-freshness-chip>
+          Trained on <strong>{{ for_you_n_likes }}</strong> ♥
+          <strong>{{ for_you_n_dislikes }}</strong> ✕
+          <span class="for-you-meta__freshness" data-fresh-text></span>
+        </span>
+        <button type="button" class="btn btn-ghost btn-xs" data-reset-feedback>Reset</button>
+      </div>
+    {% endif %}
+  </header>
+
+  {% if for_you_n_likes == 0 %}
+    <section class="for-you-empty glass-frost app-empty-state" data-empty-state>
+      <p class="eyebrow">Cold start</p>
+      <h2 class="for-you-empty__title">Like a few photos to start</h2>
+      <p class="for-you-empty__body">
+        The feed learns from your ❤️ across the app — lightbox,
+        search, albums. Skip with ✕ and we'll avoid similar photos.
+        You can come back when a few photos have your tap.
+      </p>
+      <div class="for-you-empty__actions">
+        <a class="btn btn-primary" href="/">Browse photos</a>
+        <a class="btn btn-ghost" href="/random">Random sample</a>
+      </div>
+    </section>
+  {% else %}
+    <div class="for-you-grid"
+         data-feed-root
+         aria-live="polite"
+         aria-busy="true">
+      {% for i in range(30) %}
+        <div class="photo-card-slot"></div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+{% block scripts %}
+<script type="module" src="{{ asset('js/for-you.js') }}"></script>
+{% endblock %}
+{% endblock %}

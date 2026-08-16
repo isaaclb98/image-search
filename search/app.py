@@ -58,6 +58,8 @@ from search.assets import HashedStaticApp as _HashedStaticApp
 from search.assets import is_hashed_path as _is_hashed_static_path
 from search.assets import init as _init_asset_manifest
 from search.assets import MANIFEST as _ASSET_MANIFEST
+from search.for_you import build_state as _for_you_build_state
+from search.for_you import rank as _for_you_rank
 from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
 from search.models import (
     AlbumCreateRequest,
@@ -3810,6 +3812,115 @@ def create_app(
             status_code=500,
             content=ErrorResponse(error="internal_error", detail=detail, code="internal_error").model_dump(),
         )
+
+    # ----------------------------------------------------------------
+    # /for-you — persistent rolling recommendation feed
+    #
+    # Read favourites + dislikes (persistent, IndexDB), build a
+    # state snapshot, ask Qdrant for k-nearest unseen photos via the
+    # Recommend API, rerank with MMR for diversity, return as JSON.
+    # Front-end hydrates and renders the /for-you page.
+    # ----------------------------------------------------------------
+    @app.get("/for-you", response_class=HTMLResponse)
+    async def for_you_page(request: Request) -> HTMLResponse:
+        state = _for_you_build_state(index_db=index_db)
+        return templates.TemplateResponse(
+            request,
+            "for_you.html",
+            {
+                "static_assets_version": _cfg.static_assets_version,
+                "for_you_n_likes": state.n_likes,
+                "for_you_n_dislikes": state.n_dislikes,
+                "for_you_freshest": state.freshest_feedback_ts,
+            },
+        )
+
+    @app.get("/api/for-you/state")
+    async def for_you_state() -> dict:
+        """Cheap signal snapshot for the header chip and empty-state."""
+        state = _for_you_build_state(index_db=index_db)
+        return {
+            "n_likes": state.n_likes,
+            "n_dislikes": state.n_dislikes,
+            "freshest_feedback_ts": state.freshest_feedback_ts,
+        }
+
+    @app.get("/api/for-you/feed")
+    async def for_you_feed(limit: int = 30) -> dict:
+        """Heavy path: rebuild signal + Qdrant recommend + diversity."""
+        try:
+            limit = max(1, min(int(limit), 100))
+        except (TypeError, ValueError):
+            limit = 30
+
+        state = _for_you_build_state(index_db=index_db)
+        fav_ids = index_db.list_favorite_ids()
+        dis_ids = index_db.list_dislike_ids()
+
+        try:
+            hits = _for_you_rank(
+                state=state,
+                fav_ids=fav_ids,
+                dis_ids=dis_ids,
+                qdrant=qdrant,
+                limit=limit,
+            )
+        except (ConnectionError, OSError) as e:
+            logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+        except Exception as e:  # noqa: BLE001 — qdrant-client raises
+            # broad set of exception types; we 502 on anything that
+            # smells like a qdrant-side problem and let anything else
+            # fall through to the framework's 500 handler.
+            name = type(e).__name__
+            if "Qdrant" in name or "Connection" in name or "Timeout" in name:
+                logger.warning("Qdrant error for /api/for-you/feed: %s", e)
+                raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+            raise
+
+        return {
+            "n_likes": state.n_likes,
+            "n_dislikes": state.n_dislikes,
+            "results": [
+                {
+                    "id": h.id,
+                    "path": h.path,
+                    "score": float(getattr(h, "score", 0.0)),
+                    "url": f"/photo/{h.id}/raw",
+                    "blurhash": (h.payload or {}).get("blurhash"),
+                }
+                for h in hits
+            ],
+        }
+
+    # Dislike endpoints (mirror of favourites, persistent).
+    # Source defaults to the page the request originated from, set by
+    # the client via a query param or a header so we can attribute the
+    # feedback event later (Phase 2 analytics).
+    @app.post("/api/dislikes/{point_id}", status_code=204)
+    async def mark_dislike(point_id: str, source: str = "manual") -> None:
+        await asyncio.to_thread(index_db.mark_dislike, point_id, source)
+        await asyncio.to_thread(
+            index_db.record_feedback, point_id, "dislike", source
+        )
+        _invalidate_favourites_centroid()
+
+    @app.delete("/api/dislikes/{point_id}", status_code=204)
+    async def unmark_dislike(point_id: str) -> None:
+        await asyncio.to_thread(index_db.unmark_dislike, point_id)
+        _invalidate_favourites_centroid()
+
+    @app.get("/api/dislikes")
+    async def list_dislikes(limit: int = 200, offset: int = 0) -> dict:
+        items = await asyncio.to_thread(index_db.list_dislikes, limit, offset)
+        return {"items": items, "count": len(items)}
+
+    # Reset wipes dislikes + feedback_events only. Favourites stay so
+    # the next page load still has a "warm start" via favourites.
+    @app.post("/api/for-you/reset", status_code=204)
+    async def for_you_reset() -> None:
+        await asyncio.to_thread(index_db.reset_feedback)
+        _invalidate_favourites_centroid()
 
     @app.get("/healthz")
     async def healthz() -> dict:
