@@ -5,7 +5,7 @@
 {% block title %}Albums — Image Search{% endblock %}
 
 {% block content %}
-<section class="albums-page max-w-6xl mx-auto px-4 py-6">
+<section class="albums-page max-w-6xl mx-auto px-4 py-6 app-page">
   {{ ui.page_header("Albums", count=albums|length, count_label="album", count_plural_label="albums") }}
   <p class="text-sm text-base-content/70 -mt-4 mb-6">
     User-curated collections. The favourites list is the default album.
@@ -24,7 +24,7 @@
         maxlength="200"
         placeholder="e.g. studio portraits"
         autocomplete="off"
-        class="input input-bordered w-full"
+        class="glass-input input input-bordered w-full"
       >
     </label>
     <label class="form-control flex-1 min-w-48">
@@ -35,7 +35,7 @@
         maxlength="500"
         placeholder=""
         autocomplete="off"
-        class="input input-bordered w-full"
+        class="glass-input input input-bordered w-full"
       >
     </label>
     <button type="submit" class="btn btn-primary">Create album</button>

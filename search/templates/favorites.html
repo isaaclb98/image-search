@@ -4,7 +4,7 @@
 
 {% block content %}
 {% import "_macros.html" as ui %}
-<section class="favorites-page max-w-6xl mx-auto px-4 py-6" data-favorites-page data-favorites-total="{{ total }}">
+<section class="favorites-page max-w-6xl mx-auto px-4 py-6 app-page" data-favorites-page data-favorites-total="{{ total }}">
   {{ ui.page_header("Favourites", count=total, count_label="photo", count_plural_label="photos") }}
   {% if total %}
     <p class="-mt-4 mb-6" data-favorites-download><a class="download-zip-btn btn btn-sm btn-primary inline-flex items-center gap-2" href="/favorites/download.zip" download>{{ ui.ui_icon('download', 'h-4 w-4') }}<span>Download .zip</span></a></p>

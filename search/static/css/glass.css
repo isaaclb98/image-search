@@ -1,0 +1,149 @@
+/*
+  search/static/css/glass.css
+  Glass primitives. Four flavours: .glass (default), .glass--sharp (heavier),
+  .glass-frost (opaque base for text), .glass-pill / .glass-tinted.
+
+  Every .glass descendant gets a 1px top "rim light" via masked gradient
+  — that's the visual cue that makes these read as glass rather than
+  frosted plastic. The mask trick: padding-box mask carves out the border
+  area only. Combined with content-box, you get a 1px gradient line that
+  hugs the rounded corner.
+*/
+
+.glass,
+.glass--sharp,
+.glass-frost,
+.glass-pill,
+.glass-tinted {
+  position: relative;
+  isolation: isolate;
+  background: hsl(var(--surface) / 55%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: 16px;
+  box-shadow: var(--shadow-glass);
+  color: hsl(var(--fg));
+}
+
+/* Rim-light highlight via masked pseudo-element. Standard pattern:
+   paint the whole box, mask out everything except the border ring. */
+.glass::before,
+.glass--sharp::before,
+.glass-frost::before,
+.glass-pill::before,
+.glass-tinted::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--highlight-top)) 0%,
+    hsl(var(--highlight-top) / 0%) 38%,
+    hsl(var(--highlight-top) / 0%) 62%,
+    hsl(var(--highlight-top) / 30%) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Heavier glass for floating panels (detail page, lightbox chrome). */
+.glass--sharp {
+  background: hsl(var(--surface) / 65%);
+  box-shadow: var(--shadow-glass-strong);
+  border-radius: 20px;
+}
+
+/* Opaque base for text panels — readable first, glass second.
+   Useful for the detail page aside + lightbox body where line length
+   over blurred photos hurts reading. */
+.glass-frost {
+  background: hsl(var(--surface-strong) / 95%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+}
+
+/* Pill primitives for chips / filters / view toggles. */
+.glass-pill {
+  background: hsl(var(--surface) / 50%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: 999px;
+  box-shadow: var(--shadow-glass);
+  padding: 0.4rem 0.95rem;
+  color: hsl(var(--fg));
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    background var(--dur-glass) var(--ease-glass),
+    border-color var(--dur-glass) var(--ease-glass),
+    transform var(--dur-glass) var(--ease-glass);
+}
+
+.glass-pill:hover {
+  background: hsl(var(--surface) / 70%);
+  border-color: hsl(var(--border-strong));
+  transform: translateY(-1px);
+}
+
+.glass-pill[aria-pressed="true"],
+.glass-pill.is-active {
+  background: hsl(var(--photo-dominant) / 35%);
+  border-color: hsl(var(--photo-dominant) / 55%);
+  color: hsl(var(--fg));
+}
+
+/* Tinted variant — uses the photo's dominant colour as the glass tint. */
+.glass-tinted {
+  background:
+    radial-gradient(
+      140% 110% at 30% 0%,
+      hsl(var(--photo-dominant) / 28%),
+      hsl(var(--surface) / 55%) 70%
+    );
+}
+
+.glass-tinted::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    60% 40% at 80% 100%,
+    hsl(var(--photo-palette-2) / 20%),
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Interactive feedback — focus rings always visible, no glass on top. */
+.glass:focus-visible,
+.glass--sharp:focus-visible,
+.glass-frost:focus-visible,
+.glass-pill:focus-visible,
+.glass-tinted:focus-visible {
+  outline: 2px solid hsl(var(--accent-cool));
+  outline-offset: 3px;
+}
+
+/* Reduced motion: kill the transform lift on hover. */
+@media (prefers-reduced-motion: reduce) {
+  .glass-pill {
+    transition: none;
+  }
+  .glass-pill:hover {
+    transform: none;
+  }
+}

@@ -752,9 +752,9 @@ def test_liked_page_default_view_is_grid(app_with_qdrant):
     body = r.text
     # Grid container, grid items, no feed container.
     assert 'class="grid"' in body
-    assert 'class="grid-item"' in body
+    assert 'grid-item\"' in body  # li class is now 'photo-card grid-item'
     assert 'class="feed"' not in body
-    assert 'class="feed-item"' not in body
+    assert 'feed-item\"' not in body  # see note above
     # View toggle is rendered with grid active.
     assert "view-toggle" in body
     assert 'data-view="grid"' in body
@@ -771,12 +771,12 @@ def test_liked_page_feed_view(app_with_qdrant):
     r = app_with_qdrant.get(f"/discover/liked?session_id={sid}&view=feed")
     body = r.text
     assert 'class="feed"' in body
-    assert 'class="feed-item"' in body
+    assert 'feed-item\"' in body  # li class is now 'photo-card feed-item'
     # Feed button has the active class.
     assert 'view-toggle-btn--active' in body
     # Grid classes absent.
     assert 'class="grid"' not in body
-    assert 'class="grid-item"' not in body
+    assert 'grid-item\"' not in body  # see note above
 
 
 def test_liked_page_view_toggle_links_to_other_view(app_with_qdrant):
@@ -825,7 +825,7 @@ def test_liked_page_invalid_view_falls_back_to_grid(app_with_qdrant):
     body = r.text
     # Falls back to grid.
     assert 'class="grid"' in body
-    assert 'class="grid-item"' in body
+    assert 'grid-item\"' in body  # li class is now 'photo-card grid-item'
     assert 'class="feed"' not in body
     # The toggle's grid button is the active one.
     import re

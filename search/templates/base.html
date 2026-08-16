@@ -11,6 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+  {# Glass overhaul — tokens, primitives, layout, photo-card.
+     Loaded AFTER app.css so cascade order favors our overrides. #}
+  <link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/glass.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/layout.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/photo-card.css') }}">
 
   {# Theme bootstrap — must run BEFORE first paint to prevent flash of
      wrong theme. Reads localStorage ('theme' = 'light' | 'dark'); falls
@@ -235,6 +241,9 @@
   <script type="module" src="{{ asset('js/ui.js') }}"></script>
 
   {% block scripts %}{% endblock %}
+  {# Glass overhaul — runs after DOM ready, decodes blurhash
+     lazily via IntersectionObserver. #}
+  <script type="module" src="{{ asset('js/glass.js') }}"></script>
 
   {# Alpine.js — small reactive layer for the theme toggle (T3) and any
       future client-only UI bits. Loaded with defer so it doesn't block

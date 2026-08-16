@@ -1,0 +1,278 @@
+/*
+  search/static/css/layout.css
+  App shell: navbar, page rails, ambient color mesh background,
+  page-level layout helpers.
+
+  The ambient mesh is a fixed ::after on .app-body that paints three
+  huge radial gradients (in --photo-palette-1/2/3) blurred to 60px.
+  Animation drift honours --mesh-speed (0 when prefers-reduced-motion).
+*/
+
+.app-body {
+  background: hsl(var(--bg-base));
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+/* Ambient color mesh. Pinned behind all content. Independent of scroll.
+   Three blob colors come from the current photo's palette (set by
+   glass.js per-page) so the whole shell adopts the photo's mood. */
+.app-body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  background:
+    radial-gradient(35% 35% at 20% 30%, hsl(var(--photo-palette-1) / 30%), transparent 70%),
+    radial-gradient(40% 40% at 80% 70%, hsl(var(--photo-palette-2) / 25%), transparent 70%),
+    radial-gradient(30% 30% at 50% 85%, hsl(var(--photo-palette-3) / 22%), transparent 70%);
+  filter: blur(var(--blur-bg));
+  -webkit-filter: blur(var(--blur-bg));
+  pointer-events: none;
+  z-index: -2;
+  opacity: 0.85;
+  transition: opacity 600ms var(--ease-glass);
+}
+
+.app-body::after {
+  /* Subtle film grain via repeating radial-gradient. 0.022 opacity.
+     Pure CSS, no asset. */
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 50%, hsl(0 0% 0% / 1.2%) 0.5px, transparent 0.6px) 0 0 / 3px 3px;
+  pointer-events: none;
+  z-index: -1;
+  mix-blend-mode: overlay;
+  opacity: 0.022;
+}
+
+@keyframes mesh-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(2%, -2%, 0) scale(1.05); }
+  100% { transform: translate3d(-1%, 1%, 0) scale(1.02); }
+}
+
+.app-body::before {
+  animation: mesh-drift var(--mesh-speed) ease-in-out infinite alternate;
+}
+
+/* Page-level layout container. Padding matches DaisyUI's container. */
+.app-page {
+  width: min(100% - 2rem, 80rem);
+  margin: 0 auto;
+  padding: 6.5rem 0 2rem;
+  position: relative;
+}
+
+/* Navbar — now a glass strip floating over content. */
+.app-navbar {
+  position: fixed !important;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100% - 1.5rem, 80rem);
+  z-index: 50;
+  background: hsl(var(--surface) / 55%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: 999px;
+  box-shadow: var(--shadow-glass);
+  padding: 0.4rem 0.85rem;
+}
+
+.app-navbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--highlight-top)),
+    hsl(var(--highlight-top) / 0%) 50%,
+    hsl(var(--highlight-top) / 25%) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Page header — used on favourites, albums, centroids, saved etc. */
+.app-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem 1.75rem;
+}
+
+.app-page-header h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.app-page-header .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: hsl(var(--fg-muted));
+  margin: 0 0 0.25rem;
+}
+
+/* Toolbar / filter row above grids. */
+.app-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Empty-state panel. */
+.app-empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: hsl(var(--fg-muted));
+}
+
+/* Mobile breakpoints — drop blur on small screens to save GPU. */
+@media (max-width: 640px) {
+  :root {
+    --blur-glass: 12px;
+    --blur-pill: 8px;
+    --blur-bg: 30px;
+    --saturate-glass: 130%;
+  }
+
+  .app-page {
+    padding: 6.5rem 0 1rem;
+  }
+
+  .app-navbar {
+    top: 0.5rem;
+    width: calc(100% - 1rem);
+  }
+
+  .app-body::before {
+    /* Drastically soften the mesh on mobile — too costly on weak GPUs. */
+    opacity: 0.35;
+  }
+}
+
+/* Forms inside glass — input fields that "feel" like glass too. */
+.glass-input {
+  appearance: none;
+  background: hsl(var(--surface) / 60%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: 12px;
+  padding: 0.6rem 0.95rem;
+  color: hsl(var(--fg));
+  font-size: 0.95rem;
+  width: 100%;
+  transition:
+    background var(--dur-glass) var(--ease-glass),
+    border-color var(--dur-glass) var(--ease-glass),
+    box-shadow var(--dur-glass) var(--ease-glass);
+}
+
+.glass-input::placeholder {
+  color: hsl(var(--fg-muted));
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: hsl(var(--photo-dominant) / 60%);
+  box-shadow:
+    0 0 0 3px hsl(var(--photo-dominant) / 15%),
+    var(--shadow-glass);
+  background: hsl(var(--surface) / 75%);
+}
+
+/* Search bar — special variant: subtle inner glow that adopts photo tint. */
+.search-bar {
+  position: relative;
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto 1.5rem;
+}
+
+.search-bar .glass-input {
+  font-size: 1.05rem;
+  padding: 0.85rem 1.2rem;
+  border-radius: 999px;
+  background: hsl(var(--surface) / 60%);
+}
+
+.search-bar::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    120deg,
+    hsl(var(--photo-dominant) / 35%),
+    hsl(var(--photo-palette-2) / 25%),
+    hsl(var(--photo-palette-3) / 25%)
+  );
+  filter: blur(10px);
+  z-index: -1;
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity var(--dur-glass) var(--ease-glass);
+}
+
+.search-bar:focus-within::after {
+  opacity: 1;
+}
+
+/* Photo page hero — big photo with blur-copy behind. Used on /photo/{id} */
+.photo-page {
+  position: relative;
+  isolation: isolate;
+  width: min(100% - 2rem, 80rem);
+  margin: 0 auto;
+  padding: 6rem 0 2rem;
+}
+
+.photo-page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: blur(40px) saturate(140%) brightness(0.85);
+  -webkit-filter: blur(40px) saturate(140%) brightness(0.85);
+  transform: scale(1.15);
+  opacity: 0.32;
+  pointer-events: none;
+  transition: opacity 500ms var(--ease-glass);
+}
+
+.photo-page-bg.has-photo {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .photo-page-bg {
+    filter: blur(28px) saturate(130%) brightness(0.85);
+    -webkit-filter: blur(28px) saturate(130%) brightness(0.85);
+    transform: scale(1.25);
+  }
+}

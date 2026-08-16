@@ -1,0 +1,141 @@
+/*
+  search/static/css/tokens.css
+  Design tokens. Single source of truth for color, blur, shadow, easing.
+  Both themes live here. Every other glass/layout file reads from these.
+*/
+
+:root {
+  /* Glass metrics — tuned for perceived richness, mobile-friendly fallback
+     in layout.css via reduced-blur media query. */
+  --blur-glass: 22px;
+  --blur-pill: 14px;
+  --blur-bg: 60px;
+  --saturate-glass: 160%;
+  --highlight-strength: 18%;
+  --mesh-speed: 60s;
+
+  /* Photo-tinted accents default to a calm blue-violet. JS overrides
+     per card / per page via --photo-dominant / --photo-avg. */
+  --photo-dominant: 217 65% 47%;
+  --photo-avg: 217 40% 30%;
+  --photo-palette-1: 217 65% 47%;
+  --photo-palette-2: 280 60% 55%;
+  --photo-palette-3: 180 50% 45%;
+
+  /* Border / highlight tokens applied via the masked gradient in glass.css. */
+  --shadow-glass:
+    0 1px 0 hsl(0 0% 100% / var(--highlight-strength)) inset,
+    0 12px 32px hsl(0 0% 0% / 22%);
+  --shadow-glass-strong:
+    0 1px 0 hsl(0 0% 100% / 22%) inset,
+    0 18px 48px hsl(0 0% 0% / 30%);
+
+  /* Easing + duration reused by transitions. */
+  --ease-glass: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-glass: 220ms;
+}
+
+/* LIGHT theme — semi-transparent off-white glass, warm top highlight. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface: 220 18% 96%;                /* near-white, slight cool */
+  --surface-strong: 220 20% 98%;         /* opaque base for text panels */
+  --fg: 220 25% 12%;                     /* deep slate for body text */
+  --fg-muted: 220 12% 38%;
+  --border-glass: 220 25% 25% / 14%;
+  --border-strong: 220 25% 25% / 22%;
+  --highlight-top: 0 0% 100% / 22%;
+  --shadow-color: 220 30% 12%;
+  --shadow-glass:
+    0 1px 0 hsl(0 0% 100% / 32%) inset,
+    0 10px 28px hsl(220 30% 12% / 18%);
+  --shadow-glass-strong:
+    0 1px 0 hsl(0 0% 100% / 38%) inset,
+    0 18px 48px hsl(220 30% 12% / 22%);
+  --accent-warm: 25 95% 55%;
+  --accent-cool: 200 80% 45%;
+  --bg-base: 220 25% 96%;
+}
+
+/* DARK theme — glass becomes deep navy, edge highlight goes warm. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: 220 25% 11%;
+  --surface-strong: 220 30% 9%;
+  --fg: 220 10% 92%;
+  --fg-muted: 220 10% 62%;
+  --border-glass: 0 0% 100% / 10%;
+  --border-strong: 0 0% 100% / 18%;
+  --highlight-top: 0 0% 100% / 14%;
+  --shadow-color: 0 0% 0%;
+  --shadow-glass:
+    0 1px 0 hsl(0 0% 100% / 12%) inset,
+    0 12px 36px hsl(0 0% 0% / 50%);
+  --shadow-glass-strong:
+    0 1px 0 hsl(0 0% 100% / 18%) inset,
+    0 22px 60px hsl(0 0% 0% / 55%);
+  --accent-warm: 25 95% 65%;
+  --accent-cool: 200 80% 60%;
+  --bg-base: 220 30% 7%;
+}
+
+/* Honor reduced transparency: blow out glass to fully opaque so users
+   who disable transparency don't get a see-through soup. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --blur-glass: 0px;
+    --blur-pill: 0px;
+    --blur-bg: 0px;
+    --saturate-glass: 100%;
+    --highlight-strength: 0%;
+  }
+}
+
+/* Honor reduced motion: cut the ambient mesh drift. Layout.css consumes
+   --mesh-speed; setting it to 0 disables the animation. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mesh-speed: 0s;
+  }
+}
+
+/* Print: blow out glass to fully opaque, no blur, no backdrop-filter,
+   no shadow. The user wants a clean print, not a frosted mess. */
+@media print {
+  :root {
+    --blur-glass: 0px;
+    --blur-pill: 0px;
+    --blur-bg: 0px;
+    --saturate-glass: 100%;
+    --highlight-strength: 0%;
+    --mesh-speed: 0s;
+    --shadow-glass: none;
+    --shadow-glass-strong: none;
+  }
+
+  .glass,
+  .glass--sharp,
+  .glass-frost,
+  .glass-pill,
+  .glass-tinted {
+    background: hsl(var(--surface-strong));
+    border: 1px solid hsl(var(--border-strong));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .app-body::before,
+  .app-body::after {
+    display: none;
+  }
+
+  .photo-page-bg {
+    display: none;
+  }
+
+  .photo-card {
+    box-shadow: none;
+    background: white;
+  }
+}

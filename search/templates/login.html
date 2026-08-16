@@ -26,10 +26,10 @@
 </head>
 <body class="app-body min-h-screen flex items-center justify-center bg-base-200 px-4 py-10">
   <main class="w-full max-w-sm">
-    <div class="card bg-base-100 shadow-xl">
+    <div class="card glass--sharp">
       <div class="card-body gap-4">
         <header class="space-y-1">
-          <p class="eyebrow">Image Search</p>
+          <p class="eyebrow" data-glass-page-header>Image Search</p>
           <h1 class="card-title text-xl">Sign in</h1>
         </header>
 
@@ -63,7 +63,7 @@
               autocapitalize="off"
               autocorrect="off"
               spellcheck="false"
-              class="input input-bordered w-full"
+              class="glass-input input input-bordered w-full"
               value="{{ username|default('') }}"
             >
           </label>
@@ -75,7 +75,7 @@
               name="password"
               required
               autocomplete="current-password"
-              class="input input-bordered w-full"
+              class="glass-input input input-bordered w-full"
             >
           </label>
 
