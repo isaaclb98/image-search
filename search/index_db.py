@@ -100,6 +100,42 @@ class IndexDB:
                 CREATE INDEX IF NOT EXISTS idx_favorites_favorited_at
                   ON favorites(favorited_at DESC);
 
+                -- Persistent "do not recommend" feedback. Independent
+                -- of the `favorites` table so king can ✕ photos that
+                -- they never liked. Mirrors favorites structurally so
+                -- the for-you ranking service reads them identically.
+                CREATE TABLE IF NOT EXISTS dislikes (
+                  id            TEXT PRIMARY KEY,
+                  disliked_at   TEXT NOT NULL,
+                  source        TEXT NOT NULL DEFAULT 'manual'
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_dislikes_disliked_at
+                  ON dislikes(disliked_at DESC);
+
+                -- Append-only feedback event log. Records every like
+                -- and dislike (including cross-page toggles of an
+                -- existing favourite) with the page that produced it.
+                -- Used by the for-you ranking to (1) compute "trained
+                -- N seconds ago" copy and (2) infer dwell-time style
+                -- signals in a later phase. Source values:
+                --   'grid'     — photo-card ♥ / ✕ on a result grid
+                --   'lightbox' — fullscreen viewer
+                --   'for_you'  — /for-you feed itself
+                --   'detail'   — /photo/{id} page
+                CREATE TABLE IF NOT EXISTS feedback_events (
+                  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                  photo_id      TEXT NOT NULL,
+                  kind          TEXT NOT NULL CHECK (kind IN ('like','dislike')),
+                  at            TEXT NOT NULL,
+                  source        TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_feedback_events_at
+                  ON feedback_events(at DESC);
+                CREATE INDEX IF NOT EXISTS idx_feedback_events_photo
+                  ON feedback_events(photo_id);
+
                 -- User-created albums. A photo can be in zero, one,
                 -- or many albums — album membership is independent
                 -- of favourites status, so a photo can be in album
@@ -765,6 +801,141 @@ class IndexDB:
                 """
             ).fetchone()
         return int(row["n"] if row else 0)
+
+    # ----------------------------------------------------------------
+    # Dislikes (persistent "do-not-recommend" feedback)
+    # ----------------------------------------------------------------
+    def mark_dislike(self, point_id: str, source: str = "manual") -> None:
+        """Record a ✕ on a photo.
+
+        Idempotent — re-pressing ✕ on an already-disliked photo just
+        refreshes the timestamp, which matters because time decay on
+        the for-you feed weights recent feedback more.
+        """
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO dislikes (id, disliked_at, source)
+                VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  disliked_at = excluded.disliked_at,
+                  source      = excluded.source
+                """,
+                (point_id, _utc_now(), source),
+            )
+            self._conn.commit()
+
+    def unmark_dislike(self, point_id: str) -> None:
+        """Remove a ✕. Used by undo and by the /for-you Reset button."""
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM dislikes WHERE id = ?",
+                (point_id,),
+            )
+            self._conn.commit()
+
+    def is_disliked(self, point_id: str) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT 1 FROM dislikes WHERE id = ? LIMIT 1",
+                (point_id,),
+            ).fetchone()
+        return row is not None
+
+    def list_dislike_ids(self) -> list[str]:
+        """All dislike ids, including orphans. Same shape as
+        `list_favorite_ids` — consumed symmetrically by the for-you
+        ranking service."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id FROM dislikes ORDER BY disliked_at DESC"
+            ).fetchall()
+        return [row["id"] for row in rows]
+
+    def list_dislikes(self, limit: int = 200, offset: int = 0) -> list[dict]:
+        """Same JOIN shape as `list_favorites` so the dislike gallery
+        page can reuse the result-grid partial without changes."""
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                       i.size, i.indexed_at, i.width, i.height,
+                       d.disliked_at, d.source
+                FROM images i
+                INNER JOIN dislikes d ON i.id = d.id
+                ORDER BY d.disliked_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def count_dislikes(self) -> int:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM dislikes d "
+                "INNER JOIN images i ON i.id = d.id"
+            ).fetchone()
+        return int(row["n"] if row else 0)
+
+    # ----------------------------------------------------------------
+    # Feedback event log (append-only; power for-you observability)
+    # ----------------------------------------------------------------
+    def record_feedback(
+        self, photo_id: str, kind: str, source: str
+    ) -> None:
+        """Insert one row. `kind` ∈ {'like', 'dislike'}.
+
+        Cross-page actions (e.g. lightbox ♥ also flips the per-page
+        state) each emit one event so the timestamp reflects the most
+        recent feedback on the photo.
+        """
+        assert kind in ("like", "dislike"), kind
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO feedback_events (photo_id, kind, at, source)
+                VALUES (?, ?, ?, ?)
+                """,
+                (photo_id, kind, _utc_now(), source),
+            )
+            self._conn.commit()
+
+    def most_recent_feedback(self) -> str | None:
+        """ISO timestamp of the latest feedback event, or None. Used by
+        the for-you header chip ("trained 4 min ago")."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT at FROM feedback_events ORDER BY at DESC LIMIT 1"
+            ).fetchone()
+        return row["at"] if row else None
+
+    def feedback_counts(self) -> tuple[int, int]:
+        """Return (n_likes, n_dislikes) across all feedback events.
+        Not the same as len(favorites) — a favourite removed later
+        leaves its `like` event in the log."""
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT
+                  SUM(CASE WHEN kind = 'like'    THEN 1 ELSE 0 END) AS likes,
+                  SUM(CASE WHEN kind = 'dislike' THEN 1 ELSE 0 END) AS dislikes
+                FROM feedback_events
+                """
+            ).fetchone()
+        return (
+            int(row["likes"] or 0) if row else 0,
+            int(row["dislikes"] or 0) if row else 0,
+        )
+
+    def reset_feedback(self) -> None:
+        """Wipe all dislikes + feedback events (NOT favourites).
+        Used by the /for-you Reset button. Keeps the favorites table
+        intact so a reset still leaves a centroid to recommend from."""
+        with self._lock:
+            self._conn.execute("DELETE FROM dislikes")
+            self._conn.execute("DELETE FROM feedback_events")
+            self._conn.commit()
 
     # ---------------------- Albums ----------------------
     #

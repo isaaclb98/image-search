@@ -139,3 +139,125 @@
     background: white;
   }
 }
+
+/* /for-you grid — same masonry rules as the main result grid,
+   spelled out here so adding /for-you doesn't depend on pulling
+   in a private CSS hook from the search page. */
+.for-you-page .app-page-header {
+  /* inherit .app-page-header + .glass--sharp from previous patches */
+}
+
+.for-you-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.for-you-meta__freshness {
+  color: hsl(var(--fg-muted));
+  margin-left: 0.4rem;
+}
+
+.for-you-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .for-you-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+.photo-card-slot {
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: hsl(var(--surface) / 10%);
+  border: 1px solid hsl(var(--border-glass));
+  animation: slot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes slot-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.7; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-card-slot { animation: none; opacity: 0.55; }
+}
+
+.for-you-card .photo-card-dislike {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: hsl(var(--surface) / 70%);
+  backdrop-filter: blur(var(--blur-pill));
+  -webkit-backdrop-filter: blur(var(--blur-pill));
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--fg-muted));
+  cursor: pointer;
+  transition:
+    color var(--dur-glass) var(--ease-glass),
+    background var(--dur-glass) var(--ease-glass),
+    transform 120ms var(--ease-glass);
+}
+
+.for-you-card .photo-card-dislike:hover {
+  color: hsl(0 0% 35%);
+  transform: scale(1.08);
+}
+
+.for-you-card .photo-card-dislike.is-active {
+  background: hsl(0 0% 35% / 18%);
+  color: hsl(0 0% 22%);
+}
+
+:root[data-theme="dark"] .for-you-card .photo-card-dislike:hover {
+  color: hsl(0 0% 75%);
+}
+
+:root[data-theme="dark"] .for-you-card .photo-card-dislike.is-active {
+  background: hsl(0 0% 75% / 18%);
+  color: hsl(0 0% 88%);
+}
+
+/* Empty-state panel for /for-you when there's no signal yet. */
+.for-you-empty {
+  padding: 3rem 1.5rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.for-you-empty__title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0.4rem 0 0.8rem;
+  letter-spacing: -0.01em;
+}
+
+.for-you-empty__body {
+  max-width: 32rem;
+  margin: 0 auto 1.5rem;
+  color: hsl(var(--fg-muted));
+  line-height: 1.55;
+}
+
+.for-you-empty__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.for-you-error {
+  padding: 1.5rem;
+  margin-top: 1rem;
+  text-align: center;
+  color: hsl(var(--fg-muted));
+}
