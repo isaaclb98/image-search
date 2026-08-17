@@ -805,7 +805,7 @@
 
 .search-submit {
   padding: var(--space-2) var(--space-5);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
 }
 
 .search-submit.is-dirty {
