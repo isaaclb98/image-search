@@ -1464,5 +1464,97 @@
 }
 
 /* ============================================================
-   26. LEGACY BRIDGE.
+   26. TYPE OVERRIDES — DaisyUI/Tailwind text-* classes flow
+   through the token system. Components using .text-sm etc. now
+   inherit our type scale, weights, line-heights automatically.
+   ============================================================ */
+
+.text-2xl {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--weight-bold);
+}
+.text-xl {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--weight-bold);
+}
+.text-lg {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-semibold);
+}
+.text-base {
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+.text-sm {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.text-xs {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-normal);
+}
+
+/* Font weights also flow from tokens. */
+.font-bold { font-weight: var(--weight-bold); }
+.font-semibold { font-weight: var(--weight-semibold); }
+.font-medium { font-weight: var(--weight-medium); }
+.font-normal,
+.font-regular { font-weight: var(--weight-regular); }
+
+/* Letter-spacing / tracking. */
+.tracking-tight { letter-spacing: var(--tracking-tight); }
+.tracking-normal { letter-spacing: var(--tracking-normal); }
+.tracking-wide { letter-spacing: var(--tracking-wide); }
+.tracking-eyebrow { letter-spacing: var(--tracking-eyebrow); }
+
+/* Colors — opacity-modulated ink. */
+.text-base-content { color: hsl(var(--fg)); }
+.text-base-content\/70 { color: hsl(var(--fg-muted)); }
+.text-base-content\/60 { color: hsl(var(--fg-muted)); }
+.text-base-content\/55 { color: hsl(var(--fg-muted)); }
+.text-base-content\/50 { color: hsl(var(--fg-subtle)); }
+.text-base-content\/40 { color: hsl(var(--fg-subtle)); }
+.text-base-content\/30 { color: hsl(var(--ink-300)); }
+
+/* Tabular numerals utility. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   27. FOCUS + INTERACTION POLISH — visible focus rings, smooth
+   transitions, consistent hover affordance.
+   ============================================================ */
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid hsl(var(--accent-500));
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: hsl(var(--accent-500));
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+a:hover {
+  color: hsl(var(--accent-400));
+}
+
+/* ============================================================
+   28. LEGACY BRIDGE.
    ============================================================ */
