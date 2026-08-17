@@ -552,6 +552,60 @@ a:hover {
 .album-download:hover {
   background: rgba(0, 0, 0, 0.04);
 }
+/* Photo page: back navigation (restored in Tier 3 detail panel) */
+.photo-back-nav {
+  margin-bottom: 1rem;
+}
+.photo-back-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.photo-back-link:hover {
+  color: var(--fg);
+}
+/* Photo page: heart / x reaction row */
+.photo-react-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin: 0 0 1rem 0;
+}
+.photo-react-actions .fav-form,
+.photo-react-actions .dislike-form {
+  margin: 0;
+}
+.dislike-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.dislike-toggle:hover {
+  color: var(--fg);
+}
+.dislike-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.dislike-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.dislike-toggle[aria-pressed="true"] .dislike-icon {
+  color: var(--color-danger, #d33);
+}
+.dislike-toggle[aria-pressed="false"] .dislike-icon {
+  color: var(--muted);
+}
+.dislike-label {
+  font-size: 0.95rem;
+}
 .fav-form {
   margin: 0 0 1rem 0;
 }

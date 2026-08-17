@@ -26,22 +26,47 @@
     </figure>
 
     <aside class="photo-detail-panel glass-tinted">
+      <nav class="photo-back-nav">
+        {% if from_favorites %}
+          <a class="photo-back-link" href="/favorites">← Back to favourites</a>
+        {% elif search_query_string %}
+          <a class="photo-back-link" href="/?{{ search_query_string }}">← Back to results</a>
+        {% else %}
+          <a class="photo-back-link" href="/">← Home</a>
+        {% endif %}
+      </nav>
       <header class="photo-detail-panel__head">
         <p class="eyebrow">Photo details</p>
-        <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
+        <div class="photo-react-actions">
+  <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
+            <button
+              type="submit"
+              class="fav-toggle glass-pill"
+              data-fav-id="{{ id }}"
+              data-fav-state="{{ 'on' if is_favorite else 'off' }}"
+              aria-pressed="{{ 'true' if is_favorite else 'false' }}"
+              aria-label="Toggle favourite"
+              title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
+            >
+              <span class="fav-icon" aria-hidden="true">♥</span>
+              <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
+            </button>
+          </form>
+  <form class="dislike-form" method="post" action="/api/dislikes/{{ id }}" data-dislike-form>
           <button
             type="submit"
-            class="fav-toggle glass-pill"
-            data-fav-id="{{ id }}"
-            data-fav-state="{{ 'on' if is_favorite else 'off' }}"
-            aria-pressed="{{ 'true' if is_favorite else 'false' }}"
-            aria-label="Toggle favourite"
-            title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
+            class="dislike-toggle glass-pill"
+            data-dislike-id="{{ id }}"
+            data-dislike-state="{{ 'on' if is_disliked else 'off' }}"
+            aria-pressed="{{ 'true' if is_disliked else 'false' }}"
+            aria-label="Toggle dislike"
+            title="{{ 'Undo dislike' if is_disliked else 'Hide from recommendations' }}"
           >
-            <span class="fav-icon" aria-hidden="true">♥</span>
-            <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
+            <span class="dislike-icon" aria-hidden="true">✕</span>
+            <span class="dislike-label">{{ 'Disliked' if is_disliked else 'Dislike' }}</span>
           </button>
         </form>
+</div>
       </header>
 
       <section class="detail-section">

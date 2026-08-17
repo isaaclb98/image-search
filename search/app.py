@@ -1879,6 +1879,7 @@ def create_app(
         filename_pattern = _parse_filename(request)
         cached_row = await asyncio.to_thread(index_db.get_by_id, hit.id)
         is_favorite = bool(cached_row and int(cached_row.get("is_favorite") or 0) == 1)
+        is_disliked = await asyncio.to_thread(index_db.is_disliked, hit.id)
         # Lazy liveness for the /photo page too (same check as the
         # raw route). Defensive: catches filesystem deletions that the
         # IndexDB refresh hasn't caught up with yet.
@@ -1926,6 +1927,7 @@ def create_app(
                 "payload": hit.payload or {},
                 "file_missing": file_missing,
                 "is_favorite": is_favorite,
+            "is_disliked": is_disliked,
                 "all_albums": all_albums,
                 "photo_album_ids": photo_album_ids,
                 "static_assets_version": _cfg.static_assets_version,
@@ -2286,6 +2288,30 @@ def create_app(
                 score_str="",
                 url=resolve_url(str(row["id"]), _cfg.web_ui_url),
                 is_favorite=True,
+                width=_maybe_int(row.get("width")),
+                height=_maybe_int(row.get("height")),
+            )
+            for row in rows
+        ]
+
+
+    def _dislike_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+        """Same shape as `_favorite_rows_to_results`; is_favorite comes
+        from a fresh favourites lookup so tiles show true heart state."""
+        def _maybe_int(v):
+            try:
+                return int(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+        fav_ids = set(index_db.list_favorite_ids())
+        return [
+            SearchResult(
+                id=str(row["id"]),
+                path=str(row["path"]),
+                score=0.0,
+                score_str="",
+                url=resolve_url(str(row["id"]), _cfg.web_ui_url),
+                is_favorite=str(row["id"]) in fav_ids,
                 width=_maybe_int(row.get("width")),
                 height=_maybe_int(row.get("height")),
             )
@@ -2796,6 +2822,44 @@ def create_app(
                 "positives": [],
                 "negatives": [],
                 "search_query_string": "from_favorites=true",
+                "static_assets_version": _cfg.static_assets_version,
+            },
+        )
+
+    @app.get("/dislikes", response_class=HTMLResponse)
+    async def dislikes_page(
+        request: Request,
+        limit: int = Query(_cfg.top_k_default, description="max dislikes"),
+        offset: int = Query(0, description="offset into dislikes"),
+        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
+    ) -> HTMLResponse:
+        view = _coerce_view(view)
+        try:
+            limit = max(1, min(int(limit), 1000))
+        except (TypeError, ValueError):
+            limit = get_cfg().top_k_default
+        try:
+            offset = max(0, int(offset))
+        except (TypeError, ValueError):
+            offset = 0
+        rows = await asyncio.to_thread(index_db.list_dislikes, limit, offset)
+        total = await asyncio.to_thread(index_db.count_dislikes)
+        results = _dislike_rows_to_results(rows)
+        return templates.TemplateResponse(
+            request,
+            "dislikes.html",
+            {
+                "results": results,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + len(results) < total,
+                "max_results_total": total,
+                "view": view,
+                "q": "",
+                "positives": [],
+                "negatives": [],
+                "search_query_string": "",
                 "static_assets_version": _cfg.static_assets_version,
             },
         )
@@ -3911,9 +3975,45 @@ def create_app(
         _invalidate_favourites_centroid()
 
     @app.get("/api/dislikes")
-    async def list_dislikes(limit: int = 200, offset: int = 0) -> dict:
-        items = await asyncio.to_thread(index_db.list_dislikes, limit, offset)
-        return {"items": items, "count": len(items)}
+    async def list_dislikes(
+        limit: int = Query(_cfg.top_k_default, description="max dislikes"),
+        offset: int = Query(0, description="offset into dislikes"),
+        as_results: bool = Query(False, description="return SearchResponse-compatible shape"),
+    ):
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            return _bad_request("limit must be an integer")
+        if not (1 <= limit <= 1000):
+            return _bad_request("limit must be in [1, 1000]")
+        try:
+            offset = int(offset)
+        except (TypeError, ValueError):
+            return _bad_request("offset must be an integer")
+        if offset < 0:
+            return _bad_request("offset must be >= 0")
+        rows = await asyncio.to_thread(index_db.list_dislikes, limit, offset)
+        total = await asyncio.to_thread(index_db.count_dislikes)
+        if as_results:
+            return SearchResponse(
+                query="",
+                positives=[],
+                negatives=[],
+                view=_cfg.default_view,
+                centroid=None,
+                results=_dislike_rows_to_results(rows),
+                took_ms=0,
+                offset=offset,
+                limit=limit,
+                has_more=offset + len(rows) < total,
+            )
+        return {
+            "items": rows,
+            "count": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(rows) < total,
+        }
 
     # Reset wipes dislikes + feedback_events only. Favourites stay so
     # the next page load still has a "warm start" via favourites.
