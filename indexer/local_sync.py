@@ -86,9 +86,35 @@ def canonical_payload_path(local_path: Path, prefix: str, base: str) -> str:
                     rel_s = lp_s[len(base_s):].lstrip("/\\")
                     return str(Path(prefix) / rel_s)
                 return str(lp)
-        except Exception:
+        except (OSError, ValueError):
             return str(lp)
     return str(lp)
+
+
+
+def _await_points_visible(client, name, ids, timeout_s=30.0, poll_s=0.2):
+    """Poll until every id in `ids` is retrievable from the collection.
+
+    Batched upserts are sent with wait=False; Qdrant acknowledges them
+    asynchronously. This bounds the race for callers that read right
+    after sync. Returns True when visible, False on timeout.
+    """
+    deadline = time.time() + timeout_s
+    want = set(ids)
+    while True:
+        try:
+            found = upsert.existing_ids(client, name, list(want))
+        except Exception:
+            found = set()
+        if want <= found:
+            return True
+        if time.time() >= deadline:
+            logger.warning(
+                "timed out waiting for %d point(s) to become visible",
+                len(want - found),
+            )
+            return False
+        time.sleep(poll_s)
 
 
 def main(argv=None):
@@ -127,6 +153,12 @@ def main(argv=None):
 
 
     total_indexed = 0
+
+
+    total_reembedded = 0
+
+
+    last_written_ids: list = []
     total_skipped = 0
     total_errors = 0
     t0 = time.time()
@@ -193,20 +225,95 @@ def main(argv=None):
 
         for i in range(0, len(snap), args.batch_size):
             batch = snap[i:i+args.batch_size]
-            if args.dry_run:
-                logger.info("dry-run would embed %d files", len(batch))
-                total_indexed += len(batch)
+
+            ids = [upsert.id_for(p) for p in batch]
+            # Change detection: pull mtime/size for points that already
+            # exist. Point ids are deterministic (upsert.id_for), so a
+            # changed file re-embeds INTO its existing point — no
+            # duplicates, favourites/album membership preserved.
+            # Points lacking stored mtime/size (pre-change-detection
+            # index) are treated as changed so they heal on next run.
+            existing_meta: dict = {}
+            try:
+                points = client.retrieve(
+                    collection_name=args.qdrant_collection,
+                    ids=ids,
+                    with_payload=["mtime", "size"],
+                )
+                for pt in points:
+                    pl = pt.payload or {}
+                    if pl.get("mtime") is not None and pl.get("size") is not None:
+                        existing_meta[str(pt.id)] = (int(pl["mtime"]), int(pl["size"]))
+                    else:
+                        existing_meta[str(pt.id)] = None
+            except Exception:
+                if not args.dry_run:
+                    raise
+                logger.warning("dry-run: could not read existing points; assuming all new")
+                existing_meta = {}
+            
+            to_embed: list = []
+            n_new = 0
+            n_changed = 0
+            for path, pid in zip(batch, ids, strict=False):
+                if pid not in existing_meta:
+                    to_embed.append((path, "new"))
+                    n_new += 1
+                    continue
+                recorded = existing_meta[pid]
+                if recorded is None:
+                    to_embed.append((path, "changed"))
+                    n_changed += 1
+                    continue
+                try:
+                    st = path.stat()
+                except OSError:
+                    total_errors += 1
+                    continue
+                if int(st.st_mtime) != recorded[0] or int(st.st_size) != recorded[1]:
+                    to_embed.append((path, "changed"))
+                    n_changed += 1
+                else:
+                    total_skipped += 1
+            
+            logger.info(
+                "batch %d: %d new, %d changed, %d up-to-date",
+                i // args.batch_size + 1, n_new, n_changed,
+                len(batch) - n_new - n_changed,
+            )
+            
+            if not to_embed:
                 continue
 
-            ids = [upsert.id_for(p, "") for p in batch]
-            already = upsert.existing_ids(client, args.qdrant_collection, ids)
-            new_paths = [p for p, pid in zip(batch, ids, strict=False) if pid not in already]
-            total_skipped += len(batch) - len(new_paths)
-            if not new_paths:
+            
+
+            if args.dry_run:
+            
+
+                logger.info(
+            
+
+                    "dry-run: would embed %d file(s) (%d new, %d changed)",
+            
+
+                    len(to_embed), n_new, n_changed,
+            
+
+                )
+            
+
+                total_indexed += n_new
+            
+
+                total_reembedded += n_changed
+            
+
                 continue
+
+            
 
             loaded = []
-            for p in new_paths:
+            for p, _reason in to_embed:
                 try:
                     img = load(p)
                     loaded.append((p, img))
@@ -236,14 +343,27 @@ def main(argv=None):
                 items.append((upsert.id_for(path, ""), vec, payload))
 
             try:
-                upsert.upsert_batch(client, args.qdrant_collection, [(pid, v, pl) for pid, v, pl in items], wait=True)
-                total_indexed += len(items)
+                upsert.upsert_batch(client, args.qdrant_collection, [(pid, v, pl) for pid, v, pl in items], wait=False)
+                total_indexed += sum(1 for (_p, r) in to_embed if r == "new")
+                total_reembedded += sum(1 for (_p, r) in to_embed if r == "changed")
+                last_written_ids = [iid for (iid, _v, _pl) in items]
             except Exception:
                 logger.exception("upsert failed")
                 total_errors += len(items)
 
+    # Visibility guarantee: batched upserts go out wait=False for
+
+    # speed; before declaring done, block until the last written
+
+    # batch is actually retrievable so callers never see stale state.
+
+    if last_written_ids and not args.dry_run:
+
+        _await_points_visible(client, args.qdrant_collection, last_written_ids)
+
+
     dt = time.time() - t0
-    print(f"Done indexed={total_indexed} skipped={total_skipped} errors={total_errors} ({dt:.1f}s)")
+    print(f"Done indexed={total_indexed} re-embedded={total_reembedded} skipped={total_skipped} errors={total_errors} ({dt:.1f}s)")
     return 0
 
 

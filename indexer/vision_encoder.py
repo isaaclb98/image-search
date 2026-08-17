@@ -92,7 +92,21 @@ class VisionEncoder:
 
         images = list(images)
         if getattr(self, "test_mode", False):
-            return [_mock_image_embed(i) for i in range(len(images))]
+            # Seed the mock from the image CONTENT (bytes hash), not the
+            # batch index, so different images embed differently and a
+            # re-embedded (changed) file gets a new vector.
+            out = []
+            for img in images:
+                try:
+                    import hashlib
+                    import io
+                    buf = io.BytesIO()
+                    img.save(buf, format="PNG")
+                    seed = int.from_bytes(hashlib.sha256(buf.getvalue()).digest()[:8], "big")
+                except Exception:
+                    seed = id(img)
+                out.append(_mock_image_embed(seed))
+            return out
         if not images:
             return []
         import torch
