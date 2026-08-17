@@ -29,6 +29,24 @@ logger = logging.getLogger(__name__)
 DEFAULT_ARCH: str = "ViT-gopt-16-SigLIP2-384"
 DEFAULT_PRETRAINED: str = "webli"
 
+_EMBED_DIM: int = 1536
+
+
+def _mock_image_embed(seed: int) -> list[float]:
+    """Deterministic unit-norm mock embedding for tests.
+
+    Same shape (1536-dim, L2-normalized) as real SigLIP2 output so
+    Qdrant cosine math behaves; values depend on `seed` so different
+    images embed differently. Avoids loading the multi-GB ViT in tests.
+    """
+    import hashlib
+    import math
+
+    digest = hashlib.sha512(str(seed).encode()).digest()  # 64 bytes
+    raw = [digest[i % len(digest)] / 255.0 - 0.5 for i in range(_EMBED_DIM)]
+    norm = math.sqrt(sum(v * v for v in raw)) or 1.0
+    return [v / norm for v in raw]
+
 
 class VisionEncoder:
     """
@@ -45,7 +63,16 @@ class VisionEncoder:
         arch: str = DEFAULT_ARCH,
         pretrained: str = DEFAULT_PRETRAINED,
         device: str = "cpu",
+        test_mode: bool | None = None,
     ) -> None:
+        import os
+        if test_mode is None:
+            test_mode = bool(os.environ.get("SEARCH_TEST_MODE"))
+        self.test_mode = test_mode
+        if test_mode:
+            logger.info("VisionEncoder: test mode, using mock embedder")
+            return
+
         import open_clip
 
         self.arch = arch
@@ -62,6 +89,12 @@ class VisionEncoder:
         Embed a batch of PIL images (already letterboxed to 384x384).
         Returns unit-norm 1536-dim vectors.
         """
+
+        images = list(images)
+        if getattr(self, "test_mode", False):
+            return [_mock_image_embed(i) for i in range(len(images))]
+        if not images:
+            return []
         import torch
         import torch.nn.functional as F
 

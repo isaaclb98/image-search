@@ -118,13 +118,13 @@ def main(argv=None):
         logger.error("--reblurhash and --refingerprint are mutually exclusive")
         return 2
 
-    encoder = None
-    if not args.dry_run and not args.reblurhash and not args.refingerprint:
-        # Backfill paths don't embed — they just read source files
-        # and `set_payload` a single field. Skip the VisionEncoder
-        # init so that --reblurhash / --refingerprint work on machines
-        # without a CUDA driver (CI, CPU-only test fixtures, etc).
-        encoder = VisionEncoder(arch=args.model, device=args.device)
+    # Lazy: encoder only built when we actually embed. Backfill
+    # (--reblurhash / --refingerprint)and --prune / --dry-run paths
+    # never embed, so those runs must not pay the multi-second
+    # VisionEncoder (timm ViT) init cost — it made prune tests hang
+    # on CPU-only machines.
+    encoder: VisionEncoder | None = None
+
 
     total_indexed = 0
     total_skipped = 0
@@ -218,6 +218,10 @@ def main(argv=None):
                 continue
 
             try:
+                if encoder is None:
+
+                    encoder = VisionEncoder(arch=args.model, device=args.device)
+
                 vecs = encoder.embed_batch([letterbox_resize(img) for _, img in loaded])
             except Exception:
                 logger.exception("embed failed")

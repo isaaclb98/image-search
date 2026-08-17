@@ -642,7 +642,7 @@ def test_photo_page_has_similar_button(app_with_qdrant):
     resp = app_with_qdrant.get(f"/photo/{CAT_ID}")
     assert resp.status_code == 200
     assert f'href="/photo/{CAT_ID}/similar"' in resp.text
-    assert "Most similar images" in resp.text
+    assert "Most similar photos" in resp.text
 
 
 def test_photo_page_omits_similar_button_when_file_missing(app_with_qdrant):
