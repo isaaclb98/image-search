@@ -1,51 +1,36 @@
 /*
   search/static/css/photo-card.css
-  Photo card styles for the grid. Glass cards over photos, color-tinted
-  on hover, photo-driven ambient glow.
-
-  Required markup (set by _result_grid.html):
-    <li class="photo-card" style="--photo-dominant: <hsl>">
-      <a class="photo-card-link">
-        <img class="photo-card-img" loading="lazy" decoding="async" ...>
-      </a>
-      ...
-    </li>
-
-  JS (glass.js) sets --photo-dominant, --photo-avg, --photo-palette-2/3
-  per card so the CSS can drive the tint without per-element classes.
+  Photo card styles for grid/feed views. Photo-driven tint + glass border.
+  All values flow from tokens.css.
 */
 
 .photo-card {
   position: relative;
   isolation: isolate;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: hsl(var(--surface) / 14%);
+  background: hsl(var(--surface) / 18%);
   border: 1px solid hsl(var(--border-glass));
-  box-shadow:
-    0 1px 0 hsl(0 0% 100% / var(--highlight-strength)) inset,
-    0 8px 20px hsl(var(--shadow-color) / 18%);
-  transition:
-    transform var(--dur-glass) var(--ease-glass),
-    box-shadow var(--dur-glass) var(--ease-glass),
-    background var(--dur-glass) var(--ease-glass);
+  box-shadow: var(--shadow-glass);
+  transition: transform var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out),
+              background var(--dur-base) var(--ease-out);
 }
 
 .photo-card::before {
-  /* Color-tinted glass overlay that intensifies on hover. */
+  /* Color-tinted glow from the photo's dominant hue. */
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(
-      120% 100% at 50% 100%,
-      hsl(var(--photo-dominant, var(--accent-cool)) / 16%),
-      transparent 65%
-    );
+  background: radial-gradient(
+    120% 100% at 50% 100%,
+    hsl(var(--photo-dominant, var(--accent-500)) / 18%),
+    transparent 65%
+  );
   z-index: 2;
   pointer-events: none;
   opacity: 0.85;
-  transition: opacity var(--dur-glass) var(--ease-glass);
+  transition: opacity var(--dur-base) var(--ease-out);
 }
 
 .photo-card::after {
@@ -57,7 +42,7 @@
   padding: 1px;
   background: linear-gradient(
     135deg,
-    hsl(0 0% 100% / var(--highlight-strength)),
+    hsl(0 0% 100% / 24%),
     hsl(0 0% 100% / 0%) 50%,
     hsl(0 0% 100% / 22%) 100%
   );
@@ -73,143 +58,99 @@
   z-index: 3;
 }
 
-.photo-card-link {
-  display: block;
-  position: relative;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  border-radius: inherit;
-}
-
-.photo-card-img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.92;
-  filter: saturate(118%);
-  transition:
-    opacity var(--dur-glass) var(--ease-glass),
-    filter var(--dur-glass) var(--ease-glass),
-    transform var(--dur-glass) var(--ease-glass);
-}
-
 .photo-card:hover {
   transform: translateY(-2px);
-  background: hsl(var(--surface) / 22%);
-  box-shadow:
-    0 1px 0 hsl(0 0% 100% / 22%) inset,
-    0 18px 40px hsl(var(--photo-avg, var(--shadow-color)) / 32%);
+  box-shadow: var(--shadow-glass-hover);
+  background: hsl(var(--surface) / 30%);
 }
 
 .photo-card:hover::before {
   opacity: 1;
 }
 
-.photo-card:hover .photo-card-img {
-  opacity: 1;
-  filter: saturate(140%);
-  transform: scale(1.04);
+.photo-card-link {
+  display: block;
+  position: relative;
+  text-decoration: none;
 }
 
-/* Photo-card badge / pill row pinned bottom-left. */
-.photo-card-actions {
+.photo-card-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: hsl(var(--surface) / 8%);
+}
+
+/* Grid mode — square-ish cells via aspect-ratio. */
+.photo-card.grid-item .photo-card-img {
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+/* Feed mode — natural aspect, photo drives height. */
+.photo-card.feed-item {
+  border-radius: var(--radius-md);
+}
+.photo-card.feed-item .photo-card-img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+/* Score badge — top-right of each card. */
+.photo-card .grid-score,
+.photo-card .grid-score,
+.grid-score {
   position: absolute;
-  inset: auto auto 0.5rem 0.5rem;
-  display: flex;
-  gap: 0.35rem;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100% / 90%);
+  background: hsl(0 0% 0% / 55%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(0 0% 100% / 6%);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
   z-index: 4;
+  letter-spacing: var(--tracking-normal);
 }
 
-.photo-card-favorite {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: hsl(var(--surface) / 70%);
-  backdrop-filter: blur(var(--blur-pill));
-  -webkit-backdrop-filter: blur(var(--blur-pill));
-  border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg-muted));
-  cursor: pointer;
-  transition:
-    color var(--dur-glass) var(--ease-glass),
-    background var(--dur-glass) var(--ease-glass),
-    transform 120ms var(--ease-glass);
-}
-
-.photo-card-favorite:hover {
-  color: hsl(5 80% 60%);
-  transform: scale(1.08);
-}
-
-.photo-card-favorite.is-active {
-  color: hsl(5 80% 60%);
-  background: hsl(5 80% 60% / 18%);
-}
-
-/* Fav badge (heart icon) on the photo corner when favourite. */
+/* Favourite badge — top-left. */
 .photo-card .fav-badge {
   position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  top: var(--space-2);
+  left: var(--space-2);
+  display: inline-grid;
+  place-items: center;
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: 999px;
-  background: hsl(0 0% 0% / 35%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: hsl(5 90% 70%);
-  font-size: 0.85rem;
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface) / 60%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--fg));
+  z-index: 4;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.photo-card .fav-badge:hover {
+  background: hsl(var(--surface) / 85%);
+  border-color: hsl(var(--border-strong));
+}
+.photo-card .fav-badge.is-on {
+  color: hsl(var(--err-500));
+  background: hsl(var(--surface) / 75%);
 }
 
-/* Reduced motion — kill the lift on hover. */
 @media (prefers-reduced-motion: reduce) {
   .photo-card,
-  .photo-card-img,
-  .photo-card-favorite {
-    transition: none !important;
-  }
-
-  .photo-card:hover {
-    transform: none;
-  }
-
-  .photo-card:hover .photo-card-img {
-    transform: none;
-  }
-}
-
-/* Loading skeleton for cards. Placeholder while image / colors load. */
-.photo-card.is-loading::after {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  background: linear-gradient(
-    110deg,
-    hsl(var(--surface) / 30%) 25%,
-    hsl(var(--surface) / 50%) 50%,
-    hsl(var(--surface) / 30%) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-  z-index: 1;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.photo-card.is-ready::before {
-  /* fades out the shimmer */
-  opacity: 0;
-}
-
-@keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  .photo-card::before { transition: none; }
+  .photo-card:hover { transform: none; }
 }

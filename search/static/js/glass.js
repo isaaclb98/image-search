@@ -13,7 +13,7 @@
 // the decoding to colors.js which reads from a single pixel buffer
 // reused across calls.
 
-import { extractColors, ambientStops } from "./colors.js";
+import { extractColors, ambientStops } from "./lib/colors.js";
 
 const BATCH_SIZE = 6;        // cards per microtask tick
 const OBSERVER_ROOT_MARGIN = "200px 0px";  // start work before scroll-in

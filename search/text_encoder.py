@@ -199,7 +199,10 @@ def get_encoder(test_mode: bool | None = None) -> TextEncoder:
     global _encoder_singleton
     if _encoder_singleton is None:
         if test_mode is None:
-            test_mode = bool(os.environ.get("SEARCH_TEST_MODE"))
+            test_mode = bool(
+                os.environ.get("SEARCH_TEST_MODE")
+                or os.environ.get("SEARCH_NO_MODEL")
+            )
         arch = os.environ.get("MODEL_NAME", DEFAULT_ARCH)
         # Optional second knob: MODEL_PRETRAINED. Defaults to "webli".
         pretrained = os.environ.get("MODEL_PRETRAINED", DEFAULT_PRETRAINED)

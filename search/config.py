@@ -245,7 +245,10 @@ def load() -> Config:
         path_prefix=os.environ.get("PATH_PREFIX", ""),
         web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
-        test_mode=bool(os.environ.get("SEARCH_TEST_MODE")),
+        test_mode=bool(
+            os.environ.get("SEARCH_TEST_MODE")
+            or os.environ.get("SEARCH_NO_MODEL")
+        ),
         diversity_max_candidate_pool_size=_int("DIVERSITY_MAX_CANDIDATE_POOL_SIZE", 5000),
         diversity_cache_ttl_seconds=_int("DIVERSITY_CACHE_TTL_SECONDS", 300),
         diversity_cache_max_entries=_int("DIVERSITY_CACHE_MAX_ENTRIES", 64),

@@ -13,6 +13,31 @@ const lightboxAlbums = lightbox?.querySelector("[data-lightbox-albums]");
 const lightboxAlbumList = lightbox?.querySelector("[data-lightbox-album-list]");
 const lightboxAlbumStatus = lightbox?.querySelector("[data-lightbox-album-status]");
 const shortcuts = document.querySelector("[data-shortcuts-dialog]");
+const appNavbar = document.querySelector(".app-navbar");
+
+// Hide the floating navbar while scrolling down, reveal it on the way up.
+// Small movements are ignored so the header does not flicker on touchpads.
+if (appNavbar) {
+  let lastScrollY = window.scrollY;
+  let scrollTicking = false;
+  const updateNavbar = () => {
+    const currentScrollY = Math.max(0, window.scrollY);
+    const delta = currentScrollY - lastScrollY;
+    if (currentScrollY <= 24 || delta < -8) {
+      appNavbar.classList.remove("is-hidden");
+    } else if (delta > 8) {
+      appNavbar.classList.add("is-hidden");
+    }
+    lastScrollY = currentScrollY;
+    scrollTicking = false;
+  };
+  window.addEventListener("scroll", () => {
+    if (!scrollTicking) {
+      window.requestAnimationFrame(updateNavbar);
+      scrollTicking = true;
+    }
+  }, { passive: true });
+}
 
 let currentTrigger = null;
 let lastFocused = null;

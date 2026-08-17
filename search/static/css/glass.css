@@ -1,13 +1,17 @@
 /*
   search/static/css/glass.css
-  Glass primitives. Four flavours: .glass (default), .glass--sharp (heavier),
-  .glass-frost (opaque base for text), .glass-pill / .glass-tinted.
+  Glass primitives. Single source of glass surface vocabulary.
+  All values flow from tokens.css. Raw values would create drift.
 
-  Every .glass descendant gets a 1px top "rim light" via masked gradient
-  — that's the visual cue that makes these read as glass rather than
-  frosted plastic. The mask trick: padding-box mask carves out the border
-  area only. Combined with content-box, you get a 1px gradient line that
-  hugs the rounded corner.
+  Classes:
+    .glass           — standard panel (radius-lg, 50% surface)
+    .glass--sharp    — heavier panel (radius-xl, 65% surface)
+    .glass-frost     — opaque text panel (radius-lg, 95% surface)
+    .glass-pill      — pill chip (radius-pill, 50% surface)
+    .glass-tinted    — photo-tinted panel (uses --photo-dominant)
+
+  Buttons (DaisyUI rewires):
+    .btn, .btn-primary, .btn-ghost, .btn-xs, .btn-circle
 */
 
 .glass,
@@ -17,17 +21,17 @@
 .glass-tinted {
   position: relative;
   isolation: isolate;
-  background: hsl(var(--surface) / 55%);
+  background: hsl(var(--surface) / 50%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-glass);
   color: hsl(var(--fg));
 }
 
-/* Rim-light highlight via masked pseudo-element. Standard pattern:
-   paint the whole box, mask out everything except the border ring. */
+/* Rim-light highlight via masked pseudo-element. The mask trick
+   carves a 1px gradient line that hugs the rounded corner. */
 .glass::before,
 .glass--sharp::before,
 .glass-frost::before,
@@ -57,38 +61,31 @@
   z-index: 1;
 }
 
-/* Heavier glass for floating panels (detail page, lightbox chrome). */
+/* Variants */
+
 .glass--sharp {
   background: hsl(var(--surface) / 65%);
   box-shadow: var(--shadow-glass-strong);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
 }
 
-/* Opaque base for text panels — readable first, glass second.
-   Useful for the detail page aside + lightbox body where line length
-   over blurred photos hurts reading. */
 .glass-frost {
-  background: hsl(var(--surface-strong) / 95%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  background: hsl(var(--surface-strong) / 92%);
+  border-radius: var(--radius-lg);
 }
 
-/* Pill primitives for chips / filters / view toggles. */
 .glass-pill {
   background: hsl(var(--surface) / 50%);
   backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: 999px;
-  box-shadow: var(--shadow-glass);
-  padding: 0.4rem 0.95rem;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
   color: hsl(var(--fg));
-  font-size: 0.875rem;
   cursor: pointer;
-  transition:
-    background var(--dur-glass) var(--ease-glass),
-    border-color var(--dur-glass) var(--ease-glass),
-    transform var(--dur-glass) var(--ease-glass);
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
 }
 
 .glass-pill:hover {
@@ -99,17 +96,16 @@
 
 .glass-pill[aria-pressed="true"],
 .glass-pill.is-active {
-  background: hsl(var(--photo-dominant) / 35%);
-  border-color: hsl(var(--photo-dominant) / 55%);
+  background: hsl(var(--photo-dominant) / 30%);
+  border-color: hsl(var(--photo-dominant) / 50%);
   color: hsl(var(--fg));
 }
 
-/* Tinted variant — uses the photo's dominant colour as the glass tint. */
 .glass-tinted {
   background:
     radial-gradient(
       140% 110% at 30% 0%,
-      hsl(var(--photo-dominant) / 28%),
+      hsl(var(--photo-dominant) / 26%),
       hsl(var(--surface) / 55%) 70%
     );
 }
@@ -128,30 +124,31 @@
   z-index: -1;
 }
 
-/* Interactive feedback — focus rings always visible, no glass on top. */
+/* Focus rings — visible, not glassed. */
 .glass:focus-visible,
 .glass--sharp:focus-visible,
 .glass-frost:focus-visible,
 .glass-pill:focus-visible,
 .glass-tinted:focus-visible {
-  outline: 2px solid hsl(var(--accent-cool));
+  outline: 2px solid hsl(var(--accent-500));
   outline-offset: 3px;
 }
 
-/* Button-system override.
-   DaisyUI's .btn-primary / .btn-danger / .btn-ghost pull from the
-   Tailwind theme. We rewire them to our token system so CTAs across
-   the app read as one consistent surface vocabulary. */
+/* ============================================================
+   BUTTONS — rewired onto the token system.
+   ============================================================ */
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  border-radius: 999px;
-  padding: 0.55rem 1.1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  letter-spacing: 0.005em;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  min-height: 2.25rem;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-normal);
   cursor: pointer;
   background: hsl(var(--surface) / 50%);
   backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
@@ -159,11 +156,18 @@
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--fg));
   box-shadow: var(--shadow-glass);
-  transition:
-    background var(--dur-glass) var(--ease-glass),
-    border-color var(--dur-glass) var(--ease-glass),
-    transform 120ms var(--ease-glass),
-    box-shadow var(--dur-glass) var(--ease-glass);
+  text-decoration: none;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+
+.btn-search {
+  /* The primary search submit gets a touch of extra presence. */
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
 }
 
 .btn:hover {
@@ -173,26 +177,26 @@
 }
 
 .btn-primary {
-  background: hsl(var(--photo-dominant) / 45%);
-  border-color: hsl(var(--photo-dominant) / 65%);
+  background: hsl(var(--photo-dominant) / 40%);
+  border-color: hsl(var(--photo-dominant) / 60%);
   color: hsl(var(--fg));
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .btn-primary:hover {
-  background: hsl(var(--photo-dominant) / 65%);
+  background: hsl(var(--photo-dominant) / 60%);
   border-color: hsl(var(--photo-dominant) / 80%);
 }
 
 .btn-danger {
-  background: hsl(5 80% 60% / 18%);
-  border-color: hsl(5 80% 60% / 38%);
-  color: hsl(5 80% 70%);
+  background: hsl(var(--err-500) / 18%);
+  border-color: hsl(var(--err-500) / 38%);
+  color: hsl(var(--err-500));
 }
 
 .btn-danger:hover {
-  background: hsl(5 80% 60% / 28%);
-  border-color: hsl(5 80% 60% / 55%);
+  background: hsl(var(--err-500) / 28%);
+  border-color: hsl(var(--err-500) / 55%);
 }
 
 .btn-ghost {
@@ -211,37 +215,23 @@
 }
 
 .btn-xs {
-  padding: 0.3rem 0.65rem;
-  font-size: 0.78rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
 }
 
 .btn-circle {
-  border-radius: 999px;
-  width: 2.2rem;
-  height: 2.2rem;
+  border-radius: var(--radius-pill);
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
 }
 
 .btn:focus-visible {
-  outline: 2px solid hsl(var(--accent-cool));
+  outline: 2px solid hsl(var(--accent-500));
   outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn {
-    transition: none;
-  }
-  .btn:hover {
-    transform: none;
-  }
-}
-
-/* Reduced motion: kill the transform lift on hover. */
-@media (prefers-reduced-motion: reduce) {
-  .glass-pill {
-    transition: none;
-  }
-  .glass-pill:hover {
-    transform: none;
-  }
+  .btn, .glass-pill { transition: none; }
+  .btn:hover, .glass-pill:hover { transform: none; }
 }

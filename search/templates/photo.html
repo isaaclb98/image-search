@@ -16,15 +16,6 @@
 {% block content %}
 <section class="photo-page" data-page-accent-from="{{ blurhash or '' }}" data-photo-blurhash="{{ blurhash or '' }}">
   <div class="photo-page-bg" data-photo-src="{{ url }}" aria-hidden="true"></div>
-  <nav class="photo-nav">
-    <a href="{{ '/favorites' if from_favorites else ('/?' + search_query_string if search_query_string else '/') }}" class="glass-pill">
-      {% if from_favorites %}← Back to favourites
-      {% elif search_query_string %}← Back to results
-      {% else %}← Home
-      {% endif %}
-    </a>
-  </nav>
-
   {% if file_missing %}
     {{ ui.error_state("File not found on disk. The image has been indexed but the source file is missing.") }}
   {% endif %}
@@ -35,24 +26,34 @@
     </figure>
 
     <aside class="photo-detail-panel glass-tinted">
-      <p class="eyebrow">Photo details</p>
-      <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
-        <button
-          type="submit"
-          class="fav-toggle"
-          data-fav-id="{{ id }}"
-          data-fav-state="{{ 'on' if is_favorite else 'off' }}"
-          aria-pressed="{{ 'true' if is_favorite else 'false' }}"
-          aria-label="Toggle favourite"
-        >
-          <span class="fav-icon" aria-hidden="true">♥</span>
-          <span class="fav-label">{{ 'favourite' if is_favorite else 'add to favourites' }}</span>
-        </button>
-      </form>
+      <header class="photo-detail-panel__head">
+        <p class="eyebrow">Photo details</p>
+        <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
+          <button
+            type="submit"
+            class="fav-toggle glass-pill"
+            data-fav-id="{{ id }}"
+            data-fav-state="{{ 'on' if is_favorite else 'off' }}"
+            aria-pressed="{{ 'true' if is_favorite else 'false' }}"
+            aria-label="Toggle favourite"
+            title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
+          >
+            <span class="fav-icon" aria-hidden="true">♥</span>
+            <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
+          </button>
+        </form>
+      </header>
 
-      {% if all_albums %}
-        <section class="album-pills" aria-label="Albums containing this photo">
-          <h2 class="album-pills__heading">Albums</h2>
+      <section class="detail-section">
+        <h2 class="eyebrow detail-section__heading">Path</h2>
+        <dl class="meta">
+          <dd class="meta__path">{{ path }}</dd>
+        </dl>
+      </section>
+
+      <section class="detail-section">
+        <h2 class="eyebrow detail-section__heading">Albums</h2>
+        {% if all_albums %}
           <ul class="album-pills__list">
             {% for a in all_albums %}
               {% set is_in = (a.id|string) in photo_album_ids %}
@@ -68,29 +69,21 @@
               </li>
             {% endfor %}
           </ul>
-        </section>
-      {% else %}
-        <p class="text-sm text-base-content/70 mt-4"><a href="/albums" class="link link-primary">Create an album</a> to curate this photo into.</p>
-      {% endif %}
-
-      <dl class="meta">
-        <dt>id</dt><dd><code>{{ id }}</code></dd>
-        <dt>path</dt><dd><code>{{ path }}</code></dd>
-        {% if payload.get("shard") %}
-          <dt>shard</dt><dd><code>{{ payload.shard }}</code></dd>
+        {% else %}
+          <p class="detail-section__empty">
+            <a href="/albums" class="detail-link">Create an album</a>
+            to curate this photo into.
+          </p>
         {% endif %}
-        {% if payload.get("indexed_at") %}
-          <dt>indexed_at</dt><dd>{{ payload.indexed_at }}</dd>
-        {% endif %}
-        {% if payload.get("model_name") %}
-          <dt>model</dt><dd><code>{{ payload.model_name }}</code></dd>
-        {% endif %}
-      </dl>
+      </section>
 
       {% if not file_missing %}
-        <p class="photo-actions">
-          <a class="btn btn-primary" href="/photo/{{ id }}/similar">Most similar images →</a>
-        </p>
+        <div class="photo-actions">
+          <a class="photo-cta" href="/photo/{{ id }}/similar">
+            Most similar photos
+            <span aria-hidden="true" class="photo-cta__arrow">→</span>
+          </a>
+        </div>
       {% endif %}
     </aside>
   </div>
