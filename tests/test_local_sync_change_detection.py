@@ -164,3 +164,55 @@ def test_prune_dry_run_still_no_writes(monkeypatch, tmp_path):
     assert rc == 0
     pts = _points(raw)
     assert len(pts) == 1, "dry-run prune must not delete points"
+
+
+def test_full_flag_mutually_exclusive_with_backfill_flags(monkeypatch, tmp_path):
+    raw = QdrantClient(location=":memory:")
+    src = tmp_path / "img"
+    src.mkdir()
+    monkeypatch.setattr(local_sync_mod, "make_client", lambda _: raw)
+    rc = local_sync_mod.main([
+        "--source", str(src), "--source-name", "x",
+        "--qdrant-collection", COLLECTION,
+        "--full", "--reblurhash",
+    ])
+    assert rc == 2
+
+
+def test_full_sweep_embeds_new_and_heals_legacy(monkeypatch, tmp_path):
+    raw = QdrantClient(location=":memory:")
+    src = tmp_path / "img"
+    src.mkdir()
+    img = _make_png(src, "a.png")
+
+    _initial_sync(monkeypatch, raw, src)
+
+    # Simulate a legacy point missing blurhash + fingerprint.
+    pid = str(id_for(img, ""))
+    pts = _points(raw)
+    legacy = dict(pts[0].payload)
+    legacy["blurhash"] = None
+    legacy.pop("content_sha256", None)
+    legacy.pop("dhash", None)
+    raw.overwrite_payload(
+        collection_name=COLLECTION, points=[pid], payload=legacy,
+    )
+
+    rc = _run(monkeypatch, raw, src, extra_args=["--full"])
+    assert rc == 0
+
+    pts = _points(raw)
+    assert len(pts) == 1
+    assert pts[0].payload.get("blurhash") is not None, "blurhash healed"
+    assert pts[0].payload.get("content_sha256") is not None, "sha healed"
+    assert pts[0].payload.get("dhash") is not None, "dhash healed"
+
+
+def test_full_dry_run_writes_nothing(monkeypatch, tmp_path):
+    raw = QdrantClient(location=":memory:")
+    src = tmp_path / "img"
+    src.mkdir()
+    _make_png(src, "a.png")
+    rc = _run(monkeypatch, raw, src, extra_args=["--full", "--dry-run"])
+    assert rc == 0
+    assert _points(raw) == [], "dry-run --full must not write"

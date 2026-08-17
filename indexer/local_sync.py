@@ -52,6 +52,12 @@ def parse_args(argv=None):
              "detection in the search side). Does NOT re-embed. Idempotent. Mutually exclusive "
              "with --reblurhash.",
     )
+    p.add_argument(
+        "--full",
+        action="store_true",
+        help="Full sweep: embed new/changed files, backfill missing "
+        "blurhash+fingerprint on legacy points, prune dead points.",
+    )
     return p.parse_args(argv)
 
 
@@ -142,6 +148,10 @@ def main(argv=None):
 
     if args.reblurhash and args.refingerprint:
         logger.error("--reblurhash and --refingerprint are mutually exclusive")
+        return 2
+
+    if args.full and (args.reblurhash or args.refingerprint):
+        logger.error("--full includes backfill; drop --reblurhash/--refingerprint")
         return 2
 
     # Lazy: encoder only built when we actually embed. Backfill
@@ -356,6 +366,43 @@ def main(argv=None):
     # speed; before declaring done, block until the last written
 
     # batch is actually retrievable so callers never see stale state.
+
+    if args.full and not args.dry_run:
+        logger.info("=== full sweep: backfill blurhash ===")
+        rc_b1 = _backfill_payload_field(
+            client=client,
+            collection=args.qdrant_collection,
+            field="blurhash",
+            sources=args.source,
+            source_names=source_names,
+            prefix=args.prefix,
+            base=args.base,
+            batch_size=args.batch_size,
+            limit=0,
+        )
+        logger.info("=== full sweep: backfill fingerprint ===")
+        rc_b2 = _backfill_payload_field(
+            client=client,
+            collection=args.qdrant_collection,
+            field="fingerprint",
+            sources=args.source,
+            source_names=source_names,
+            prefix=args.prefix,
+            base=args.base,
+            batch_size=args.batch_size,
+            limit=0,
+        )
+        if rc_b1 or rc_b2:
+            logger.warning("full sweep: some backfill rows failed; see log")
+        removed = upsert.prune_missing(
+            client, args.qdrant_collection,
+            source_dirs=args.source,
+            prefix=args.prefix, base=args.base,
+            source_names=source_names,
+        )
+        logger.info("full sweep: prune removed %d point(s)", removed)
+    elif args.full and args.dry_run:
+        logger.info("dry-run --full: backfill and prune skipped (no writes)")
 
     if last_written_ids and not args.dry_run:
 
