@@ -850,5 +850,245 @@
 }
 
 /* ============================================================
-   16. LEGACY BRIDGE — survive the cleanup.
+   16. INPUTS — every input field uses the same vocabulary.
+   ============================================================ */
+
+.prompt-add input,
+.saved-search-select,
+.saved-search-save,
+.search-form input[type="search"],
+.search-form input.filename-input {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: hsl(var(--fg));
+  background: hsl(var(--surface) / 60%);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+
+.prompt-add input:focus,
+.saved-search-select:focus,
+.saved-search-select:focus-visible,
+.search-form input[type="search"]:focus,
+.search-form input.filename-input:focus {
+  outline: 0;
+  border-color: hsl(var(--accent-500));
+  box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
+  background: hsl(var(--surface) / 80%);
+}
+
+.prompt-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.prompt-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.prompt-add button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface) / 50%);
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--fg));
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out);
+}
+.prompt-add button:hover {
+  background: hsl(var(--surface) / 80%);
+  border-color: hsl(var(--border-strong));
+}
+
+.prompt-row--primary .prompt-add button {
+  background: hsl(var(--photo-dominant) / 30%);
+  border-color: hsl(var(--photo-dominant) / 50%);
+  color: hsl(var(--fg));
+}
+.prompt-row--primary .prompt-add button:hover {
+  background: hsl(var(--photo-dominant) / 45%);
+}
+
+.prompt-row-label {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: hsl(var(--fg-muted));
+  width: 4.75rem;
+  flex: 0 0 auto;
+}
+
+.prompt-row--primary .prompt-row-label {
+  color: hsl(var(--photo-dominant));
+}
+
+/* Chip lists — small pill chips for active prompts / centroids. */
+.prompt-chip-list,
+.centroid-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.prompt-chip,
+.centroid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--photo-dominant) / 20%);
+  border: 1px solid hsl(var(--photo-dominant) / 38%);
+  color: hsl(var(--fg));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.prompt-chip button,
+.centroid-chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: hsl(var(--fg-muted));
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.prompt-chip button:hover,
+.centroid-chip button:hover {
+  color: hsl(var(--fg));
+}
+
+/* Saved search bar — small inline control row inside the prompts card. */
+.saved-search-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface) / 40%);
+  border: 1px solid hsl(var(--border-glass));
+}
+.saved-search-bar-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: hsl(var(--fg-muted));
+  padding: 0 var(--space-2);
+}
+.saved-search-select {
+  min-width: 12rem;
+}
+.saved-search-save {
+  background: hsl(var(--photo-dominant) / 30%);
+  border-color: hsl(var(--photo-dominant) / 50%);
+  color: hsl(var(--fg));
+  font-weight: var(--weight-semibold);
+  padding: var(--space-1) var(--space-3);
+}
+.saved-search-save:hover:not(:disabled) {
+  background: hsl(var(--photo-dominant) / 45%);
+  border-color: hsl(var(--photo-dominant) / 70%);
+}
+.saved-search-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saved-search-error {
+  font-size: var(--text-xs);
+  color: hsl(var(--err-500));
+  padding: 0 var(--space-2);
+}
+
+/* ============================================================
+   17. FILTERS BODY — filename input, range sliders, etc.
+   ============================================================ */
+
+.filename-filter {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 22rem);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.filename-filter label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: hsl(var(--fg-muted));
+}
+
+/* ============================================================
+   18. SAVED CARD + ALBUM CARD — list pages.
+   ============================================================ */
+
+.saved-card,
+.album-card {
+  background: hsl(var(--surface) / 40%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.saved-card__title,
+.album-card__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--fg));
+  line-height: var(--leading-tight);
+}
+
+.saved-card__meta,
+.album-card__meta {
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-card__body,
+.album-card__body {
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+  line-height: var(--leading-normal);
+}
+
+/* ============================================================
+   19. LEGACY BRIDGE.
    ============================================================ */
