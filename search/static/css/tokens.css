@@ -53,9 +53,9 @@
 
   --surface: var(--ink-50);              /* page base + glass tint */
   --surface-strong: 0 0% 100%;           /* opaque text panel */
-  --surface-glass: var(--ink-100);       /* glass tint — darker than bg for contrast */
-  --surface-glass-soft: var(--ink-200);  /* softest tint */
-  --surface-glass-strong: 0 0% 100%;     /* stronger tint */
+  --surface-glass: 220 25% 85%;           /* glass tint — visibly darker than bg */
+  --surface-glass-soft: 220 22% 88%;     /* softest tint */
+  --surface-glass-strong: 220 28% 92%;   /* stronger tint */
 
   --fg: var(--ink-700);
   --fg-muted: var(--ink-500);

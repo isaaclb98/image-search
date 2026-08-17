@@ -74,7 +74,7 @@
   gap: var(--space-5);
   height: var(--header-h);
   padding-inline: max(1rem, calc((100% - 80rem) / 2 + 1rem));
-  background: hsl(var(--ink-100) / 70%);
+  background: hsl(var(--surface-glass) / 75%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border-bottom: 1px solid hsl(var(--border-glass));
@@ -234,7 +234,7 @@
   padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-5);
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -265,7 +265,7 @@
    ============================================================ */
 
 .app-panel {
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -299,7 +299,7 @@
   padding: var(--space-3) var(--space-5);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -352,7 +352,7 @@
   margin: 0 0 var(--space-5) 0;
   padding: var(--space-5);
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -389,7 +389,7 @@
 .search-advanced {
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   box-shadow: var(--shadow-glass);
@@ -453,7 +453,7 @@
   margin: 0 auto;
   max-width: 28rem;
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -567,7 +567,7 @@
 .photo-detail-panel {
   padding: var(--space-5);
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -668,7 +668,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: hsl(var(--fg));
-  background: hsl(var(--ink-100) / 50%);
+  background: hsl(var(--surface-glass) / 55%);
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
@@ -724,7 +724,7 @@
    ============================================================ */
 
 .photo-card-slot {
-  background: hsl(var(--ink-100) / 30%);
+  background: hsl(var(--surface-glass) / 35%);
   border: 1px dashed hsl(var(--border-glass) / 70%);
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -752,7 +752,7 @@
   padding: var(--space-1);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-pill);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1054,7 +1054,7 @@
 
 .saved-card,
 .album-card {
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1108,7 +1108,7 @@
   padding: var(--space-5) var(--space-5);
   margin-bottom: var(--space-5);
   border-radius: var(--radius-xl);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(220 30% 88% / 75%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1155,7 +1155,7 @@
   padding: 0;
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-md);
-  background: hsl(var(--ink-100) / 35%);
+  background: hsl(var(--surface-glass) / 40%);
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-glass);
@@ -1215,7 +1215,7 @@
   margin-top: var(--space-5);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 50%);
+  background: hsl(var(--surface-glass) / 55%);
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--fg-muted));
   font-size: var(--text-sm);
@@ -1271,7 +1271,7 @@
   margin: var(--space-5) auto 0;
   max-width: 36rem;
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1366,7 +1366,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--radius-lg);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1430,7 +1430,7 @@
   padding: var(--space-5);
   margin-bottom: var(--space-5);
   border-radius: var(--radius-xl);
-  background: hsl(var(--ink-100) / 60%);
+  background: hsl(var(--surface-glass) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
