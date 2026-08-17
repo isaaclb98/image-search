@@ -74,7 +74,7 @@
   gap: var(--space-5);
   height: var(--header-h);
   padding-inline: max(1rem, calc((100% - 80rem) / 2 + 1rem));
-  background: hsl(var(--surface) / 50%);
+  background: hsl(var(--ink-100) / 70%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border-bottom: 1px solid hsl(var(--border-glass));
@@ -234,7 +234,7 @@
   padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-5);
   border-radius: var(--radius-lg);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -265,7 +265,7 @@
    ============================================================ */
 
 .app-panel {
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -299,7 +299,7 @@
   padding: var(--space-3) var(--space-5);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-lg);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -352,7 +352,7 @@
   margin: 0 0 var(--space-5) 0;
   padding: var(--space-5);
   border-radius: var(--radius-lg);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -389,7 +389,7 @@
 .search-advanced {
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-lg);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   box-shadow: var(--shadow-glass);
@@ -453,7 +453,7 @@
   margin: 0 auto;
   max-width: 28rem;
   border-radius: var(--radius-lg);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -567,7 +567,7 @@
 .photo-detail-panel {
   padding: var(--space-5);
   border-radius: var(--radius-lg);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -668,7 +668,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: hsl(var(--fg));
-  background: hsl(var(--surface) / 30%);
+  background: hsl(var(--ink-100) / 50%);
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
@@ -724,7 +724,7 @@
    ============================================================ */
 
 .photo-card-slot {
-  background: hsl(var(--surface) / 14%);
+  background: hsl(var(--ink-100) / 30%);
   border: 1px dashed hsl(var(--border-glass) / 70%);
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -752,7 +752,7 @@
   padding: var(--space-1);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-pill);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1054,7 +1054,7 @@
 
 .saved-card,
 .album-card {
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--ink-100) / 60%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -1090,5 +1090,379 @@
 }
 
 /* ============================================================
-   19. LEGACY BRIDGE.
+   20. DISCOVER PAGE — pair picker.
+   ============================================================ */
+
+.discover-page {
+  width: var(--rail-page);
+  margin: 0 auto;
+  padding: var(--space-6) 0;
+  position: relative;
+}
+
+.discover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-5);
+  margin-bottom: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: hsl(var(--ink-100) / 60%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  box-shadow: var(--shadow-glass-strong);
+}
+
+.discover-tagline {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-base);
+  color: hsl(var(--fg-muted));
+  line-height: var(--leading-normal);
+}
+
+.discover-pair {
+  min-height: 50vh;
+}
+
+.discover-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-9) 0;
+  color: hsl(var(--fg-muted));
+  font-size: var(--text-base);
+}
+
+.discover-pair-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .discover-pair-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.discover-image-btn {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  background: hsl(var(--ink-100) / 35%);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-glass);
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              opacity var(--dur-fast) var(--ease-out);
+}
+
+.discover-image-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glass-hover);
+}
+
+.discover-image-btn:active { transform: translateY(0); }
+.discover-image-btn:disabled { cursor: default; }
+
+.discover-image-btn img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: hsl(var(--surface) / 8%);
+}
+
+.discover-image-btn--picked {
+  outline: 2px solid hsl(var(--accent-500));
+  outline-offset: -2px;
+}
+
+.discover-image-btn--dimmed {
+  opacity: 0.35;
+}
+
+.discover-done-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--fg));
+  text-decoration: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid hsl(var(--border-glass));
+  background: hsl(var(--surface) / 50%);
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.discover-done-link:hover {
+  background: hsl(var(--surface) / 80%);
+  border-color: hsl(var(--border-strong));
+}
+
+.discover-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: hsl(var(--ink-100) / 50%);
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--fg-muted));
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   21. FOR-YOU PAGE — recommendations feed.
+   ============================================================ */
+
+.for-you-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.for-you-title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: hsl(var(--fg));
+}
+
+.for-you-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.for-you-meta__freshness {
+  margin-left: var(--space-1);
+  color: hsl(var(--fg-subtle));
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
+.for-you-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-3);
+  min-height: 30rem;
+}
+
+.for-you-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8) var(--space-5);
+  margin: var(--space-5) auto 0;
+  max-width: 36rem;
+  border-radius: var(--radius-lg);
+  background: hsl(var(--ink-100) / 60%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  box-shadow: var(--shadow-glass);
+}
+
+.for-you-empty__title {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--fg));
+}
+
+.for-you-empty__body {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+  line-height: var(--leading-normal);
+  max-width: 30rem;
+}
+
+.for-you-empty__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ============================================================
+   22. CENTROIDS PAGE.
+   ============================================================ */
+
+.centroid-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+
+.centroid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--photo-dominant) / 18%);
+  border: 1px solid hsl(var(--photo-dominant) / 38%);
+  color: hsl(var(--fg));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.centroid-chip a {
+  color: inherit;
+  text-decoration: none;
+}
+.centroid-chip a:hover {
+  text-decoration: underline;
+}
+
+.centroid-section-heading {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+  color: hsl(var(--fg-muted));
+}
+
+.centroid-section-sub {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-subtle));
+}
+
+.centroid-empty {
+  padding: var(--space-8) var(--space-5);
+}
+
+/* ============================================================
+   23. SAVED SEARCH + ALBUM LIST ITEMS.
+   ============================================================ */
+
+.saved-search-card,
+.album-card-link,
+.saved-card-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: hsl(var(--ink-100) / 60%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  box-shadow: var(--shadow-glass);
+  text-decoration: none;
+  color: inherit;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.saved-search-card:hover,
+.album-card-link:hover,
+.saved-card-link:hover {
+  transform: translateY(-1px);
+  border-color: hsl(var(--border-strong));
+  box-shadow: var(--shadow-glass-hover);
+}
+
+.saved-search-card__title,
+.album-card-link__title,
+.saved-card-link__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--fg));
+  line-height: var(--leading-tight);
+}
+
+.saved-search-card__meta,
+.album-card-link__meta,
+.saved-card-link__meta {
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-search-card__body,
+.album-card-link__body,
+.saved-card-link__body {
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+  line-height: var(--leading-normal);
+}
+
+/* ============================================================
+   24. ALBUM DETAIL.
+   ============================================================ */
+
+.album-detail-page {
+  width: var(--rail-page);
+  margin: 0 auto;
+  padding: var(--space-5) 0;
+  position: relative;
+}
+
+.album-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: hsl(var(--ink-100) / 60%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  box-shadow: var(--shadow-glass-strong);
+}
+
+.album-detail-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: hsl(var(--fg));
+}
+
+.album-detail-meta {
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--space-1);
+}
+
+/* ============================================================
+   25. CENTROID HEADER (on /centroids).
+   ============================================================ */
+
+.centroids-page {
+  width: var(--rail-page);
+  margin: 0 auto;
+  padding: var(--space-5) 0;
+  position: relative;
+}
+
+/* ============================================================
+   26. LEGACY BRIDGE.
    ============================================================ */

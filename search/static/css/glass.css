@@ -21,7 +21,7 @@
 .glass-tinted {
   position: relative;
   isolation: isolate;
-  background: hsl(var(--surface) / 50%);
+  background: hsl(var(--ink-100) / 65%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
@@ -64,18 +64,18 @@
 /* Variants */
 
 .glass--sharp {
-  background: hsl(var(--surface) / 65%);
+  background: hsl(var(--ink-100) / 78%);
   box-shadow: var(--shadow-glass-strong);
   border-radius: var(--radius-xl);
 }
 
 .glass-frost {
-  background: hsl(var(--surface-strong) / 92%);
+  background: hsl(var(--surface-strong) / 95%);
   border-radius: var(--radius-lg);
 }
 
 .glass-pill {
-  background: hsl(var(--surface) / 50%);
+  background: hsl(var(--ink-100) / 65%);
   backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border-radius: var(--radius-pill);
@@ -150,7 +150,7 @@
   font-weight: var(--weight-medium);
   letter-spacing: var(--tracking-normal);
   cursor: pointer;
-  background: hsl(var(--surface) / 50%);
+  background: hsl(var(--ink-100) / 65%);
   backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));

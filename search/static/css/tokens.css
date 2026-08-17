@@ -53,9 +53,9 @@
 
   --surface: var(--ink-50);              /* page base + glass tint */
   --surface-strong: 0 0% 100%;           /* opaque text panel */
-  --surface-glass: 220 22% 97% / 50%;    /* shared glass tint */
-  --surface-glass-soft: 220 22% 97% / 35%;
-  --surface-glass-strong: 220 22% 97% / 75%;
+  --surface-glass: var(--ink-100);       /* glass tint — darker than bg for contrast */
+  --surface-glass-soft: var(--ink-200);  /* softest tint */
+  --surface-glass-strong: 0 0% 100%;     /* stronger tint */
 
   --fg: var(--ink-700);
   --fg-muted: var(--ink-500);
@@ -184,7 +184,7 @@
    that everything below flows through the same palette.
    ============================================================ */
 :root[data-theme="light"] {
-  --bg-base: 220 25% 96%;
+  --bg-base: 220 35% 92%;
   --surface: 220 22% 97%;
   --surface-strong: 0 0% 100%;
   --fg: 220 30% 14%;
