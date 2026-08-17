@@ -178,7 +178,7 @@
               color var(--dur-base) var(--ease-out);
 }
 .nav-link:hover {
-  background: hsl(var(--surface) / 60%);
+  background: hsl(var(--surface-glass) / 70%);
   color: hsl(var(--fg));
 }
 .nav-link.is-active {
@@ -864,7 +864,7 @@
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
   color: hsl(var(--fg));
-  background: hsl(var(--surface) / 60%);
+  background: hsl(var(--surface-glass) / 70%);
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -881,7 +881,7 @@
   outline: 0;
   border-color: hsl(var(--accent-500));
   box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
-  background: hsl(var(--surface) / 80%);
+  background: hsl(var(--surface-glass) / 90%);
 }
 
 .prompt-add {
@@ -914,7 +914,7 @@
               border-color var(--dur-base) var(--ease-out);
 }
 .prompt-add button:hover {
-  background: hsl(var(--surface) / 80%);
+  background: hsl(var(--surface-glass) / 90%);
   border-color: hsl(var(--border-strong));
 }
 
@@ -993,7 +993,7 @@
   margin: 0;
   padding: var(--space-1);
   border-radius: var(--radius-pill);
-  background: hsl(var(--surface) / 40%);
+  background: hsl(var(--surface-glass) / 55%);
   border: 1px solid hsl(var(--border-glass));
 }
 .saved-search-bar-label {
@@ -1204,7 +1204,7 @@
               border-color var(--dur-fast) var(--ease-out);
 }
 .discover-done-link:hover {
-  background: hsl(var(--surface) / 80%);
+  background: hsl(var(--surface-glass) / 90%);
   border-color: hsl(var(--border-strong));
 }
 
