@@ -1107,7 +1107,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
-  padding: var(--space-5) var(--space-5);
+  padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-5);
   border-radius: var(--radius-xl);
   background: hsl(220 30% 88% / 75%);
