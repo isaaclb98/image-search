@@ -6,11 +6,14 @@
 
 {% block content %}
 <section class="saved-page app-page">
-  {{ ui.page_header("Saved searches", count=total, count_label="search", count_plural_label="searches") }}
-  <p class="text-sm text-base-content/70 -mt-4 mb-6">
-    Saved searches are named prompt presets — pick one from the
-    <code>Saved</code> dropdown on the search bar to re-apply it.
-  </p>
+  {{ ui.page_header(
+       "Saved searches",
+       count=total,
+       count_label="search",
+       count_plural_label="searches",
+       eyebrow="Saved",
+       description="Named prompt presets — pick one from the Saved dropdown on the search bar to re-apply it."
+     ) }}
 
   {% if saved_searches %}
     <ul class="saved-list grid grid-cols-1 md:grid-cols-2 gap-4">

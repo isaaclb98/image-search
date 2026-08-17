@@ -241,6 +241,26 @@
   box-shadow: var(--shadow-glass);
 }
 
+.page-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.page-header-eyebrow {
+  /* inherits from .eyebrow */
+  margin: 0 0 var(--space-1);
+}
+
+.page-header-description {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: hsl(var(--fg-muted));
+}
+
 .app-page-header h1,
 .page-header h1 {
   margin: 0;

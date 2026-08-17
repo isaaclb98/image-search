@@ -31,12 +31,11 @@
 </aside>
 
 <section class="centroids app-page" aria-label="Custom centroids">
-  {{ ui.page_header("Centroids") }}
-  <p class="text-sm text-base-content/70 -mt-4 mb-6">
-    Pre-computed embedding vectors saved by
-    <code>isaac-image-scoring</code>. Pick one or more to blend,
-    or click a card name to search against just that one.
-  </p>
+  {{ ui.page_header(
+       "Centroids",
+       eyebrow="Centroids",
+       description="Pre-computed embedding vectors. Pick one or more to blend, or click a card name to search against just that one."
+     ) }}
   {% if centroids_dir %}
     <p class="text-xs text-base-content/60 -mt-2 mb-6">
       <span class="font-medium">source</span>

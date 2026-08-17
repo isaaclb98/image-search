@@ -5,14 +5,11 @@
 {% block content %}
 {% import "_macros.html" as ui %}
 <section class="random-page app-page">
-  {{ ui.page_header("Random") }}
-  <p class="text-sm text-base-content/70 -mt-4 mb-6">
-    {% if collections %}
-      Random sample from {{ collections|join(', ') }}.
-    {% else %}
-      Random sample from the whole collection.
-    {% endif %}
-  </p>
+  {{ ui.page_header(
+       "Random",
+       eyebrow="Random",
+       description="A surprise sample from your library."
+     ) }}
     {# View toggle: grid (default) or feed (single-column phone-style).
        Same UI shape as the search page so the muscle memory transfers. #}
     <div class="view-toggle" role="group" aria-label="Result view">
