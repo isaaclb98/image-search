@@ -90,9 +90,26 @@ Tests use an in-memory Qdrant and a deterministic mock text encoder. No GPU or m
 
 ### Design system
 
-The UI runs on **Tailwind v4** (standalone CLI, vendored) + **DaisyUI v5** (vendored CSS, no `@plugin`). Themes are DaisyUI's built-in `light`/`dark` re-skinned via CSS-variable overrides — see `search/static/css/input.css` for the design tokens (`--color-*`, type scale, shadow tier) and the `[data-theme=...]` re-skin block.
+The UI runs on a **four-file CSS architecture** that sits on a single token source
+of truth. Every value flows through `tokens.css` — no raw colours, no raw sizes, no
+hard-coded magic numbers anywhere downstream.
 
-Build the bundle whenever you touch `input.css`:
+| File | Role |
+| --- | --- |
+| `search/static/css/tokens.css` | All design tokens: palette, glass, type, spacing, radii, motion, light/dark |
+| `search/static/css/glass.css` | Glass primitives: `.glass`, `.glass--sharp`, `.glass-frost`, `.glass-pill`, `.glass-tinted`, plus the `.btn` family |
+| `search/static/css/layout.css` | App shell, header, page rails, panels, photo detail, toolbar, saved-search bar, type scale, focus rings |
+| `search/static/css/photo-card.css` | Photo grid/feed cards + score badges + favourite icon |
+
+The full design-principles document — token philosophy, when to reach for what, and
+"do/don't" examples — lives in [`DESIGN.md`](./DESIGN.md).
+
+**Themes** are DaisyUI's `light`/`dark` re-skinned via CSS-variable overrides in
+`tokens.css` (`:root[data-theme=…] { --bg-base, --fg, --surface, --surface-glass, … }`).
+Toggle lives in `base.html` (Alpine-driven; sets `data-theme` on `<html>` *before*
+first paint to prevent FOUC). The dev server uses light mode by default.
+
+Build the bundle whenever you touch the CSS sources:
 
 ```bash
 ./bin/tailwindcss -i search/static/css/input.css -o search/static/css/app.css
@@ -104,7 +121,9 @@ Or watch during editing:
 ./bin/tailwindcss -i search/static/css/input.css -o search/static/css/app.css --watch
 ```
 
-CI runs `tw:build` before tests (`.github/workflows/dev-build.yml`), so a stale `app.css` won't pass review.
+CI runs `tw:build` before tests (`.github/workflows/dev-build.yml`), so a stale
+`app.css` won't pass in CI. Locally the dev server hashes the four CSS files at
+start-up, so a fresh server picks up a CSS change with no rebuild dance.
 
 ### Reusable state macros
 
