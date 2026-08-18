@@ -9,46 +9,37 @@
 
   Principle 3 (No hard-coded values; ratios, not memory) is the
   constraint that shapes most of what's below:
-    - Spacing flows from --u (0.25rem / 4px) at 4 named stops.
-    - Type flows from a major-third ratio (1.250) at 5 sizes.
+    - Spacing flows from --space-1..4 ramp over a 4px unit.
+    - Type flows from a major-third ratio (1.250) at 6 sizes.
     - Radii are 3 named stops plus a pill primitive.
-    - Elevation is a 4-stop ladder named --shadow-0..3.
-    - Container widths are 2 stops, golden-ratio derived.
+    - Elevation is a 2-stop ladder (--shadow-2, --shadow-3).
+    - Container widths are constants, not tokens — they're stable.
 
-  Principle 4 (Single theme, no light-mode toggle) is literal here:
-  there is one :root block — the LIGHT glass palette now — and no
-  data-theme attribute or toggle UI. The ink scale is upright:
-  50 = lightest (page base, the soft gray-blue wash), 900 = darkest
-  (headings, deep slate). Text is dark on light, exactly the
-  opposite role of the previous dark-theme build.
+  Principle 4 (Single theme) is literal here: there is one :root
+  block, the LIGHT glass palette, and no data-theme attribute or
+  toggle. The ink scale is upright (50 = lightest page base,
+  bright = darkest text). No dark-mode or accent-variant blocks.
 */
 
 :root {
   /* ============================================================
-     1. COLOUR PALETTE — minimal token surface.
+     1. COLOUR PALETTE — minimal surface.
 
-     Two text tones (one deep-slate for body, one mid-slate for
-     muted captions); one brand accent (slightly deeper than the
-     dark-theme build so it stays legible on white glass);
-     one status pair. The page base is a soft cool gray-blue,
-     not pure white, so glass reads as glass — not as flat paper.
+     Three text tones (one deep-slate for headings, one mid-slate
+     for body, one pure-white for accent-bg surfaces); one brand
+     accent (single shade); two status; one photo-card tint. The
+     page base is a soft cool gray-blue so glass reads as glass.
      ============================================================ */
 
-  /* Neutral ink — page base + dividers live here.
-     --ink-50 = page base (lightest). NO dark text in the scale. */
-  --ink-50:  220 35% 92%;        /* page base, soft gray-blue wash */
-  --ink-100: 220 22% 88%;        /* dividers, glass-tint base */
-  --ink-400: 220 10% 55%;        /* placeholder / disabled */
+  /* Page base — soft cool gray-blue wash. */
+  --ink-50:  220 35% 92%;
 
-  /* Slate text — dark on light. Two tones only:
-       --ink-bright (220 30% 14%) — headings, primary labels
-       --ink-off-white (220 14% 38%) — body, captions, descriptions
-     Tertiary captions use opacity, not a third tone. */
+  /* Two text tones only — heading (dark) + body (mid). */
   --ink-off-white: 220 14% 38%;
   --ink-bright:    220 30% 14%;
 
-  /* Brand accent — single shade, slightly deeper than the dark
-     build (ink-50 ~92% lightness) so it survives on white glass. */
+  /* Brand accent — single shade. Hover uses opacity, not a
+     different hue. */
   --accent-500: 222 60% 45%;
 
   /* Status — used sparingly. */
@@ -56,43 +47,34 @@
   --err-500:  358 65% 50%;
 
   /* Photo-derived accent — kept ONLY for the per-card radial glow
-     inside .photo-card. Defaults to accent-500. Never reaches chrome. */
+     inside .photo-card. Never reaches chrome. */
   --photo-dominant:  222 60% 50%;
 
   /* ============================================================
-     2. SURFACE / GLASS — semantic tokens used by every panel.
+     2. SURFACE / GLASS — three tints.
      ============================================================ */
 
-  --surface:        220 22% 97%;        /* page-level white-glass */
-  --surface-strong: 0 0% 100%;          /* opaque white panel */
-  --surface-glass:  220 25% 85%;        /* darker glass tint, frosted */
-  --bg-base:        hsl(var(--ink-50)); /* page background */
-  --bg:             hsl(var(--ink-50)); /* literal page bg */
+  --surface:        220 22% 97%;        /* page-level near-white */
+  --surface-strong: 0 0% 100%;          /* opaque white */
+  --surface-glass:  220 25% 85%;        /* darker glass tint */
+  --bg-base:        hsl(var(--ink-50)); /* page bg */
 
-  /* Text aliases. ONE off-white (slate), ONE bright (deep slate).
-     All text in the app resolves through these two.
-     --fg-on-accent is the ONE permitted text colour that is not
-     a slate — it's pure white, used only on accent-coloured
-     surfaces (active pills, primary buttons, focused pills)
-     where dark slate would collide with the blue. */
+  /* Text aliases — ONE off-white, ONE bright. Resolved through
+     var(--fg) and var(--fg-on-accent). */
   --fg:             hsl(var(--ink-bright));
-  --fg-muted:       hsl(var(--ink-off-white));
   --fg-on-accent:   0 0% 100%;
 
+  /* Glass borders + inner sheen + soft drop shadows. */
   --border-glass:   220 30% 30% / 14%;
   --border-strong:  220 30% 30% / 22%;
   --highlight-top:  0 0% 100% / 60%;
   --shadow-color:   220 30% 12%;
 
-  /* Single-source shadows tuned for light glass. */
-  --shadow-glass:
+  --shadow-2:
     0 1px 0 hsl(0 0% 100% / 60%) inset,
     0 10px 30px hsl(var(--shadow-color) / 14%);
-  --shadow-glass-hover:
+  --shadow-3:
     0 1px 0 hsl(0 0% 100% / 70%) inset,
-    0 14px 38px hsl(var(--shadow-color) / 18%);
-  --shadow-glass-strong:
-    0 1px 0 hsl(0 0% 100% / 80%) inset,
     0 18px 48px hsl(var(--shadow-color) / 22%);
 
   /* Glass blur levels. One job each. */
@@ -102,7 +84,8 @@
   --saturate-glass: 160%;
 
   /* ============================================================
-     3. TYPE — 8-size scale, uniform line-heights, two weights.
+     3. TYPE — 6 sizes (--text-md dropped — never referenced),
+     3 line-heights, 4 weights, 1 tracking value.
      ============================================================ */
 
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -113,33 +96,30 @@
   --text-xs:   0.72rem;   /* 11.5px — captions, labels */
   --text-sm:   0.82rem;   /* 13px   — body small */
   --text-base: 0.93rem;   /* 14.9px — body */
-  --text-md:   1rem;      /* 16px   — input */
   --text-lg:   1.1rem;    /* 17.6px — sub-headers */
   --text-xl:   1.35rem;   /* 21.6px — page h1 */
   --text-2xl:  1.75rem;   /* 28px   — hero */
 
-  --leading-tight: 1.2;
-  --leading-snug:  1.35;
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
   --leading-normal: 1.5;
-  --leading-relaxed: 1.65;
 
-  --weight-regular: 450;
-  --weight-medium: 550;
+  --weight-regular:  450;
+  --weight-medium:   550;
   --weight-semibold: 650;
-  --weight-bold: 750;
+  --weight-bold:     750;
 
-  --tracking-tight:   -0.012em;
-  --tracking-normal:  0;
+  --tracking-tight: -0.012em;
 
   /* ============================================================
-     SPACING — 4px base ramp. Always use these, never raw px.
+     SPACING — clamp() ramp over a 4px unit. Always these, never
+     raw px.
      ============================================================ */
 
-  --u:  0.25rem;                          /* 4px base unit */
-  --space-1: clamp(0.5rem, 0.4rem + 0.4vw, 0.65rem);    /* ~10px */
-  --space-2: clamp(0.75rem, 0.6rem + 0.5vw, 1rem);      /* ~15px */
-  --space-3: clamp(1rem, 0.85rem + 0.6vw, 1.4rem);      /* ~20px */
-  --space-4: clamp(1.4rem, 1.1rem + 0.8vw, 2rem);       /* ~30px */
+  --space-1: clamp(0.5rem,  0.4rem + 0.4vw, 0.65rem);    /* ~10px */
+  --space-2: clamp(0.75rem, 0.6rem + 0.5vw, 1rem);       /* ~15px */
+  --space-3: clamp(1rem,    0.85rem + 0.6vw, 1.4rem);    /* ~20px */
+  --space-4: clamp(1.4rem,  1.1rem + 0.8vw, 2rem);       /* ~30px */
 
   /* ============================================================
      RADII — 3 named stops + a pill primitive.
@@ -151,51 +131,32 @@
   --radius-pill: 999px;
 
   /* ============================================================
-     ELEVATION — 4-stop ladder. Light theme uses soft drop.
+     HEADER — sticky nav height. Container widths are constants
+     below (not tokens) because they're stable across the app.
      ============================================================ */
-
-  --shadow-0: 0 1px 0 hsl(var(--shadow-color) / 4%) inset,
-              0 1px 2px hsl(var(--shadow-color) / 8%);
-  --shadow-1: 0 1px 0 hsl(0 0% 100% / 60%) inset,
-              0 4px 12px hsl(var(--shadow-color) / 10%);
-  --shadow-2: 0 1px 0 hsl(0 0% 100% / 60%) inset,
-              0 10px 30px hsl(var(--shadow-color) / 14%);
-  --shadow-3: 0 1px 0 hsl(0 0% 100% / 70%) inset,
-              0 18px 48px hsl(var(--shadow-color) / 22%);
-
-  /* ============================================================
-     CONTAINERS — golden-ratio derived stops.
-     ============================================================ */
-
-  --w-narrow: 32rem;   /* 512px */
-  --w-wide:   80rem;   /* 1280px — φ ≈ 1.618 from --w-narrow */
 
   --header-h: 4rem;
 
   /* ============================================================
-     MOTION — eases + durations. Reduced-motion media query lives
-     at the bottom of the file.
+     MOTION — single easing + 3 durations.
      ============================================================ */
 
-  --ease-out:    cubic-bezier(.2, .8, .2, 1);
-  --ease-in:     cubic-bezier(.55, 0, .85, .32);
-  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --ease-out:   cubic-bezier(.2, .8, .2, 1);
 
   --dur-fast:   120ms;
   --dur-base:   180ms;
   --dur-slow:   260ms;
+
   --mesh-speed: 60s;
 
   /* ============================================================
-     LAYERS — z-index ladder. Single source for stacking.
+     LAYERS — z-index ladder. Three stops used (mesh / grain /
+     header); modal and toast are constants in JS — not tokens.
      ============================================================ */
 
   --z-mesh:    -2;
   --z-grain:   -1;
-  --z-base:     0;
   --z-header:  20;
-  --z-modal:   40;
-  --z-toast:   60;
 }
 
 /* ============================================================
