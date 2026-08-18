@@ -57,12 +57,10 @@ Math > memory. The rule isn't "use a ratio"; it's "any value a
 component might want to use is named." Naming the ratio is how we keep
 the rule enforceable.
 
-## 4. Frosted glass over user photos
+## 4. Frosted glass with image tint
 
-The image is the page's colour source; the glass is what sits on
-top of it. Every surface is a frosted panel over a photo-tinted
-ground — clean, minimalist, sleek. Variety comes from the user's
-images, not from chrome.
+Frosted glass over a tint taken from the user's images. Clean,
+minimalist, and sleek.
 
 ---
 
@@ -71,5 +69,5 @@ images, not from chrome.
 Rules 2 and 3 do the work; rule 1 is the success criterion; rule 4 is
 the aesthetic commitment. A commit that satisfies all four looks the
 same product on every page, uses named components and tokens
-exclusively, sits frosted glass over a user-photo tint, and nothing
-bespoke. A commit that violates any one of them is a regression.
+exclusively, frosted glass with an image tint, and nothing bespoke.
+A commit that violates any one of them is a regression.
