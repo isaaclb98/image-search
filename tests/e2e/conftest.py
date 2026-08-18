@@ -58,6 +58,8 @@ def demo_base_url() -> Iterator[str]:
     base = f"http://127.0.0.1:{port}"
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
+    # Point image URLs at the actual port so Chromium can load thumbnails.
+    env["WEB_UI_URL"] = base
     proc = subprocess.Popen(
         [
             str(VENV_PY),
