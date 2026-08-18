@@ -1643,29 +1643,10 @@ a:hover {
 .border-error { border-color: hsl(var(--err-500)); }
 .bg-error     { background-color: hsl(var(--err-500)); }
 /* ============================================================
-   BUTTON SHAPE + OUTLINE TREATMENT — cascade override.
-   ============================================================
-   Two legacy bleed-throughs stack on top of the consolidation:
-
-   1) app.css (legacy site.css re-skin) ships:
-        .search-form button { border-radius: 8px; }
-        .btn               { border-radius: 6px; background:
-                             linear-gradient(...); color: white; }
-   2) glass.css .btn sets --radius-pill already, but loses the
-      cascade against the higher-specificity legacy rule.
-
-   We don't fix the source (it's vendor-bundled). We close the
-   cascade with a single override block that locks every button
-   primitive to:
-
-     - border-radius: var(--radius-pill)  (ONE shape — pill)
-     - .btn outline variant: surface bg, accent border + text
-     - .btn-primary: solid accent + fg-on-accent
-     - default buttons: surface bg, border-glass border, ink-bright text
-
-   The buttons inherit their actual size (height / padding) from
-   their own rule; this block resets shape + colour vocabulary
-   only. */
+   BUTTON SHAPE — pill radius is for interactive controls only.
+   Panels (glass / glass--sharp) keep their original rectangular
+   radius. King called this — Buttons only, not every primitive.
+   ============================================================ */
 button,
 .btn,
 .segmented,
@@ -1675,9 +1656,7 @@ button,
 .saved-search-bar,
 .discover-image-btn,
 .diversity-control,
-.glass-pill,
-.glass,
-.glass--sharp {
+.glass-pill {
   border-radius: var(--radius-pill) !important;
 }
 
