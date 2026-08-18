@@ -57,25 +57,35 @@ Math > memory. The rule isn't "use a ratio"; it's "any value a
 component might want to use is named." Naming the ratio is how we keep
 the rule enforceable.
 
-## 4. Dark glass, single theme
+## 4. Frosted glass over user photos
 
-One palette. One surface treatment. One theme.
+Every surface is a frosted-glass panel sitting over a photo-tinted
+ground. The image is the page's colour source; the glass is what
+sits on top of it.
 
-- **Dark base.** Every background, panel, and surface is dark. Text
-  and chrome derive from a single ink scale (e.g., `--ink-900`,
-  `--ink-400`, `--ink-50`). There is no light mode, no
-  `prefers-color-scheme: light` branch, no `[data-theme="light"]`
-  plumbing. Adding a second theme is out of scope.
-- **Glass.** Panels are translucent dark surfaces with backdrop blur.
-  The vocabulary is small: default panel, hero panel, pill. Each
-  variant is a named CSS class with a documented use case. Anything
-  that isn't a panel or a pill uses no glass.
-- **Professional, clean, minimalist.** No decorative gradients, no
-  illustrative backgrounds, no animation that isn't purposeful. Photos
-  are foreground; chrome is chrome.
+- **Single tint source per page.** Every page derives its ambient
+  colour from a single user image — a photo on `/photo/{id}`,
+  the first result on `/random`, the top hit on `/discover`,
+  the active search's first match. Pages without a clear source
+  fall back to a neutral pale ground.
+- **Image-tinted glass.** Panels are translucent surfaces whose
+  hue reads from the image behind them. The image is heavily
+  blurred, darkened, and shifted toward neutral so it acts as a
+  wash, not a backdrop. Glass sits on top, never competing for
+  attention.
+- **Frosted, not dark.** The glass vocabulary is three classes:
+  default panel (`.glass`), hero panel (`.glass--sharp`), pill
+  (`.glass-pill`). All are translucent surfaces with backdrop
+  blur and saturation. Nothing is dark for its own sake; nothing
+  is light for its own sake. The image tint supplies the hue;
+  the glass supplies the depth.
+- **Clean, minimalist, sleek.** No decorative gradients beyond the
+  image tint itself, no illustrative backgrounds, no animation
+  that isn't purposeful. Photos are foreground; chrome is chrome.
 
-The aesthetic goal: a user opens any page and recognizes it as the
-same app as every other page. Variety comes from content, not chrome.
+The aesthetic goal: every page reads as the same product, but
+the colour shifts with the content it's showing. Variety comes
+from the user's images, not from chrome.
 
 ---
 
@@ -83,6 +93,6 @@ same app as every other page. Variety comes from content, not chrome.
 
 Rules 2 and 3 do the work; rule 1 is the success criterion; rule 4 is
 the aesthetic commitment. A commit that satisfies all four looks the
-same on every page, uses named components and tokens exclusively,
-dark-glass throughout, and nothing bespoke. A commit that violates any
-one of them is a regression.
+same product on every page, uses named components and tokens
+exclusively, sits frosted glass over a user-photo tint, and nothing
+bespoke. A commit that violates any one of them is a regression.
