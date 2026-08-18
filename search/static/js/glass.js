@@ -116,7 +116,19 @@ function setPageAccent(blurhash) {
   body.style.setProperty("--photo-palette-3", stops[2]);
   // Most-saturated stop becomes the primary accent.
   const c = extractColors(blurhash);
-  if (c) body.style.setProperty("--page-accent", c.accent);
+  if (c) {
+    body.style.setProperty("--page-accent", c.accent);
+    // Derive a glass tint: same hue, very low saturation, high lightness.
+    // This makes frosted panels pick up the image's colour family without
+    // competing with the content.  Format: "H S% L%" — same as other
+    // HSL custom properties.
+    const parts = c.accent.split(/\s+/);
+    if (parts.length >= 3) {
+      const h = parts[0];
+      body.style.setProperty("--glass-tint", h + " 8% 92%");
+      body.style.setProperty("--glass-tint-fg", h + " 40% 40%");
+    }
+  }
 }
 
 /**

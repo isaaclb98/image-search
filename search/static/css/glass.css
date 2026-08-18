@@ -30,11 +30,12 @@
 .glass-pill {
   position: relative;
   isolation: isolate;
-  /* Frosted glass: surface-strong base + subtle white sheen +
-     translucent on top so the page bg shows through. Higher
-     opacity than the original (was 70%) so panels actually
-     read as distinct surfaces, not white-on-white. */
-  background: hsl(var(--surface-glass) / 88%);
+  /* Frosted glass: image-tinted when --glass-tint is present
+     (set by glass.js from the page's dominant blurhash), neutral
+     gray when absent.  The tint is the same hue as the image but
+     desaturated to 8% and lightened to 92% — a whisper of colour,
+     not a shout. */
+  background: hsl(var(--glass-tint, var(--surface-glass)) / 88%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));

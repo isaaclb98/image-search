@@ -29,8 +29,11 @@
   content: "";
   position: fixed;
   inset: -20%;
+  /* Mesh reads from the page's image accent when available,
+     falling back to the static accent. The hue shifts with
+     the content — Principle #4: variety from the user's images. */
   background:
-    radial-gradient(40% 40% at 50% 50%, hsl(var(--accent-500) / 14%), transparent 70%);
+    radial-gradient(40% 40% at 50% 50%, hsl(var(--glass-tint, var(--accent-500)) / 20%), transparent 70%);
   filter: blur(var(--blur-bg));
   -webkit-filter: blur(var(--blur-bg));
   pointer-events: none;
