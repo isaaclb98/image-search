@@ -52,6 +52,7 @@
       ('/discover',  'Discover'),
       ('/random',    'Random'),
       ('/favorites', 'Favourites'),
+      ('/dislikes',  'Dislikes'),
       ('/saved',     'Saved'),
       ('/albums',    'Albums'),
     ] %}
@@ -71,7 +72,6 @@
     </nav>
 
     <div class="navbar-end">
-      <a class="navbar-utility-link glass-pill" href="/dislikes" aria-label="Dislikes"{% if request.url.path.startswith('/dislikes') %} aria-pressed="true" aria-current="page"{% endif %}>Dislikes</a>
       <button type="button" class="keyboard-help-trigger" data-keyboard-help aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">
         {{ ui.ui_icon('help', 'h-5 w-5') }}
       </button>

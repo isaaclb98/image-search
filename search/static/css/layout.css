@@ -220,25 +220,7 @@
   }
 }
 
-/* Header utility pills — Dislikes lives here at the far right so the
-   primary nav stays at 7 visible items. Same shape as the primary
-   nav items: .glass-pill + .nav-link vocabulary. The aria-pressed
-   state goes through the same .glass-pill.is-active rule as the
-   rest of the header, so the active treatment is identical too. */
-.navbar-utility-link {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: hsl(var(--fg-muted));
-  text-decoration: none;
-  white-space: nowrap;
-}
-.navbar-utility-link:hover {
-  color: hsl(var(--fg));
-}
-
+/* Keyboard help trigger — the only thing left in .navbar-end. */
 .keyboard-help-trigger {
   display: inline-grid;
   place-items: center;
