@@ -6,12 +6,7 @@
 
 {% block content %}
 <section class="for-you-page app-page" data-freshest="{{ for_you_freshest or '' }}">
-  <header class="page-intro for-you-header">
-    <div class="page-intro-main">
-      <p class="page-intro-eyebrow">Recommendations</p>
-      <h1 class="page-intro-title for-you-title">For you</h1>
-      <p class="page-intro-description">Personalised photos based on what you've liked and skipped so far.</p>
-    </div>
+  {% set for_you_meta %}
     {% if for_you_n_likes > 0 or for_you_n_dislikes > 0 %}
       <div class="for-you-meta">
         <span class="glass-pill" data-freshness-chip>
@@ -22,7 +17,13 @@
         <button type="button" class="btn btn-ghost btn-xs" data-reset-feedback>Reset</button>
       </div>
     {% endif %}
-  </header>
+  {% endset %}
+  {{ ui.page_header(
+       "For you",
+       eyebrow="Recommendations",
+       description="Personalised photos based on what you've liked and skipped so far.",
+       meta=for_you_meta
+     ) }}
 
   {% if for_you_n_likes == 0 %}
     <section class="for-you-empty glass app-empty-state" data-empty-state>

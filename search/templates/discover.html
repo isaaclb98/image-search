@@ -6,14 +6,12 @@
 
 {% block content %}
 <section class="discover-page app-page" data-discover-root>
-  <header class="discover-header page-intro">
-    <div class="page-intro-main">
-      <p class="page-intro-eyebrow">Discovery</p>
-      <h1 class="page-intro-title">Find your taste</h1>
-      <p class="page-intro-description discover-tagline">Pick the image you like. The feed learns as you go.</p>
-    </div>
-    <a class="discover-done-link btn btn-sm page-intro-meta" href="#" data-discover-done>View picks →<span class="sr-only">done →</span></a>
-  </header>
+  {{ ui.page_header(
+       "Find your taste",
+       eyebrow="Discovery",
+       description="Pick the image you like. The feed learns as you go.",
+       meta='<a class="btn btn-sm" href="#" data-discover-done>View picks →<span class="sr-only">done →</span></a>'
+     ) }}
 
   {# The current pair. Left/right are two large clickable
      images. JS swaps the entire pair on every pick. #}

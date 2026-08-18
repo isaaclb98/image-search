@@ -82,7 +82,7 @@
       {% if description %}<p class="page-intro-description">{{ description }}</p>{% endif %}
     </div>
     {% if meta %}
-      <div class="page-intro-meta">{{ meta }}</div>
+      <div class="page-intro-meta">{{ meta|safe }}</div>
     {% elif count is not none %}
       <div class="page-intro-meta">
         <span class="page-intro-count" data-page-count>{{ count }}{% if count_plural_label %} {{ count_plural_label if count != 1 else count_label }}{% elif count_label %} {{ count_label }}{% endif %}</span>

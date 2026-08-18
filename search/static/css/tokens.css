@@ -103,7 +103,8 @@
   --text-sm:   0.82rem;   /* 13.1px — captions, labels */
   --text-base: 0.93rem;   /* 14.9px — body */
   --text-lg:   1.1rem;    /* 17.6px — sub-headers */
-  --text-xl:   1.35rem;   /* 21.6px — page h1 */
+  --text-xl:   1.35rem;   /* 21.6px — page h1, panel titles */
+  --text-2xl:  1.65rem;   /* 26.4px — page-hero h1 */
   --text-hero: clamp(1.75rem, 2.5vw + 1rem, 2.75rem);  /* hero, fluid */
 
   --leading-tight:  1.2;
