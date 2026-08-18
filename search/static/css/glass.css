@@ -26,7 +26,7 @@
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-2);
   color: hsl(var(--fg));
 }
 
@@ -65,8 +65,8 @@
 
 .glass--sharp {
   background: hsl(var(--surface-glass) / 85%);
-  box-shadow: var(--shadow-glass-strong);
-  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-3);
+  border-radius: var(--radius-lg);
 }
 
 .glass-frost {
@@ -155,7 +155,7 @@
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--fg));
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-2);
   text-decoration: none;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
@@ -165,7 +165,7 @@
 
 .btn-search {
   /* The primary search submit gets a touch of extra presence. */
-  padding: var(--space-2) var(--space-5);
+  padding: var(--space-2) var(--space-3);
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }

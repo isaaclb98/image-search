@@ -11,7 +11,7 @@
   overflow: hidden;
   background: hsl(var(--surface-glass) / 40%);
   border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-2);
   transition: transform var(--dur-base) var(--ease-out),
               box-shadow var(--dur-base) var(--ease-out),
               background var(--dur-base) var(--ease-out);
@@ -60,7 +60,7 @@
 
 .photo-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-glass-hover);
+  box-shadow: var(--shadow-2);
   background: hsl(var(--surface-glass) / 55%);
 }
 
