@@ -2,11 +2,11 @@
   _macros.html — reusable design-system macros for state design (T7).
 
   Macros:
-    page_header(title, count, count_label, count_plural_label)
-        Sticky header bar with title (h1) on the left and an optional
-        tabular-numeral count on the right. Replaces hand-rolled
-        <header class="*-header"><h1>...</h1><p class="result-count">N ...</p>
-        patterns across pages.
+    page_header(title, count, count_label, count_plural_label, eyebrow, description, meta)
+        Lightweight page intro: optional eyebrow, H1, optional
+        description on the left; optional count badge or arbitrary
+        meta HTML on the right. Renders as <header class="page-intro">,
+        no glass — just text. Replaces the old .glass--sharp page headers.
 
     empty_state(icon, title, body, action_url, action_label)
         Centered empty state with icon, heading, body, and optional
@@ -74,23 +74,21 @@
    all nested inside the header panel for visual consistency. The eyebrow
    slot is the page label (e.g. "Saved", "Albums"), the description slot
    is the one-line tagline below the title (matches Discover's pattern). #}
-{% macro page_header(title, count=none, count_label='', count_plural_label='', eyebrow='', description='') %}
-  <div class="page-header app-page-header items-start justify-between gap-4 mb-6">
-    <div class="page-header-content">
-      {% if eyebrow %}<p class="eyebrow page-header-eyebrow">{{ eyebrow }}</p>{% endif %}
-      <h1 class="text-2xl font-bold tracking-tight text-base-content">{{ title }}</h1>
-      {% if description %}<p class="page-header-description">{{ description }}</p>{% endif %}
+{% macro page_header(title, count=none, count_label='', count_plural_label='', eyebrow='', description='', meta='') %}
+  <header class="page-intro" data-page-intro>
+    <div class="page-intro-main">
+      {% if eyebrow %}<p class="page-intro-eyebrow">{{ eyebrow }}</p>{% endif %}
+      <h1 class="page-intro-title">{{ title }}</h1>
+      {% if description %}<p class="page-intro-description">{{ description }}</p>{% endif %}
     </div>
-    {% if count is not none %}
-      <span class="page-count text-sm text-base-content/70 tabular-nums shrink-0 self-baseline" data-page-count>
-        {% if count_plural_label %}
-          {{ count }} {{ count_plural_label if count != 1 else count_label }}
-        {% else %}
-          {{ count }} {{ count_label }}
-        {% endif %}
-      </span>
+    {% if meta %}
+      <div class="page-intro-meta">{{ meta }}</div>
+    {% elif count is not none %}
+      <div class="page-intro-meta">
+        <span class="page-intro-count" data-page-count>{{ count }}{% if count_plural_label %} {{ count_plural_label if count != 1 else count_label }}{% elif count_label %} {{ count_label }}{% endif %}</span>
+      </div>
     {% endif %}
-  </div>
+  </header>
 {% endmacro %}
 
 {# ---------- empty_state ---------- #}

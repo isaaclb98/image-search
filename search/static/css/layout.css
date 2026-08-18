@@ -223,22 +223,57 @@
   position: relative;
 }
 
-/* Page header — title + count. Two class names because the macro uses
-   .page-header; we keep that as a synonym for the glass .app-page-header. */
-.app-page-header,
-.page-header {
+/* Page intro — text-only header. No glass; sits in the page chrome.
+   Used by the page_header macro on every primary page. */
+.page-intro {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-3);
-  margin-bottom: var(--space-3);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
+  padding: var(--space-3) 0 var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid hsl(var(--border-glass));
+}
+.page-intro-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.page-intro-eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: hsl(var(--fg-muted));
+}
+.page-intro-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: hsl(var(--fg));
+  margin: 0;
+}
+.page-intro-description {
+  font-size: var(--text-base);
+  color: hsl(var(--fg-muted));
+  max-width: 60ch;
+  margin: 0;
+}
+.page-intro-meta {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--fg-muted));
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+.page-intro-count {
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--fg-muted));
 }
 
 .page-header-content {
@@ -1039,19 +1074,9 @@ body[data-route^="/photo/"] .app-body::before {
   position: relative;
 }
 
+/* .discover-header: layout-only reset. Visual chrome comes from .page-intro. */
 .discover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-3);
-  margin-bottom: var(--space-3);
-  border-radius: var(--radius-lg);
-  background: hsl(220 30% 88% / 75%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-3);
+  /* inherits display/padding/etc. from .page-intro */
 }
 
 .discover-tagline {

@@ -6,11 +6,11 @@
 
 {% block content %}
 <section class="for-you-page app-page" data-freshest="{{ for_you_freshest or '' }}">
-  <header class="app-page-header glass--sharp for-you-header">
-    <div class="page-header-content">
-      <p class="eyebrow">Recommendations</p>
-      <h1 class="for-you-title text-2xl font-bold tracking-tight text-base-content">For you</h1>
-      <p class="page-header-description">Personalised photos based on what you've liked and skipped so far.</p>
+  <header class="page-intro for-you-header">
+    <div class="page-intro-main">
+      <p class="page-intro-eyebrow">Recommendations</p>
+      <h1 class="page-intro-title for-you-title">For you</h1>
+      <p class="page-intro-description">Personalised photos based on what you've liked and skipped so far.</p>
     </div>
     {% if for_you_n_likes > 0 or for_you_n_dislikes > 0 %}
       <div class="for-you-meta">
