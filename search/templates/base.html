@@ -13,14 +13,14 @@
   {# Design system order is sacred.
      1) tokens.css FIRST — defines every CSS variable. Everything
         downstream reads from these.
-     2) app.css LAST among the legacy layers — it ships Tailwind +
-        DaisyUI, which can override any token-bound rule. We want
-        downstream components to win; nothing in this app is supposed
-        to depend on Tailwind utilities for layout or color.
-     3) glass, layout, photo-card after app.css so our overrides
-        win the cascade. #}
+     2) glass.css — primitives (.glass, .glass--sharp, .glass-pill,
+        button variants, alerts, badges, layout utilities).
+     3) layout.css — page composition, derived from the primitives.
+     4) photo-card.css — .photo-card surface + radial mesh.
+
+     No Tailwind. No DaisyUI. Every CSS byte ships from this
+     directory; nothing is inherited from a vendor framework. #}
   <link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
-  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
   <link rel="stylesheet" href="{{ asset('css/glass.css') }}">
   <link rel="stylesheet" href="{{ asset('css/layout.css') }}">
   <link rel="stylesheet" href="{{ asset('css/photo-card.css') }}">
