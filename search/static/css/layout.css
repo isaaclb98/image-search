@@ -1974,13 +1974,13 @@ button:not(.discover-image-btn),
 
 /* Outline-shaped defaults (.btn without .btn-primary variant).
    Surface bg, accent border + text. Hover inverts to primary. */
-.btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent) {
+.btn:not(.btn-primary):not(.btn-ghost) {
   background: var(--surface) !important;
   background-image: none !important;
   border: 1px solid hsl(var(--accent-500)) !important;
   color: hsl(var(--accent-500)) !important;
 }
-.btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent):hover {
+.btn:not(.btn-primary):not(.btn-ghost):hover {
   background: hsl(var(--accent-500)) !important;
   color: hsl(var(--fg-on-accent)) !important;
 }
@@ -2003,21 +2003,18 @@ button:not(.discover-image-btn),
 
 /* .btn-ghost, .btn-secondary — neutral ghost. No accent fill,
    dark text on transparent. Hover tints lightly. */
-.btn-ghost,
-.btn-secondary {
+.btn-ghost {
   background: hsl(var(--surface) / 50%) !important;
   background-image: none !important;
   border: 1px solid hsl(var(--border-glass)) !important;
   color: hsl(var(--ink-bright)) !important;
 }
-.btn-ghost:hover,
-.btn-secondary:hover {
+.btn-ghost:hover {
   background: hsl(var(--surface-glass) / 90%) !important;
   border-color: hsl(var(--border-strong)) !important;
 }
 
-/* Specific overrides for the layout.css hero buttons that would
-   otherwise inherit app.css's linear-gradient pink. */
+/* Outline-shaped defaults (.btn without .btn-primary or .btn-ghost variant). */
 .search-submit {
   background: hsl(var(--accent-500)) !important;
   background-image: none !important;

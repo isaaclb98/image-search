@@ -3,87 +3,112 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f1117">
   <title>Sign in · Image Search</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
-  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/glass.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/layout.css') }}">
+  <style>
+    .login-page {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      background: hsl(var(--bg-base));
+    }
+    .login-card {
+      width: min(100% - var(--space-3) * 2, 24rem);
+    }
+    .login-card h1 {
+      margin: 0;
+      font-size: var(--text-xl);
+      font-weight: var(--weight-bold);
+      color: hsl(var(--fg));
+    }
+    .login-card .login-error {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: hsl(var(--err-500) / 10%);
+      border: 1px solid hsl(var(--err-500) / 30%);
+      border-radius: var(--radius-md);
+      color: hsl(var(--err-500));
+      font-size: var(--text-sm);
+    }
+    .login-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .login-field label {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: hsl(var(--ink-off-white));
+    }
+    .login-field input {
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid hsl(var(--border-glass));
+      border-radius: var(--radius-md);
+      background: hsl(var(--surface-glass) / 50%);
+      color: hsl(var(--fg));
+      font-size: var(--text-sm);
+      outline: none;
+      transition: border-color var(--dur-base) var(--ease-out);
+    }
+    .login-field input:focus {
+      border-color: hsl(var(--accent-500));
+    }
+    .login-submit {
+      width: 100%;
+    }
+  </style>
 </head>
-<body class="app-body login-body">
-  <main class="w-full max-w-sm">
-    <div class="card glass--sharp">
-      <div class="card-body gap-4">
-        <header class="space-y-1">
-          
-          <h1 class="card-title text-xl">Sign in</h1>
-        </header>
+<body class="app-body login-page">
+  <div class="glass--sharp login-card" style="padding: var(--space-4);">
+    <header style="margin-bottom: var(--space-4);">
+      <h1>Sign in</h1>
+    </header>
 
-        {# Inline error from a failed POST. Single source of truth
-           for the message so the copy can't drift between auth
-           failure modes. #}
-        {% if error %}
-          <div role="alert" class="alert alert-error py-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>{{ error }}</span>
-          </div>
-        {% endif %}
-
-        <form method="post" action="/login" class="flex flex-col gap-3">
-          {# The post-login redirect target. Sanitised server-side
-               to a same-origin path — anything else falls back to
-               "/" so an attacker can't craft /login?next=https://evil
-               and use the site as an open redirect. #}
-          <input type="hidden" name="next" value="{{ next }}">
-
-          <label class="form-control w-full">
-            <div class="label py-1"><span class="label-text">Username</span></div>
-            <input
-              type="text"
-              name="username"
-              required
-              autocomplete="username"
-              autofocus
-              autocapitalize="off"
-              autocorrect="off"
-              spellcheck="false"
-              class="glass-input input input-bordered w-full"
-              value="{{ username|default('') }}"
-            >
-          </label>
-
-          <label class="form-control w-full">
-            <div class="label py-1"><span class="label-text">Password</span></div>
-            <input
-              type="password"
-              name="password"
-              required
-              autocomplete="current-password"
-              class="glass-input input input-bordered w-full"
-            >
-          </label>
-
-          {# "Keep me signed in on this browser" — checked by
-               default per the product brief. When checked the
-               server sets a 30-day persistent cookie; when
-               unchecked the cookie is a session cookie (dropped
-               when the browser closes). A unchecked box sends
-               nothing; FastAPI's Form() therefore sees `None`. #}
-          <label class="label cursor-pointer justify-start gap-3 py-1">
-            <input
-              type="checkbox"
-              name="remember"
-              value="1"
-              class="checkbox checkbox-sm"
-              checked
-            >
-            <span class="label-text">Keep me signed in on this browser</span>
-          </label>
-
-          <button type="submit" class="btn btn-primary mt-2 w-full">Sign in</button>
-        </form>
+    {% if error %}
+      <div class="login-error" role="alert">
+        <span>{{ error }}</span>
       </div>
-    </div>
-  </main>
+    {% endif %}
+
+    <form method="post" action="/login" style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <div class="login-field">
+        <label for="login-email">Email</label>
+        <input
+          id="login-email"
+          type="email"
+          name="email"
+          placeholder="you@example.com"
+          required
+          autofocus
+          autocomplete="email"
+        >
+      </div>
+
+      <div class="login-field">
+        <label for="login-password">Password</label>
+        <input
+          id="login-password"
+          type="password"
+          name="password"
+          placeholder="••••••••"
+          required
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary login-submit">
+        Sign in
+      </button>
+    </form>
+  </div>
 </body>
 </html>
