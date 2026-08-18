@@ -115,13 +115,6 @@
    3. NAVBAR ITEMS — three regions. Same internals on every page.
    ============================================================ */
 
-.navbar-start {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .navbar-center {
   flex: 1 1 auto;
   min-width: 0;
@@ -134,31 +127,13 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-/* Brand mark */
-.app-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  color: hsl(var(--fg));
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
-  text-decoration: none;
-  transition: background var(--dur-base) var(--ease-out),
-              transform var(--dur-fast) var(--ease-out);
-}
-.app-brand:hover {
-  background: hsl(var(--surface) / 70%);
-  transform: translateY(-0.5px);
-}
-.app-brand__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  /* DaisyUI's component layer sets `width: 50%` on .navbar-end (rule
+     in @layer components) — that grabs half of the nav width (≈624px
+     at 1440) and leaves the centre nav with no room. Override both
+     that width and its `margin-left: auto` (input.css @media ≤760px)
+     so the end block sizes to its actual content. */
+  width: auto;
+  margin-left: 0;
 }
 
 /* Nav — single horizontal list, scrolls on narrow viewports.

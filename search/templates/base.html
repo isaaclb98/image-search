@@ -27,26 +27,14 @@
 </head>
 <body class="app-body" data-route="{{ request.url.path }}">
   <header class="app-navbar" role="banner">
-    <div class="navbar-start">
-      {# Brand link. `aria-label` makes the link's accessible name
-         deterministic across screen readers — without it, some
-         screen readers compose an awkward name from the inline spans. #}
-      <a class="app-brand" href="/" aria-label="Image Search home">
-        <span class="app-brand__mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor" opacity="0.55" />
-            <rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" />
-          </svg>
-        </span>
-        <span>Image Search</span>
-      </a>
-    </div>
-
     {# Primary nav — same list, same pill primitive, same active state
        across desktop and narrow viewports. Wide screens get a
        horizontal flex row centered on the page; narrow screens get a
-       horizontal-scroll pill row. No drawer, no duplicated panel. #}
+       horizontal-scroll pill row. No drawer, no duplicated panel, no
+       brand chrome — the tab list IS the chrome. Search leads because
+       it's the primary action of the app. #}
     {% set nav_items = [
+      ('/',          'Search'),
       ('/for-you',   'For you'),
       ('/centroids', 'Centroids'),
       ('/discover',  'Discover'),
@@ -59,7 +47,12 @@
     <nav class="navbar-center" aria-label="Primary">
       <ul class="nav-list">
         {% for path, label in nav_items %}
-          {% set is_active = request.url.path == path or request.url.path.startswith(path ~ '/') %}
+          {% if path == '/' %}
+            {# Home tab — active only on the exact `/` route, not every path. #}
+            {% set is_active = request.url.path == '/' %}
+          {% else %}
+            {% set is_active = request.url.path == path or request.url.path.startswith(path ~ '/') %}
+          {% endif %}
           <li>
             <a
               href="{{ path }}"
