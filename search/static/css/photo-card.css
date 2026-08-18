@@ -198,3 +198,24 @@
   .photo-card::before { transition: none; }
   .photo-card:hover { transform: none; }
 }
+
+/* ============================================================
+   Score badge suppression.
+   The 0.054 / -0.005 cosine-similarity digits are noise to users
+   who didn't ask for them. They're meaningful on /discover
+   (where similar/dissimilar pairs are the entire reason for the
+   page) and on /photo/{id}/similar (where "most similar" is the
+   verb). Everywhere else: hidden. Future: opt-in toggle.
+   ============================================================ */
+.photo-card .grid-score,
+.photo-card .feed-score,
+.grid-score,
+.feed-score {
+  display: none;
+}
+body[data-route="/discover"] .grid-score,
+body[data-route="/discover"] .feed-score,
+body[data-route^="/photo/"] .grid-score,
+body[data-route^="/photo/"] .feed-score {
+  display: revert;
+}
