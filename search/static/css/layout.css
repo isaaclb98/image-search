@@ -624,11 +624,23 @@ body[data-route^="/photo/"] .app-body::before {
   margin: 0;
 }
 
-.photo-detail-panel .fav-form {
+/* Photo action row — Favourite + Dislike share one horizontal row.
+   Each pill uses .glass-pill from glass.css plus a tiny icon lift on
+   hover so a tap looks alive. */
+.photo-react-actions {
+  display: flex;
+  flex-direction: row;     /* override inherited column from app.css */
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: auto;             /* override inherited 100% stretch */
+}
+.photo-react-actions .fav-form,
+.photo-react-actions .dislike-form {
+  display: inline-flex;
   margin: 0;
 }
 
-.photo-detail-panel .fav-toggle {
+.photo-action-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -636,23 +648,35 @@ body[data-route^="/photo/"] .app-body::before {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   white-space: nowrap;
-  border-radius: var(--radius-pill);
-  background: hsl(var(--surface) / 50%);
-  border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg));
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-.photo-detail-panel .fav-toggle:hover {
-  background: hsl(var(--surface) / 75%);
-  border-color: hsl(var(--border-strong));
+.photo-action-btn[aria-pressed="true"] {
+  background: hsl(var(--accent-500) / 30%);
+  border-color: hsl(var(--accent-500) / 60%);
+  color: hsl(var(--fg));
+}
+.photo-action-btn:hover {
   transform: translateY(-1px);
 }
-.photo-detail-panel .fav-toggle .fav-icon {
+.photo-action-btn .fav-icon,
+.photo-action-btn .dislike-icon {
   display: inline-block;
   transition: transform var(--dur-fast) var(--ease-out);
+}
+.photo-action-btn:hover .fav-icon,
+.photo-action-btn:hover .dislike-icon {
+  transform: scale(1.1);
+}
+
+/* Album pills — active state driven by .is-active on .glass-pill.
+   .glass-pill sets the base pill surface; .is-active paints the
+   selected variant. */
+.album-pill {
+  /* inherits layout from .glass-pill */
+  cursor: pointer;
 }
 
 .detail-section {
@@ -708,31 +732,30 @@ body[data-route^="/photo/"] .app-body::before {
   gap: var(--space-2);
 }
 
-.photo-actions {
-  margin-top: auto;
-  padding-top: var(--space-2);
-}
-
+/* Most-similar link — secondary action, sits at the foot of the sidebar
+   below the metadata. Solid pill, full width, but ghost-style: no
+   accent wash, neutral surface, arrow shifts on hover. */
 .photo-cta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-pill);
-  background: hsl(var(--accent-500) / 18%);
-  border: 1px solid hsl(var(--accent-500) / 40%);
+  background: hsl(var(--surface) / 50%);
+  border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--fg));
   font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   text-decoration: none;
+  margin-top: auto;
   transition: background var(--dur-fast) var(--ease-out),
               border-color var(--dur-fast) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
 .photo-cta:hover {
-  background: hsl(var(--accent-500) / 28%);
-  border-color: hsl(var(--accent-500) / 60%);
+  background: hsl(var(--surface-glass) / 90%);
+  border-color: hsl(var(--border-strong));
   transform: translateY(-1px);
 }
 .photo-cta__arrow {

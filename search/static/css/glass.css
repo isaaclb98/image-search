@@ -103,6 +103,16 @@
   transform: translateY(0);
 }
 
+/* Selected / pressed pill state. Used by album pills, segmented
+   buttons (different selector), and anywhere a glass-pill needs to
+   read as 'currently on' rather than a flat surface. */
+.glass-pill.is-active,
+.glass-pill[aria-pressed="true"] {
+  background: hsl(var(--accent-500) / 30%);
+  border-color: hsl(var(--accent-500) / 55%);
+  color: hsl(var(--fg));
+}
+
 .glass-pill:focus-visible,
 .glass:focus-visible,
 .glass--sharp:focus-visible {

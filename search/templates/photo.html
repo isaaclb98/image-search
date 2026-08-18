@@ -43,7 +43,7 @@
         <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
           <button
             type="submit"
-            class="fav-toggle glass-pill"
+            class="glass-pill photo-action-btn"
             data-fav-id="{{ id }}"
             data-fav-state="{{ 'on' if is_favorite else 'off' }}"
             aria-pressed="{{ 'true' if is_favorite else 'false' }}"
@@ -57,7 +57,7 @@
         <form class="dislike-form" method="post" action="/api/dislikes/{{ id }}" data-dislike-form>
           <button
             type="submit"
-            class="dislike-toggle glass-pill"
+            class="glass-pill photo-action-btn"
             data-dislike-id="{{ id }}"
             data-dislike-state="{{ 'on' if is_disliked else 'off' }}"
             aria-pressed="{{ 'true' if is_disliked else 'false' }}"
@@ -93,7 +93,7 @@
               <li>
                 <button
                   type="button"
-                  class="album-pill{% if is_in %} album-pill--on{% endif %}"
+                  class="album-pill glass-pill{% if is_in %} is-active{% endif %}"
                   data-album-pill="{{ a.id }}"
                   data-album-pill-state="{{ 'on' if is_in else 'off' }}"
                   data-fav-id="{{ id }}"
@@ -111,12 +111,10 @@
       </section>
 
       {% if not file_missing %}
-        <div class="photo-actions">
-          <a class="photo-cta" href="/photo/{{ id }}/similar">
-            Most similar photos
-            <span aria-hidden="true" class="photo-cta__arrow">→</span>
-          </a>
-        </div>
+        <a class="photo-cta" href="/photo/{{ id }}/similar">
+          Most similar photos
+          <span aria-hidden="true" class="photo-cta__arrow">→</span>
+        </a>
       {% endif %}
     </aside>
   </div>
