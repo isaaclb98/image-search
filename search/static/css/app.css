@@ -564,16 +564,25 @@ a:hover {
 .photo-back-link:hover {
   color: var(--fg);
 }
-/* Photo page: heart / x reaction row */
+/* Photo page: heart / x reaction row — stacked full-width pills so they
+   never overflow the sidebar. */
 .photo-react-actions {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin: 0 0 1rem 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3) 0;
+  width: 100%;
 }
 .photo-react-actions .fav-form,
 .photo-react-actions .dislike-form {
   margin: 0;
+  display: flex;
+}
+.photo-react-actions .fav-toggle,
+.photo-react-actions .dislike-toggle {
+  width: 100%;
+  justify-content: center;
 }
 .dislike-toggle {
   display: inline-flex;

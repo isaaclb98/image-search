@@ -21,11 +21,11 @@
   {% endif %}
 
   <div class="photo-layout">
-    <figure class="photo glass-frost">
+    <figure class="photo">
       <img src="{{ url }}" alt="" onerror="this.classList.add('img-error')">
     </figure>
 
-    <aside class="photo-detail-panel glass-tinted">
+    <aside class="photo-detail-panel glass--sharp">
       <nav class="photo-back-nav">
         {% if from_favorites %}
           <a class="photo-back-link" href="/favorites">← Back to favourites</a>
@@ -35,27 +35,26 @@
           <a class="photo-back-link" href="/">← Home</a>
         {% endif %}
       </nav>
-      <header class="photo-detail-panel__head">
-        <p class="eyebrow">Photo details</p>
-        <div class="photo-react-actions">
-  <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
-            <button
-              type="submit"
-              class="fav-toggle glass-pill"
-              data-fav-id="{{ id }}"
-              data-fav-state="{{ 'on' if is_favorite else 'off' }}"
-              aria-pressed="{{ 'true' if is_favorite else 'false' }}"
-              aria-label="Toggle favourite"
-              title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
-            >
-              <span class="fav-icon" aria-hidden="true">♥</span>
-              <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
-            </button>
-          </form>
-  <form class="dislike-form" method="post" action="/api/dislikes/{{ id }}" data-dislike-form>
+
+      <div class="photo-react-actions">
+        <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
           <button
             type="submit"
-            class="dislike-toggle glass-pill"
+            class="glass-pill photo-action-btn"
+            data-fav-id="{{ id }}"
+            data-fav-state="{{ 'on' if is_favorite else 'off' }}"
+            aria-pressed="{{ 'true' if is_favorite else 'false' }}"
+            aria-label="Toggle favourite"
+            title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
+          >
+            <span class="fav-icon" aria-hidden="true">♥</span>
+            <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
+          </button>
+        </form>
+        <form class="dislike-form" method="post" action="/api/dislikes/{{ id }}" data-dislike-form>
+          <button
+            type="submit"
+            class="glass-pill photo-action-btn"
             data-dislike-id="{{ id }}"
             data-dislike-state="{{ 'on' if is_disliked else 'off' }}"
             aria-pressed="{{ 'true' if is_disliked else 'false' }}"
@@ -66,18 +65,24 @@
             <span class="dislike-label">{{ 'Disliked' if is_disliked else 'Dislike' }}</span>
           </button>
         </form>
-</div>
-      </header>
+      </div>
 
       <section class="detail-section">
-        <h2 class="eyebrow detail-section__heading">Path</h2>
+        <h2 class="detail-section__heading">Details</h2>
         <dl class="meta">
-          <dd class="meta__path">{{ path }}</dd>
+          {% if photo_width and photo_height %}
+            <dt class="meta__label">Dimensions</dt>
+            <dd class="meta__value">{{ photo_width }} × {{ photo_height }}</dd>
+          {% endif %}
+          {% if photo_indexed_at %}
+            <dt class="meta__label">Indexed</dt>
+            <dd class="meta__value">{{ photo_indexed_at }}</dd>
+          {% endif %}
         </dl>
       </section>
 
       <section class="detail-section">
-        <h2 class="eyebrow detail-section__heading">Albums</h2>
+        <h2 class="detail-section__heading">Albums</h2>
         {% if all_albums %}
           <ul class="album-pills__list">
             {% for a in all_albums %}
@@ -85,7 +90,7 @@
               <li>
                 <button
                   type="button"
-                  class="album-pill{% if is_in %} album-pill--on{% endif %}"
+                  class="album-pill glass-pill{% if is_in %} is-active{% endif %}"
                   data-album-pill="{{ a.id }}"
                   data-album-pill-state="{{ 'on' if is_in else 'off' }}"
                   data-fav-id="{{ id }}"
@@ -103,12 +108,10 @@
       </section>
 
       {% if not file_missing %}
-        <div class="photo-actions">
-          <a class="photo-cta" href="/photo/{{ id }}/similar">
-            Most similar photos
-            <span aria-hidden="true" class="photo-cta__arrow">→</span>
-          </a>
-        </div>
+        <a class="photo-cta" href="/photo/{{ id }}/similar">
+          Most similar photos
+          <span aria-hidden="true" class="photo-cta__arrow">→</span>
+        </a>
       {% endif %}
     </aside>
   </div>

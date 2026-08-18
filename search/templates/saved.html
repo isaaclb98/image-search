@@ -11,14 +11,13 @@
        count=total,
        count_label="search",
        count_plural_label="searches",
-       eyebrow="Saved",
        description="Named prompt presets — pick one from the Saved dropdown on the search bar to re-apply it."
      ) }}
 
   {% if saved_searches %}
     <ul class="saved-list grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for s in saved_searches %}
-        <li class="glass-frost saved-card" data-saved-item="{{ s.id }}">
+        <li class="glass saved-card" data-saved-item="{{ s.id }}">
           <div class="card-body">
             <div class="flex items-start justify-between gap-2">
               <h2 class="card-title text-base flex-1">{{ s.name }}</h2>
@@ -37,7 +36,7 @@
                 {% for p in s.negatives %}<span class="badge badge-soft badge-error badge-sm line-through">{{ p }}</span>{% endfor %}
               {% endif %}
             </div>
-            <div class="text-xs text-base-content/60 mt-2 tabular-nums">saved {{ s.created_at }}</div>
+            <div class="text-xs text-base-content/60 mt-2 tabular-nums">saved {{ s.created_at[:10] }}</div>
           </div>
         </li>
       {% endfor %}

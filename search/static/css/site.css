@@ -308,8 +308,12 @@ a:hover { color: var(--accent-hover); }
   padding: 0;
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 280px), 1fr));
   gap: 8px;
+}
+/* Cap at 5 columns on wide viewports. */
+@media (min-width: 1600px) {
+  .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .grid-item {
   position: relative;
@@ -490,30 +494,6 @@ a:hover { color: var(--accent-hover); }
   border-color: transparent;
 }
 
-/* Surprise Me button — pill-shaped action button, not a toggle.
-   Subtle accent tint on hover to feel playful without being loud. */
-.surprise-btn {
-  padding: 0.5rem 1rem;
-  font: inherit;
-  font-size: 0.85rem;
-  color: var(--accent-cyan);
-  background: rgba(34, 211, 238, 0.06);
-  border: 1px solid rgba(34, 211, 238, 0.2);
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  line-height: 1;
-}
-.surprise-btn:hover {
-  color: white;
-  background: rgba(34, 211, 238, 0.15);
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.1);
-}
-.surprise-btn:active {
-  background: rgba(34, 211, 238, 0.25);
-  transform: scale(0.97);
-}
 
 /* States */
 .state {

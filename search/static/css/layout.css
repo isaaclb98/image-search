@@ -22,16 +22,18 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient mesh — three large radial blobs tinted by the photo palette.
-   Pinned behind everything (z: --z-mesh). */
+/* Ambient mesh — ONE radial blob, very low opacity. Single accent,
+   single layer — the air around every panel reads with a
+   barely-there tint instead of multiple competing opacities. */
 .app-body::before {
   content: "";
   position: fixed;
   inset: -20%;
+  /* Mesh reads from the page's image accent when available,
+     falling back to the static accent. The hue shifts with
+     the content — Principle #4: variety from the user's images. */
   background:
-    radial-gradient(35% 35% at 20% 30%, hsl(var(--photo-palette-1) / 32%), transparent 70%),
-    radial-gradient(40% 40% at 80% 70%, hsl(var(--photo-palette-2) / 26%), transparent 70%),
-    radial-gradient(30% 30% at 50% 85%, hsl(var(--photo-palette-3) / 22%), transparent 70%);
+    radial-gradient(40% 40% at 50% 50%, hsl(var(--glass-tint, var(--accent-500)) / 12%), transparent 70%);
   filter: blur(var(--blur-bg));
   -webkit-filter: blur(var(--blur-bg));
   pointer-events: none;
@@ -71,16 +73,16 @@
   z-index: var(--z-header);
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-3);
   height: var(--header-h);
-  padding-inline: max(1rem, calc((100% - 80rem) / 2 + 1rem));
+  padding-inline: max(1rem, calc((100% - var(--page-max)) / 2 + 1rem));
   background: hsl(var(--surface-glass) / 75%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border-bottom: 1px solid hsl(var(--border-glass));
   box-shadow:
     0 1px 0 hsl(0 0% 100% / 50%) inset,
-    0 1px 14px hsl(var(--shadow-color) / 12%);
+    0 1px 14px hsl(220 30% 12% / 12%);
   transition: transform var(--dur-base) var(--ease-out),
               opacity var(--dur-base) var(--ease-out);
 }
@@ -114,13 +116,6 @@
    3. NAVBAR ITEMS — three regions. Same internals on every page.
    ============================================================ */
 
-.navbar-start {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .navbar-center {
   flex: 1 1 auto;
   min-width: 0;
@@ -128,73 +123,90 @@
   justify-content: center;
 }
 
-.navbar-center .menu {
-  flex-wrap: nowrap;
-}
-
 .navbar-end {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  /* DaisyUI's component layer sets `width: 50%` on .navbar-end (rule
+     in @layer components) — that grabs half of the nav width (≈624px
+     at 1440) and leaves the centre nav with no room. Override both
+     that width and its `margin-left: auto` (input.css @media ≤760px)
+     so the end block sizes to its actual content. */
+  width: auto;
+  margin-left: 0;
 }
 
-/* Brand mark */
-.app-brand {
-  display: inline-flex;
+/* Nav — single horizontal list, scrolls on narrow viewports.
+   Items use .glass-pill for their surface (uniform with the rest of
+   the app's pill vocabulary). The active state inherits the global
+   .glass-pill.is-active / [aria-pressed="true"] rule. */
+.nav-list {
+  display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  color: hsl(var(--fg));
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
-  text-decoration: none;
-  transition: background var(--dur-base) var(--ease-out),
-              transform var(--dur-fast) var(--ease-out);
-}
-.app-brand:hover {
-  background: hsl(var(--surface) / 70%);
-  transform: translateY(-0.5px);
-}
-.app-brand__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* Nav links */
 .nav-link {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  color: hsl(var(--fg-muted));
-  font-size: var(--text-base);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+  color: hsl(var(--ink-off-white));
   text-decoration: none;
-  transition: background var(--dur-base) var(--ease-out),
-              color var(--dur-base) var(--ease-out);
+  white-space: nowrap;
 }
 .nav-link:hover {
-  background: hsl(var(--surface-glass) / 70%);
   color: hsl(var(--fg));
 }
-.nav-link.is-active {
-  background: hsl(var(--photo-dominant) / 22%);
-  color: hsl(var(--fg));
-  border: 1px solid hsl(var(--photo-dominant) / 32%);
+.nav-link.is-active,
+.nav-link[aria-pressed="true"] {
+  /* Inherit the single primary treatment via .glass-pill.is-active
+     (set in glass.css): solid accent fill, white text. The selector
+     specificity matches the glass-pill rule; the LAST assignment
+     wins on cascade, so we just don't redeclare color / bg here. */
 }
 
-/* Theme toggle */
-.theme-toggle {
+/* Narrow-viewport: the nav list scrolls horizontally. No drawer,
+   no duplicate mobile panel. The brand stays visible at start, the
+   help + logout stay anchored at end. */
+@media (max-width: 720px) {
+  .navbar-center {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 12px,
+      black calc(100% - 12px),
+      transparent 100%
+    );
+            mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 12px,
+      black calc(100% - 12px),
+      transparent 100%
+    );
+  }
+  .nav-list {
+    flex-wrap: nowrap;
+    padding-inline: var(--space-2);
+  }
+}
+
+/* Keyboard help trigger — the only thing left in .navbar-end. */
+.keyboard-help-trigger {
   display: inline-grid;
   place-items: center;
   width: 2.25rem;
   height: 2.25rem;
   border-radius: var(--radius-pill);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   background: hsl(var(--surface) / 40%);
   border: 1px solid hsl(var(--border-glass));
   cursor: pointer;
@@ -202,12 +214,12 @@
               color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-.theme-toggle:hover {
+.keyboard-help-trigger:hover {
   background: hsl(var(--surface) / 70%);
   color: hsl(var(--fg));
   transform: translateY(-1px);
 }
-.theme-toggle:focus-visible {
+.keyboard-help-trigger:focus-visible {
   outline: 2px solid hsl(var(--accent-500));
   outline-offset: 2px;
 }
@@ -217,28 +229,59 @@
    ============================================================ */
 
 .app-page {
-  width: var(--rail-page);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
-  padding: var(--space-6) 0;
+  padding: var(--space-3) 0;
   position: relative;
 }
 
-/* Page header — title + count. Two class names because the macro uses
-   .page-header; we keep that as a synonym for the glass .app-page-header. */
-.app-page-header,
-.page-header {
+/* Page intro — text-only header. No glass; sits in the page chrome.
+   Used by the page_header macro on every primary page. */
+.page-intro {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  margin-bottom: var(--space-5);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
+  /* Tighter padding than before — generous whitespace inside
+     a 1152px-wide page intro read as 'empty' rather than 'calm'.
+     The border-bottom already provides the visual break from
+     the page body — no extra margin needed. */
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid hsl(var(--border-glass));
+}
+.page-intro-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.page-intro-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: hsl(var(--fg));
+  margin: 0;
+}
+.page-intro-description {
+  font-size: var(--text-base);
+  color: hsl(var(--ink-off-white));
+  max-width: 60ch;
+  margin: 0;
+}
+.page-intro-meta {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--ink-off-white));
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+.page-intro-count {
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--ink-off-white));
 }
 
 .page-header-content {
@@ -249,16 +292,11 @@
   flex: 1 1 auto;
 }
 
-.page-header-eyebrow {
-  /* inherits from .eyebrow */
-  margin: 0 0 var(--space-1);
-}
-
-.page-header-description {
+.app-page-header h1,
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 
 .app-page-header h1,
@@ -275,7 +313,7 @@
 .page-header .page-count {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-variant-numeric: tabular-nums;
 }
 
@@ -284,113 +322,117 @@
       Other components compose it.
    ============================================================ */
 
-.app-panel {
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-glass);
-  padding: var(--space-5);
-}
 
 /* ============================================================
-   6. EYEBROW — small uppercase label. Used inside panels.
+   7.5 SEGMENTED CONTROL — a 2- or 3-way toggle that reads as one
+   pill, not N standalone buttons. Used by the view-toggle (Grid/Feed)
+   on search & random. Replace view-toggle-btn with this where it
+   appears; remove old class once migrated.
    ============================================================ */
 
-.eyebrow {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-tight);
-}
-
-/* ============================================================
-   7. APP TOOLBAR — top controls row on search page.
-   ============================================================ */
-
-.app-toolbar {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  margin-bottom: var(--space-4);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface) / 50%);
   border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
 }
-
-/* Toolbar and prompts card share the same horizontal padding so their
-   text columns align. */
-.search-intro {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-1);
-  padding: var(--space-2) 0;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.search-intro-title {
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
-  line-height: var(--leading-tight);
-}
-
-.search-intro-hint {
+  padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
-  color: hsl(var(--fg-subtle));
-  line-height: var(--leading-snug);
+  font-weight: var(--weight-medium);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: hsl(var(--ink-off-white)) !important;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out);
 }
-
-.search-intro-hint.is-dirty {
-  color: hsl(var(--accent-500));
+.segmented-btn:hover {
+  color: hsl(var(--ink-bright)) !important;
+  background: hsl(var(--surface-glass) / 75%);
+}
+.segmented-btn.is-active,
+.segmented-btn[aria-pressed="true"] {
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent)) !important;
 }
 
 /* ============================================================
-   8. PROMPTS CARD — the central search builder.
+   8. APP TOOLBAR — controls row inside the prompt-composition panel.
    ============================================================ */
 
 .prompt-composition {
   display: grid;
   gap: var(--space-3);
-  margin: 0;
+  /* .glass provides margin-inline: auto for centering; preserve
+     it here while letting horizontal centering win. */
+  margin-block: 0;
 }
 
 .prompt-composition--primary {
+  /* Glass surface comes from .glass on the element. Layout only here.
+     Tighter padding than before — generous whitespace inside
+     a var(--content-max) container reads as 'empty' rather
+     than 'calm'. Vertical padding pulled in (var(--space-2))
+     since the heading and rows already carry their own internal
+     spacing. Gap pulled in (var(--space-2)) so Include and
+     Exclude rows sit closer together — they read as one form,
+     not separate blocks. */
   display: grid;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-5) 0;
-  padding: var(--space-5);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
+  gap: var(--space-2);
+  margin-inline: auto;
+  margin-block: 0 var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2);
 }
 
 .prompt-composition-heading {
+  /* Two stacked rows: row 1 = title + hint, row 2 = toolbar with
+     controls (segmented, saved bar, Search). Wrapping previously
+     caused the toolbar to drop to a second row at awkward x-offsets;
+     stacking keeps both rows clean. */
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: var(--space-2);
+}
+
+.prompt-composition-intro {
+  display: block;
+}
+
+.prompt-toolbar {
+  /* Toolbar row: controls align at the same baseline, gap-driven
+     spacing, wrap if a row doesn't fit at narrow widths. */
   display: flex;
-  align-items: start;
-  gap: var(--space-4);
+  align-items: center;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
+.prompt-toolbar > .saved-search-bar {
+  /* Saved control row inside the toolbar — inline, no own surface. */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Search submit no longer pushed to far-right via margin-left: auto.
+   Doing so created a 148px gap between the Save button and the
+   Search button (everything to the right of saved-bar was empty).
+   Items now flow naturally with the toolbar's flex gap. */
+
 .prompt-composition-title {
   display: block;
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
+  color: hsl(var(--ink-bright));
   line-height: var(--leading-tight);
 }
 
@@ -398,22 +440,18 @@
   display: block;
   margin-top: var(--space-1);
   font-size: var(--text-sm);
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-snug);
 }
 
 /* ============================================================
-   9. FILTERS — collapsible row.
+   9. PROMPTS CARD — the central search builder.
    ============================================================ */
 
 .search-advanced {
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  box-shadow: var(--shadow-glass);
-  overflow: hidden;
+  /* Glass surface comes from .glass on the element. Layout only here.
+     margin-inline: auto inherits from .glass for centering. */
+  margin-block: 0;
 }
 
 .search-advanced > summary {
@@ -446,7 +484,7 @@
 .search-advanced-label { font-weight: var(--weight-semibold); }
 .search-advanced-summary {
   margin-right: auto;
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-sm);
   font-weight: var(--weight-regular);
 }
@@ -459,7 +497,7 @@
 }
 
 /* ============================================================
-   10. EMPTY STATE — used on every page when there's no data.
+  10. FILTERS — collapsible row. STATE — used on every page when there's no data.
    ============================================================ */
 
 .ui-empty-state {
@@ -468,7 +506,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--space-8) var(--space-5);
+  padding: 3rem var(--space-3);
   min-height: 16rem;
   margin: 0 auto;
   max-width: 28rem;
@@ -477,7 +515,7 @@
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-2);
 }
 
 .ui-empty-state__icon {
@@ -505,20 +543,27 @@
 .ui-empty-state p {
   margin: 0 0 var(--space-4) 0;
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
 }
 
 /* ============================================================
-   11. PHOTO PAGE — hero + layout.
+  11. EMPTY STATE — used on every page when there's no data. — hero + layout.
    ============================================================ */
 
 .photo-page {
   position: relative;
   isolation: isolate;
-  width: var(--rail-page);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
-  padding: var(--space-5) 0 var(--space-6);
+  padding: var(--space-3) 0 var(--space-4);
+}
+
+/* C.2 — on the /photo/{id} route, the ambient mesh must NOT bleed
+   through the photo. The chrome keeps its glass treatment, but the
+   page area behind the photo is opaque / neutral. */
+body[data-route^="/photo/"] .app-body::before {
+  display: none;
 }
 
 /* Photo-derived ground (mesh around the page). */
@@ -547,8 +592,17 @@
 .photo-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
-  gap: var(--space-5);
+  gap: var(--space-3);
   align-items: start;
+}
+
+/* Grid items default to justify-self: stretch, but `display: flex`
+   on the sidebar was collapsing it to its content width in some
+   browsers (rendered 311px instead of the 384px column track).
+   Force explicit stretching so the panel fills its column. */
+.photo-layout > .photo-detail-panel {
+  align-self: stretch;
+  width: 100%;
 }
 
 @media (max-width: 800px) {
@@ -581,20 +635,17 @@
 }
 
 /* ============================================================
-   12. PHOTO DETAIL PANEL — the right rail on /photo/{id}.
+  12. PHOTO PAGE — hero + layout. PANEL — the right rail on /photo/{id}.
    ============================================================ */
 
 .photo-detail-panel {
-  padding: var(--space-5);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
+  /* Surface is supplied by .glass--sharp on the element. This block
+     only carries internal layout — no backdrop-filter, no border,
+     no shadow overrides. */
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
 
 .photo-detail-panel__head {
@@ -606,15 +657,23 @@
   border-bottom: 1px solid hsl(var(--border-glass));
 }
 
-.photo-detail-panel .eyebrow {
+/* Photo action row — Favourite + Dislike share one horizontal row.
+   Each pill uses .glass-pill from glass.css plus a tiny icon lift on
+   hover so a tap looks alive. */
+.photo-react-actions {
+  display: flex;
+  flex-direction: row;     /* override inherited column from app.css */
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: auto;             /* override inherited 100% stretch */
+}
+.photo-react-actions .fav-form,
+.photo-react-actions .dislike-form {
+  display: inline-flex;
   margin: 0;
 }
 
-.photo-detail-panel .fav-form {
-  margin: 0;
-}
-
-.photo-detail-panel .fav-toggle {
+.photo-action-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -622,23 +681,38 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   white-space: nowrap;
-  border-radius: var(--radius-pill);
-  background: hsl(var(--surface) / 50%);
-  border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg));
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-.photo-detail-panel .fav-toggle:hover {
-  background: hsl(var(--surface) / 75%);
-  border-color: hsl(var(--border-strong));
+.photo-action-btn[aria-pressed="true"] {
+  /* Solid accent — same primary state as segmented toggle +
+     glass-pill active. One accent treatment for every "on" UI
+     control in the app. */
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+}
+.photo-action-btn:hover {
   transform: translateY(-1px);
 }
-.photo-detail-panel .fav-toggle .fav-icon {
+.photo-action-btn .fav-icon,
+.photo-action-btn .dislike-icon {
   display: inline-block;
   transition: transform var(--dur-fast) var(--ease-out);
+}
+.photo-action-btn:hover .fav-icon,
+.photo-action-btn:hover .dislike-icon {
+  transform: scale(1.1);
+}
+
+/* Album pills — active state driven by .is-active on .glass-pill.
+   .glass-pill sets the base pill surface; .is-active paints the
+   selected variant. */
+.album-pill {
+  /* inherits layout from .glass-pill */
+  cursor: pointer;
 }
 
 .detail-section {
@@ -656,7 +730,7 @@
 .detail-section__empty {
   margin: 0;
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
 }
 
@@ -684,17 +758,6 @@
   min-width: 0;
 }
 
-.photo-detail-panel .meta .meta__path {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: hsl(var(--fg));
-  background: hsl(var(--surface-glass) / 55%);
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-  word-break: break-all;
-  line-height: var(--leading-snug);
-}
 
 .photo-detail-panel .album-pills__list {
   list-style: none;
@@ -705,31 +768,30 @@
   gap: var(--space-2);
 }
 
-.photo-actions {
-  margin-top: auto;
-  padding-top: var(--space-2);
-}
-
+/* Most-similar link — secondary action, sits at the foot of the sidebar
+   below the metadata. Solid pill, full width, but ghost-style: no
+   accent wash, neutral surface, arrow shifts on hover. */
 .photo-cta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-pill);
-  background: hsl(var(--accent-500) / 18%);
-  border: 1px solid hsl(var(--accent-500) / 40%);
+  background: hsl(var(--surface) / 50%);
+  border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--fg));
   font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   text-decoration: none;
+  margin-top: auto;
   transition: background var(--dur-fast) var(--ease-out),
               border-color var(--dur-fast) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
 .photo-cta:hover {
-  background: hsl(var(--accent-500) / 28%);
-  border-color: hsl(var(--accent-500) / 60%);
+  background: hsl(var(--surface-glass) / 90%);
+  border-color: hsl(var(--border-strong));
   transform: translateY(-1px);
 }
 .photo-cta__arrow {
@@ -740,7 +802,7 @@
 }
 
 /* ============================================================
-   13. PHOTO CARD SLOT — skeleton while images load.
+  13. PHOTO DETAIL PANEL — the right rail on /photo/{id}. SLOT — skeleton while images load.
    ============================================================ */
 
 .photo-card-slot {
@@ -751,18 +813,18 @@
 }
 
 /* ============================================================
-   14. RESPONSIVE — breakpoints.
+  14. PHOTO CARD SLOT — skeleton while images load. — breakpoints.
    ============================================================ */
 
 @media (max-width: 760px) {
-  .app-page { padding: var(--space-5) 0; }
+  .app-page { padding: var(--space-3) 0; }
   .app-navbar { gap: var(--space-3); padding-inline: var(--space-3); }
   .navbar-center { display: none; }
   .photo-detail-panel { padding: var(--space-4); }
 }
 
 /* ============================================================
-   15. VIEW TOGGLE + TOOLBAR BUTTONS — unified shape vocabulary.
+  15. RESPONSIVE — breakpoints. + TOOLBAR BUTTONS — unified shape vocabulary.
    ============================================================ */
 
 .view-toggle {
@@ -776,76 +838,54 @@
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-2);
 }
 
-.view-toggle-btn,
-.surprise-btn,
-.diverse-btn,
-.diversity-control,
 .search-submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
   min-height: 2.5rem;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid hsl(var(--border-glass));
+  padding: 0 var(--space-4);
+  border: 1px solid hsl(var(--accent-500));
   border-radius: var(--radius-pill);
-  background: transparent;
-  color: hsl(var(--fg-muted));
-  font: inherit;
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+  font-family: inherit;
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  /* line-height: 1 keeps the button at exactly 2.5rem;
+     without this the default line-height inflates the button
+     ~14px above its min-height (54px button next to a 40px
+     segmented control in the same toolbar). */
+  line-height: 1;
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               color var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-
-.view-toggle-btn:hover,
-.surprise-btn:hover,
-.diverse-btn:hover,
-.diversity-control:hover {
-  background: hsl(var(--surface) / 50%);
-  border-color: hsl(var(--border-strong));
-  color: hsl(var(--fg));
-  transform: translateY(-0.5px);
-}
-
-.view-toggle-btn--active,
-.diverse-btn--active,
-.search-submit {
-  background: hsl(var(--photo-dominant) / 30%);
-  border-color: hsl(var(--photo-dominant) / 55%);
-  color: hsl(var(--fg));
-  font-weight: var(--weight-semibold);
-}
-
-.search-submit {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-}
-
-.search-submit.is-dirty {
-  box-shadow: 0 0 0 3px hsl(var(--photo-dominant) / 18%);
-}
-
 .search-submit:hover {
-  background: hsl(var(--photo-dominant) / 45%);
-  border-color: hsl(var(--photo-dominant) / 70%);
-  color: hsl(var(--fg));
+  background: hsl(var(--ink-bright));
+  border-color: hsl(var(--ink-bright));
   transform: translateY(-0.5px);
 }
-
-.diversity-depth-label {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
+.search-submit.is-dirty {
+  box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
 }
+
+/* Legacy site.css re-skin sets 'background: linear-gradient(...)'
+   on .search-form button using the legacy --accent (#f06595 PINK).
+   Force the solid accent to win — no gradient, no pink. */
+.search-form button.search-submit,
+form button.search-submit {
+  background: hsl(var(--accent-500)) !important;
+  background-image: none !important;
+  color: hsl(var(--fg-on-accent)) !important;
+  border-color: hsl(var(--accent-500)) !important;
+}
+
 
 .diversity-select {
   min-height: 2.25rem;
@@ -870,7 +910,7 @@
 }
 
 /* ============================================================
-   16. INPUTS — every input field uses the same vocabulary.
+  16. VIEW TOGGLE + TOOLBAR BUTTONS — unified shape vocabulary. — every input field uses the same vocabulary.
    ============================================================ */
 
 .prompt-add input,
@@ -905,61 +945,136 @@
 }
 
 .prompt-add {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.prompt-add input {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: auto;
-}
-
-.prompt-add button {
-  display: inline-grid;
-  place-items: center;
+  /* The + button is a square pill in its own grid column (col 3).
+     Width/height come from the grid track (2.5rem). */
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--radius-pill);
-  background: hsl(var(--surface) / 50%);
+  justify-self: center;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill) !important;
+  background: hsl(var(--surface));
   border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg));
-  font-size: var(--text-md);
+  color: hsl(var(--ink-bright));
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
+  line-height: 1;
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
-              border-color var(--dur-base) var(--ease-out);
+              border-color var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out);
 }
-.prompt-add button:hover {
+.prompt-add:hover {
   background: hsl(var(--surface-glass) / 90%);
   border-color: hsl(var(--border-strong));
 }
 
-.prompt-row--primary .prompt-add button {
-  background: hsl(var(--photo-dominant) / 30%);
-  border-color: hsl(var(--photo-dominant) / 50%);
-  color: hsl(var(--fg));
+/* INCLUDE row's + button (primary variant of the +):
+   outline-style, accent border + accent text. Same vocabulary
+   as .saved-search-save — no tinted accent fills, just clear
+   outline → accent on hover. */
+.prompt-row--primary .prompt-add {
+  background: hsl(var(--surface));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--accent-500));
 }
-.prompt-row--primary .prompt-add button:hover {
-  background: hsl(var(--photo-dominant) / 45%);
+.prompt-row--primary .prompt-add:hover {
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
 }
 
+/* Disabled — explicitly faded so the minus button next to EXCLUDE
+   reads as truly disabled, not just dark on light. */
+.prompt-add:disabled {
+  background: hsl(var(--surface) / 50%);
+  border-color: hsl(var(--border-glass));
+  color: hsl(var(--ink-off-white));
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* The text input lives inside .prompt-chip-list, not in its own
+   wrapper. It flex-grows to fill the row so chips + input always
+   share the available space. min-width 12rem ensures the
+   placeholder doesn't get clipped.
+
+   Pill-shaped — consistent with every other interactive element. */
+.prompt-input {
+  flex: 1 1 12rem;
+  min-width: 12rem;
+  min-height: 2.5rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-pill) !important;
+  background: hsl(var(--surface-strong));
+  color: hsl(var(--ink-bright));
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  outline: none;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+.prompt-input::placeholder {
+  color: hsl(var(--ink-off-white) / 70%);
+  font-style: italic;
+}
+.prompt-input:focus,
+.prompt-input:focus-visible {
+  border-color: hsl(var(--accent-500));
+  box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
+  background: hsl(var(--surface-glass) / 90%);
+}
+
+/* Prompt row — flex layout (was a 4-column grid). The grid version
+   caused a 200+px gap between the input and the + button because
+   the input was max-width 28rem sitting inside a 640px 1fr column
+   — the empty space at the end of the column showed up as
+   visible whitespace between input and button. Flex lets the
+   input grow to fill the chip-list, the chip-list grow to fill
+   the row, and the gap collapses to a normal flex gap. */
+.prompt-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+}
+
+/* The chip-list contains chips AND the input. flex-wrap means
+   chips flow onto multiple lines when they overflow; the input
+   always fills the remaining row space. */
+.prompt-chip-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Form labels — all labels read as dark text, never as accent
+   color. Accent stays reserved for interactive elements (active
+   buttons, segment toggles, links). Labels are presentational,
+   not action. */
 .prompt-row-label {
   display: inline-block;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
-  width: 4.75rem;
-  flex: 0 0 auto;
+  color: hsl(var(--ink-bright));
 }
 
 .prompt-row--primary .prompt-row-label {
-  color: hsl(var(--photo-dominant));
+  color: hsl(var(--ink-bright));
+}
+
+/* Hint sits in the third column; small muted, sits where the trailing
+   helper microcopy used to (after the input) without overlapping. */
+.prompt-hint {
+  font-size: var(--text-xs);
+  color: hsl(var(--ink-off-white));
+  justify-self: end;
+  white-space: nowrap;
 }
 
 /* Chip lists — small pill chips for active prompts / centroids. */
@@ -980,8 +1095,8 @@
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-pill);
-  background: hsl(var(--photo-dominant) / 20%);
-  border: 1px solid hsl(var(--photo-dominant) / 38%);
+  background: hsl(var(--accent-500) / 20%);
+  border: 1px solid hsl(var(--accent-500) / 38%);
   color: hsl(var(--fg));
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -996,7 +1111,7 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-size: 0.8rem;
   cursor: pointer;
 }
@@ -1005,24 +1120,22 @@
   color: hsl(var(--fg));
 }
 
-/* Saved search bar — small inline control row inside the prompts card. */
+/* Saved search bar — inline control row inside the prompts
+   toolbar. Not a glass surface of its own; the Saved label +
+   select + save button live inline with the segmented control. */
 .saved-search-bar {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  padding: var(--space-1);
-  border-radius: var(--radius-pill);
-  background: hsl(var(--surface-glass) / 55%);
-  border: 1px solid hsl(var(--border-glass));
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 .saved-search-bar-label {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
-  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--ink-off-white));
 }
 .saved-search-select {
   min-width: 14rem;
@@ -1030,15 +1143,23 @@
   border-color: hsl(var(--border-glass));
 }
 .saved-search-save {
-  background: hsl(var(--photo-dominant) / 30%);
-  border-color: hsl(var(--photo-dominant) / 50%);
-  color: hsl(var(--fg));
+  /* Outline variant — solid surface panel, accent border + text.
+     Same shape as .prompt-row--primary .prompt-add so the
+     button vocabulary reads as ONE ladder:
+       accent-filled .btn-primary     (final action: Search, etc.)
+       outlined    .btn-outline   (subordinate action: Save current)
+       neutral     .btn              (default input paddings)
+       faded       .btn:disabled
+  */
+  background: hsl(var(--surface));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--accent-500));
   font-weight: var(--weight-semibold);
   padding: var(--space-1) var(--space-3);
 }
 .saved-search-save:hover:not(:disabled) {
-  background: hsl(var(--photo-dominant) / 45%);
-  border-color: hsl(var(--photo-dominant) / 70%);
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
 }
 .saved-search-save:disabled {
   opacity: 0.5;
@@ -1051,10 +1172,69 @@
   padding: 0 var(--space-2);
 }
 
+/* Quick-prompt examples — sits below the composer on the empty
+   state. Fills the visual void and gives first-time visitors
+   something concrete to click. Same primitive as prompt chips
+   but neutral — these don't have a remove control. */
+.quick-prompts {
+  max-width: var(--content-max);
+  margin: var(--space-3) auto 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quick-prompts-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--ink-off-white));
+  margin-right: var(--space-2);
+}
+
+.quick-prompts-list {
+  display: contents; /* let chips flow inline with the label */
+}
+
+.quick-prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--ink-bright));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+
+.quick-prompt-chip:hover {
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+  transform: translateY(-1px);
+}
+
 /* ============================================================
-   17. FILTERS BODY — filename input, range sliders, etc.
+  17. INPUTS — every input field uses the same vocabulary. — filename input, range sliders, etc.
    ============================================================ */
 
+.diversity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid hsl(var(--border-glass));
+}
 .filename-filter {
   display: grid;
   grid-template-columns: max-content minmax(0, 22rem);
@@ -1063,84 +1243,53 @@
 }
 
 .filename-filter label {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 
 /* ============================================================
-   18. SAVED CARD + ALBUM CARD — list pages.
+  18. FILTERS BODY — filename input, range sliders, etc. + ALBUM CARD — list pages.
    ============================================================ */
 
-.saved-card,
 .album-card {
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-glass);
-  padding: var(--space-4);
+  /* Surface supplied by .glass on the element. Internal layout only. */
+  padding: var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
-
-.saved-card__title,
-.album-card__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
-  line-height: var(--leading-tight);
+.saved-card {
+  /* Surface supplied by .glass on the element. Internal layout only. */
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.saved-card__meta,
-.album-card__meta {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  font-variant-numeric: tabular-nums;
-}
 
-.saved-card__body,
-.album-card__body {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-normal);
-}
+
 
 /* ============================================================
-   20. DISCOVER PAGE — pair picker.
+  19. SAVED CARD + ALBUM CARD — list pages. PAGE — pair picker.
    ============================================================ */
 
 .discover-page {
-  width: var(--rail-page);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
-  padding: var(--space-6) 0;
+  padding: var(--space-3) 0;
   position: relative;
 }
 
+/* .discover-header: layout-only reset. Visual chrome comes from .page-intro. */
 .discover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-4) var(--space-5);
-  margin-bottom: var(--space-5);
-  border-radius: var(--radius-xl);
-  background: hsl(220 30% 88% / 75%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass-strong);
+  /* inherits display/padding/etc. from .page-intro */
 }
 
 .discover-tagline {
   margin: var(--space-2) 0 0;
   font-size: var(--text-base);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
 }
 
@@ -1153,8 +1302,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: var(--space-9) 0;
-  color: hsl(var(--fg-muted));
+  padding: 4rem 0;
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-base);
 }
 
@@ -1176,11 +1325,11 @@
   width: 100%;
   padding: 0;
   border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: hsl(var(--surface-glass) / 40%);
   overflow: hidden;
   cursor: pointer;
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-2);
   transition: transform var(--dur-fast) var(--ease-out),
               box-shadow var(--dur-fast) var(--ease-out),
               opacity var(--dur-fast) var(--ease-out);
@@ -1188,7 +1337,7 @@
 
 .discover-image-btn:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-glass-hover);
+  box-shadow: var(--shadow-2);
 }
 
 .discover-image-btn:active { transform: translateY(0); }
@@ -1234,25 +1383,25 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-top: var(--space-5);
+  margin-top: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   background: hsl(var(--surface-glass) / 55%);
   border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================
-   21. FOR-YOU PAGE — recommendations feed.
+   10. FOR-YOU PAGE — recommendations feed.
    ============================================================ */
 
 .for-you-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
 
 .for-you-title {
@@ -1271,61 +1420,118 @@
 
 .for-you-meta__freshness {
   margin-left: var(--space-1);
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);
 }
 
+/* Result grid — overrides the legacy Tailwind .grid in app.css.
+   - 2 min columns (auto-fill never collapses below 2)
+   - 5 max columns (hard cap above 1600px)
+   - cell size controlled by --grid-min token (clamp(240px, 30vw, 420px)) */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 1600px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.random-page .grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+}
+@media (min-width: 1600px) {
+  .random-page .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
 .for-you-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 280px), 1fr));
   gap: var(--space-3);
   min-height: 30rem;
 }
 
-.for-you-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: var(--space-8) var(--space-5);
-  margin: var(--space-5) auto 0;
-  max-width: 36rem;
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
-}
-
-.for-you-empty__title {
-  margin: var(--space-3) 0 var(--space-2);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
-}
-
-.for-you-empty__body {
-  margin: 0 0 var(--space-5);
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-normal);
-  max-width: 30rem;
-}
-
+/* The for-you page reuses the shared .ui-empty-state component for
+   its empty composition. Only the action row is bespoke because it
+   has two CTAs (Browse + Random) instead of one. */
 .for-you-empty__actions {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: center;
+  margin-top: var(--space-3);
 }
 
 /* ============================================================
-   22. CENTROIDS PAGE.
+   11. CENTROIDS PAGE.
    ============================================================ */
+
+/* Sticky multi-select bar that appears above the centroids page
+   when the user has picked at least one centroid card. Hidden by
+   default — the JS adds `.is-visible` to show it. This CSS used
+   to live in app.css which is no longer loaded, so the bar was
+   always visible (a regression we fix here). */
+.centroid-selection-bar {
+  display: none;
+  position: sticky;
+  top: var(--header-h);
+  z-index: 5;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  background: hsl(var(--surface-glass) / 75%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.centroid-selection-bar.is-visible {
+  display: flex;
+}
+.centroid-selection-count {
+  color: hsl(var(--ink-off-white));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.centroid-selection-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.centroid-selection-cta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.centroid-selection-clear {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--ink-bright));
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
 
 .centroid-chip-list {
   display: flex;
@@ -1342,8 +1548,8 @@
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
-  background: hsl(var(--photo-dominant) / 18%);
-  border: 1px solid hsl(var(--photo-dominant) / 38%);
+  background: hsl(var(--accent-500) / 18%);
+  border: 1px solid hsl(var(--accent-500) / 38%);
   color: hsl(var(--fg));
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -1357,136 +1563,127 @@
   text-decoration: underline;
 }
 
-.centroid-section-heading {
-  margin: var(--space-5) 0 var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  color: hsl(var(--fg-muted));
-}
 
-.centroid-section-sub {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-subtle));
-}
-
-.centroid-empty {
-  padding: var(--space-8) var(--space-5);
-}
-
-/* ============================================================
-   23. SAVED SEARCH + ALBUM LIST ITEMS.
-   ============================================================ */
-
-.saved-search-card,
-.album-card-link,
-.saved-card-link {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass);
-  text-decoration: none;
-  color: inherit;
-  transition: transform var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out),
-              border-color var(--dur-fast) var(--ease-out);
-}
-.saved-search-card:hover,
-.album-card-link:hover,
-.saved-card-link:hover {
-  transform: translateY(-1px);
-  border-color: hsl(var(--border-strong));
-  box-shadow: var(--shadow-glass-hover);
-}
-
-.saved-search-card__title,
-.album-card-link__title,
-.saved-card-link__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
-  line-height: var(--leading-tight);
-}
-
-.saved-search-card__meta,
-.album-card-link__meta,
-.saved-card-link__meta {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  font-variant-numeric: tabular-nums;
-}
-
-.saved-search-card__body,
-.album-card-link__body,
-.saved-card-link__body {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-normal);
-}
-
-/* ============================================================
-   24. ALBUM DETAIL.
-   ============================================================ */
-
-.album-detail-page {
-  width: var(--rail-page);
-  margin: 0 auto;
-  padding: var(--space-5) 0;
-  position: relative;
-}
 
 .album-detail-header {
+  /* Surface supplied by .glass--sharp on the element. Layout only. */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-5);
-  margin-bottom: var(--space-5);
-  border-radius: var(--radius-xl);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-glass-strong);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
-.album-detail-title {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
-}
-
-.album-detail-meta {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  font-variant-numeric: tabular-nums;
-  margin-top: var(--space-1);
-}
 
 /* ============================================================
-   25. CENTROID HEADER (on /centroids).
+   14. CENTROID PAGE — cards, header, selection.
    ============================================================ */
 
-.centroids-page {
-  width: var(--rail-page);
-  margin: 0 auto;
-  padding: var(--space-5) 0;
-  position: relative;
+/* Centroid cards are full-width within .app-page, centered via
+   the centroid-card-header which is the only visible part when
+   the card is collapsed. When expanded, the card shows meta,
+   source path, and a search link. */
+.centroid-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: hsl(var(--surface-glass) / 85%);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+.centroid-card:hover {
+  border-color: hsl(var(--border-glass-strong));
+  box-shadow: var(--shadow-3);
+}
+/* The header in the template has glass--sharp which gives it its
+   own surface. But the card is the glass container — the header
+   is just a layout wrapper inside it. Override glass--sharp on
+   the header so it doesn't create a nested glass surface. */
+.centroid-card > .centroid-card-header.glass--sharp {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  max-width: none;
+  border-radius: 0;
+}
+.centroid-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+}
+.centroid-card-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--accent-500));
+  text-decoration: none;
+  word-break: break-word;
+}
+.centroid-card-name:hover { text-decoration: underline; }
+.centroid-card-dim {
+  font-size: var(--text-xs);
+  color: hsl(var(--ink-off-white));
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.centroid-card-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--text-sm);
+}
+.centroid-card-meta dt {
+  color: hsl(var(--ink-off-white));
+  text-transform: lowercase;
+}
+.centroid-card-meta dd { margin: 0; color: hsl(var(--fg)); }
+.centroid-card-meta-sub { color: hsl(var(--ink-off-white)); font-size: var(--text-xs); }
+.centroid-card-source {
+  background: hsl(var(--surface-glass) / 85%);
+  padding: 0.1em 0.4em;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  word-break: break-all;
+}
+.centroid-card-footer {
+  margin-top: auto;
+  padding-top: var(--space-2);
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+  border-top: 1px solid hsl(var(--border-glass));
+}
+.centroid-card-search-link {
+  color: hsl(var(--accent-500));
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+.centroid-card-search-link:hover { text-decoration: underline; }
+.centroid-list-empty {
+  color: hsl(var(--ink-off-white));
+  border: 1px dashed hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.centroid-list-empty code {
+  background: hsl(var(--surface-glass) / 85%);
+  padding: 0.1em 0.3em;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
 }
 
+
 /* ============================================================
-   26. TYPE OVERRIDES — DaisyUI/Tailwind text-* classes flow
+   15. TYPE OVERRIDES — DaisyUI/Tailwind text-* classes flow
    through the token system. Components using .text-sm etc. now
    inherit our type scale, weights, line-heights automatically.
    ============================================================ */
@@ -1526,29 +1723,15 @@
 .font-bold { font-weight: var(--weight-bold); }
 .font-semibold { font-weight: var(--weight-semibold); }
 .font-medium { font-weight: var(--weight-medium); }
-.font-normal,
-.font-regular { font-weight: var(--weight-regular); }
 
 /* Letter-spacing / tracking. */
 .tracking-tight { letter-spacing: var(--tracking-tight); }
-.tracking-normal { letter-spacing: var(--tracking-normal); }
-.tracking-wide { letter-spacing: var(--tracking-wide); }
-.tracking-eyebrow { letter-spacing: var(--tracking-eyebrow); }
-
-/* Colors — opacity-modulated ink. */
-.text-base-content { color: hsl(var(--fg)); }
-.text-base-content\/70 { color: hsl(var(--fg-muted)); }
-.text-base-content\/60 { color: hsl(var(--fg-muted)); }
-.text-base-content\/55 { color: hsl(var(--fg-muted)); }
-.text-base-content\/50 { color: hsl(var(--fg-subtle)); }
-.text-base-content\/40 { color: hsl(var(--fg-subtle)); }
-.text-base-content\/30 { color: hsl(var(--ink-300)); }
 
 /* Tabular numerals utility. */
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ============================================================
-   27. FOCUS + INTERACTION POLISH — visible focus rings, smooth
+   16. FOCUS + INTERACTION POLISH — visible focus rings, smooth
    transitions, consistent hover affordance.
    ============================================================ */
 
@@ -1574,9 +1757,262 @@ a {
   transition: color var(--dur-fast) var(--ease-out);
 }
 a:hover {
-  color: hsl(var(--accent-400));
+  color: hsl(var(--accent-500));
 }
 
 /* ============================================================
-   28. LEGACY BRIDGE.
+   SEARCH SUBMIT BAR — the composer footer.
+   Holds the Search submit button + draft hint. Always visible at
+   the bottom of the composer so users can commit their draft.
    ============================================================ */
+.site-main {
+  width: min(100% - var(--space-3) * 2, var(--page-max));
+  margin: 0 auto;
+  padding: var(--space-3) 0;
+  position: relative;
+}
+
+.search-submit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2) 0;
+  margin-top: var(--space-3);
+  border-top: 1px solid hsl(var(--border-glass));
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
+.search-submit-hint {
+  font-size: var(--text-sm);
+  color: hsl(var(--ink-off-white));
+}
+
+/* The .search-submit rule lives above (line 790 area, just before
+   .search-form input rules). The .search-submit-bar only contains
+   this hint + the button. */
+.search-submit[disabled] {
+  opacity: 0.7;
+  cursor: progress;
+  transform: none;
+}
+/* Loading state: button shows a tiny spinner while the search is in flight.
+   JS adds .is-loading to .search-submit before navigating. */
+.search-submit.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: var(--space-2);
+  border: 2px solid hsl(var(--fg-on-accent));
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+  vertical-align: -2px;
+  animation: btn-spin 0.8s linear infinite;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+   17. LEGACY BRIDGE.
+   ============================================================ */
+
+/* Centroids — advanced / setup details disclosure. */
+.centroids-advanced {
+  margin: var(--space-3) auto;
+  max-width: 36rem;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: hsl(var(--surface-glass) / 50%);
+  border: 1px solid hsl(var(--border-glass));
+  font-size: var(--text-sm);
+  color: hsl(var(--ink-off-white));
+}
+.centroids-advanced summary {
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--fg));
+}
+.centroids-advanced pre {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: hsl(var(--surface-strong));
+  color: hsl(var(--fg));
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+/* ============================================================
+   21. THEME OVERRIDES — DaisyUI / Tailwind utility classes that
+   bleed into templates are re-skinned here to use tokens.
+   layout.css loads AFTER app.css, so cascade wins.
+   ============================================================ */
+
+/* .btn-primary used to inherit var(--accent) from app.css (#f06595
+   pink) + var(--accent-cyan) (#22d3ee cyan) — a pink/cyan gradient
+   from the legacy site.css re-skin. Force the single brand accent. */
+.btn-primary {
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+}
+.btn-primary:hover {
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+}
+
+/* .btn-ghost: inherit base color, accent on hover. */
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: hsl(var(--ink-off-white));
+}
+.btn-ghost:hover {
+  background: hsl(var(--surface-glass) / 50%);
+  color: hsl(var(--fg));
+}
+
+/* text-base-content{,/N} — drives text color. Re-skin to our ink scale. */
+.text-base-content { color: hsl(var(--ink-off-white)); }
+.text-base-content\/60 { color: hsl(var(--ink-off-white) / 60%); }
+.text-base-content\/70 { color: hsl(var(--ink-off-white) / 70%); }
+.text-base-content\/72 { color: hsl(var(--ink-off-white) / 72%); }
+.text-base-content\/30 { color: hsl(var(--ink-off-white) / 30%); }
+
+/* bg-base-300 — background used on placeholder elements. */
+.bg-base-300 { background: hsl(var(--surface)); }
+
+/* Tabular-nums for numeric data. Inline; no theme variant. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Visibility utilities we use in templates. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+.line-through { text-decoration: line-through; }
+.opacity-30 { opacity: 0.3; }
+.opacity-50 { opacity: 0.5; }
+.opacity-70 { opacity: 0.7; }
+
+/* Tiny utility for inline icon alignment. */
+.ui-icon { display: inline-block; vertical-align: -2px; }
+
+/* Loading spinner used by .search-submit.is-loading and the empty
+   state cards. Single source so colors stay consistent. */
+.loading-spinner,
+.loading.loading-spinner {
+  display: inline-block;
+  width: 1rem; height: 1rem;
+  border: 2px solid hsl(var(--accent-500) / 30%);
+  border-top-color: hsl(var(--accent-500));
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: btn-spin 0.8s linear infinite;
+}
+
+/* DaisyUI color utilities we still reference in templates. Re-skinn
+   to our single err-500 / warn-500 so error/warn text stays in the
+   defined status palette (not DaisyUI's 35-theme re-skin). */
+.text-error { color: hsl(var(--err-500)); }
+.text-warning { color: hsl(var(--warn-500)); }
+.text-success { color: hsl(var(--accent-500)); }  /* intentional: we
+   reuse accent-500 as the success color since it's our single accent. */
+.border-error { border-color: hsl(var(--err-500)); }
+.bg-error     { background-color: hsl(var(--err-500)); }
+/* ============================================================
+   BUTTON SHAPE — pill radius is for interactive controls only.
+   Panels (glass / glass--sharp) keep their original rectangular
+   radius. King called this — Buttons only, not every primitive.
+   ============================================================ */
+button:not(.discover-image-btn),
+.btn,
+.segmented,
+.segmented-btn,
+.search-submit,
+.saved-search-save,
+.saved-search-bar,
+.diversity-control,
+.glass-pill {
+  border-radius: var(--radius-pill) !important;
+}
+
+/* Outline-shaped defaults (.btn without .btn-primary variant).
+   Surface bg, accent border + text. Hover inverts to primary. */
+.btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent) {
+  background: hsl(var(--surface)) !important;
+  background-image: none !important;
+  border: 1px solid hsl(var(--accent-500)) !important;
+  color: hsl(var(--accent-500)) !important;
+}
+.btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent):hover {
+  background: hsl(var(--accent-500)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+.btn:disabled {
+  background: hsl(var(--surface) / 50%) !important;
+  background-image: none !important;
+  border-color: hsl(var(--border-glass)) !important;
+  color: hsl(var(--ink-off-white)) !important;
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+/* Primary — solid accent, white text. */
+.btn-primary {
+  background: hsl(var(--accent-500)) !important;
+  background-image: none !important;
+  border: 1px solid hsl(var(--accent-500)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+
+/* .btn-ghost, .btn-secondary — neutral ghost. No accent fill,
+   dark text on transparent. Hover tints lightly. */
+.btn-ghost,
+.btn-secondary {
+  background: hsl(var(--surface) / 50%) !important;
+  background-image: none !important;
+  border: 1px solid hsl(var(--border-glass)) !important;
+  color: hsl(var(--ink-bright)) !important;
+}
+.btn-ghost:hover,
+.btn-secondary:hover {
+  background: hsl(var(--surface-glass) / 90%) !important;
+  border-color: hsl(var(--border-strong)) !important;
+}
+
+/* Specific overrides for the layout.css hero buttons that would
+   otherwise inherit app.css's linear-gradient pink. */
+.search-submit {
+  background: hsl(var(--accent-500)) !important;
+  background-image: none !important;
+  color: hsl(var(--fg-on-accent)) !important;
+  border-color: hsl(var(--accent-500)) !important;
+}
+.search-submit:hover {
+  background: hsl(var(--ink-bright)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+.saved-search-save {
+  background: hsl(var(--surface)) !important;
+  background-image: none !important;
+  color: hsl(var(--accent-500)) !important;
+  border-color: hsl(var(--accent-500)) !important;
+}
+.saved-search-save:hover:not(:disabled) {
+  background: hsl(var(--accent-500)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+.saved-search-save:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}

@@ -1,96 +1,103 @@
 /*
   search/static/css/tokens.css
-  Design tokens — single source of truth for the entire app.
+  Design tokens — the single source of truth for every visible value
+  in the app. Components reference these by name; raw values belong
+  in this file and nowhere else.
 
-  Organised into four sections:
-    1. Color palette (HSL component triples for alpha compositing)
-    2. Surface / glass primitives (alphas, borders, shadows)
-    3. Type scale, spacing, radii, motion
-    4. Photo-derived accents (overridden per page by JS)
+  This file implements the four non-negotiable principles in
+  PRINCIPLES.md. Read that file first.
 
-  Rules:
-    - Never use raw hex / rgb in component CSS. Always read from these.
-    - Every value has a defined purpose. No "vibes".
-    - Light + dark themes both defined here. Mode is data-theme.
+  Principle 3 (No hard-coded values; ratios, not memory) is the
+  constraint that shapes most of what's below:
+    - Spacing flows from --space-1..4 ramp over a 4px unit.
+    - Type flows from a major-third ratio (1.250) at 6 sizes.
+    - Radii are 3 named stops plus a pill primitive.
+    - Elevation is a 2-stop ladder (--shadow-2, --shadow-3).
+    - Container widths are tokens (--page-max, --content-max)
+      so they propagate to every consumer.
+
+  Principle 4 (Single theme) is literal here: there is one :root
+  block, the LIGHT glass palette, and no data-theme attribute or
+  toggle. The ink scale is upright (50 = lightest page base,
+  bright = darkest text). No dark-mode or accent-variant blocks.
 */
 
 :root {
   /* ============================================================
-     1. COLOUR PALETTE — raw HSL triples (no alpha; alpha is added
-                                 at the call site via `hsl(... / 50%)`).
+     1. COLOUR PALETTE — minimal surface.
+
+     Three text tones (one near-black for headings, one mid
+     neutral for body, one pure white for accent-bg surfaces);
+     one brand accent (single shade); two status; one photo-card
+     tint. ALL text is a shade of gray with NO hue — text does
+     not compete with the brand blue. Hover / pressed / disabled
+     vary by opacity alone, never by hue.
      ============================================================ */
 
-  /* Neutral ink (text + lines) */
-  --ink-900: 220 30% 9%;        /* headings */
-  --ink-700: 220 22% 22%;       /* body */
-  --ink-500: 220 12% 42%;       /* secondary */
-  --ink-400: 220 10% 55%;       /* tertiary / placeholders */
-  --ink-300: 220 12% 72%;       /* disabled */
-  --ink-100: 220 18% 92%;       /* dividers on light */
-  --ink-50: 220 22% 97%;        /* page base */
+  /* Page base — a *neutral* pale gray, not blue-tinted. The
+       glass vocabulary still works: the white inset on every
+       panel supplies the "frosted" feel, the warm-cool distinction
+       goes away. Keeps text-vs-page contrast consistent. */
+  --ink-50:  0 0% 92%;
 
-  /* Brand accent — calm blue-violet. Re-tinted per photo via JS. */
-  --accent-500: 222 70% 55%;
-  --accent-400: 222 75% 65%;
-  --accent-600: 222 60% 45%;
-  --accent-soft: 222 70% 55%;
+  /* Two text tones only. Both are pure neutral — no hue — so
+       they sit unmistakably apart from the single brand accent
+       and don't compete with the button tint.
+         --ink-bright     headings + dense labels    (12% — near black)
+         --ink-off-white  body + captions            (38% — mid gray) */
+  --ink-off-white: 0 0% 38%;
+  --ink-bright:    0 0% 12%;
 
-  /* Status */
-  --ok-500: 152 55% 45%;
-  --warn-500: 38 92% 55%;
-  --err-500: 358 75% 58%;
+  /* Brand accent — ONE shade. Used solid (no opacity tint) on
+       interactive elements. Hover / pressed / disabled vary ONLY
+       by opacity, not by hue or saturation. Text-on-accent is the
+       single role of --fg-on-accent. */
+  --accent-500: 222 60% 45%;
 
-  /* Photo-derived accents (default cool/Violet; JS rewrites per page). */
-  --photo-dominant: 222 65% 55%;
-  --photo-avg: 222 40% 35%;
-  --photo-palette-1: 222 65% 55%;
-  --photo-palette-2: 280 60% 60%;
-  --photo-palette-3: 192 70% 55%;
+  /* Status — used sparingly. */
+  --warn-500: 38 92% 50%;
+  --err-500:  358 65% 50%;
 
-  /* ============================================================
-     2. SURFACE / GLASS — semantic tokens used by every panel.
-     ============================================================ */
+  /* Photo-derived accent — kept ONLY for the per-card radial
+       glow inside .photo-card. Never reaches chrome. */
+  --photo-dominant:  222 60% 50%;
 
-  --surface: var(--ink-50);              /* page base + glass tint */
-  --surface-strong: 0 0% 100%;           /* opaque text panel */
-  --surface-glass: 220 25% 85%;           /* glass tint — visibly darker than bg */
-  --surface-glass-soft: 220 22% 88%;     /* softest tint */
-  --surface-glass-strong: 220 28% 92%;   /* stronger tint */
+    /* ============================================================
+       2. SURFACE / GLASS — three tints, two neutrals + one glass.
+       ============================================================ */
 
-  --fg: var(--ink-700);
-  --fg-muted: var(--ink-500);
-  --fg-subtle: var(--ink-400);
-  --fg-on-accent: 0 0% 100%;
+  --surface:        hsl(var(--ink-50));   /* base panel tint = page bg */
+  --surface-strong: 0 0% 100%;             /* opaque white */
+  --surface-glass:  0 0% 85%;              /* darker neutral glass tint */
+  --bg-base:        hsl(var(--ink-50));    /* page bg */
 
-  --border-glass: 220 30% 30% / 12%;
-  --border-strong: 220 30% 30% / 22%;
-  --border-faint: 220 30% 30% / 6%;
-  --highlight-top: 0 0% 100% / 28%;
+  /* Text aliases — ONE off-white, ONE bright. Resolved through
+     var(--fg) and var(--fg-on-accent). */
+  --fg:             hsl(var(--ink-bright));
+  --fg-on-accent:   0 0% 100%;
 
-  --shadow-color: 220 30% 12%;
+  /* Glass borders + inner sheen + soft drop shadows. */
+  --border-glass:   0 0% 0% / 14%;
+  --border-strong:  0 0% 0% / 22%;
+  --highlight-top:  0 0% 100% / 60%;
+  --shadow-color:   0 0% 12%;
 
-  /* Single-source shadow for any glass element. */
-  --shadow-glass:
-    0 1px 0 hsl(0 0% 100% / 28%) inset,
+  --shadow-2:
+    0 1px 0 hsl(0 0% 100% / 60%) inset,
     0 10px 30px hsl(var(--shadow-color) / 14%);
-  --shadow-glass-hover:
-    0 1px 0 hsl(0 0% 100% / 32%) inset,
-    0 14px 38px hsl(var(--shadow-color) / 18%);
-  --shadow-glass-strong:
-    0 1px 0 hsl(0 0% 100% / 36%) inset,
+  --shadow-3:
+    0 1px 0 hsl(0 0% 100% / 70%) inset,
     0 18px 48px hsl(var(--shadow-color) / 22%);
 
   /* Glass blur levels. One job each. */
-  --blur-bg: 56px;       /* ambient mesh */
-  --blur-glass: 22px;    /* panels */
-  --blur-pill: 14px;     /* chips + pills */
+  --blur-bg:       40px;       /* ambient mesh */
+  --blur-glass:    22px;       /* panels */
+  --blur-pill:     14px;       /* chips + pills */
   --saturate-glass: 160%;
 
-  /* Page base. */
-  --bg-base: var(--ink-50);
-
   /* ============================================================
-     3. TYPE — 8-size scale, uniform line-heights, two weights.
+     3. TYPE — 6 sizes (--text-md dropped — never referenced),
+     3 line-heights, 4 weights, 1 tracking value.
      ============================================================ */
 
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -98,144 +105,92 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
                monospace;
 
-  --text-xs:   0.72rem;   /* 11.5px — eyebrows, badges */
-  --text-sm:   0.82rem;   /* 13px   — captions, labels */
+  --text-xs:   0.72rem;   /* 11.5px — captions, labels */
+  --text-sm:   0.82rem;   /* 13px   — body small */
   --text-base: 0.93rem;   /* 14.9px — body */
-  --text-md:   1rem;      /* 16px   — input */
   --text-lg:   1.1rem;    /* 17.6px — sub-headers */
   --text-xl:   1.35rem;   /* 21.6px — page h1 */
   --text-2xl:  1.75rem;   /* 28px   — hero */
 
-  --leading-tight: 1.2;
-  --leading-snug: 1.35;
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
   --leading-normal: 1.5;
-  --leading-relaxed: 1.65;
 
-  --weight-regular: 450;
-  --weight-medium: 550;
+  --weight-regular:  450;
+  --weight-medium:   550;
   --weight-semibold: 650;
-  --weight-bold: 750;
+  --weight-bold:     750;
 
   --tracking-tight: -0.012em;
-  --tracking-normal: 0;
-  --tracking-wide: 0.04em;
-  --tracking-eyebrow: 0.08em;
 
   /* ============================================================
-     SPACING — 4px base ramp. Always use these, never raw px.
+     SPACING — clamp() ramp over a 4px unit. Always these, never
+     raw px.
      ============================================================ */
 
-  --space-1:  0.25rem;   /*  4px */
-  --space-2:  0.5rem;    /*  8px */
-  --space-3:  0.75rem;   /* 12px */
-  --space-4:  1rem;      /* 16px */
-  --space-5:  1.5rem;    /* 24px */
-  --space-6:  2rem;      /* 32px */
-  --space-7:  2.5rem;    /* 40px */
-  --space-8:  3rem;      /* 48px */
-  --space-9:  4rem;      /* 64px */
+  --space-1: clamp(0.5rem,  0.4rem + 0.4vw, 0.65rem);    /* ~10px */
+  --space-2: clamp(0.75rem, 0.6rem + 0.5vw, 1rem);       /* ~15px */
+  --space-3: clamp(1rem,    0.85rem + 0.6vw, 1.4rem);    /* ~20px */
+  --space-4: clamp(1.4rem,  1.1rem + 0.8vw, 2rem);       /* ~30px */
 
   /* ============================================================
-     RADII — five levels. Pick one by surface size, not by taste.
+     RADII — 3 named stops + a pill primitive.
      ============================================================ */
 
-  --radius-sm: 6px;      /* input chips, code spans */
-  --radius-md: 10px;     /* cards, small panels */
-  --radius-lg: 14px;     /* main panels, photo detail */
-  --radius-xl: 20px;     /* hero cards */
-  --radius-pill: 999px;  /* buttons, pills, tags */
+  --radius-sm:   0.5rem;        /* 8px  — inputs, chips */
+  --radius-md:   0.875rem;      /* 14px — cards */
+  --radius-lg:   1.25rem;       /* 20px — large panels */
+  --radius-pill: 999px;
 
   /* ============================================================
-     LAYOUT — page rails, header bands, gutters.
+     HEADER — sticky nav height. Container widths below are
+     the two stable widths every page composes against.
      ============================================================ */
 
-  --rail-page:  min(100% - var(--space-5) * 2, 80rem);   /* app-wide */
-  --rail-wide:  min(100% - var(--space-5) * 2, 86rem);   /* full-bleed */
-  --gutter:     var(--space-5);
-  --header-h:   3.25rem;   /* unified header height on desktop */
+  --header-h: 4rem;
+
+  /* Page-level outer container — caps the entire content well.
+     Used by .site-main and other full-width wrappers. */
+  --page-max: 72rem;
+
+  /* Content container — caps .glass / .glass--sharp panels so
+     every panel reads at the same comfortable reading width.
+     Used by the composer, filters, quick-prompts, etc. The
+     ratio to --page-max (0.67) keeps the panel centered with
+     visible margin on either side at any viewport size. */
+  --content-max: 48rem;
 
   /* ============================================================
-     MOTION — eased movement, one easing curve.
+     MOTION — single easing + 3 durations.
      ============================================================ */
 
-  --ease-out:    cubic-bezier(0.2, 0.7, 0.2, 1);
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
-  --dur-slow: 320ms;
+  --ease-out:   cubic-bezier(.2, .8, .2, 1);
+
+  --dur-fast:   120ms;
+  --dur-base:   180ms;
+  --dur-slow:   260ms;
+
   --mesh-speed: 60s;
 
   /* ============================================================
-     Z-INDEX — single source of truth for stacking.
+     LAYERS — z-index ladder. Three stops used (mesh / grain /
+     header); modal and toast are constants in JS — not tokens.
      ============================================================ */
 
   --z-mesh:    -2;
   --z-grain:   -1;
-  --z-base:    0;
-  --z-raised:  10;
-  --z-sticky:  40;
-  --z-header:  50;
-  --z-overlay: 80;
-  --z-modal:   100;
+  --z-header:  20;
 }
 
 /* ============================================================
-   LIGHT THEME — already the default above. Re-stated for clarity
-   that everything below flows through the same palette.
+   Reduced motion — kill animated mesh + transitions.
    ============================================================ */
-:root[data-theme="light"] {
-  --bg-base: 220 35% 92%;
-  --surface: 220 22% 97%;
-  --surface-strong: 0 0% 100%;
-  --fg: 220 30% 14%;
-  --fg-muted: 220 14% 38%;
-  --fg-subtle: 220 10% 52%;
-  --border-glass: 220 30% 30% / 12%;
-  --border-strong: 220 30% 30% / 22%;
-  --border-faint: 220 30% 30% / 6%;
-  --highlight-top: 0 0% 100% / 32%;
-  --shadow-color: 220 30% 12%;
-  --shadow-glass:
-    0 1px 0 hsl(0 0% 100% / 30%) inset,
-    0 10px 28px hsl(220 30% 12% / 16%);
-  --shadow-glass-strong:
-    0 1px 0 hsl(0 0% 100% / 36%) inset,
-    0 18px 48px hsl(220 30% 12% / 22%);
-}
-
-/* ============================================================
-   DARK THEME — flipped palette. Cool desaturated, not pure black.
-   ============================================================ */
-:root[data-theme="dark"] {
-  --bg-base: 220 22% 8%;
-  --surface: 220 22% 12%;
-  --surface-strong: 220 22% 7%;
-  --fg: 220 18% 92%;
-  --fg-muted: 220 14% 70%;
-  --fg-subtle: 220 10% 56%;
-  --border-glass: 0 0% 100% / 10%;
-  --border-strong: 0 0% 100% / 18%;
-  --border-faint: 0 0% 100% / 5%;
-  --highlight-top: 0 0% 100% / 8%;
-  --shadow-color: 0 0% 0%;
-  --shadow-glass:
-    0 1px 0 hsl(0 0% 100% / 6%) inset,
-    0 10px 28px hsl(0 0% 0% / 30%);
-  --shadow-glass-strong:
-    0 1px 0 hsl(0 0% 100% / 10%) inset,
-    0 18px 48px hsl(0 0% 0% / 45%);
-  --shadow-glass-hover:
-    0 1px 0 hsl(0 0% 100% / 10%) inset,
-    0 14px 38px hsl(0 0% 0% / 40%);
-}
-
-/* Reduced motion — kill animated mesh + transitions. */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --mesh-speed: 0s;
-    --blur-bg: 0px;
-    --blur-glass: 0px;
-    --blur-pill: 0px;
+  --mesh-speed: 0s;
+  --blur-bg:    0px;
+  --blur-glass: 0px;
+  --blur-pill:  0px;
   }
   *, *::before, *::after {
     animation-duration: 0ms !important;

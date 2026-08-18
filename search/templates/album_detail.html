@@ -10,16 +10,15 @@
     <a href="/albums">← Back to albums</a>
   </nav>
 
-  <header class="album-detail-header page-header app-page-header glass--sharp">
-    <div>
-      <p class="eyebrow">Album</p>
-      <h1>{{ album.name }}</h1>
+  <header class="album-detail-header page-intro">
+    <div class="page-intro-main"><h1 class="page-intro-title">{{ album.name }}</h1>
+      {% if album.description %}
+        <p class="page-intro-description album-detail-description">{{ album.description }}</p>
+      {% endif %}
     </div>
-    {% if album.description %}
-      <p class="album-detail-description">{{ album.description }}</p>
+    {% if total %}
+      <p class="page-intro-meta">{{ total }} {{ 'photo' if total == 1 else 'photos' }}</p>
     {% endif %}
-    <p class="result-count">
-      {{ total }} {{ 'photo' if total == 1 else 'photos' }}
     </p>
 
     {% if total %}

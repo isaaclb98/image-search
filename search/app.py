@@ -1348,6 +1348,9 @@ def create_app(
                 # LQIP from the Qdrant payload (set at index time, T9).
                 # None when the point was indexed before blurhash landed.
                 blurhash=(h.payload or {}).get("blurhash"),
+                # Dimensions for the photo-card caption row (Phase E).
+                width=(h.payload or {}).get("width"),
+                height=(h.payload or {}).get("height"),
             )
             for h in hits
         ]
@@ -1880,6 +1883,13 @@ def create_app(
         cached_row = await asyncio.to_thread(index_db.get_by_id, hit.id)
         is_favorite = bool(cached_row and int(cached_row.get("is_favorite") or 0) == 1)
         is_disliked = await asyncio.to_thread(index_db.is_disliked, hit.id)
+        # Photo metadata surfaced on the /photo/{id} page. The path
+        # is intentionally hidden (C.1 in PLAN.md); we expose date
+        # and dimensions instead. payload carries width/height
+        # directly; indexed_at comes from the SQLite cache row.
+        photo_width = (hit.payload or {}).get("width")
+        photo_height = (hit.payload or {}).get("height")
+        photo_indexed_at = (cached_row or {}).get("indexed_at")
         # Lazy liveness for the /photo page too (same check as the
         # raw route). Defensive: catches filesystem deletions that the
         # IndexDB refresh hasn't caught up with yet.
@@ -1900,6 +1910,9 @@ def create_app(
                 "id": hit.id,
                 "path": hit.path,
                 "url": resolve_url(hit.id, _cfg.web_ui_url),
+                "photo_width": photo_width,
+                "photo_height": photo_height,
+                "photo_indexed_at": photo_indexed_at,
                 "q": prompt_state.q,
                 "positives": prompt_state.positives,
                 "negatives": prompt_state.negatives,

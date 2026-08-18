@@ -798,10 +798,7 @@ body {
 .ui-empty-state__icon { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; margin-bottom: 1rem; border: 1px solid var(--glass-border); border-radius: 1rem; color: var(--color-primary); opacity: 0.78; }
 .ui-empty-state__icon > span { font-size: 1.8rem; }
 
-/* Random is intentionally denser than the responsive result grids. */
-.random-page .grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-}
+/* random-page .grid override removed — .grid is now responsive (2-5 cols) */
 
 /* Download links also carry legacy `.btn` / DaisyUI button classes.
    Keep this override after those imports so the links stay real,

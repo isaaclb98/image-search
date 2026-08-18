@@ -6,12 +6,7 @@
 
 {% block content %}
 <section class="for-you-page app-page" data-freshest="{{ for_you_freshest or '' }}">
-  <header class="app-page-header glass--sharp for-you-header">
-    <div class="page-header-content">
-      <p class="eyebrow">Recommendations</p>
-      <h1 class="for-you-title text-2xl font-bold tracking-tight text-base-content">For you</h1>
-      <p class="page-header-description">Personalised photos based on what you've liked and skipped so far.</p>
-    </div>
+  {% set for_you_meta %}
     {% if for_you_n_likes > 0 or for_you_n_dislikes > 0 %}
       <div class="for-you-meta">
         <span class="glass-pill" data-freshness-chip>
@@ -22,13 +17,18 @@
         <button type="button" class="btn btn-ghost btn-xs" data-reset-feedback>Reset</button>
       </div>
     {% endif %}
-  </header>
+  {% endset %}
+  {{ ui.page_header(
+       "For you",
+       description="Personalised photos based on what you've liked and skipped so far.",
+       meta=for_you_meta
+     ) }}
 
   {% if for_you_n_likes == 0 %}
-    <section class="for-you-empty glass-frost app-empty-state" data-empty-state>
-      <p class="eyebrow">Cold start</p>
-      <h2 class="for-you-empty__title">Like a few photos to start</h2>
-      <p class="for-you-empty__body">
+    <section class="ui-empty-state glass app-empty-state" data-empty-state>
+      <div class="ui-empty-state__icon" aria-hidden="true">{{ ui.ui_icon('heart', 'h-6 w-6') }}</div>
+      <h2 class="ui-empty-state__title">Like a few photos to start</h2>
+      <p class="ui-empty-state__body">
         The feed learns from your ❤️ across the app — lightbox,
         search, albums. Skip with ✕ and we'll avoid similar photos.
         You can come back when a few photos have your tap.

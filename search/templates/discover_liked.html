@@ -6,9 +6,9 @@
 
 {% block content %}
 <section class="discover-liked-page app-page">
-  <header class="discover-liked-header app-page-header glass--sharp">
-    <p class="eyebrow">Discovery</p>
-    <h1>your picks</h1>
+  <header class="discover-liked-header page-intro">
+    <div class="page-intro-main"><h1 class="page-intro-title">your picks</h1>
+    </div>
     {% if session_gone %}
       <div class="alert alert-warning">
         That discovery session is no longer active (sessions are ephemeral — they end when the server restarts or after 30 minutes of inactivity).
@@ -23,16 +23,16 @@
         {# View toggle: grid (default) vs feed (phone-style single column).
            Same component the search page uses — CSS classes are
            shared, only the URL we navigate to differs. #}
-        <div class="view-toggle" role="group" aria-label="Result view">
+        <div class="segmented" role="group" aria-label="Result view">
           <button
             type="button"
-            class="view-toggle-btn {% if view == 'grid' %}view-toggle-btn--active{% endif %}"
+            class="segmented-btn {% if view == 'grid' %}is-active{% endif %}"
             data-view="grid"
             aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
           >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
           <button
             type="button"
-            class="view-toggle-btn {% if view == 'feed' %}view-toggle-btn--active{% endif %}"
+            class="segmented-btn {% if view == 'feed' %}is-active{% endif %}"
             data-view="feed"
             aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
           >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>

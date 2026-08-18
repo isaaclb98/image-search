@@ -443,18 +443,9 @@ function updateLoadMoreHint(hasMore, offset, count) {
   if (!loadMoreHint) return;
   if (hasMore) {
     loadMoreHint.textContent = "Scroll for more results.";
-    loadMoreHint.classList.remove("load-more-hint--capped");
-  } else if (count > 0) {
-    // Reached the cap. The total is read from a data-attr on the hint
-    // (set in the template), defaulting to 500.
-    const total = Number(loadMoreHint.dataset.maxTotal || "500");
-    if (offset + count >= total) {
-      loadMoreHint.textContent = `Showing the first ${total} results.`;
-      loadMoreHint.classList.add("load-more-hint--capped");
-    } else {
-      loadMoreHint.textContent = "";
-    }
   } else {
+    // Reached the cap (or empty result set) — the page has nothing
+    // more to show. No narration: the empty state speaks for itself.
     loadMoreHint.textContent = "";
   }
 }
@@ -464,8 +455,10 @@ function setLoading(on) {
   if (on) {
     submitButton.disabled = true;
     submitButton.setAttribute("aria-busy", "true");
+    submitButton.classList.add("is-loading");
   } else {
     submitButton.removeAttribute("aria-busy");
+    submitButton.classList.remove("is-loading");
     submitButton.disabled = submitButton.dataset.locked === "true";
   }
 }
@@ -515,9 +508,9 @@ function getRenderer(view) {
 
 function syncViewToggle() {
   const current = draftState.view;
-  for (const btn of document.querySelectorAll(".view-toggle-btn")) {
+  for (const btn of document.querySelectorAll(".segmented-btn")) {
     const isActive = btn.dataset.view === current;
-    btn.classList.toggle("view-toggle-btn--active", isActive);
+    btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-pressed", isActive ? "true" : "false");
   }
 }
@@ -531,7 +524,7 @@ function onViewToggleClick(nextView) {
 
 // Set the toggle's active state on initial load, and wire up clicks.
 syncViewToggle();
-for (const btn of document.querySelectorAll(".view-toggle-btn")) {
+for (const btn of document.querySelectorAll(".segmented-btn")) {
   btn.addEventListener("click", () => onViewToggleClick(btn.dataset.view));
 }
 
