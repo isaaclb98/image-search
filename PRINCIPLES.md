@@ -59,33 +59,10 @@ the rule enforceable.
 
 ## 4. Frosted glass over user photos
 
-Every surface is a frosted-glass panel sitting over a photo-tinted
-ground. The image is the page's colour source; the glass is what
-sits on top of it.
-
-- **Single tint source per page.** Every page derives its ambient
-  colour from a single user image — a photo on `/photo/{id}`,
-  the first result on `/random`, the top hit on `/discover`,
-  the active search's first match. Pages without a clear source
-  fall back to a neutral pale ground.
-- **Image-tinted glass.** Panels are translucent surfaces whose
-  hue reads from the image behind them. The image is heavily
-  blurred, darkened, and shifted toward neutral so it acts as a
-  wash, not a backdrop. Glass sits on top, never competing for
-  attention.
-- **Frosted, not dark.** The glass vocabulary is three classes:
-  default panel (`.glass`), hero panel (`.glass--sharp`), pill
-  (`.glass-pill`). All are translucent surfaces with backdrop
-  blur and saturation. Nothing is dark for its own sake; nothing
-  is light for its own sake. The image tint supplies the hue;
-  the glass supplies the depth.
-- **Clean, minimalist, sleek.** No decorative gradients beyond the
-  image tint itself, no illustrative backgrounds, no animation
-  that isn't purposeful. Photos are foreground; chrome is chrome.
-
-The aesthetic goal: every page reads as the same product, but
-the colour shifts with the content it's showing. Variety comes
-from the user's images, not from chrome.
+The image is the page's colour source; the glass is what sits on
+top of it. Every surface is a frosted panel over a photo-tinted
+ground — clean, minimalist, sleek. Variety comes from the user's
+images, not from chrome.
 
 ---
 
