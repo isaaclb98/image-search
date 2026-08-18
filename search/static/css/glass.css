@@ -41,7 +41,7 @@
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
-  color: hsl(var(--fg));
+  color: var(--fg);
   /* Container primitive — every panel sized to a comfortable
      reading width, centered in the page. .glass--sharp gets the
      larger hero ceiling; .glass gets the standard panel ceiling.
@@ -148,7 +148,7 @@
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-md);
-  color: hsl(var(--fg));
+  color: var(--fg);
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
   transition: border-color var(--dur-base) var(--ease-out),
@@ -185,7 +185,7 @@
   backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg));
+  color: var(--fg);
   text-decoration: none;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
@@ -208,7 +208,7 @@
 .btn-primary {
   background: hsl(var(--accent-500) / 80%);
   border-color: hsl(var(--accent-500));
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 .btn-primary:hover {
@@ -315,7 +315,7 @@ input, select, textarea { font: inherit; color: inherit; }
   padding: 0 var(--space-3);
   border: 1px solid hsl(var(--accent-500));
   border-radius: var(--radius-pill) !important;
-  background: hsl(var(--surface));
+  background: var(--surface);
   color: hsl(var(--ink-bright));
   font-family: inherit;
   font-size: var(--text-sm);
@@ -383,7 +383,7 @@ input, select, textarea { font: inherit; color: inherit; }
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   border: 1px solid hsl(var(--border-glass));
-  background: hsl(var(--surface));
+  background: var(--surface);
   color: hsl(var(--ink-bright));
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);

@@ -9,12 +9,12 @@
    ============================================================ */
 
 .app-body {
-  background: hsl(var(--bg-base));
+  background: var(--bg-base);
   min-height: 100vh;
   position: relative;
   isolation: isolate;
   overflow-x: hidden;
-  color: hsl(var(--fg));
+  color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
@@ -161,7 +161,7 @@
   white-space: nowrap;
 }
 .nav-link:hover {
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 .nav-link.is-active,
 .nav-link[aria-pressed="true"] {
@@ -216,7 +216,7 @@
 }
 .keyboard-help-trigger:hover {
   background: hsl(var(--surface) / 70%);
-  color: hsl(var(--fg));
+  color: var(--fg);
   transform: translateY(-1px);
 }
 .keyboard-help-trigger:focus-visible {
@@ -260,7 +260,7 @@
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
+  color: var(--fg);
   margin: 0;
 }
 .page-intro-description {
@@ -306,7 +306,7 @@
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 .app-page-header .page-count,
@@ -465,7 +465,7 @@
   user-select: none;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 .search-advanced > summary::-webkit-details-marker { display: none; }
@@ -537,7 +537,7 @@
   margin: 0 0 var(--space-2) 0;
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 .ui-empty-state p {
@@ -780,7 +780,7 @@ body[data-route^="/photo/"] .app-body::before {
   border-radius: var(--radius-pill);
   background: hsl(var(--surface) / 50%);
   border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg));
+  color: var(--fg);
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   text-decoration: none;
@@ -923,7 +923,7 @@ form button.search-submit {
   min-height: 2.5rem;
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
-  color: hsl(var(--fg));
+  color: var(--fg);
   background: hsl(var(--surface-glass) / 70%);
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-md);
@@ -953,7 +953,7 @@ form button.search-submit {
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-pill) !important;
-  background: hsl(var(--surface));
+  background: var(--surface);
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--ink-bright));
   font-size: var(--text-base);
@@ -974,7 +974,7 @@ form button.search-submit {
    as .saved-search-save — no tinted accent fills, just clear
    outline → accent on hover. */
 .prompt-row--primary .prompt-add {
-  background: hsl(var(--surface));
+  background: var(--surface);
   border-color: hsl(var(--accent-500));
   color: hsl(var(--accent-500));
 }
@@ -1097,7 +1097,7 @@ form button.search-submit {
   border-radius: var(--radius-pill);
   background: hsl(var(--accent-500) / 20%);
   border: 1px solid hsl(var(--accent-500) / 38%);
-  color: hsl(var(--fg));
+  color: var(--fg);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
@@ -1117,7 +1117,7 @@ form button.search-submit {
 }
 .prompt-chip button:hover,
 .centroid-chip button:hover {
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 /* Saved search bar — inline control row inside the prompts
@@ -1151,7 +1151,7 @@ form button.search-submit {
        neutral     .btn              (default input paddings)
        faded       .btn:disabled
   */
-  background: hsl(var(--surface));
+  background: var(--surface);
   border-color: hsl(var(--accent-500));
   color: hsl(var(--accent-500));
   font-weight: var(--weight-semibold);
@@ -1202,7 +1202,7 @@ form button.search-submit {
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
-  background: hsl(var(--surface));
+  background: var(--surface);
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--ink-bright));
   font-size: var(--text-sm);
@@ -1365,7 +1365,7 @@ form button.search-submit {
   gap: var(--space-1);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: hsl(var(--fg));
+  color: var(--fg);
   text-decoration: none;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-pill);
@@ -1409,7 +1409,7 @@ form button.search-submit {
   font-size: var(--text-xl);
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 .for-you-meta {
@@ -1550,7 +1550,7 @@ form button.search-submit {
   border-radius: var(--radius-pill);
   background: hsl(var(--accent-500) / 18%);
   border: 1px solid hsl(var(--accent-500) / 38%);
-  color: hsl(var(--fg));
+  color: var(--fg);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
@@ -1644,7 +1644,7 @@ form button.search-submit {
   color: hsl(var(--ink-off-white));
   text-transform: lowercase;
 }
-.centroid-card-meta dd { margin: 0; color: hsl(var(--fg)); }
+.centroid-card-meta dd { margin: 0; color: var(--fg); }
 .centroid-card-meta-sub { color: hsl(var(--ink-off-white)); font-size: var(--text-xs); }
 .centroid-card-source {
   background: hsl(var(--surface-glass) / 85%);
@@ -1831,14 +1831,14 @@ a:hover {
 .centroids-advanced summary {
   cursor: pointer;
   font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 .centroids-advanced pre {
   margin-top: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: hsl(var(--surface-strong));
-  color: hsl(var(--fg));
+  color: var(--fg);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   white-space: pre-wrap;
@@ -1873,7 +1873,7 @@ a:hover {
 }
 .btn-ghost:hover {
   background: hsl(var(--surface-glass) / 50%);
-  color: hsl(var(--fg));
+  color: var(--fg);
 }
 
 /* text-base-content{,/N} — drives text color. Re-skin to our ink scale. */
@@ -1884,7 +1884,7 @@ a:hover {
 .text-base-content\/30 { color: hsl(var(--ink-off-white) / 30%); }
 
 /* bg-base-300 — background used on placeholder elements. */
-.bg-base-300 { background: hsl(var(--surface)); }
+.bg-base-300 { background: var(--surface); }
 
 /* Tabular-nums for numeric data. Inline; no theme variant. */
 .tabular-nums { font-variant-numeric: tabular-nums; }
@@ -1949,7 +1949,7 @@ button:not(.discover-image-btn),
 /* Outline-shaped defaults (.btn without .btn-primary variant).
    Surface bg, accent border + text. Hover inverts to primary. */
 .btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent) {
-  background: hsl(var(--surface)) !important;
+  background: var(--surface) !important;
   background-image: none !important;
   border: 1px solid hsl(var(--accent-500)) !important;
   color: hsl(var(--accent-500)) !important;
@@ -2003,7 +2003,7 @@ button:not(.discover-image-btn),
   color: hsl(var(--fg-on-accent)) !important;
 }
 .saved-search-save {
-  background: hsl(var(--surface)) !important;
+  background: var(--surface) !important;
   background-image: none !important;
   color: hsl(var(--accent-500)) !important;
   border-color: hsl(var(--accent-500)) !important;
