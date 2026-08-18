@@ -72,6 +72,9 @@
         {% if q or positives or negatives or collections or filename %}
           <a class="clear-link" href="/">clear all</a>
         {% endif %}
+        {# Search CTA sits in the toolbar — top right of the
+           composer, primary action of the page. #}
+        <button type="submit" class="search-submit" data-search-submit>Search</button>
       </div>
       <div class="saved-search-bar" data-saved-bar>
         <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
@@ -190,10 +193,6 @@
       <nav id="category-bar" class="category-bar" aria-label="Filter by library"></nav>
     </div>
   </details>
-  <div class="search-submit-bar">
-    <span class="search-submit-hint">Changes stay local until you click Search.</span>
-    <button type="submit" class="search-submit btn btn-primary" data-search-submit>Search</button>
-  </div>
 {% endif %}
 </form>
 

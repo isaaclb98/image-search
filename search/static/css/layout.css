@@ -366,14 +366,17 @@
 .prompt-composition {
   display: grid;
   gap: var(--space-3);
-  margin: 0;
+  /* .glass provides margin-inline: auto for centering; preserve
+     it here while letting horizontal centering win. */
+  margin-block: 0;
 }
 
 .prompt-composition--primary {
   /* Glass surface comes from .glass on the element. Layout only here. */
   display: grid;
   gap: var(--space-4);
-  margin: 0 0 var(--space-3) 0;
+  margin-inline: auto;
+  margin-block: 0 var(--space-3);
   padding: var(--space-3);
 }
 
@@ -405,8 +408,9 @@
    ============================================================ */
 
 .search-advanced {
-  /* Glass surface comes from .glass on the element. Layout only here. */
-  margin: 0;
+  /* Glass surface comes from .glass on the element. Layout only here.
+     margin-inline: auto inherits from .glass for centering. */
+  margin-block: 0;
 }
 
 .search-advanced > summary {
@@ -935,10 +939,12 @@ form button.search-submit {
 
 /* The text input lives inside .prompt-chip-list, not in its own
    wrapper. It flex-grows to fill the row so chips + input always
-   share the available 1fr space. */
+   share the available 1fr space, but caps at 28rem (~448px) so
+   the input doesn't span the whole composer on wide screens. */
 .prompt-input {
   flex: 1 1 12rem;
-  min-width: 8rem;
+  min-width: 12rem;
+  max-width: 28rem;
   min-height: 2.5rem;
   padding: var(--space-1) var(--space-2);
   border: 1px solid hsl(var(--border-glass));
