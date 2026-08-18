@@ -70,9 +70,16 @@
       </header>
 
       <section class="detail-section">
-        <h2 class="eyebrow detail-section__heading">Path</h2>
+        <h2 class="eyebrow detail-section__heading">Details</h2>
         <dl class="meta">
-          <dd class="meta__path">{{ path }}</dd>
+          {% if photo_width and photo_height %}
+            <dt class="meta__label">Dimensions</dt>
+            <dd class="meta__value">{{ photo_width }} × {{ photo_height }}</dd>
+          {% endif %}
+          {% if photo_indexed_at %}
+            <dt class="meta__label">Indexed</dt>
+            <dd class="meta__value">{{ photo_indexed_at }}</dd>
+          {% endif %}
         </dl>
       </section>
 

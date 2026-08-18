@@ -521,6 +521,13 @@
   padding: var(--space-3) 0 var(--space-4);
 }
 
+/* C.2 — on the /photo/{id} route, the ambient mesh must NOT bleed
+   through the photo. The chrome keeps its glass treatment, but the
+   page area behind the photo is opaque / neutral. */
+body[data-route^="/photo/"] .app-body::before {
+  display: none;
+}
+
 /* Photo-derived ground (mesh around the page). */
 .photo-page-bg {
   position: fixed;

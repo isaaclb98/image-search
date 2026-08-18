@@ -97,9 +97,5 @@
   </ul>
   {% if has_more %}
     <p class="load-more-hint" data-max-total="{{ max_results_total }}">Scroll for more results.</p>
-  {% elif results and not has_more and offset + results|length >= max_results_total and search_query_string != "from=home" %}
-    <p class="load-more-hint load-more-hint--capped" data-max-total="{{ max_results_total }}">
-      Showing the first {{ max_results_total }} results.
-    </p>
   {% endif %}
 {% endif %}

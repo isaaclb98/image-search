@@ -443,18 +443,9 @@ function updateLoadMoreHint(hasMore, offset, count) {
   if (!loadMoreHint) return;
   if (hasMore) {
     loadMoreHint.textContent = "Scroll for more results.";
-    loadMoreHint.classList.remove("load-more-hint--capped");
-  } else if (count > 0) {
-    // Reached the cap. The total is read from a data-attr on the hint
-    // (set in the template), defaulting to 500.
-    const total = Number(loadMoreHint.dataset.maxTotal || "500");
-    if (offset + count >= total) {
-      loadMoreHint.textContent = `Showing the first ${total} results.`;
-      loadMoreHint.classList.add("load-more-hint--capped");
-    } else {
-      loadMoreHint.textContent = "";
-    }
   } else {
+    // Reached the cap (or empty result set) — the page has nothing
+    // more to show. No narration: the empty state speaks for itself.
     loadMoreHint.textContent = "";
   }
 }

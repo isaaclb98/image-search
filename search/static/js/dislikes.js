@@ -141,15 +141,6 @@ function updateLoadMoreHint(hasMore, offset, count) {
   if (!loadMoreHint) return;
   if (hasMore) {
     loadMoreHint.textContent = "Scroll for more results.";
-    loadMoreHint.classList.remove("load-more-hint--capped");
-  } else if (count > 0) {
-    const total = Number(loadMoreHint.dataset.maxTotal || "500");
-    if (offset + count >= total) {
-      loadMoreHint.textContent = `Showing the first ${total} results.`;
-      loadMoreHint.classList.add("load-more-hint--capped");
-    } else {
-      loadMoreHint.textContent = "";
-    }
   } else {
     loadMoreHint.textContent = "";
   }
