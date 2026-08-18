@@ -182,8 +182,10 @@
 
 :root[data-theme="dark"] {
   --bg-base:        220 22% 8%;
+  --bg:             hsl(220 22% 8%);   /* match site.css body bg */
   --surface:        220 22% 12%;
   --surface-strong: 220 22% 7%;
+  --surface-glass:  220 22% 14%;       /* dark glass tint */
   --fg:             220 18% 92%;
   --fg-muted:       220 14% 70%;
   --fg-subtle:      220 10% 56%;

@@ -16,7 +16,7 @@
         var stored = localStorage.getItem("theme");
         var prefersDark = window.matchMedia
           && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var theme = stored || (prefersDark ? "dark" : "light");
+        var theme = stored || (prefersDark ? "dark" : "dark");
         document.documentElement.dataset.theme = theme;
       } catch (e) {
         document.documentElement.dataset.theme = "light";
