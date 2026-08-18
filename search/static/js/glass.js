@@ -125,7 +125,7 @@ function setPageAccent(blurhash) {
     const parts = c.accent.split(/\s+/);
     if (parts.length >= 3) {
       const h = parts[0];
-      body.style.setProperty("--glass-tint", h + " 8% 92%");
+      body.style.setProperty("--glass-tint", h + " 5% 93%");
       body.style.setProperty("--glass-tint-fg", h + " 40% 40%");
     }
   }
