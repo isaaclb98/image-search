@@ -1,40 +1,29 @@
 {% import "_macros.html" as ui %}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#161821">
+  <meta name="theme-color" content="#0f1117">
   <title>{% block title %}Image Search{% endblock %}</title>
   {% block head %}{% endblock %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
-  {# Glass overhaul — tokens, primitives, layout, photo-card.
-     Loaded AFTER app.css so cascade order favors our overrides. #}
+  {# Design system order is sacred.
+     1) tokens.css FIRST — defines every CSS variable. Everything
+        downstream reads from these.
+     2) app.css LAST among the legacy layers — it ships Tailwind +
+        DaisyUI, which can override any token-bound rule. We want
+        downstream components to win; nothing in this app is supposed
+        to depend on Tailwind utilities for layout or color.
+     3) glass, layout, photo-card after app.css so our overrides
+        win the cascade. #}
   <link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
   <link rel="stylesheet" href="{{ asset('css/glass.css') }}">
   <link rel="stylesheet" href="{{ asset('css/layout.css') }}">
   <link rel="stylesheet" href="{{ asset('css/photo-card.css') }}">
-
-  {# Theme bootstrap — must run BEFORE first paint to prevent flash of
-     wrong theme. Reads localStorage ('theme' = 'light' | 'dark'); falls
-      back to prefers-color-scheme; defaults to 'light'. Wrapped in
-      try/catch so a broken/missing localStorage doesn't break the page. #}
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem("theme");
-        var prefersDark = window.matchMedia
-          && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var theme = stored || (prefersDark ? "dark" : "dark");
-        document.documentElement.dataset.theme = theme;
-      } catch (e) {
-        document.documentElement.dataset.theme = "light";
-      }
-    })();
-  </script>
 </head>
 <body class="app-body" data-route="{{ request.url.path }}">
   <header class="app-navbar" role="banner">
