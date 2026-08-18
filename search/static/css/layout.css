@@ -1146,6 +1146,56 @@ form button.search-submit {
   padding: 0 var(--space-2);
 }
 
+/* Quick-prompt examples — sits below the composer on the empty
+   state. Fills the visual void and gives first-time visitors
+   something concrete to click. Same primitive as prompt chips
+   but neutral — these don't have a remove control. */
+.quick-prompts {
+  max-width: 56rem;
+  margin: var(--space-3) auto 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quick-prompts-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--ink-off-white));
+  margin-right: var(--space-2);
+}
+
+.quick-prompts-list {
+  display: contents; /* let chips flow inline with the label */
+}
+
+.quick-prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--ink-bright));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+
+.quick-prompt-chip:hover {
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+  transform: translateY(-1px);
+}
+
 /* ============================================================
   17. INPUTS — every input field uses the same vocabulary. — filename input, range sliders, etc.
    ============================================================ */

@@ -196,6 +196,28 @@
       <nav id="category-bar" class="category-bar" aria-label="Filter by library"></nav>
     </div>
   </details>
+
+  {# Quick-prompt examples — only shown when the composer is empty
+     (no active prompts). Gives first-time visitors something to
+     try without scrolling past a void. #}
+  {% if not positives and not negatives and not active_centroids and not filename %}
+    <section class="quick-prompts" aria-label="Example searches">
+      <span class="quick-prompts-label">Try one of these</span>
+      <ul class="quick-prompts-list">
+        {% for example in [('mountain cabin at dusk', 'positives'),
+                            ('retro futurism poster', 'positives'),
+                            ('minimalist product photo, soft light', 'positives'),
+                            ('watercolor landscape, muted', 'positives'),
+                            ('isometric room', 'positives')] %}
+          <li>
+            <button type="button" class="quick-prompt-chip" data-quick-prompt="{{ example[1] }}" data-quick-prompt-text="{{ example[0] }}">
+              {{ example[0] }}
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
 {% endif %}
 </form>
 
