@@ -45,7 +45,7 @@
        and don't compete with the button tint.
          --ink-bright     headings + dense labels    (12% — near black)
          --ink-off-white  body + captions            (38% — mid gray) */
-  --ink-off-white: 0 0% 38%;
+  --ink-off-white: 0 0% 28%;
   --ink-bright:    0 0% 12%;
 
   /* Brand accent — ONE shade. Used solid (no opacity tint) on
