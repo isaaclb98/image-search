@@ -28,30 +28,6 @@
 <body class="app-body" data-route="{{ request.url.path }}">
   <header class="app-navbar" role="banner">
     <div class="navbar-start">
-      <details class="mobile-nav md:hidden">
-        <summary class="mobile-nav-toggle" aria-label="Open navigation" title="Open navigation">
-          <span class="mobile-nav-toggle__open">{{ ui.ui_icon('menu', 'h-5 w-5') }}</span>
-          <span class="mobile-nav-toggle__close">{{ ui.ui_icon('x', 'h-5 w-5') }}</span>
-        </summary>
-        <nav class="mobile-nav-panel" aria-label="Mobile navigation">
-          <p class="mobile-nav-kicker">Navigate</p>
-          {% set mobile_nav_items = [
-            ('/for-you', 'For you', 'sparkles'),
-            ('/discover', 'Discover', 'search'),
-            ('/random', 'Random', 'shuffle'),
-            ('/favorites', 'Favourites', 'heart'),
-            ('/dislikes', 'Dislikes', 'x'),
-            ('/saved', 'Saved searches', 'bookmark'),
-            ('/albums', 'Albums', 'folder'),
-          ] %}
-          {% for path, label, icon_name in mobile_nav_items %}
-            {% set is_active = request.url.path == path or request.url.path.startswith(path ~ '/') %}
-            <a href="{{ path }}" class="mobile-nav-link{% if is_active %} is-active{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
-              {{ ui.ui_icon(icon_name, 'h-4 w-4') }}<span>{{ label }}</span>
-            </a>
-          {% endfor %}
-        </nav>
-      </details>
       {# Brand link. `aria-label` makes the link's accessible name
          deterministic across screen readers — without it, some
          screen readers compose an awkward name from the inline spans. #}
@@ -66,61 +42,40 @@
       </a>
     </div>
 
-    <div class="navbar-center hidden md:flex">
-      <ul class="menu menu-horizontal gap-1 px-1">
-        {% set nav_items = [
-          ('/for-you', 'For you'),
-          ('/centroids', 'Centroids'),
-          ('/discover', 'Discover'),
-          ('/random', 'Random'),
-          ('/favorites', 'Favourites'),
-          ('/dislikes', 'Dislikes'),
-          ('/saved', 'Saved'),
-          ('/albums', 'Albums'),
-        ] %}
+    {# Primary nav — same list, same pill primitive, same active state
+       across desktop and narrow viewports. Wide screens get a
+       horizontal flex row centered on the page; narrow screens get a
+       horizontal-scroll pill row. No drawer, no duplicated panel. #}
+    {% set nav_items = [
+      ('/for-you',   'For you'),
+      ('/centroids', 'Centroids'),
+      ('/discover',  'Discover'),
+      ('/random',    'Random'),
+      ('/favorites', 'Favourites'),
+      ('/saved',     'Saved'),
+      ('/albums',    'Albums'),
+    ] %}
+    <nav class="navbar-center" aria-label="Primary">
+      <ul class="nav-list">
         {% for path, label in nav_items %}
+          {% set is_active = request.url.path == path or request.url.path.startswith(path ~ '/') %}
           <li>
-            {% set is_active = request.url.path == path or request.url.path.startswith(path ~ '/') %}
-            <a class="nav-link{% if is_active %} is-active{% endif %}" href="{{ path }}"{% if is_active %} aria-current="page"{% endif %}>{{ label }}</a>
+            <a
+              href="{{ path }}"
+              class="nav-link glass-pill{% if is_active %} is-active{% endif %}"
+              {% if is_active %}aria-pressed="true" aria-current="page"{% endif %}
+            >{{ label }}</a>
           </li>
         {% endfor %}
       </ul>
-    </div>
+    </nav>
 
     <div class="navbar-end">
-      {# Cache refresh lives at POST /api/cache/refresh. Intentionally
-         not surfaced in the nav — the operator runs it from a curl /
-         script after indexing, not from the UI. #}
-      {# Theme toggle. Alpine.js x-data reads the value set by the inline
-         FOUC-prevention script in <head>, so initial render is consistent.
-         Using inline-grid + place-items-center for guaranteed SVG centering
-         (DaisyUI btn-circle's inline-flex + two stacked SVGs didn't center
-         reliably). 40x40 round button, 20x20 icon, 10px breathing room. #}
-      <button
-        type="button"
-        class="theme-toggle"
-        x-data="{
-          theme: document.documentElement.dataset.theme || 'light',
-          toggle() {
-            this.theme = this.theme === 'dark' ? 'light' : 'dark';
-            document.documentElement.dataset.theme = this.theme;
-            try { localStorage.setItem('theme', this.theme); } catch (e) {}
-          }
-        }"
-        @click="toggle()"
-        :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-        :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-      >
-        {# x-cloak hides both icons until Alpine hydrates, so neither
-           renders in the wrong position during FOUC. SVG paths are
-           heroicons-style so each glyph is centered within its viewBox. #}
-        <svg x-show="theme === 'dark'" x-cloak xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" clip-rule="evenodd" />
-        </svg>
-        <svg x-show="theme !== 'dark'" x-cloak xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" clip-rule="evenodd" />
-        </svg>
-      </button>
+      {# Dislikes lives one click from /discover (more edge-case than
+         Favourites/Saved/Albums) but stays reachable: a small ghost
+         link is rendered at end of nav-end so the page is one tap
+         away but doesn't compete visually with primary nav. #}
+      <a class="navbar-utility-link" href="/dislikes" aria-label="Dislikes">Dislikes</a>
       <button type="button" class="keyboard-help-trigger" data-keyboard-help aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">
         {{ ui.ui_icon('help', 'h-5 w-5') }}
       </button>
@@ -129,7 +84,7 @@
          AuthAwareTemplates (see search/app.py). The form posts to
          /logout, which clears the session cookie and redirects to
          /login. Kept as a small ghost-style button so it doesn't
-         compete visually with the theme toggle or help trigger. #}
+         compete visually with the help trigger. #}
       {% if current_user %}
         <form method="post" action="/logout" class="ml-1">
           <button

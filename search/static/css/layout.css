@@ -128,10 +128,6 @@
   justify-content: center;
 }
 
-.navbar-center .menu {
-  flex-wrap: nowrap;
-}
-
 .navbar-end {
   flex: 0 0 auto;
   display: flex;
@@ -164,31 +160,84 @@
   justify-content: center;
 }
 
-/* Nav links */
+/* Nav — single horizontal list, scrolls on narrow viewports.
+   Items use .glass-pill for their surface (uniform with the rest of
+   the app's pill vocabulary). The active state inherits the global
+   .glass-pill.is-active / [aria-pressed="true"] rule. */
+.nav-list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .nav-link {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  color: hsl(var(--fg-muted));
-  font-size: var(--text-base);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+  color: hsl(var(--fg-muted));
   text-decoration: none;
-  transition: background var(--dur-base) var(--ease-out),
-              color var(--dur-base) var(--ease-out);
+  white-space: nowrap;
 }
 .nav-link:hover {
-  background: hsl(var(--surface-glass) / 70%);
   color: hsl(var(--fg));
 }
-.nav-link.is-active {
-  background: hsl(var(--photo-dominant) / 22%);
+.nav-link.is-active,
+.nav-link[aria-pressed="true"] {
+  /* inherits the .glass-pill.is-active state from glass.css */
   color: hsl(var(--fg));
-  border: 1px solid hsl(var(--photo-dominant) / 32%);
 }
 
-/* Theme toggle */
-.theme-toggle {
+/* Narrow-viewport: the nav list scrolls horizontally. No drawer,
+   no duplicate mobile panel. The brand stays visible at start, the
+   help + logout stay anchored at end. */
+@media (max-width: 720px) {
+  .navbar-center {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 12px,
+      black calc(100% - 12px),
+      transparent 100%
+    );
+            mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 12px,
+      black calc(100% - 12px),
+      transparent 100%
+    );
+  }
+  .nav-list {
+    flex-wrap: nowrap;
+    padding-inline: var(--space-2);
+  }
+}
+
+/* Footer-of-nav utility link — Dislikes lives here so we can keep the
+   primary nav to 7 items. Smaller, more subdued than primary pills. */
+.navbar-utility-link {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--fg-subtle));
+  text-decoration: none;
+  border-radius: var(--radius-pill);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.navbar-utility-link:hover {
+  color: hsl(var(--fg-muted));
+}
+
+.keyboard-help-trigger {
   display: inline-grid;
   place-items: center;
   width: 2.25rem;
@@ -202,12 +251,12 @@
               color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-.theme-toggle:hover {
+.keyboard-help-trigger:hover {
   background: hsl(var(--surface) / 70%);
   color: hsl(var(--fg));
   transform: translateY(-1px);
 }
-.theme-toggle:focus-visible {
+.keyboard-help-trigger:focus-visible {
   outline: 2px solid hsl(var(--accent-500));
   outline-offset: 2px;
 }
