@@ -21,7 +21,7 @@
   {% endif %}
 
   <div class="photo-layout">
-    <figure class="photo glass">
+    <figure class="photo">
       <img src="{{ url }}" alt="" onerror="this.classList.add('img-error')">
     </figure>
 
@@ -37,22 +37,24 @@
       </nav>
       <header class="photo-detail-panel__head">
         <p class="eyebrow">Photo details</p>
-        <div class="photo-react-actions">
-  <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
-            <button
-              type="submit"
-              class="fav-toggle glass-pill"
-              data-fav-id="{{ id }}"
-              data-fav-state="{{ 'on' if is_favorite else 'off' }}"
-              aria-pressed="{{ 'true' if is_favorite else 'false' }}"
-              aria-label="Toggle favourite"
-              title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
-            >
-              <span class="fav-icon" aria-hidden="true">♥</span>
-              <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
-            </button>
-          </form>
-  <form class="dislike-form" method="post" action="/api/dislikes/{{ id }}" data-dislike-form>
+      </header>
+
+      <div class="photo-react-actions">
+        <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
+          <button
+            type="submit"
+            class="fav-toggle glass-pill"
+            data-fav-id="{{ id }}"
+            data-fav-state="{{ 'on' if is_favorite else 'off' }}"
+            aria-pressed="{{ 'true' if is_favorite else 'false' }}"
+            aria-label="Toggle favourite"
+            title="{{ 'Remove from favourites' if is_favorite else 'Add to favourites' }}"
+          >
+            <span class="fav-icon" aria-hidden="true">♥</span>
+            <span class="fav-label">{{ 'Favourite' if is_favorite else 'Favourite' }}</span>
+          </button>
+        </form>
+        <form class="dislike-form" method="post" action="/api/dislikes/{{ id }}" data-dislike-form>
           <button
             type="submit"
             class="dislike-toggle glass-pill"
@@ -66,8 +68,7 @@
             <span class="dislike-label">{{ 'Disliked' if is_disliked else 'Dislike' }}</span>
           </button>
         </form>
-</div>
-      </header>
+      </div>
 
       <section class="detail-section">
         <h2 class="eyebrow detail-section__heading">Details</h2>
