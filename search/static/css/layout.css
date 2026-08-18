@@ -1679,3 +1679,13 @@ a:hover {
   vertical-align: -2px;
   animation: btn-spin 0.8s linear infinite;
 }
+
+/* DaisyUI color utilities we still reference in templates. Re-skinn
+   to our single err-500 / warn-500 so error/warn text stays in the
+   defined status palette (not DaisyUI's 35-theme re-skin). */
+.text-error { color: hsl(var(--err-500)); }
+.text-warning { color: hsl(var(--warn-500)); }
+.text-success { color: hsl(var(--accent-500)); }  /* intentional: we
+   reuse accent-500 as the success color since it's our single accent. */
+.border-error { border-color: hsl(var(--err-500)); }
+.bg-error     { background-color: hsl(var(--err-500)); }
