@@ -43,8 +43,10 @@
   --ink-900: 220 22% 97%;       /* heading text, brightest */
 
   /* Brand accent — calm blue-violet. */
-  --accent-500: 222 70% 55%;
   --accent-300: 222 70% 70%;
+  --accent-400: 222 68% 62%;
+  --accent-500: 222 70% 55%;
+  --accent-600: 222 72% 47%;
   --accent-700: 222 70% 40%;
 
   /* Status — used sparingly. */

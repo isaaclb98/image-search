@@ -335,6 +335,48 @@
 }
 
 /* ============================================================
+   7.5 SEGMENTED CONTROL — a 2- or 3-way toggle that reads as one
+   pill, not N standalone buttons. Used by the view-toggle (Grid/Feed)
+   on search & random. Replace view-toggle-btn with this where it
+   appears; remove old class once migrated.
+   ============================================================ */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface) / 50%);
+  border: 1px solid hsl(var(--border-glass));
+}
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: hsl(var(--fg-muted));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out);
+}
+.segmented-btn:hover {
+  color: hsl(var(--fg));
+  background: hsl(var(--surface-glass) / 75%);
+}
+.segmented-btn.is-active,
+.segmented-btn[aria-pressed="true"] {
+  background: hsl(var(--accent-500));
+  color: hsl(var(--ink-900));
+}
+
+/* ============================================================
    8. APP TOOLBAR — controls row inside the prompt-composition panel.
    ============================================================ */
 
@@ -345,16 +387,11 @@
 }
 
 .prompt-composition--primary {
+  /* Glass surface comes from .glass on the element. Layout only here. */
   display: grid;
   gap: var(--space-4);
   margin: 0 0 var(--space-3) 0;
   padding: var(--space-3);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
 }
 
 .prompt-composition-heading {
@@ -385,13 +422,8 @@
    ============================================================ */
 
 .search-advanced {
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  box-shadow: var(--shadow-2);
-  overflow: hidden;
+  /* Glass surface comes from .glass on the element. Layout only here. */
+  margin: 0;
 }
 
 .search-advanced > summary {
@@ -907,6 +939,16 @@ body[data-route^="/photo/"] .app-body::before {
   background: hsl(var(--photo-dominant) / 45%);
 }
 
+/* Prompt row — fixed label | input area | hint, all aligned baseline.
+   Used by INCLUDE and EXCLUDE rows on the search composer. */
+.prompt-row {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 2.5rem;
+}
+
 .prompt-row-label {
   display: inline-block;
   font-size: var(--text-xs);
@@ -914,12 +956,19 @@ body[data-route^="/photo/"] .app-body::before {
   letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
   color: hsl(var(--fg-muted));
-  width: 4.75rem;
-  flex: 0 0 auto;
 }
 
 .prompt-row--primary .prompt-row-label {
   color: hsl(var(--photo-dominant));
+}
+
+/* Hint sits in the third column; small muted, sits where the trailing
+   helper microcopy used to (after the input) without overlapping. */
+.prompt-hint {
+  font-size: var(--text-xs);
+  color: hsl(var(--fg-subtle));
+  justify-self: end;
+  white-space: nowrap;
 }
 
 /* Chip lists — small pill chips for active prompts / centroids. */
@@ -1456,9 +1505,26 @@ a:hover {
   transform: translateY(-1px);
 }
 .search-submit[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
+  opacity: 0.7;
+  cursor: progress;
   transform: none;
+}
+/* Loading state: button shows a tiny spinner while the search is in flight.
+   JS adds .is-loading to .search-submit before navigating. */
+.search-submit.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-left: var(--space-2);
+  border: 2px solid hsl(var(--surface-strong));
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+  vertical-align: -2px;
+  animation: btn-spin 0.8s linear infinite;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }
 
    17. LEGACY BRIDGE.

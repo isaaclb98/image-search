@@ -11,7 +11,7 @@
 //     rows, signalling "collection exhausted, stop scrolling".
 //
 // Renderers and view-toggle UX are shared with search.js via lib/grid.js,
-// lib/feed.js, and the .view-toggle-btn CSS. The page is intentionally
+// lib/feed.js, and the .segmented-btn CSS. The page is intentionally
 // a thin wrapper around those primitives so the look matches the search
 // page exactly.
 
@@ -61,9 +61,9 @@ function readLimit() {
 
 function syncViewToggle() {
   const current = readView();
-  for (const btn of document.querySelectorAll(".view-toggle-btn")) {
+  for (const btn of document.querySelectorAll(".segmented-btn")) {
     const isActive = btn.dataset.view === current;
-    btn.classList.toggle("view-toggle-btn--active", isActive);
+    btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-pressed", isActive ? "true" : "false");
   }
 }
@@ -172,7 +172,7 @@ if (ssrData && ssrData.textContent) {
 }
 
 syncViewToggle();
-for (const btn of document.querySelectorAll(".view-toggle-btn")) {
+for (const btn of document.querySelectorAll(".segmented-btn")) {
   btn.addEventListener("click", () => onViewToggleClick(btn.dataset.view));
 }
 window.addEventListener("popstate", () => {

@@ -45,25 +45,30 @@
    misleading beside a centroid anchor. The mutex is enforced server-side;
    the hide keeps the UI honest. #}
 {% if not active_centroids %}
-  <section class="prompt-composition prompt-composition--primary" aria-label="Search prompts">
+  <section class="glass prompt-composition prompt-composition--primary" aria-label="Search prompts">
     <div class="prompt-composition-heading">
       <div>
         <span class="prompt-composition-title">Prompts</span>
         <span class="prompt-composition-hint" data-search-draft-status>Include what you want to find; optionally exclude what you do not.</span>
       </div>
       <div class="prompt-toolbar app-toolbar">
-        <button
-          type="button"
-          class="glass-pill view-toggle-btn {% if view == 'grid' %}is-active{% endif %}"
-          data-view="grid"
-          aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
-        >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
-        <button
-          type="button"
-          class="glass-pill view-toggle-btn {% if view == 'feed' %}is-active{% endif %}"
-          data-view="feed"
-          aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
-        >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
+        {# View toggle — joined segmented control. Sit the two options
+           in a single rounded pill (.segmented) so they read as one
+           toggle, not two standalone buttons. #}
+        <div class="segmented" role="group" aria-label="Result view">
+          <button
+            type="button"
+            class="segmented-btn {% if view == 'grid' %}is-active{% endif %}"
+            data-view="grid"
+            aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
+          >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
+          <button
+            type="button"
+            class="segmented-btn {% if view == 'feed' %}is-active{% endif %}"
+            data-view="feed"
+            aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
+          >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
+        </div>
         {% if q or positives or negatives or collections or filename %}
           <a class="clear-link" href="/">clear all</a>
         {% endif %}
@@ -132,7 +137,7 @@
     <p class="prompt-error" role="alert" hidden></p>
   </section>
 
-  <details class="search-advanced"{% if filename or collections or diversity_mode|default('off') != 'off' %} open{% endif %}>
+  <details class="glass search-advanced"{% if filename or collections or diversity_mode|default('off') != 'off' %} open{% endif %}>
     <summary>
       <span class="search-advanced-label">Filters</span>
       <span class="search-advanced-summary" data-filter-summary>Optional</span>

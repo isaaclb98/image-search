@@ -9,14 +9,14 @@
 //     Uses the modern Clipboard API with a textarea fallback so it
 //     works on http://localhost and over Tailscale without HTTPS.
 
-const viewBtns = document.querySelectorAll(".view-toggle-btn");
+const viewBtns = document.querySelectorAll(".segmented-btn");
 for (const btn of viewBtns) {
   btn.addEventListener("click", () => {
     const nextView = btn.dataset.view;
     if (!nextView) return;
     // No-op if the user clicks the already-active view (matches the
     // search page behaviour — saves a navigation).
-    if (btn.classList.contains("view-toggle-btn--active")) return;
+    if (btn.classList.contains("is-active")) return;
     const url = new URL(window.location.href);
     if (nextView === "grid") {
       // Grid is the default; drop the param to keep canonical URLs
