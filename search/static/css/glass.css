@@ -1,24 +1,33 @@
 /*
   search/static/css/glass.css
-  Glass primitives. Single source of glass surface vocabulary.
+  Glass primitives — the single source of glass surface vocabulary.
+
+  Three classes, one job each. Pick by *role*, not by taste:
+
+    .glass          default panel. Cards, modals, generic surfaces.
+                    Translucent dark surface + backdrop blur.
+    .glass--sharp   hero panel. Discover header, album detail header,
+                    and at most one other page. Heavier surface,
+                    larger radius, larger shadow. Reserved for the
+                    page's primary visual anchor.
+    .glass-pill     chip / pill / toggle. Fully rounded, used for
+                    view-segment controls, suggestion chips, and
+                    compact toggles. No panel-like role.
+
+  Selection rule: ask "is this the primary visual anchor of the
+  page?" — yes → .glass--sharp. Is it a chip-shaped control? — yes
+  → .glass-pill. Anything else → .glass. There is no fourth class.
+
+  Migration history (kept brief):
+    .glass-frost  →  .glass         (95% opaque → default translucent)
+    .glass-tinted →  .glass / .glass--sharp  (photo-tint violated "single theme")
+
   All values flow from tokens.css. Raw values would create drift.
-
-  Classes:
-    .glass           — standard panel (radius-lg, 50% surface)
-    .glass--sharp    — heavier panel (radius-xl, 65% surface)
-    .glass-frost     — opaque text panel (radius-lg, 95% surface)
-    .glass-pill      — pill chip (radius-pill, 50% surface)
-    .glass-tinted    — photo-tinted panel (uses --photo-dominant)
-
-  Buttons (DaisyUI rewires):
-    .btn, .btn-primary, .btn-ghost, .btn-xs, .btn-circle
 */
 
 .glass,
 .glass--sharp,
-.glass-frost,
-.glass-pill,
-.glass-tinted {
+.glass-pill {
   position: relative;
   isolation: isolate;
   background: hsl(var(--surface-glass) / 70%);
@@ -28,25 +37,24 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
   color: hsl(var(--fg));
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
 }
 
-/* Rim-light highlight via masked pseudo-element. The mask trick
-   carves a 1px gradient line that hugs the rounded corner. */
-.glass::before,
-.glass--sharp::before,
-.glass-frost::before,
-.glass-pill::before,
-.glass-tinted::before {
+.glass::after,
+.glass--sharp::after,
+.glass-pill::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -1px;
   border-radius: inherit;
-  padding: 1px;
   background: linear-gradient(
-    135deg,
-    hsl(var(--highlight-top)) 0%,
-    hsl(var(--highlight-top) / 0%) 38%,
-    hsl(var(--highlight-top) / 0%) 62%,
+    180deg,
+    hsl(var(--highlight-top) / 30%) 0%,
+    hsl(var(--highlight-top) / 0%) 30%,
+    hsl(var(--highlight-top) / 0%) 70%,
     hsl(var(--highlight-top) / 30%) 100%
   );
   -webkit-mask:
@@ -62,82 +70,75 @@
 }
 
 /* Variants */
-
 .glass--sharp {
   background: hsl(var(--surface-glass) / 85%);
   box-shadow: var(--shadow-3);
   border-radius: var(--radius-lg);
 }
 
-.glass-frost {
-  background: hsl(var(--surface-strong) / 95%);
-  border-radius: var(--radius-lg);
-}
-
 .glass-pill {
-  background: hsl(var(--surface-glass) / 70%);
   backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border-radius: var(--radius-pill);
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
-  color: hsl(var(--fg));
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
 
-.glass-pill:hover {
-  background: hsl(var(--surface) / 70%);
+.glass-pill:hover,
+.glass:hover {
+  background: hsl(var(--surface-glass) / 80%);
   border-color: hsl(var(--border-strong));
+}
+
+.glass-pill:hover {
   transform: translateY(-1px);
 }
 
-.glass-pill[aria-pressed="true"],
-.glass-pill.is-active {
-  background: hsl(var(--photo-dominant) / 30%);
-  border-color: hsl(var(--photo-dominant) / 50%);
-  color: hsl(var(--fg));
+.glass-pill:active,
+.glass:active {
+  transform: translateY(0);
 }
 
-.glass-tinted {
-  background:
-    radial-gradient(
-      140% 110% at 30% 0%,
-      hsl(var(--photo-dominant) / 26%),
-      hsl(var(--surface) / 55%) 70%
-    );
-}
-
-.glass-tinted::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  background: radial-gradient(
-    60% 40% at 80% 100%,
-    hsl(var(--photo-palette-2) / 20%),
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* Focus rings — visible, not glassed. */
-.glass:focus-visible,
-.glass--sharp:focus-visible,
-.glass-frost:focus-visible,
 .glass-pill:focus-visible,
-.glass-tinted:focus-visible {
+.glass:focus-visible,
+.glass--sharp:focus-visible {
   outline: 2px solid hsl(var(--accent-500));
-  outline-offset: 3px;
+  outline-offset: 2px;
+}
+
+/* Glass-input — DaisyUI-compatible input with a glass surface.
+   Lives here because it is a glass variant, not a DaisyUI re-skin. */
+.glass-input {
+  background: hsl(var(--surface-glass) / 60%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  color: hsl(var(--fg));
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  transition: border-color var(--dur-base) var(--ease-out),
+              background var(--dur-base) var(--ease-out);
+}
+
+.glass-input::placeholder {
+  color: hsl(var(--fg-subtle));
+}
+
+.glass-input:focus {
+  background: hsl(var(--surface-glass) / 80%);
+  border-color: hsl(var(--accent-500));
+  outline: none;
 }
 
 /* ============================================================
-   BUTTONS — rewired onto the token system.
+   BUTTONS — DaisyUI-compatible .btn / .btn-* shims.
+   These are glass variants; they use the same blur / surface tokens.
    ============================================================ */
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -155,7 +156,6 @@
   -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--fg));
-  box-shadow: var(--shadow-2);
   text-decoration: none;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
@@ -163,29 +163,40 @@
               box-shadow var(--dur-base) var(--ease-out);
 }
 
-.btn-search {
-  /* The primary search submit gets a touch of extra presence. */
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-}
-
 .btn:hover {
-  background: hsl(var(--surface) / 70%);
+  background: hsl(var(--surface-glass) / 85%);
   border-color: hsl(var(--border-strong));
   transform: translateY(-1px);
+  box-shadow: var(--shadow-2);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn-primary {
-  background: hsl(var(--photo-dominant) / 40%);
-  border-color: hsl(var(--photo-dominant) / 60%);
+  background: hsl(var(--accent-500) / 80%);
+  border-color: hsl(var(--accent-500));
   color: hsl(var(--fg));
-  font-weight: var(--weight-semibold);
 }
 
 .btn-primary:hover {
-  background: hsl(var(--photo-dominant) / 60%);
-  border-color: hsl(var(--photo-dominant) / 80%);
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+}
+
+.btn-xs {
+  min-height: 1.5rem;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.btn-circle {
+  border-radius: var(--radius-pill);
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
 }
 
 .btn-danger {
@@ -212,18 +223,6 @@
   border-color: hsl(var(--border-glass));
   box-shadow: none;
   transform: none;
-}
-
-.btn-xs {
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-}
-
-.btn-circle {
-  border-radius: var(--radius-pill);
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
 }
 
 .btn:focus-visible {

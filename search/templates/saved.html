@@ -18,7 +18,7 @@
   {% if saved_searches %}
     <ul class="saved-list grid grid-cols-1 md:grid-cols-2 gap-4">
       {% for s in saved_searches %}
-        <li class="glass-frost saved-card" data-saved-item="{{ s.id }}">
+        <li class="glass saved-card" data-saved-item="{{ s.id }}">
           <div class="card-body">
             <div class="flex items-start justify-between gap-2">
               <h2 class="card-title text-base flex-1">{{ s.name }}</h2>
