@@ -1931,7 +1931,7 @@ a:hover {
    Panels (glass / glass--sharp) keep their original rectangular
    radius. King called this — Buttons only, not every primitive.
    ============================================================ */
-button,
+button:not(.discover-image-btn),
 .btn,
 .segmented,
 .segmented-btn,
