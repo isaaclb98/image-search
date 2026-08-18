@@ -70,9 +70,14 @@
   --bg:             hsl(var(--ink-50)); /* literal page bg */
 
   /* Text aliases. ONE off-white (slate), ONE bright (deep slate).
-     All text in the app resolves through these two. */
+     All text in the app resolves through these two.
+     --fg-on-accent is the ONE permitted text colour that is not
+     a slate — it's pure white, used only on accent-coloured
+     surfaces (active pills, primary buttons, focused pills)
+     where dark slate would collide with the blue. */
   --fg:             hsl(var(--ink-bright));
   --fg-muted:       hsl(var(--ink-off-white));
+  --fg-on-accent:   0 0% 100%;
 
   --border-glass:   220 30% 30% / 14%;
   --border-strong:  220 30% 30% / 22%;

@@ -343,20 +343,20 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: hsl(var(--ink-off-white));
+  color: hsl(var(--ink-off-white)) !important;
   cursor: pointer;
   white-space: nowrap;
   transition: background var(--dur-base) var(--ease-out),
               color var(--dur-base) var(--ease-out);
 }
 .segmented-btn:hover {
-  color: hsl(var(--fg));
+  color: hsl(var(--ink-bright)) !important;
   background: hsl(var(--surface-glass) / 75%);
 }
 .segmented-btn.is-active,
 .segmented-btn[aria-pressed="true"] {
   background: hsl(var(--accent-500));
-  color: hsl(var(--ink-bright));
+  color: hsl(var(--fg-on-accent)) !important;
 }
 
 /* ============================================================
@@ -935,10 +935,21 @@ body[data-route^="/photo/"] .app-body::before {
 .prompt-row--primary .prompt-add button {
   background: hsl(var(--accent-500) / 30%);
   border-color: hsl(var(--accent-500) / 50%);
-  color: hsl(var(--fg));
+  color: hsl(var(--fg-on-accent));
 }
 .prompt-row--primary .prompt-add button:hover {
   background: hsl(var(--accent-500) / 45%);
+}
+
+/* Disabled — explicitly faded so the minus button next to EXCLUDE
+   reads as truly disabled, not just dark on light. */
+.prompt-add button:disabled,
+.prompt-row--primary .prompt-add button:disabled {
+  background: hsl(var(--surface) / 50%);
+  border-color: hsl(var(--border-glass));
+  color: hsl(var(--ink-off-white));
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Prompt row — fixed label | input area | hint, all aligned baseline.
@@ -1480,7 +1491,7 @@ a:hover {
   padding: var(--space-2) var(--space-5);
   border-radius: var(--radius-pill);
   background: hsl(var(--accent-500));
-  color: hsl(var(--surface-strong));
+  color: hsl(var(--fg-on-accent));
   border: 1px solid transparent;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out),
@@ -1503,7 +1514,7 @@ a:hover {
   width: 1em;
   height: 1em;
   margin-left: var(--space-2);
-  border: 2px solid hsl(var(--surface-strong));
+  border: 2px solid hsl(var(--fg-on-accent));
   border-right-color: transparent;
   border-radius: var(--radius-pill);
   vertical-align: -2px;
@@ -1556,12 +1567,12 @@ a:hover {
 .btn-primary {
   background: hsl(var(--accent-500));
   border-color: hsl(var(--accent-500));
-  color: hsl(var(--ink-bright));
+  color: hsl(var(--fg-on-accent));
 }
 .btn-primary:hover {
   background: hsl(var(--accent-500));
   border-color: hsl(var(--accent-500));
-  color: hsl(var(--ink-bright));
+  color: hsl(var(--fg-on-accent));
 }
 
 /* .btn-ghost: inherit base color, accent on hover. */
