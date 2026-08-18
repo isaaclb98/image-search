@@ -133,7 +133,7 @@
      --grid-min: fluid minimum column width (2-5 columns across
                  all viewports; media queries cap at 5 on wide).
      ============================================================ */
-  --grid-min: clamp(240px, 30vw, 420px);
+  --grid-min: clamp(220px, 22vw, 360px);
 
   /* ============================================================
      RADII — 3 stops by element size class. --radius-pill is a

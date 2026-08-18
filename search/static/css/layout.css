@@ -1218,6 +1218,29 @@ body[data-route^="/photo/"] .app-body::before {
   font-weight: var(--weight-regular);
 }
 
+/* Result grid — overrides the legacy Tailwind .grid in app.css.
+   - 2 min columns (auto-fill never collapses below 2)
+   - 5 max columns (hard cap above 1600px)
+   - cell size controlled by --grid-min token (clamp(240px, 30vw, 420px)) */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 1600px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.random-page .grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+}
+@media (min-width: 1600px) {
+  .random-page .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
 .for-you-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 280px), 1fr));
