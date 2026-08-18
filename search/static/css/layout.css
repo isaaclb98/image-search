@@ -1642,3 +1642,112 @@ a:hover {
    reuse accent-500 as the success color since it's our single accent. */
 .border-error { border-color: hsl(var(--err-500)); }
 .bg-error     { background-color: hsl(var(--err-500)); }
+/* ============================================================
+   BUTTON SHAPE + OUTLINE TREATMENT — cascade override.
+   ============================================================
+   Two legacy bleed-throughs stack on top of the consolidation:
+
+   1) app.css (legacy site.css re-skin) ships:
+        .search-form button { border-radius: 8px; }
+        .btn               { border-radius: 6px; background:
+                             linear-gradient(...); color: white; }
+   2) glass.css .btn sets --radius-pill already, but loses the
+      cascade against the higher-specificity legacy rule.
+
+   We don't fix the source (it's vendor-bundled). We close the
+   cascade with a single override block that locks every button
+   primitive to:
+
+     - border-radius: var(--radius-pill)  (ONE shape — pill)
+     - .btn outline variant: surface bg, accent border + text
+     - .btn-primary: solid accent + fg-on-accent
+     - default buttons: surface bg, border-glass border, ink-bright text
+
+   The buttons inherit their actual size (height / padding) from
+   their own rule; this block resets shape + colour vocabulary
+   only. */
+button,
+.btn,
+.segmented,
+.segmented-btn,
+.search-submit,
+.saved-search-save,
+.saved-search-bar,
+.discover-image-btn,
+.diversity-control,
+.glass-pill,
+.glass,
+.glass--sharp {
+  border-radius: var(--radius-pill) !important;
+}
+
+/* Outline-shaped defaults (.btn without .btn-primary variant).
+   Surface bg, accent border + text. Hover inverts to primary. */
+.btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent) {
+  background: hsl(var(--surface)) !important;
+  background-image: none !important;
+  border: 1px solid hsl(var(--accent-500)) !important;
+  color: hsl(var(--accent-500)) !important;
+}
+.btn:not(.btn-primary):not(.btn-secondary):not(.btn-accent):hover {
+  background: hsl(var(--accent-500)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+.btn:disabled {
+  background: hsl(var(--surface) / 50%) !important;
+  background-image: none !important;
+  border-color: hsl(var(--border-glass)) !important;
+  color: hsl(var(--ink-off-white)) !important;
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+/* Primary — solid accent, white text. */
+.btn-primary {
+  background: hsl(var(--accent-500)) !important;
+  background-image: none !important;
+  border: 1px solid hsl(var(--accent-500)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+
+/* .btn-ghost, .btn-secondary — neutral ghost. No accent fill,
+   dark text on transparent. Hover tints lightly. */
+.btn-ghost,
+.btn-secondary {
+  background: hsl(var(--surface) / 50%) !important;
+  background-image: none !important;
+  border: 1px solid hsl(var(--border-glass)) !important;
+  color: hsl(var(--ink-bright)) !important;
+}
+.btn-ghost:hover,
+.btn-secondary:hover {
+  background: hsl(var(--surface-glass) / 90%) !important;
+  border-color: hsl(var(--border-strong)) !important;
+}
+
+/* Specific overrides for the layout.css hero buttons that would
+   otherwise inherit app.css's linear-gradient pink. */
+.search-submit {
+  background: hsl(var(--accent-500)) !important;
+  background-image: none !important;
+  color: hsl(var(--fg-on-accent)) !important;
+  border-color: hsl(var(--accent-500)) !important;
+}
+.search-submit:hover {
+  background: hsl(var(--ink-bright)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+.saved-search-save {
+  background: hsl(var(--surface)) !important;
+  background-image: none !important;
+  color: hsl(var(--accent-500)) !important;
+  border-color: hsl(var(--accent-500)) !important;
+}
+.saved-search-save:hover:not(:disabled) {
+  background: hsl(var(--accent-500)) !important;
+  color: hsl(var(--fg-on-accent)) !important;
+}
+.saved-search-save:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
