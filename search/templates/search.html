@@ -47,7 +47,7 @@
 {% if not active_centroids %}
   <section class="glass prompt-composition prompt-composition--primary" aria-label="Search prompts">
     <div class="prompt-composition-heading">
-      <div>
+      <div class="prompt-composition-intro">
         <span class="prompt-composition-title">Prompts</span>
         <span class="prompt-composition-hint" data-search-draft-status>Include what you want to find; optionally exclude what you do not.</span>
       </div>
@@ -72,35 +72,38 @@
         {% if q or positives or negatives or collections or filename %}
           <a class="clear-link" href="/">clear all</a>
         {% endif %}
+        {# Saved control row lives in the toolbar so it shares the
+           top row with the view toggle + Search. Keeps the composer
+           header compact. #}
+        <div class="saved-search-bar" data-saved-bar>
+          <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
+          <select
+            id="saved-search-select"
+            class="saved-search-select"
+            data-saved-select
+            aria-label="Apply a saved search"
+          >
+            <option value="" data-saved-default-option>Pick a saved search</option>
+            {% for s in saved_searches %}
+              <option
+                value="{{ s.id }}"
+                data-saved-positives='{{ s.positives|tojson }}'
+                data-saved-negatives='{{ s.negatives|tojson }}'
+              >{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          <button
+            type="button"
+            class="saved-search-save"
+            data-saved-save
+            disabled
+            title="Add an Include prompt to save"
+          >Save</button>
+          <span class="saved-search-error" role="alert" data-saved-error hidden></span>
+        </div>
         {# Search CTA sits in the toolbar — top right of the
            composer, primary action of the page. #}
         <button type="submit" class="search-submit" data-search-submit>Search</button>
-      </div>
-      <div class="saved-search-bar" data-saved-bar>
-        <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
-        <select
-          id="saved-search-select"
-          class="saved-search-select"
-          data-saved-select
-          aria-label="Apply a saved search"
-        >
-          <option value="" data-saved-default-option>Pick a saved search</option>
-          {% for s in saved_searches %}
-            <option
-              value="{{ s.id }}"
-              data-saved-positives='{{ s.positives|tojson }}'
-              data-saved-negatives='{{ s.negatives|tojson }}'
-            >{{ s.name }}</option>
-          {% endfor %}
-        </select>
-        <button
-          type="button"
-          class="saved-search-save"
-          data-saved-save
-          disabled
-          title="Add an Include prompt to save"
-        >Save current</button>
-        <span class="saved-search-error" role="alert" data-saved-error hidden></span>
       </div>
     </div>
     <div class="prompt-row prompt-row--primary" data-prompt-row="positives">

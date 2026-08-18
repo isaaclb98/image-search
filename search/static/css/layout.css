@@ -381,17 +381,44 @@
 }
 
 .prompt-composition-heading {
+  /* Two stacked rows: row 1 = title + hint, row 2 = toolbar with
+     controls (segmented, saved bar, Search). Wrapping previously
+     caused the toolbar to drop to a second row at awkward x-offsets;
+     stacking keeps both rows clean. */
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: var(--space-3);
+}
+
+.prompt-composition-intro {
+  display: block;
+}
+
+.prompt-toolbar {
+  /* Toolbar row: controls align at the same baseline, gap-driven
+     spacing, wrap if a row doesn't fit at narrow widths. */
   display: flex;
-  align-items: start;
-  gap: var(--space-4);
+  align-items: center;
+  gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.prompt-toolbar > .saved-search-bar {
+  /* Saved control row inside the toolbar — inline, no own surface. */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prompt-toolbar > .search-submit {
+  margin-left: auto;
 }
 
 .prompt-composition-title {
   display: block;
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
+  color: hsl(var(--ink-bright));
   line-height: var(--leading-tight);
 }
 
@@ -797,17 +824,23 @@ body[data-route^="/photo/"] .app-body::before {
   justify-content: center;
   gap: var(--space-2);
   min-height: 2.5rem;
-  padding: var(--space-2) var(--space-4);
+  padding: 0 var(--space-4);
   border: 1px solid hsl(var(--accent-500));
   border-radius: var(--radius-pill);
   background: hsl(var(--accent-500));
   color: hsl(var(--fg-on-accent));
-  font: inherit;
+  font-family: inherit;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  /* line-height: 1 keeps the button at exactly 2.5rem;
+     without this the default line-height inflates the button
+     ~14px above its min-height (54px button next to a 40px
+     segmented control in the same toolbar). */
+  line-height: 1;
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               color var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
 .search-submit:hover {
@@ -940,16 +973,18 @@ form button.search-submit {
 /* The text input lives inside .prompt-chip-list, not in its own
    wrapper. It flex-grows to fill the row so chips + input always
    share the available 1fr space, but caps at 28rem (~448px) so
-   the input doesn't span the whole composer on wide screens. */
+   the input doesn't span the whole composer on wide screens.
+
+   Pill-shaped — consistent with every other interactive element. */
 .prompt-input {
   flex: 1 1 12rem;
   min-width: 12rem;
   max-width: 28rem;
   min-height: 2.5rem;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-3);
   border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-md);
-  background: hsl(var(--surface-glass) / 70%);
+  border-radius: var(--radius-pill) !important;
+  background: hsl(var(--surface-strong));
   color: hsl(var(--ink-bright));
   font-family: inherit;
   font-size: var(--text-sm);
@@ -1059,20 +1094,21 @@ form button.search-submit {
   color: hsl(var(--fg));
 }
 
-/* Saved search bar — small inline control row inside the prompts card. */
+/* Saved search bar — inline control row inside the prompts
+   toolbar. Not a glass surface of its own; the Saved label +
+   select + save button live inline with the segmented control. */
 .saved-search-bar {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  padding: var(--space-1);
-  border-radius: var(--radius-pill);
-  background: hsl(var(--surface-glass) / 55%);
-  border: 1px solid hsl(var(--border-glass));
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 .saved-search-bar-label {
   font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   color: hsl(var(--ink-off-white));
 }
 .saved-search-select {
