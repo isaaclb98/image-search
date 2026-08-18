@@ -108,9 +108,12 @@
    read as 'currently on' rather than a flat surface. */
 .glass-pill.is-active,
 .glass-pill[aria-pressed="true"] {
-  background: hsl(var(--accent-500) / 30%);
-  border-color: hsl(var(--accent-500) / 55%);
-  color: hsl(var(--fg));
+  /* Solid accent — same primary state every "active" pill across
+     the app uses (segmented toggle, glass-pill toggle). No more
+     accent/30% tinted backgrounds for active states. */
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
 }
 
 .glass-pill:focus-visible,

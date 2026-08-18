@@ -633,9 +633,12 @@ body[data-route^="/photo/"] .app-body::before {
               transform var(--dur-fast) var(--ease-out);
 }
 .photo-action-btn[aria-pressed="true"] {
-  background: hsl(var(--accent-500) / 30%);
-  border-color: hsl(var(--accent-500) / 60%);
-  color: hsl(var(--fg));
+  /* Solid accent — same primary state as segmented toggle +
+     glass-pill active. One accent treatment for every "on" UI
+     control in the app. */
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
 }
 .photo-action-btn:hover {
   transform: translateY(-1px);
@@ -784,8 +787,6 @@ body[data-route^="/photo/"] .app-body::before {
   box-shadow: var(--shadow-2);
 }
 
-.view-toggle-btn,
-.diversity-control,
 .search-submit {
   display: inline-flex;
   align-items: center;
@@ -793,51 +794,25 @@ body[data-route^="/photo/"] .app-body::before {
   gap: var(--space-2);
   min-height: 2.5rem;
   padding: var(--space-2) var(--space-4);
-  border: 1px solid hsl(var(--border-glass));
+  border: 1px solid hsl(var(--accent-500));
   border-radius: var(--radius-pill);
-  background: transparent;
-  color: hsl(var(--ink-off-white));
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
   font: inherit;
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               color var(--dur-base) var(--ease-out),
-              border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);
 }
-
-.view-toggle-btn:hover,
-.surprise-btn:hover,
-.diversity-control:hover {
-  background: hsl(var(--surface) / 50%);
-  border-color: hsl(var(--border-strong));
-  color: hsl(var(--fg));
+.search-submit:hover {
+  background: hsl(var(--ink-bright));
+  border-color: hsl(var(--ink-bright));
   transform: translateY(-0.5px);
 }
-
-.view-toggle-btn--active,
-.search-submit {
-  background: hsl(var(--accent-500) / 30%);
-  border-color: hsl(var(--accent-500) / 55%);
-  color: hsl(var(--fg));
-  font-weight: var(--weight-semibold);
-}
-
-.search-submit {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-}
-
 .search-submit.is-dirty {
   box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
-}
-
-.search-submit:hover {
-  background: hsl(var(--accent-500) / 45%);
-  border-color: hsl(var(--accent-500) / 70%);
-  color: hsl(var(--fg));
-  transform: translateY(-0.5px);
 }
 
 
@@ -918,27 +893,33 @@ body[data-route^="/photo/"] .app-body::before {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: var(--radius-pill);
-  background: hsl(var(--surface) / 50%);
+  background: hsl(var(--surface));
   border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg));
+  color: hsl(var(--ink-bright));
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
-              border-color var(--dur-base) var(--ease-out);
+              border-color var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out);
 }
 .prompt-add button:hover {
   background: hsl(var(--surface-glass) / 90%);
   border-color: hsl(var(--border-strong));
 }
 
+/* INCLUDE row's + button (primary variant of the +):
+   outline-style, accent border + accent text. Same vocabulary
+   as .saved-search-save — no tinted accent fills, just clear
+   outline → accent on hover. */
 .prompt-row--primary .prompt-add button {
-  background: hsl(var(--accent-500) / 30%);
-  border-color: hsl(var(--accent-500) / 50%);
-  color: hsl(var(--fg-on-accent));
+  background: hsl(var(--surface));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--accent-500));
 }
 .prompt-row--primary .prompt-add button:hover {
-  background: hsl(var(--accent-500) / 45%);
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
 }
 
 /* Disabled — explicitly faded so the minus button next to EXCLUDE
@@ -962,16 +943,19 @@ body[data-route^="/photo/"] .app-body::before {
   min-height: 2.5rem;
 }
 
-/* Form labels — small off-white text. */
+/* Form labels — all labels read as dark text, never as accent
+   color. Accent stays reserved for interactive elements (active
+   buttons, segment toggles, links). Labels are presentational,
+   not action. */
 .prompt-row-label {
   display: inline-block;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  color: hsl(var(--accent-500));
+  color: hsl(var(--ink-bright));
 }
 
 .prompt-row--primary .prompt-row-label {
-  color: hsl(var(--accent-500));
+  color: hsl(var(--ink-bright));
 }
 
 /* Hint sits in the third column; small muted, sits where the trailing
@@ -1048,15 +1032,23 @@ body[data-route^="/photo/"] .app-body::before {
   border-color: hsl(var(--border-glass));
 }
 .saved-search-save {
-  background: hsl(var(--accent-500) / 30%);
-  border-color: hsl(var(--accent-500) / 50%);
-  color: hsl(var(--fg));
+  /* Outline variant — solid surface panel, accent border + text.
+     Same shape as .prompt-row--primary .prompt-add so the
+     button vocabulary reads as ONE ladder:
+       accent-filled .btn-primary     (final action: Search, etc.)
+       outlined    .btn-outline   (subordinate action: Save current)
+       neutral     .btn              (default input paddings)
+       faded       .btn:disabled
+  */
+  background: hsl(var(--surface));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--accent-500));
   font-weight: var(--weight-semibold);
   padding: var(--space-1) var(--space-3);
 }
 .saved-search-save:hover:not(:disabled) {
-  background: hsl(var(--accent-500) / 45%);
-  border-color: hsl(var(--accent-500) / 70%);
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
 }
 .saved-search-save:disabled {
   opacity: 0.5;

@@ -25,39 +25,50 @@
   /* ============================================================
      1. COLOUR PALETTE — minimal surface.
 
-     Three text tones (one deep-slate for headings, one mid-slate
-     for body, one pure-white for accent-bg surfaces); one brand
-     accent (single shade); two status; one photo-card tint. The
-     page base is a soft cool gray-blue so glass reads as glass.
+     Three text tones (one near-black for headings, one mid
+     neutral for body, one pure white for accent-bg surfaces);
+     one brand accent (single shade); two status; one photo-card
+     tint. ALL text is a shade of gray with NO hue — text does
+     not compete with the brand blue. Hover / pressed / disabled
+     vary by opacity alone, never by hue.
      ============================================================ */
 
-  /* Page base — soft cool gray-blue wash. */
-  --ink-50:  220 35% 92%;
+  /* Page base — a *neutral* pale gray, not blue-tinted. The
+       glass vocabulary still works: the white inset on every
+       panel supplies the "frosted" feel, the warm-cool distinction
+       goes away. Keeps text-vs-page contrast consistent. */
+  --ink-50:  0 0% 92%;
 
-  /* Two text tones only — heading (dark) + body (mid). */
-  --ink-off-white: 220 14% 38%;
-  --ink-bright:    220 30% 14%;
+  /* Two text tones only. Both are pure neutral — no hue — so
+       they sit unmistakably apart from the single brand accent
+       and don't compete with the button tint.
+         --ink-bright     headings + dense labels    (12% — near black)
+         --ink-off-white  body + captions            (38% — mid gray) */
+  --ink-off-white: 0 0% 38%;
+  --ink-bright:    0 0% 12%;
 
-  /* Brand accent — single shade. Hover uses opacity, not a
-     different hue. */
+  /* Brand accent — ONE shade. Used solid (no opacity tint) on
+       interactive elements. Hover / pressed / disabled vary ONLY
+       by opacity, not by hue or saturation. Text-on-accent is the
+       single role of --fg-on-accent. */
   --accent-500: 222 60% 45%;
 
   /* Status — used sparingly. */
   --warn-500: 38 92% 50%;
   --err-500:  358 65% 50%;
 
-  /* Photo-derived accent — kept ONLY for the per-card radial glow
-     inside .photo-card. Never reaches chrome. */
+  /* Photo-derived accent — kept ONLY for the per-card radial
+       glow inside .photo-card. Never reaches chrome. */
   --photo-dominant:  222 60% 50%;
 
-  /* ============================================================
-     2. SURFACE / GLASS — three tints.
-     ============================================================ */
+    /* ============================================================
+       2. SURFACE / GLASS — three tints, two neutrals + one glass.
+       ============================================================ */
 
-  --surface:        220 22% 97%;        /* page-level near-white */
-  --surface-strong: 0 0% 100%;          /* opaque white */
-  --surface-glass:  220 25% 85%;        /* darker glass tint */
-  --bg-base:        hsl(var(--ink-50)); /* page bg */
+  --surface:        hsl(var(--ink-50));   /* base panel tint = page bg */
+  --surface-strong: 0 0% 100%;             /* opaque white */
+  --surface-glass:  0 0% 85%;              /* darker neutral glass tint */
+  --bg-base:        hsl(var(--ink-50));    /* page bg */
 
   /* Text aliases — ONE off-white, ONE bright. Resolved through
      var(--fg) and var(--fg-on-accent). */
@@ -65,10 +76,10 @@
   --fg-on-accent:   0 0% 100%;
 
   /* Glass borders + inner sheen + soft drop shadows. */
-  --border-glass:   220 30% 30% / 14%;
-  --border-strong:  220 30% 30% / 22%;
+  --border-glass:   0 0% 0% / 14%;
+  --border-strong:  0 0% 0% / 22%;
   --highlight-top:  0 0% 100% / 60%;
-  --shadow-color:   220 30% 12%;
+  --shadow-color:   0 0% 12%;
 
   --shadow-2:
     0 1px 0 hsl(0 0% 100% / 60%) inset,
@@ -164,10 +175,10 @@
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --mesh-speed: 0s;
-    --blur-bg:    0px;
-    --blur-glass: 0px;
-    --blur-pill:  0px;
+  --mesh-speed: 0s;
+  --blur-bg:    0px;
+  --blur-glass: 0px;
+  --blur-pill:  0px;
   }
   *, *::before, *::after {
     animation-duration: 0ms !important;
