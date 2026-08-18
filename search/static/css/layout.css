@@ -180,7 +180,7 @@
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   text-decoration: none;
   white-space: nowrap;
 }
@@ -228,7 +228,7 @@
   width: 2.25rem;
   height: 2.25rem;
   border-radius: var(--radius-pill);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   background: hsl(var(--surface) / 40%);
   border: 1px solid hsl(var(--border-glass));
   cursor: pointer;
@@ -274,13 +274,6 @@
   gap: var(--space-1);
   min-width: 0;
 }
-.page-intro-eyebrow {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-wider);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
-}
 .page-intro-title {
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
@@ -291,14 +284,14 @@
 }
 .page-intro-description {
   font-size: var(--text-base);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   max-width: 60ch;
   margin: 0;
 }
 .page-intro-meta {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
@@ -307,7 +300,7 @@
 }
 .page-intro-count {
   font-variant-numeric: tabular-nums;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 
 .page-header-content {
@@ -318,16 +311,11 @@
   flex: 1 1 auto;
 }
 
-.page-header-eyebrow {
-  /* inherits from .eyebrow */
-  margin: 0 0 var(--space-1);
-}
-
-.page-header-description {
+.app-page-header h1,
   margin: var(--space-1) 0 0;
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 
 .app-page-header h1,
@@ -344,7 +332,7 @@
 .page-header .page-count {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-variant-numeric: tabular-nums;
 }
 
@@ -353,20 +341,6 @@
       Other components compose it.
    ============================================================ */
 
-
-/* ============================================================
-   6. EYEBROW — small uppercase label. Used inside panels.
-   ============================================================ */
-
-.eyebrow {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-tight);
-}
 
 /* ============================================================
    7.5 SEGMENTED CONTROL — a 2- or 3-way toggle that reads as one
@@ -394,7 +368,7 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   cursor: pointer;
   white-space: nowrap;
   transition: background var(--dur-base) var(--ease-out),
@@ -407,7 +381,7 @@
 .segmented-btn.is-active,
 .segmented-btn[aria-pressed="true"] {
   background: hsl(var(--accent-500));
-  color: hsl(var(--ink-900));
+  color: hsl(var(--ink-bright));
 }
 
 /* ============================================================
@@ -447,7 +421,7 @@
   display: block;
   margin-top: var(--space-1);
   font-size: var(--text-sm);
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-snug);
 }
 
@@ -490,7 +464,7 @@
 .search-advanced-label { font-weight: var(--weight-semibold); }
 .search-advanced-summary {
   margin-right: auto;
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-sm);
   font-weight: var(--weight-regular);
 }
@@ -549,7 +523,7 @@
 .ui-empty-state p {
   margin: 0 0 var(--space-4) 0;
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
 }
 
@@ -654,10 +628,6 @@ body[data-route^="/photo/"] .app-body::before {
   border-bottom: 1px solid hsl(var(--border-glass));
 }
 
-.photo-detail-panel .eyebrow {
-  margin: 0;
-}
-
 /* Photo action row — Favourite + Dislike share one horizontal row.
    Each pill uses .glass-pill from glass.css plus a tiny icon lift on
    hover so a tap looks alive. */
@@ -728,7 +698,7 @@ body[data-route^="/photo/"] .app-body::before {
 .detail-section__empty {
   margin: 0;
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
 }
 
@@ -851,7 +821,7 @@ body[data-route^="/photo/"] .app-body::before {
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-pill);
   background: transparent;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -1006,13 +976,12 @@ body[data-route^="/photo/"] .app-body::before {
   min-height: 2.5rem;
 }
 
+/* Form labels — small off-white text. */
 .prompt-row-label {
   display: inline-block;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--accent-500));
 }
 
 .prompt-row--primary .prompt-row-label {
@@ -1023,7 +992,7 @@ body[data-route^="/photo/"] .app-body::before {
    helper microcopy used to (after the input) without overlapping. */
 .prompt-hint {
   font-size: var(--text-xs);
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   justify-self: end;
   white-space: nowrap;
 }
@@ -1062,7 +1031,7 @@ body[data-route^="/photo/"] .app-body::before {
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-size: 0.8rem;
   cursor: pointer;
 }
@@ -1083,12 +1052,9 @@ body[data-route^="/photo/"] .app-body::before {
   border: 1px solid hsl(var(--border-glass));
 }
 .saved-search-bar-label {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
-  padding: 0 var(--space-2);
+  color: hsl(var(--ink-off-white));
 }
 .saved-search-select {
   min-width: 14rem;
@@ -1138,11 +1104,9 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 .filename-filter label {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 
 /* ============================================================
@@ -1186,7 +1150,7 @@ body[data-route^="/photo/"] .app-body::before {
 .discover-tagline {
   margin: var(--space-2) 0 0;
   font-size: var(--text-base);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
 }
 
@@ -1200,7 +1164,7 @@ body[data-route^="/photo/"] .app-body::before {
   justify-content: center;
   gap: var(--space-2);
   padding: 4rem 0;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-base);
 }
 
@@ -1285,7 +1249,7 @@ body[data-route^="/photo/"] .app-body::before {
   border-radius: var(--radius-lg);
   background: hsl(var(--surface-glass) / 55%);
   border: 1px solid hsl(var(--border-glass));
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
@@ -1317,7 +1281,7 @@ body[data-route^="/photo/"] .app-body::before {
 
 .for-you-meta__freshness {
   margin-left: var(--space-1);
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);
 }
@@ -1374,7 +1338,7 @@ body[data-route^="/photo/"] .app-body::before {
 .for-you-empty__body {
   margin: 0 0 var(--space-3);
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
   line-height: var(--leading-normal);
   max-width: 30rem;
 }
@@ -1514,7 +1478,7 @@ a {
   transition: color var(--dur-fast) var(--ease-out);
 }
 a:hover {
-  color: hsl(var(--accent-400));
+  color: hsl(var(--accent-500));
 }
 
 /* ============================================================
@@ -1533,7 +1497,7 @@ a:hover {
 }
 .search-submit-hint {
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 .search-submit {
   font-size: var(--text-base);
@@ -1548,7 +1512,7 @@ a:hover {
               transform var(--dur-fast) var(--ease-out);
 }
 .search-submit:hover {
-  background: hsl(var(--accent-400));
+  background: hsl(var(--accent-500));
   transform: translateY(-1px);
 }
 .search-submit[disabled] {
@@ -1586,7 +1550,7 @@ a:hover {
   background: hsl(var(--surface-glass) / 50%);
   border: 1px solid hsl(var(--border-glass));
   font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 .centroids-advanced summary {
   cursor: pointer;
@@ -1617,19 +1581,19 @@ a:hover {
 .btn-primary {
   background: hsl(var(--accent-500));
   border-color: hsl(var(--accent-500));
-  color: hsl(var(--ink-900));
+  color: hsl(var(--ink-bright));
 }
 .btn-primary:hover {
-  background: hsl(var(--accent-400));
-  border-color: hsl(var(--accent-400));
-  color: hsl(var(--ink-900));
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  color: hsl(var(--ink-bright));
 }
 
 /* .btn-ghost: inherit base color, accent on hover. */
 .btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--ink-off-white));
 }
 .btn-ghost:hover {
   background: hsl(var(--surface-glass) / 50%);
@@ -1637,11 +1601,11 @@ a:hover {
 }
 
 /* text-base-content{,/N} — drives text color. Re-skin to our ink scale. */
-.text-base-content { color: hsl(var(--ink-700)); }
-.text-base-content\/60 { color: hsl(var(--ink-700) / 60%); }
-.text-base-content\/70 { color: hsl(var(--ink-700) / 70%); }
-.text-base-content\/72 { color: hsl(var(--ink-700) / 72%); }
-.text-base-content\/30 { color: hsl(var(--ink-700) / 30%); }
+.text-base-content { color: hsl(var(--ink-off-white)); }
+.text-base-content\/60 { color: hsl(var(--ink-off-white) / 60%); }
+.text-base-content\/70 { color: hsl(var(--ink-off-white) / 70%); }
+.text-base-content\/72 { color: hsl(var(--ink-off-white) / 72%); }
+.text-base-content\/30 { color: hsl(var(--ink-off-white) / 30%); }
 
 /* bg-base-300 — background used on placeholder elements. */
 .bg-base-300 { background: hsl(var(--surface)); }

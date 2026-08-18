@@ -32,27 +32,34 @@
      dark role, not the numeric lightness.
      ============================================================ */
 
-  /* Neutral ink — 5-stop scale for the dark theme.
-     --ink-50 = page base (deepest), --ink-900 = heading (brightest). */
-  --ink-50:  220 22% 8%;        /* page base, deepest surface */
-  --ink-400: 220 14% 56%;       /* muted text */
-  --ink-500: 220 14% 72%;       /* body text */
-  --ink-700: 220 16% 88%;       /* strong text */
-  --ink-900: 220 22% 97%;       /* heading text, brightest */
+  /* ============================================================
+     1. COLOUR PALETTE — minimal token surface for the dark theme.
+     ============================================================
+     Three text shades max (one near-white, one off-white, one
+     very faded for tertiary captions); one accent (single shade
+     — hover is opacity, not a different hue); two status; one
+     photo-card tint that never reaches chrome. No dark text —
+     every text colour is white or off-white. */
 
-  /* Brand accent — single accent, two stops.
-     --accent-400 = hover. --accent-500 = default for every active
-     state, button, pill, focus, brand mark. One family, one job. */
-  --accent-400: 222 68% 62%;
+  /* Neutral ink — page base only here. NO dark text in this scale. */
+  --ink-50:  220 22% 8%;        /* page base, deepest surface */
+
+  /* White text — two tones:
+       --ink-bright (97%) — headings, primary labels, hero labels
+       --ink-off-white (88%) — body, captions, descriptions
+     There is no darker shade. Tertiary captions use opacity. */
+  --ink-off-white: 220 16% 88%;
+  --ink-bright:    220 22% 97%;
+
+  /* Brand accent — single shade. */
   --accent-500: 222 70% 55%;
 
   /* Status — used sparingly. */
   --warn-500: 38 92% 55%;
   --err-500:  358 75% 58%;
 
-  /* Photo-derived accent — JS sets this on individual .photo-card
-     elements to tint the card's radial bottom-glow with the photo's
-     dominant color. Defaults to accent-500. Never used in chrome. */
+  /* Photo-derived accent — kept ONLY for the per-card radial glow
+     inside .photo-card. Defaults to accent-500. Never reaches chrome. */
   --photo-dominant:  222 65% 55%;
 
   /* ============================================================
@@ -65,9 +72,10 @@
   --bg-base:        220 22% 8%;         /* page background */
   --bg:             hsl(220 22% 8%);    /* literal page bg */
 
-  --fg:             220 18% 92%;
-  --fg-muted:       220 14% 70%;
-  --fg-subtle:      220 10% 56%;
+  /* Body / heading colour aliases. ONE off-white, ONE bright.
+     All text in the app resolves through these two.
+     --fg is the canonical alias for --ink-bright. */
+  --fg:             hsl(var(--ink-bright));
 
   --border-glass:   220 30% 80% / 14%;
   --border-strong:  220 30% 80% / 22%;
@@ -116,7 +124,6 @@
 
   --tracking-tight:   -0.012em;
   --tracking-normal:  0;
-  --tracking-eyebrow: 0.08em;
 
   /* ============================================================
      SPACING — 4 stops, fluid via clamp() over a token range.

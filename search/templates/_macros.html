@@ -70,14 +70,14 @@
 {% endmacro %}
 
 {# ---------- page_header ----------
-   Title + optional count/label + optional eyebrow + optional description,
-   all nested inside the header panel for visual consistency. The eyebrow
-   slot is the page label (e.g. "Saved", "Albums"), the description slot
-   is the one-line tagline below the title (matches Discover's pattern). #}
-{% macro page_header(title, count=none, count_label='', count_plural_label='', eyebrow='', description='', meta='') %}
+   Title (h1) + optional description + optional count/meta.
+   The eyebrow slot was removed: small uppercase labels above the
+   title added no signal — they were either redundant with the
+   title ("RANDOM" / "Random") or category labels that belong in
+   the metadata slot if anywhere. #}
+{% macro page_header(title, count=none, count_label='', count_plural_label='', description='', meta='') %}
   <header class="page-intro" data-page-intro>
     <div class="page-intro-main">
-      {% if eyebrow %}<p class="page-intro-eyebrow">{{ eyebrow }}</p>{% endif %}
       <h1 class="page-intro-title">{{ title }}</h1>
       {% if description %}<p class="page-intro-description">{{ description }}</p>{% endif %}
     </div>

@@ -20,14 +20,13 @@
   {% endset %}
   {{ ui.page_header(
        "For you",
-       eyebrow="Recommendations",
        description="Personalised photos based on what you've liked and skipped so far.",
        meta=for_you_meta
      ) }}
 
   {% if for_you_n_likes == 0 %}
     <section class="for-you-empty glass app-empty-state" data-empty-state>
-      <p class="eyebrow">Cold start</p>
+      
       <h2 class="for-you-empty__title">Like a few photos to start</h2>
       <p class="for-you-empty__body">
         The feed learns from your ❤️ across the app — lightbox,

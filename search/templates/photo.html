@@ -35,9 +35,6 @@
           <a class="photo-back-link" href="/">← Home</a>
         {% endif %}
       </nav>
-      <header class="photo-detail-panel__head">
-        <p class="eyebrow">Photo details</p>
-      </header>
 
       <div class="photo-react-actions">
         <form class="fav-form" method="post" action="/api/favorites/{{ id }}" data-fav-form>
@@ -71,7 +68,7 @@
       </div>
 
       <section class="detail-section">
-        <h2 class="eyebrow detail-section__heading">Details</h2>
+        <h2 class="detail-section__heading">Details</h2>
         <dl class="meta">
           {% if photo_width and photo_height %}
             <dt class="meta__label">Dimensions</dt>
@@ -85,7 +82,7 @@
       </section>
 
       <section class="detail-section">
-        <h2 class="eyebrow detail-section__heading">Albums</h2>
+        <h2 class="detail-section__heading">Albums</h2>
         {% if all_albums %}
           <ul class="album-pills__list">
             {% for a in all_albums %}

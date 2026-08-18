@@ -136,7 +136,7 @@
 }
 
 .glass-input::placeholder {
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--ink-off-white));
 }
 
 .glass-input:focus {
