@@ -15,17 +15,17 @@
    stripped (other params preserved). The "switch to text search"
    link clears all centroids and all other search params. #}
 {% if active_centroids %}
-  <div class="centroid-mode-indicator" role="status" aria-live="polite">
-    <span class="centroid-mode-label">
+  <div class="centroid-bar glass--sharp">
+    <div class="centroid-bar-label">
       {% if active_centroids|length == 1 %}
-        Searching with centroid
+        Blending centroid:
       {% else %}
         Blending {{ active_centroids|length }} centroids
       {% endif %}
-    </span>
-    <ul class="centroid-chip-list" aria-label="Active centroids">
+    </div>
+    <ul class="centroid-chip-list">
       {% for c in active_centroids %}
-        <li class="centroid-chip">
+        <li class="centroid-chip glass--sharp">
           <span class="centroid-chip-name">{{ c }}</span>
           <a
             class="centroid-chip-remove"
@@ -41,31 +41,6 @@
 {% endif %}
 
 <form class="search-form" method="get" action="/">
-  {# Phase E — Model A. Single-row composer: search input + Search
-     button + Surprise. The hero bar with view-toggle/diversity/etc
-     is gone; those controls now live inside the Refine disclosure
-     below the composer. #}
-  <div class="search-composer">
-    <input
-      type="search"
-      name="q"
-      value="{{ q or '' }}"
-      placeholder="Search images…"
-      class="search-composer__input"
-      aria-label="Search query"
-      autocomplete="off"
-      data-search-input
-    >
-    <button class="search-submit btn btn-primary" type="submit">
-      {{ ui.ui_icon('search', 'h-4 w-4') }}<span>Search</span>
-    </button>
-    <button
-      type="button"
-      class="surprise-btn btn"
-      data-surprise
-    >{{ ui.ui_icon('shuffle', 'h-4 w-4') }}<span>Surprise me</span></button>
-  </div>
-
 {# Prompt composition is hidden in centroid mode — text prompts would be
    misleading beside a centroid anchor. The mutex is enforced server-side;
    the hide keeps the UI honest. #}
@@ -89,37 +64,6 @@
           data-view="feed"
           aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
         >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
-        <label class="diversity-control" title="Balance relevance against visual repetition">
-          {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
-          <span class="sr-only">Diversity strength</span>
-          <select
-            class="diversity-select"
-            data-diversity-select
-            name="diversity"
-            aria-label="Diversity strength"
-          >
-            {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
-              <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label
-          class="diversity-control diversity-depth-control"
-          title="How many candidates to consider before applying Diversity; deeper searches may take longer"
-        >
-          {{ ui.ui_icon('layers', 'h-4 w-4') }}
-          <span class="sr-only">Diversity candidate depth</span>
-          <select
-            class="diversity-select"
-            data-diversity-depth-select
-            name="diversity_depth"
-            aria-label="Diversity candidate depth"
-          >
-            {% for option in [('auto', 'Depth auto'), ('500', '500 candidates'), ('1000', '1000 candidates'), ('2000', '2000 candidates'), ('5000', '5000 candidates')] %}
-              <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
-            {% endfor %}
-          </select>
-        </label>
         {% if q or positives or negatives or collections or filename %}
           <a class="clear-link" href="/">clear all</a>
         {% endif %}
@@ -180,7 +124,7 @@
         {% endfor %}
       </div>
       <div class="prompt-add">
-        <input type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, screenshot" aria-label="Add Exclude prompt">
+        <input type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, text, watermark" aria-label="Add Exclude prompt">
         <button type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
       </div>
       <span class="prompt-hint">optional</span>
@@ -188,13 +132,46 @@
     <p class="prompt-error" role="alert" hidden></p>
   </section>
 
-  <details class="search-advanced"{% if filename or collections %} open{% endif %}>
+  <details class="search-advanced"{% if filename or collections or diversity_mode|default('off') != 'off' %} open{% endif %}>
     <summary>
       <span class="search-advanced-label">Filters</span>
       <span class="search-advanced-summary" data-filter-summary>Optional</span>
       {{ ui.ui_icon('filter', 'h-4 w-4') }}
     </summary>
     <div class="search-advanced-body">
+      <div class="diversity-filters">
+        <label class="diversity-control" title="Balance relevance against visual repetition">
+          {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+          <span class="sr-only">Diversity strength</span>
+          <select
+            class="diversity-select"
+            data-diversity-select
+            name="diversity"
+            aria-label="Diversity strength"
+          >
+            {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+              <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label
+          class="diversity-control diversity-depth-control"
+          title="How many candidates to consider before applying Diversity; deeper searches may take longer"
+        >
+          {{ ui.ui_icon('layers', 'h-4 w-4') }}
+          <span class="sr-only">Diversity candidate depth</span>
+          <select
+            class="diversity-select"
+            data-diversity-depth-select
+            name="diversity_depth"
+            aria-label="Diversity candidate depth"
+          >
+            {% for option in [('auto', 'Depth auto'), ('500', '500 candidates'), ('1000', '1000 candidates'), ('2000', '2000 candidates'), ('5000', '5000 candidates')] %}
+              <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
       <div class="filename-filter">
         <label for="filename-filter-input">Path filter</label>
         <input
@@ -247,8 +224,6 @@
         {% else %}
           for centroid blend &ldquo;{{ active_centroids|join(' + ') }}&rdquo;
         {% endif %}
-      {% else %}
-        for &ldquo;{{ q if q else positives|join(", ") }}&rdquo;
       {% endif %}
       {% if filename %}
         in paths matching &ldquo;{{ filename }}&rdquo;
@@ -263,46 +238,26 @@
           for centroid blend &ldquo;{{ active_centroids|join(' + ') }}&rdquo;
         {% endif %}
       {% else %}
-        for &ldquo;{{ q if q else positives|join(", ") }}&rdquo;
+        for
+          {% if positives %}
+            &ldquo;{{ positives|join(' + ') }}&rdquo;
+          {% endif %}
+          {% if negatives %}
+            without &ldquo;{{ negatives|join(', ') }}&rdquo;
+          {% endif %}
       {% endif %}
       {% if filename %}
         in paths matching &ldquo;{{ filename }}&rdquo;
-      {% endif %}.
+      {% endif %}
     {% endif %}
   </p>
-
   {% include "_result_grid.html" %}
-{% elif random_picks %}
-  {# Default landing page state: no query, no centroid, no error.
-     Surface a small random sample below the form so the page isn't
-     a dead-end. Reuses the same _result_grid.html partial as
-     /search and /random so layout is consistent. Server-side only,
-     no shuffle button — refreshing the page is the way to get a
-     different sample. #}
-  <section class="random-picks">
-    <header class="random-picks-header">
-      <h2 class="random-picks-title">Random picks</h2>
-    </header>
-    {% with
-       results=random_picks,
-       view="grid",
-       offset=0,
-       limit=random_picks_count,
-       has_more=False,
-       max_results_total=random_picks_count,
-       search_query_string="from=home",
-       q="",
-       positives=[],
-       negatives=[]
-    %}
-      {% include "_result_grid.html" %}
-    {% endwith %}
-  </section>
-{% else %}
-  <p class="state state-idle">Add an Include prompt, then click Search.</p>
+{% elif not source_photo_id %}
+  {# Home / empty state — show the hero + random picks via search.html's
+     own grid section below. The result grid is only rendered when there
+     are actual results; otherwise we fall through to the hero. #}
+  {% if results %}
+    {% include "_result_grid.html" %}
+  {% endif %}
 {% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script type="module" src="{{ asset('js/search.js') }}"></script>
 {% endblock %}

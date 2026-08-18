@@ -129,6 +129,13 @@
   --space-4:  clamp(2rem,    2vw + 1rem, 2.5rem);       /* ~32-40px (hero) */
 
   /* ============================================================
+     5. GRID — responsive column bounds.
+     --grid-min: fluid minimum column width (2-5 columns across
+                 all viewports; media queries cap at 5 on wide).
+     ============================================================ */
+  --grid-min: clamp(240px, 30vw, 420px);
+
+  /* ============================================================
      RADII — 3 stops by element size class. --radius-pill is a
      separate primitive for fully rounded controls.
      ============================================================ */

@@ -300,116 +300,6 @@
 }
 
 /* ============================================================
-   7. SEARCH COMPOSER — single-row input + Search + Surprise
-      (Phase E — Model A). The 6-control hero bar that used to sit
-      above the prompts is gone. This row is the only thing above
-      the random-picks grid on the home page.
-   ============================================================ */
-
-.search-composer {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  margin-bottom: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: hsl(var(--surface-glass) / 75%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
-}
-
-.search-composer__input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 2.5rem;
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: hsl(var(--fg));
-  font: inherit;
-  font-size: var(--text-base);
-  outline: none;
-}
-
-.search-composer__input::placeholder {
-  color: hsl(var(--fg-subtle));
-}
-
-.search-composer__input:focus-visible {
-  outline: 2px solid hsl(var(--accent-500));
-  outline-offset: 2px;
-}
-
-.search-composer .search-submit,
-.search-composer .surprise-btn {
-  flex: 0 0 auto;
-  height: 2.5rem;
-  min-height: 2.5rem;
-  padding: 0 var(--space-3);
-}
-
-.search-composer .search-submit {
-  background: hsl(var(--accent-500) / 80%);
-  border-color: hsl(var(--accent-500));
-  color: hsl(0 0% 100%);
-}
-
-.search-composer .search-submit:hover {
-  background: hsl(var(--accent-500));
-  border-color: hsl(var(--accent-500));
-  transform: translateY(-0.5px);
-}
-
-@media (max-width: 540px) {
-  .search-composer {
-    flex-wrap: wrap;
-    border-radius: var(--radius-lg);
-  }
-  .search-composer__input {
-    flex: 1 1 100%;
-    height: 2.25rem;
-  }
-  .search-composer .search-submit,
-  .search-composer .surprise-btn {
-    flex: 1 1 calc(50% - var(--space-2));
-  }
-}
-
-/* Prompt toolbar — the relocated view-toggle + diversity controls
-   that used to live in the hero bar. They sit inline with the
-   prompt-composition heading now, so the page above the fold stays
-   calm. */
-.prompt-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: auto;
-}
-
-
-
-.app-toolbar {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-3);
-  margin-bottom: var(--space-4);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
-}
-
-/* Toolbar and prompts card share the same horizontal padding so their
-   text columns align. */
-
-/* ============================================================
    8. APP TOOLBAR — controls row inside the prompt-composition panel.
    ============================================================ */
 
@@ -829,7 +719,6 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 .view-toggle-btn,
-.surprise-btn,
 .diversity-control,
 .search-submit {
   display: inline-flex;
@@ -1094,6 +983,15 @@ body[data-route^="/photo/"] .app-body::before {
   17. INPUTS — every input field uses the same vocabulary. — filename input, range sliders, etc.
    ============================================================ */
 
+.diversity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid hsl(var(--border-glass));
+}
 .filename-filter {
   display: grid;
   grid-template-columns: max-content minmax(0, 22rem);
@@ -1297,7 +1195,7 @@ body[data-route^="/photo/"] .app-body::before {
 
 .for-you-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 280px), 1fr));
   gap: var(--space-3);
   min-height: 30rem;
 }
