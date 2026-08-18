@@ -372,12 +372,19 @@
 }
 
 .prompt-composition--primary {
-  /* Glass surface comes from .glass on the element. Layout only here. */
+  /* Glass surface comes from .glass on the element. Layout only here.
+     Tighter padding than before — generous whitespace inside
+     a 56rem container reads as 'empty' rather than 'calm'.
+     Vertical padding pulled in (var(--space-2)) since the heading
+     and rows already carry their own internal spacing.
+     Gap pulled in (var(--space-2)) so Include and Exclude
+     rows sit closer together — they read as one form, not
+     separate blocks. */
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
   margin-inline: auto;
   margin-block: 0 var(--space-3);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2);
 }
 
 .prompt-composition-heading {
@@ -387,7 +394,7 @@
      stacking keeps both rows clean. */
   display: grid;
   grid-template-rows: auto auto;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .prompt-composition-intro {
