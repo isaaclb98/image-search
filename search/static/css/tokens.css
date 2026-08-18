@@ -13,7 +13,8 @@
     - Type flows from a major-third ratio (1.250) at 6 sizes.
     - Radii are 3 named stops plus a pill primitive.
     - Elevation is a 2-stop ladder (--shadow-2, --shadow-3).
-    - Container widths are constants, not tokens — they're stable.
+    - Container widths are tokens (--page-max, --content-max)
+      so they propagate to every consumer.
 
   Principle 4 (Single theme) is literal here: there is one :root
   block, the LIGHT glass palette, and no data-theme attribute or
@@ -142,11 +143,22 @@
   --radius-pill: 999px;
 
   /* ============================================================
-     HEADER — sticky nav height. Container widths are constants
-     below (not tokens) because they're stable across the app.
+     HEADER — sticky nav height. Container widths below are
+     the two stable widths every page composes against.
      ============================================================ */
 
   --header-h: 4rem;
+
+  /* Page-level outer container — caps the entire content well.
+     Used by .site-main and other full-width wrappers. */
+  --page-max: 72rem;
+
+  /* Content container — caps .glass / .glass--sharp panels so
+     every panel reads at the same comfortable reading width.
+     Used by the composer, filters, quick-prompts, etc. The
+     ratio to --page-max (0.67) keeps the panel centered with
+     visible margin on either side at any viewport size. */
+  --content-max: 48rem;
 
   /* ============================================================
      MOTION — single easing + 3 durations.

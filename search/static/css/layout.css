@@ -72,7 +72,7 @@
   align-items: center;
   gap: var(--space-3);
   height: var(--header-h);
-  padding-inline: max(1rem, calc((100% - 80rem) / 2 + 1rem));
+  padding-inline: max(1rem, calc((100% - var(--page-max)) / 2 + 1rem));
   background: hsl(var(--surface-glass) / 75%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
@@ -226,7 +226,7 @@
    ============================================================ */
 
 .app-page {
-  width: min(100% - var(--space-3) * 2, 80rem);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
   padding: var(--space-4) 0;
   position: relative;
@@ -374,12 +374,12 @@
 .prompt-composition--primary {
   /* Glass surface comes from .glass on the element. Layout only here.
      Tighter padding than before — generous whitespace inside
-     a 56rem container reads as 'empty' rather than 'calm'.
-     Vertical padding pulled in (var(--space-2)) since the heading
-     and rows already carry their own internal spacing.
-     Gap pulled in (var(--space-2)) so Include and Exclude
-     rows sit closer together — they read as one form, not
-     separate blocks. */
+     a var(--content-max) container reads as 'empty' rather
+     than 'calm'. Vertical padding pulled in (var(--space-2))
+     since the heading and rows already carry their own internal
+     spacing. Gap pulled in (var(--space-2)) so Include and
+     Exclude rows sit closer together — they read as one form,
+     not separate blocks. */
   display: grid;
   gap: var(--space-2);
   margin-inline: auto;
@@ -548,7 +548,7 @@
 .photo-page {
   position: relative;
   isolation: isolate;
-  width: min(100% - var(--space-3) * 2, 80rem);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
   padding: var(--space-3) 0 var(--space-4);
 }
@@ -1162,7 +1162,7 @@ form button.search-submit {
    something concrete to click. Same primitive as prompt chips
    but neutral — these don't have a remove control. */
 .quick-prompts {
-  max-width: 56rem;
+  max-width: var(--content-max);
   margin: var(--space-3) auto 0;
   display: flex;
   align-items: center;
@@ -1260,7 +1260,7 @@ form button.search-submit {
    ============================================================ */
 
 .discover-page {
-  width: min(100% - var(--space-3) * 2, 80rem);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
   padding: var(--space-4) 0;
   position: relative;
@@ -1611,7 +1611,7 @@ a:hover {
    the bottom of the composer so users can commit their draft.
    ============================================================ */
 .site-main {
-  width: min(100% - var(--space-3) * 2, 80rem);
+  width: min(100% - var(--space-3) * 2, var(--page-max));
   margin: 0 auto;
   padding: var(--space-4) 0;
   position: relative;
@@ -1625,7 +1625,7 @@ a:hover {
   padding: var(--space-3) var(--space-2) 0;
   margin-top: var(--space-3);
   border-top: 1px solid hsl(var(--border-glass));
-  max-width: 56rem;
+  max-width: var(--content-max);
   margin-inline: auto;
 }
 .search-submit-hint {
