@@ -71,11 +71,7 @@
     </nav>
 
     <div class="navbar-end">
-      {# Dislikes lives one click from /discover (more edge-case than
-         Favourites/Saved/Albums) but stays reachable: a small ghost
-         link is rendered at end of nav-end so the page is one tap
-         away but doesn't compete visually with primary nav. #}
-      <a class="navbar-utility-link" href="/dislikes" aria-label="Dislikes">Dislikes</a>
+      <a class="navbar-utility-link glass-pill" href="/dislikes" aria-label="Dislikes"{% if request.url.path.startswith('/dislikes') %} aria-pressed="true" aria-current="page"{% endif %}>Dislikes</a>
       <button type="button" class="keyboard-help-trigger" data-keyboard-help aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">
         {{ ui.ui_icon('help', 'h-5 w-5') }}
       </button>
@@ -83,8 +79,7 @@
          is attached to the request. `current_user` is injected by
          AuthAwareTemplates (see search/app.py). The form posts to
          /logout, which clears the session cookie and redirects to
-         /login. Kept as a small ghost-style button so it doesn't
-         compete visually with the help trigger. #}
+         /login. #}
       {% if current_user %}
         <form method="post" action="/logout" class="ml-1">
           <button

@@ -220,21 +220,23 @@
   }
 }
 
-/* Footer-of-nav utility link — Dislikes lives here so we can keep the
-   primary nav to 7 items. Smaller, more subdued than primary pills. */
+/* Header utility pills — Dislikes lives here at the far right so the
+   primary nav stays at 7 visible items. Same shape as the primary
+   nav items: .glass-pill + .nav-link vocabulary. The aria-pressed
+   state goes through the same .glass-pill.is-active rule as the
+   rest of the header, so the active treatment is identical too. */
 .navbar-utility-link {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  color: hsl(var(--fg-subtle));
+  color: hsl(var(--fg-muted));
   text-decoration: none;
-  border-radius: var(--radius-pill);
-  transition: color var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
 }
 .navbar-utility-link:hover {
-  color: hsl(var(--fg-muted));
+  color: hsl(var(--fg));
 }
 
 .keyboard-help-trigger {
