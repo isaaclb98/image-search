@@ -570,13 +570,10 @@ body[data-route^="/photo/"] .app-body::before {
    ============================================================ */
 
 .photo-detail-panel {
+  /* Surface is supplied by .glass--sharp on the element. This block
+     only carries internal layout — no backdrop-filter, no border,
+     no shadow overrides. */
   padding: var(--space-3);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -1047,24 +1044,14 @@ body[data-route^="/photo/"] .app-body::before {
    ============================================================ */
 
 .album-card {
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
+  /* Surface supplied by .glass on the element. Internal layout only. */
   padding: var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 .saved-card {
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
+  /* Surface supplied by .glass on the element. Internal layout only. */
   padding: var(--space-3);
   display: flex;
   flex-direction: column;
@@ -1260,6 +1247,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 .for-you-empty {
+  /* Surface supplied by .glass on the element. Internal layout only. */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1268,12 +1256,6 @@ body[data-route^="/photo/"] .app-body::before {
   padding: 3rem var(--space-3);
   margin: var(--space-3) auto 0;
   max-width: 36rem;
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
 }
 
 .for-you-empty__title {
@@ -1336,18 +1318,13 @@ body[data-route^="/photo/"] .app-body::before {
 
 
 .album-detail-header {
+  /* Surface supplied by .glass--sharp on the element. Layout only. */
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3);
   margin-bottom: var(--space-3);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-3);
 }
 
 
