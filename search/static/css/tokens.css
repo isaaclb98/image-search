@@ -15,176 +15,187 @@
     - Elevation is a 4-stop ladder named --shadow-0..3.
     - Container widths are 2 stops, golden-ratio derived.
 
-  Principle 4 (Dark glass, single theme) is literal here: the
-  :root block itself is the dark palette. There is no second
-  :root[data-theme="dark"] block, no :root[data-theme="light"],
-  no prefers-color-scheme branch. There is no theme-toggle UI.
-  The HTML attribute data-theme="dark" was removed alongside this.
+  Principle 4 (Single theme, no light-mode toggle) is literal here:
+  there is one :root block — the LIGHT glass palette now — and no
+  data-theme attribute or toggle UI. The ink scale is upright:
+  50 = lightest (page base, the soft gray-blue wash), 900 = darkest
+  (headings, deep slate). Text is dark on light, exactly the
+  opposite role of the previous dark-theme build.
 */
 
 :root {
   /* ============================================================
-     1. COLOUR PALETTE — raw HSL triples (no alpha; alpha is added
-                                 at the call site via `hsl(... / 50%)`).
+     1. COLOUR PALETTE — minimal token surface.
 
-     The ink scale is INVERTED for the dark theme: 50 = deepest
-     (page base), 900 = brightest (headings). Comments reflect the
-     dark role, not the numeric lightness.
+     Two text tones (one deep-slate for body, one mid-slate for
+     muted captions); one brand accent (slightly deeper than the
+     dark-theme build so it stays legible on white glass);
+     one status pair. The page base is a soft cool gray-blue,
+     not pure white, so glass reads as glass — not as flat paper.
      ============================================================ */
 
-  /* ============================================================
-     1. COLOUR PALETTE — minimal token surface for the dark theme.
-     ============================================================
-     Three text shades max (one near-white, one off-white, one
-     very faded for tertiary captions); one accent (single shade
-     — hover is opacity, not a different hue); two status; one
-     photo-card tint that never reaches chrome. No dark text —
-     every text colour is white or off-white. */
+  /* Neutral ink — page base + dividers live here.
+     --ink-50 = page base (lightest). NO dark text in the scale. */
+  --ink-50:  220 35% 92%;        /* page base, soft gray-blue wash */
+  --ink-100: 220 22% 88%;        /* dividers, glass-tint base */
+  --ink-400: 220 10% 55%;        /* placeholder / disabled */
 
-  /* Neutral ink — page base only here. NO dark text in this scale. */
-  --ink-50:  220 22% 8%;        /* page base, deepest surface */
+  /* Slate text — dark on light. Two tones only:
+       --ink-bright (220 30% 14%) — headings, primary labels
+       --ink-off-white (220 14% 38%) — body, captions, descriptions
+     Tertiary captions use opacity, not a third tone. */
+  --ink-off-white: 220 14% 38%;
+  --ink-bright:    220 30% 14%;
 
-  /* White text — two tones:
-       --ink-bright (97%) — headings, primary labels, hero labels
-       --ink-off-white (88%) — body, captions, descriptions
-     There is no darker shade. Tertiary captions use opacity. */
-  --ink-off-white: 220 16% 88%;
-  --ink-bright:    220 22% 97%;
-
-  /* Brand accent — single shade. */
-  --accent-500: 222 70% 55%;
+  /* Brand accent — single shade, slightly deeper than the dark
+     build (ink-50 ~92% lightness) so it survives on white glass. */
+  --accent-500: 222 60% 45%;
 
   /* Status — used sparingly. */
-  --warn-500: 38 92% 55%;
-  --err-500:  358 75% 58%;
+  --warn-500: 38 92% 50%;
+  --err-500:  358 65% 50%;
 
   /* Photo-derived accent — kept ONLY for the per-card radial glow
      inside .photo-card. Defaults to accent-500. Never reaches chrome. */
-  --photo-dominant:  222 65% 55%;
+  --photo-dominant:  222 60% 50%;
 
   /* ============================================================
      2. SURFACE / GLASS — semantic tokens used by every panel.
      ============================================================ */
 
-  --surface:        220 22% 12%;        /* default glass tint */
-  --surface-strong: 220 22% 7%;         /* opaque darker panel */
-  --surface-glass:  220 22% 14%;        /* dark glass tint */
-  --bg-base:        220 22% 8%;         /* page background */
-  --bg:             hsl(220 22% 8%);    /* literal page bg */
+  --surface:        220 22% 97%;        /* page-level white-glass */
+  --surface-strong: 0 0% 100%;          /* opaque white panel */
+  --surface-glass:  220 25% 85%;        /* darker glass tint, frosted */
+  --bg-base:        hsl(var(--ink-50)); /* page background */
+  --bg:             hsl(var(--ink-50)); /* literal page bg */
 
-  /* Body / heading colour aliases. ONE off-white, ONE bright.
-     All text in the app resolves through these two.
-     --fg is the canonical alias for --ink-bright. */
+  /* Text aliases. ONE off-white (slate), ONE bright (deep slate).
+     All text in the app resolves through these two. */
   --fg:             hsl(var(--ink-bright));
+  --fg-muted:       hsl(var(--ink-off-white));
 
-  --border-glass:   220 30% 80% / 14%;
-  --border-strong:  220 30% 80% / 22%;
-  --highlight-top:  0 0% 100% / 8%;
+  --border-glass:   220 30% 30% / 14%;
+  --border-strong:  220 30% 30% / 22%;
+  --highlight-top:  0 0% 100% / 60%;
+  --shadow-color:   220 30% 12%;
+
+  /* Single-source shadows tuned for light glass. */
+  --shadow-glass:
+    0 1px 0 hsl(0 0% 100% / 60%) inset,
+    0 10px 30px hsl(var(--shadow-color) / 14%);
+  --shadow-glass-hover:
+    0 1px 0 hsl(0 0% 100% / 70%) inset,
+    0 14px 38px hsl(var(--shadow-color) / 18%);
+  --shadow-glass-strong:
+    0 1px 0 hsl(0 0% 100% / 80%) inset,
+    0 18px 48px hsl(var(--shadow-color) / 22%);
+
+  /* Glass blur levels. One job each. */
+  --blur-bg:       40px;       /* ambient mesh */
+  --blur-glass:    22px;       /* panels */
+  --blur-pill:     14px;       /* chips + pills */
+  --saturate-glass: 160%;
 
   /* ============================================================
-     ELEVATION — 4-stop shadow ladder. Named --shadow-0..3.
-     No inline box-shadow anywhere outside this block.
+     3. TYPE — 8-size scale, uniform line-heights, two weights.
      ============================================================ */
 
-  --shadow-color:   0 0% 0%;
-  --shadow-0: none;
-  --shadow-1: 0 1px 0 hsl(0 0% 100% / 8%) inset, 0 6px 18px hsl(0 0% 0% / 22%);
-  --shadow-2: 0 1px 0 hsl(0 0% 100% / 8%) inset, 0 10px 30px hsl(0 0% 0% / 30%);
-  --shadow-3: 0 1px 0 hsl(0 0% 100% / 10%) inset, 0 18px 48px hsl(0 0% 0% / 40%);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+               system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               monospace;
 
-  /* Glass blur levels. */
-  --blur-bg:    56px;   /* ambient mesh */
-  --blur-glass: 22px;   /* panels */
-  --blur-pill:  14px;   /* chips + pills */
-  --saturate-glass: 160%; /* backdrop-filter saturation boost */
-
-
-  /* ============================================================
-     4. TYPE — major-third ratio (1.250), anchored at 14.9px.
-     Five named sizes plus a fluid hero. Components reference these;
-     no literal font-sizes in component CSS.
-     ============================================================ */
-
-  --text-xs:   0.72rem;   /* 11.5px — eyebrows, badges */
-  --text-sm:   0.82rem;   /* 13.1px — captions, labels */
+  --text-xs:   0.72rem;   /* 11.5px — captions, labels */
+  --text-sm:   0.82rem;   /* 13px   — body small */
   --text-base: 0.93rem;   /* 14.9px — body */
+  --text-md:   1rem;      /* 16px   — input */
   --text-lg:   1.1rem;    /* 17.6px — sub-headers */
-  --text-xl:   1.35rem;   /* 21.6px — page h1, panel titles */
-  --text-2xl:  1.65rem;   /* 26.4px — page-hero h1 */
-  --text-hero: clamp(1.75rem, 2.5vw + 1rem, 2.75rem);  /* hero, fluid */
+  --text-xl:   1.35rem;   /* 21.6px — page h1 */
+  --text-2xl:  1.75rem;   /* 28px   — hero */
 
-  --leading-tight:  1.2;
-  --leading-snug:   1.35;
+  --leading-tight: 1.2;
+  --leading-snug:  1.35;
   --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
 
-  --weight-regular:  450;
-  --weight-medium:   550;
+  --weight-regular: 450;
+  --weight-medium: 550;
   --weight-semibold: 650;
-  --weight-bold:     750;
+  --weight-bold: 750;
 
   --tracking-tight:   -0.012em;
   --tracking-normal:  0;
 
   /* ============================================================
-     SPACING — 4 stops, fluid via clamp() over a token range.
-     Basis: --u (0.25rem / 4px). Components reference one of the
-     four named stops; raw px in paddings/margins/gaps is a violation.
+     SPACING — 4px base ramp. Always use these, never raw px.
      ============================================================ */
 
-  --u:        0.25rem;
-  --space-1:  clamp(0.25rem, 0.4vw + 0.2rem, 0.5rem);   /* ~4-8px   (tight) */
-  --space-2:  clamp(0.5rem,  0.5vw + 0.4rem, 0.75rem);  /* ~8-12px  (default) */
-  --space-3:  clamp(1.25rem, 1.5vw + 0.15625rem, 2rem);  /* ~20-32px (panel/page) */
-  --space-4:  clamp(2rem,    2vw + 1rem, 2.5rem);        /* ~32-40px (hero) */
+  --u:  0.25rem;                          /* 4px base unit */
+  --space-1: clamp(0.5rem, 0.4rem + 0.4vw, 0.65rem);    /* ~10px */
+  --space-2: clamp(0.75rem, 0.6rem + 0.5vw, 1rem);      /* ~15px */
+  --space-3: clamp(1rem, 0.85rem + 0.6vw, 1.4rem);      /* ~20px */
+  --space-4: clamp(1.4rem, 1.1rem + 0.8vw, 2rem);       /* ~30px */
 
   /* ============================================================
-     5. GRID — responsive column bounds.
-     --grid-min: fluid minimum column width (2-5 columns across
-                 all viewports; media queries cap at 5 on wide).
+     RADII — 3 named stops + a pill primitive.
      ============================================================ */
-  --grid-min: clamp(220px, 22vw, 360px);
+
+  --radius-sm:   0.5rem;        /* 8px  — inputs, chips */
+  --radius-md:   0.875rem;      /* 14px — cards */
+  --radius-lg:   1.25rem;       /* 20px — large panels */
+  --radius-pill: 999px;
 
   /* ============================================================
-     RADII — 3 stops by element size class. --radius-pill is a
-     separate primitive for fully rounded controls.
+     ELEVATION — 4-stop ladder. Light theme uses soft drop.
      ============================================================ */
 
-  --radius-sm:   6px;      /* input chips, code spans */
-  --radius-md:   10px;     /* cards, small panels */
-  --radius-lg:   14px;     /* main panels, photo detail */
-  --radius-pill: 999px;    /* buttons, pills, tags */
+  --shadow-0: 0 1px 0 hsl(var(--shadow-color) / 4%) inset,
+              0 1px 2px hsl(var(--shadow-color) / 8%);
+  --shadow-1: 0 1px 0 hsl(0 0% 100% / 60%) inset,
+              0 4px 12px hsl(var(--shadow-color) / 10%);
+  --shadow-2: 0 1px 0 hsl(0 0% 100% / 60%) inset,
+              0 10px 30px hsl(var(--shadow-color) / 14%);
+  --shadow-3: 0 1px 0 hsl(0 0% 100% / 70%) inset,
+              0 18px 48px hsl(var(--shadow-color) / 22%);
 
   /* ============================================================
-     CONTAINER — 2 stops, golden-ratio derived.
-     --container-narrow is the base; --container-wide = narrow × φ.
-     No max-width: Npx anywhere outside this block.
+     CONTAINERS — golden-ratio derived stops.
      ============================================================ */
 
-  --container-narrow: 60rem;   /* ~960px */
-  --container-wide:   97rem;   /* narrow × 1.618 ≈ 97rem */
+  --w-narrow: 32rem;   /* 512px */
+  --w-wide:   80rem;   /* 1280px — φ ≈ 1.618 from --w-narrow */
+
+  --header-h: 4rem;
 
   /* ============================================================
-     MOTION — one easing curve, three durations.
+     MOTION — eases + durations. Reduced-motion media query lives
+     at the bottom of the file.
      ============================================================ */
 
-  --ease-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
-  --dur-fast:  120ms;
-  --dur-base:  200ms;
+  --ease-out:    cubic-bezier(.2, .8, .2, 1);
+  --ease-in:     cubic-bezier(.55, 0, .85, .32);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+
+  --dur-fast:   120ms;
+  --dur-base:   180ms;
+  --dur-slow:   260ms;
   --mesh-speed: 60s;
 
   /* ============================================================
-     Z-INDEX — single source of truth for stacking.
+     LAYERS — z-index ladder. Single source for stacking.
      ============================================================ */
 
   --z-mesh:    -2;
-  --z-base:    0;
-  --z-sticky:  20;
-  --z-raised:  40;
-  --z-overlay: 80;
-  --z-modal:   100;
+  --z-grain:   -1;
+  --z-base:     0;
+  --z-header:  20;
+  --z-modal:   40;
+  --z-toast:   60;
 }
 
-/* Reduced motion — kill animated mesh + transitions. */
+/* ============================================================
+   Reduced motion — kill animated mesh + transitions.
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --mesh-speed: 0s;
