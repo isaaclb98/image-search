@@ -41,75 +41,29 @@
 {% endif %}
 
 <form class="search-form" method="get" action="/">
-  <div class="search-controls search-primary">
-    <div class="search-intro search-bar">
-      <span class="search-intro-title">Build a search</span>
-      <span class="search-intro-hint" data-search-draft-status>Set your prompts and filters, then click Search.</span>
-    </div>
-    <button class="search-submit" type="submit">
+  {# Phase E — Model A. Single-row composer: search input + Search
+     button + Surprise. The hero bar with view-toggle/diversity/etc
+     is gone; those controls now live inside the Refine disclosure
+     below the composer. #}
+  <div class="search-composer">
+    <input
+      type="search"
+      name="q"
+      value="{{ q or '' }}"
+      placeholder="Search images…"
+      class="search-composer__input"
+      aria-label="Search query"
+      autocomplete="off"
+      data-search-input
+    >
+    <button class="search-submit btn btn-primary" type="submit">
       {{ ui.ui_icon('search', 'h-4 w-4') }}<span>Search</span>
     </button>
-  </div>
-  <div class="search-meta search-toolbar app-toolbar">
-    {# View toggle: grid (default) vs feed (phone-style single column).
-       Server-rendered with the current view selected so the first paint
-       already shows the right state — no flash on hydration. The JS
-       handles the click and re-renders in place. #}
     <button
       type="button"
-      class="glass-pill view-toggle-btn {% if view == 'grid' %}is-active{% endif %}"
-      data-view="grid"
-      aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
-      {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}
-    >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
-    <button
-      type="button"
-      class="glass-pill view-toggle-btn {% if view == 'feed' %}is-active{% endif %}"
-      data-view="feed"
-      aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
-      {% if random_picks %}disabled title="Type a query to use the view toggle"{% endif %}
-    >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
-    <label class="diversity-control" title="Balance relevance against visual repetition">
-      {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
-      <span class="sr-only">Diversity strength</span>
-      <select
-        class="diversity-select"
-        data-diversity-select
-        name="diversity"
-        aria-label="Diversity strength"
-      >
-        {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
-          <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label
-      class="diversity-control diversity-depth-control"
-      title="How many candidates to consider before applying Diversity; deeper searches may take longer"
-    >
-      <span class="diversity-depth-label">Depth</span>
-      <select
-        class="diversity-select"
-        data-diversity-depth-select
-        name="diversity_depth"
-        aria-label="Diversity search depth"
-        {% if (diversity_mode|default('off')) == 'off' %}disabled{% endif %}
-      >
-        {% for option in [('auto', 'Auto'), ('500', '500'), ('1000', '1,000'), ('2000', '2,000'), ('5000', '5,000')] %}
-          <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    {% if random_picks %}
-    <button
-      type="button"
-      class="surprise-btn"
+      class="surprise-btn btn"
       data-surprise
     >{{ ui.ui_icon('shuffle', 'h-4 w-4') }}<span>Surprise me</span></button>
-    {% endif %}
-    {% if q or positives or negatives or collections or filename %}
-      <a class="clear-link" href="/">clear</a>
-    {% endif %}
   </div>
 
 {# Prompt composition is hidden in centroid mode — text prompts would be
@@ -120,7 +74,55 @@
     <div class="prompt-composition-heading">
       <div>
         <span class="prompt-composition-title">Prompts</span>
-        <span class="prompt-composition-hint">Include what you want to find; optionally exclude what you do not.</span>
+        <span class="prompt-composition-hint" data-search-draft-status>Include what you want to find; optionally exclude what you do not.</span>
+      </div>
+      <div class="prompt-toolbar app-toolbar">
+        <button
+          type="button"
+          class="glass-pill view-toggle-btn {% if view == 'grid' %}is-active{% endif %}"
+          data-view="grid"
+          aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
+        >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
+        <button
+          type="button"
+          class="glass-pill view-toggle-btn {% if view == 'feed' %}is-active{% endif %}"
+          data-view="feed"
+          aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
+        >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
+        <label class="diversity-control" title="Balance relevance against visual repetition">
+          {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+          <span class="sr-only">Diversity strength</span>
+          <select
+            class="diversity-select"
+            data-diversity-select
+            name="diversity"
+            aria-label="Diversity strength"
+          >
+            {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+              <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label
+          class="diversity-control diversity-depth-control"
+          title="How many candidates to consider before applying Diversity; deeper searches may take longer"
+        >
+          {{ ui.ui_icon('layers', 'h-4 w-4') }}
+          <span class="sr-only">Diversity candidate depth</span>
+          <select
+            class="diversity-select"
+            data-diversity-depth-select
+            name="diversity_depth"
+            aria-label="Diversity candidate depth"
+          >
+            {% for option in [('auto', 'Depth auto'), ('500', '500 candidates'), ('1000', '1000 candidates'), ('2000', '2000 candidates'), ('5000', '5000 candidates')] %}
+              <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% if q or positives or negatives or collections or filename %}
+          <a class="clear-link" href="/">clear all</a>
+        {% endif %}
       </div>
       <div class="saved-search-bar" data-saved-bar>
         <label class="saved-search-bar-label" for="saved-search-select">Saved</label>

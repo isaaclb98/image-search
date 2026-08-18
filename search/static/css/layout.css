@@ -309,8 +309,97 @@
 }
 
 /* ============================================================
-   7. APP TOOLBAR — top controls row on search page.
+   7. SEARCH COMPOSER — single-row input + Search + Surprise
+      (Phase E — Model A). The 6-control hero bar that used to sit
+      above the prompts is gone. This row is the only thing above
+      the random-picks grid on the home page.
    ============================================================ */
+
+.search-composer {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface-glass) / 75%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  box-shadow: var(--shadow-2);
+}
+
+.search-composer__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: hsl(var(--fg));
+  font: inherit;
+  font-size: var(--text-base);
+  outline: none;
+}
+
+.search-composer__input::placeholder {
+  color: hsl(var(--fg-subtle));
+}
+
+.search-composer__input:focus-visible {
+  outline: 2px solid hsl(var(--accent-500));
+  outline-offset: 2px;
+}
+
+.search-composer .search-submit,
+.search-composer .surprise-btn {
+  flex: 0 0 auto;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0 var(--space-3);
+}
+
+.search-composer .search-submit {
+  background: hsl(var(--accent-500) / 80%);
+  border-color: hsl(var(--accent-500));
+  color: hsl(0 0% 100%);
+}
+
+.search-composer .search-submit:hover {
+  background: hsl(var(--accent-500));
+  border-color: hsl(var(--accent-500));
+  transform: translateY(-0.5px);
+}
+
+@media (max-width: 540px) {
+  .search-composer {
+    flex-wrap: wrap;
+    border-radius: var(--radius-lg);
+  }
+  .search-composer__input {
+    flex: 1 1 100%;
+    height: 2.25rem;
+  }
+  .search-composer .search-submit,
+  .search-composer .surprise-btn {
+    flex: 1 1 calc(50% - var(--space-2));
+  }
+}
+
+/* Prompt toolbar — the relocated view-toggle + diversity controls
+   that used to live in the hero bar. They sit inline with the
+   prompt-composition heading now, so the page above the fold stays
+   calm. */
+.prompt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+
 
 .app-toolbar {
   display: flex;
@@ -357,7 +446,7 @@
 }
 
 /* ============================================================
-   8. PROMPTS CARD — the central search builder.
+   8. APP TOOLBAR — controls row inside the prompt-composition panel.
    ============================================================ */
 
 .prompt-composition {
@@ -403,7 +492,7 @@
 }
 
 /* ============================================================
-   9. FILTERS — collapsible row.
+   9. PROMPTS CARD — the central search builder.
    ============================================================ */
 
 .search-advanced {
@@ -459,7 +548,7 @@
 }
 
 /* ============================================================
-   10. EMPTY STATE — used on every page when there's no data.
+  10. FILTERS — collapsible row. STATE — used on every page when there's no data.
    ============================================================ */
 
 .ui-empty-state {
@@ -510,7 +599,7 @@
 }
 
 /* ============================================================
-   11. PHOTO PAGE — hero + layout.
+  11. EMPTY STATE — used on every page when there's no data. — hero + layout.
    ============================================================ */
 
 .photo-page {
@@ -588,7 +677,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   12. PHOTO DETAIL PANEL — the right rail on /photo/{id}.
+  12. PHOTO PAGE — hero + layout. PANEL — the right rail on /photo/{id}.
    ============================================================ */
 
 .photo-detail-panel {
@@ -747,7 +836,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   13. PHOTO CARD SLOT — skeleton while images load.
+  13. PHOTO DETAIL PANEL — the right rail on /photo/{id}. SLOT — skeleton while images load.
    ============================================================ */
 
 .photo-card-slot {
@@ -758,7 +847,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   14. RESPONSIVE — breakpoints.
+  14. PHOTO CARD SLOT — skeleton while images load. — breakpoints.
    ============================================================ */
 
 @media (max-width: 760px) {
@@ -769,7 +858,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   15. VIEW TOGGLE + TOOLBAR BUTTONS — unified shape vocabulary.
+  15. RESPONSIVE — breakpoints. + TOOLBAR BUTTONS — unified shape vocabulary.
    ============================================================ */
 
 .view-toggle {
@@ -877,7 +966,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   16. INPUTS — every input field uses the same vocabulary.
+  16. VIEW TOGGLE + TOOLBAR BUTTONS — unified shape vocabulary. — every input field uses the same vocabulary.
    ============================================================ */
 
 .prompt-add input,
@@ -1059,7 +1148,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   17. FILTERS BODY — filename input, range sliders, etc.
+  17. INPUTS — every input field uses the same vocabulary. — filename input, range sliders, etc.
    ============================================================ */
 
 .filename-filter {
@@ -1078,7 +1167,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   18. SAVED CARD + ALBUM CARD — list pages.
+  18. FILTERS BODY — filename input, range sliders, etc. + ALBUM CARD — list pages.
    ============================================================ */
 
 .saved-card,
@@ -1119,7 +1208,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   20. DISCOVER PAGE — pair picker.
+  19. SAVED CARD + ALBUM CARD — list pages. PAGE — pair picker.
    ============================================================ */
 
 .discover-page {
@@ -1252,7 +1341,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   21. FOR-YOU PAGE — recommendations feed.
+   10. FOR-YOU PAGE — recommendations feed.
    ============================================================ */
 
 .for-you-header {
@@ -1331,7 +1420,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   22. CENTROIDS PAGE.
+   11. CENTROIDS PAGE.
    ============================================================ */
 
 .centroid-chip-list {
@@ -1384,7 +1473,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   23. SAVED SEARCH + ALBUM LIST ITEMS.
+   12. SAVED SEARCH + ALBUM LIST ITEMS.
    ============================================================ */
 
 .saved-search-card,
@@ -1441,7 +1530,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   24. ALBUM DETAIL.
+   13. ALBUM DETAIL.
    ============================================================ */
 
 .album-detail-page {
@@ -1482,7 +1571,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   25. CENTROID HEADER (on /centroids).
+   14. CENTROID HEADER (on /centroids).
    ============================================================ */
 
 .centroids-page {
@@ -1493,7 +1582,7 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 /* ============================================================
-   26. TYPE OVERRIDES — DaisyUI/Tailwind text-* classes flow
+   15. TYPE OVERRIDES — DaisyUI/Tailwind text-* classes flow
    through the token system. Components using .text-sm etc. now
    inherit our type scale, weights, line-heights automatically.
    ============================================================ */
@@ -1555,7 +1644,7 @@ body[data-route^="/photo/"] .app-body::before {
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ============================================================
-   27. FOCUS + INTERACTION POLISH — visible focus rings, smooth
+   16. FOCUS + INTERACTION POLISH — visible focus rings, smooth
    transitions, consistent hover affordance.
    ============================================================ */
 
@@ -1585,5 +1674,5 @@ a:hover {
 }
 
 /* ============================================================
-   28. LEGACY BRIDGE.
+   17. LEGACY BRIDGE.
    ============================================================ */

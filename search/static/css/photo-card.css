@@ -64,6 +64,54 @@
   background: hsl(var(--surface-glass) / 55%);
 }
 
+/* Focus state — visible keyboard target on the card itself
+   (the link inside the card has its own focus ring via the thumb). */
+.photo-card:focus-within {
+  outline: 2px solid hsl(var(--accent-500));
+  outline-offset: 3px;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+/* Caption row (Phase E) — appears at the bottom of the card on
+   hover/focus, showing dimensions. Hidden in default state so the
+   photo is the visual focus. */
+.photo-card-caption {
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out);
+}
+
+.photo-card:hover .photo-card-caption,
+.photo-card:focus-within .photo-card-caption {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.photo-card-caption__dim {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-normal);
+  color: hsl(0 0% 100% / 92%);
+  background: hsl(0 0% 0% / 55%);
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(0 0% 100% / 6%);
+  border-radius: var(--radius-sm);
+}
+
 .photo-card:hover::before {
   opacity: 1;
 }

@@ -89,6 +89,11 @@
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.7c0 5.3-8.8 10.1-8.8 10.1S3.2 14 3.2 8.7A4.7 4.7 0 0 1 12 6.2a4.7 4.7 0 0 1 8.8 2.5Z"></path></svg>
           </button>
         </div>
+        {% if r.width and r.height %}
+          <div class="photo-card-caption" aria-label="Photo dimensions">
+            <span class="photo-card-caption__dim">{{ r.width }} × {{ r.height }}</span>
+          </div>
+        {% endif %}
       </li>
     {% endfor %}
     {% if has_more %}

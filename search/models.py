@@ -25,6 +25,16 @@ class SearchResult(BaseModel):
             " or the point was indexed before the blurhash feature shipped."
         ),
     )
+    width: int | None = Field(
+        None,
+        description="Photo width in pixels, when known. None for older rows that"
+                    " were indexed before width/height were recorded.",
+    )
+    height: int | None = Field(
+        None,
+        description="Photo height in pixels, when known. None for older rows that"
+                    " were indexed before width/height were recorded.",
+    )
 
 
 class DiversityMetadata(BaseModel):

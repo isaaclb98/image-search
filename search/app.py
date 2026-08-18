@@ -1348,6 +1348,9 @@ def create_app(
                 # LQIP from the Qdrant payload (set at index time, T9).
                 # None when the point was indexed before blurhash landed.
                 blurhash=(h.payload or {}).get("blurhash"),
+                # Dimensions for the photo-card caption row (Phase E).
+                width=(h.payload or {}).get("width"),
+                height=(h.payload or {}).get("height"),
             )
             for h in hits
         ]
