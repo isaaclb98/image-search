@@ -885,36 +885,26 @@ form button.search-submit {
 }
 
 .prompt-add {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.prompt-add input {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: auto;
-}
-
-.prompt-add button {
-  display: inline-grid;
-  place-items: center;
+  /* The + button is a square pill in its own grid column (col 3).
+     Width/height come from the grid track (2.5rem). */
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--radius-pill);
+  justify-self: center;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill) !important;
   background: hsl(var(--surface));
   border: 1px solid hsl(var(--border-glass));
   color: hsl(var(--ink-bright));
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
+  line-height: 1;
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               color var(--dur-base) var(--ease-out);
 }
-.prompt-add button:hover {
+.prompt-add:hover {
   background: hsl(var(--surface-glass) / 90%);
   border-color: hsl(var(--border-strong));
 }
@@ -923,20 +913,19 @@ form button.search-submit {
    outline-style, accent border + accent text. Same vocabulary
    as .saved-search-save — no tinted accent fills, just clear
    outline → accent on hover. */
-.prompt-row--primary .prompt-add button {
+.prompt-row--primary .prompt-add {
   background: hsl(var(--surface));
   border-color: hsl(var(--accent-500));
   color: hsl(var(--accent-500));
 }
-.prompt-row--primary .prompt-add button:hover {
+.prompt-row--primary .prompt-add:hover {
   background: hsl(var(--accent-500));
   color: hsl(var(--fg-on-accent));
 }
 
 /* Disabled — explicitly faded so the minus button next to EXCLUDE
    reads as truly disabled, not just dark on light. */
-.prompt-add button:disabled,
-.prompt-row--primary .prompt-add button:disabled {
+.prompt-add:disabled {
   background: hsl(var(--surface) / 50%);
   border-color: hsl(var(--border-glass));
   color: hsl(var(--ink-off-white));
@@ -944,14 +933,57 @@ form button.search-submit {
   cursor: not-allowed;
 }
 
-/* Prompt row — fixed label | input area | hint, all aligned baseline.
-   Used by INCLUDE and EXCLUDE rows on the search composer. */
+/* The text input lives inside .prompt-chip-list, not in its own
+   wrapper. It flex-grows to fill the row so chips + input always
+   share the available 1fr space. */
+.prompt-input {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  min-height: 2.5rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  background: hsl(var(--surface-glass) / 70%);
+  color: hsl(var(--ink-bright));
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  outline: none;
+  transition: background var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+.prompt-input::placeholder {
+  color: hsl(var(--ink-off-white) / 70%);
+  font-style: italic;
+}
+.prompt-input:focus,
+.prompt-input:focus-visible {
+  border-color: hsl(var(--accent-500));
+  box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
+  background: hsl(var(--surface-glass) / 90%);
+}
+
+/* Prompt row — 4 columns: label | chip-list (chips + input) | +
+   button | hint. Everything aligns on the same baseline because
+   every column has align-items: center from the grid. */
 .prompt-row {
   display: grid;
-  grid-template-columns: 4.75rem minmax(0, 1fr) auto;
+  grid-template-columns: 4.75rem minmax(0, 1fr) 2.5rem auto;
   align-items: center;
-  column-gap: var(--space-3);
+  column-gap: var(--space-2);
   min-height: 2.5rem;
+}
+
+/* The chip-list contains chips AND the input. flex-wrap means
+   chips flow onto multiple lines when they overflow; the input
+   always fills the remaining row space. */
+.prompt-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 /* Form labels — all labels read as dark text, never as accent
@@ -1475,6 +1507,13 @@ a:hover {
    Holds the Search submit button + draft hint. Always visible at
    the bottom of the composer so users can commit their draft.
    ============================================================ */
+.site-main {
+  width: min(100% - var(--space-3) * 2, 80rem);
+  margin: 0 auto;
+  padding: var(--space-4) 0;
+  position: relative;
+}
+
 .search-submit-bar {
   display: flex;
   align-items: center;
@@ -1483,27 +1522,17 @@ a:hover {
   padding: var(--space-3) var(--space-2) 0;
   margin-top: var(--space-3);
   border-top: 1px solid hsl(var(--border-glass));
+  max-width: 56rem;
+  margin-inline: auto;
 }
 .search-submit-hint {
   font-size: var(--text-sm);
   color: hsl(var(--ink-off-white));
 }
-.search-submit {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--radius-pill);
-  background: hsl(var(--accent-500));
-  color: hsl(var(--fg-on-accent));
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out),
-              transform var(--dur-fast) var(--ease-out);
-}
-.search-submit:hover {
-  background: hsl(var(--accent-500));
-  transform: translateY(-1px);
-}
+
+/* The .search-submit rule lives above (line 790 area, just before
+   .search-form input rules). The .search-submit-bar only contains
+   this hint + the button. */
 .search-submit[disabled] {
   opacity: 0.7;
   cursor: progress;

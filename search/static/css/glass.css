@@ -37,6 +37,12 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
   color: hsl(var(--fg));
+  /* Container primitive — every panel sized to a comfortable
+     reading width, centered in the page. .glass--sharp gets the
+     larger hero ceiling; .glass gets the standard panel ceiling.
+     .glass-pill is a chip (not a container) so it ignores these. */
+  max-width: 56rem;
+  margin-inline: auto;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out),
@@ -83,6 +89,10 @@
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
   cursor: pointer;
+  /* Pills are chips, not containers — override the panel
+     max-width + centering set on .glass / .glass--sharp. */
+  max-width: none;
+  margin: 0;
   transition: background var(--dur-base) var(--ease-out),
               border-color var(--dur-base) var(--ease-out),
               transform var(--dur-fast) var(--ease-out);

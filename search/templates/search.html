@@ -110,11 +110,9 @@
           </button>
           <input type="hidden" name="positives" value="{{ prompt }}">
         {% endfor %}
+        <input class="prompt-input" type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
       </div>
-      <div class="prompt-add">
-        <input type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
-        <button type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
-      </div>
+      <button class="prompt-add" type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
       <span class="prompt-hint">required</span>
     </div>
     <div class="prompt-row prompt-row--negatives" data-prompt-row="negatives">
@@ -127,11 +125,9 @@
           </button>
           <input type="hidden" name="negatives" value="{{ prompt }}">
         {% endfor %}
+        <input class="prompt-input" type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, text, watermark" aria-label="Add Exclude prompt">
       </div>
-      <div class="prompt-add">
-        <input type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, text, watermark" aria-label="Add Exclude prompt">
-        <button type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
-      </div>
+      <button class="prompt-add" type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
       <span class="prompt-hint">optional</span>
     </div>
     <p class="prompt-error" role="alert" hidden></p>
