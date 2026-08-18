@@ -1468,6 +1468,68 @@ form button.search-submit {
    11. CENTROIDS PAGE.
    ============================================================ */
 
+/* Sticky multi-select bar that appears above the centroids page
+   when the user has picked at least one centroid card. Hidden by
+   default — the JS adds `.is-visible` to show it. This CSS used
+   to live in app.css which is no longer loaded, so the bar was
+   always visible (a regression we fix here). */
+.centroid-selection-bar {
+  display: none;
+  position: sticky;
+  top: var(--header-h);
+  z-index: 5;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  background: hsl(var(--surface-glass) / 75%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.centroid-selection-bar.is-visible {
+  display: flex;
+}
+.centroid-selection-count {
+  color: hsl(var(--ink-off-white));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.centroid-selection-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.centroid-selection-cta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--accent-500));
+  color: hsl(var(--fg-on-accent));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.centroid-selection-clear {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 1px solid hsl(var(--border-glass));
+  color: hsl(var(--ink-bright));
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
 .centroid-chip-list {
   display: flex;
   flex-wrap: wrap;
@@ -1512,8 +1574,109 @@ form button.search-submit {
 
 
 /* ============================================================
-   14. CENTROID HEADER (on /centroids).
+   14. CENTROID PAGE — cards, header, selection.
    ============================================================ */
+
+/* Centroid cards are full-width within .app-page, centered via
+   the centroid-card-header which is the only visible part when
+   the card is collapsed. When expanded, the card shows meta,
+   source path, and a search link. */
+.centroid-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: hsl(var(--surface-glass) / 85%);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+.centroid-card:hover {
+  border-color: hsl(var(--border-glass-strong));
+  box-shadow: var(--shadow-3);
+}
+/* The header in the template has glass--sharp which gives it its
+   own surface. But the card is the glass container — the header
+   is just a layout wrapper inside it. Override glass--sharp on
+   the header so it doesn't create a nested glass surface. */
+.centroid-card > .centroid-card-header.glass--sharp {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  max-width: none;
+  border-radius: 0;
+}
+.centroid-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+}
+.centroid-card-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--accent-500));
+  text-decoration: none;
+  word-break: break-word;
+}
+.centroid-card-name:hover { text-decoration: underline; }
+.centroid-card-dim {
+  font-size: var(--text-xs);
+  color: hsl(var(--ink-off-white));
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.centroid-card-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--text-sm);
+}
+.centroid-card-meta dt {
+  color: hsl(var(--ink-off-white));
+  text-transform: lowercase;
+}
+.centroid-card-meta dd { margin: 0; color: hsl(var(--fg)); }
+.centroid-card-meta-sub { color: hsl(var(--ink-off-white)); font-size: var(--text-xs); }
+.centroid-card-source {
+  background: hsl(var(--surface-glass) / 85%);
+  padding: 0.1em 0.4em;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  word-break: break-all;
+}
+.centroid-card-footer {
+  margin-top: auto;
+  padding-top: var(--space-2);
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+  border-top: 1px solid hsl(var(--border-glass));
+}
+.centroid-card-search-link {
+  color: hsl(var(--accent-500));
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+.centroid-card-search-link:hover { text-decoration: underline; }
+.centroid-list-empty {
+  color: hsl(var(--ink-off-white));
+  border: 1px dashed hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.centroid-list-empty code {
+  background: hsl(var(--surface-glass) / 85%);
+  padding: 0.1em 0.3em;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+}
 
 
 /* ============================================================
