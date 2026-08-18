@@ -1410,5 +1410,45 @@ a:hover {
 }
 
 /* ============================================================
+/* ============================================================
+   SEARCH SUBMIT BAR — the composer footer.
+   Holds the Search submit button + draft hint. Always visible at
+   the bottom of the composer so users can commit their draft.
+   ============================================================ */
+.search-submit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2) 0;
+  margin-top: var(--space-3);
+  border-top: 1px solid hsl(var(--border-glass));
+}
+.search-submit-hint {
+  font-size: var(--text-sm);
+  color: hsl(var(--fg-muted));
+}
+.search-submit {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--accent-500));
+  color: hsl(var(--surface-strong));
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.search-submit:hover {
+  background: hsl(var(--accent-400));
+  transform: translateY(-1px);
+}
+.search-submit[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
    17. LEGACY BRIDGE.
    ============================================================ */
