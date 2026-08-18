@@ -22,17 +22,15 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient mesh — three large radial blobs tinted by the brand accent.
-   One color, three opacities. Keeps the page from feeling flat without
-   introducing per-page color drift. Pinned behind everything (z: --z-mesh). */
+/* Ambient mesh — ONE radial blob, very low opacity. Single accent,
+   single layer — the air around every panel reads with a
+   barely-there tint instead of multiple competing opacities. */
 .app-body::before {
   content: "";
   position: fixed;
   inset: -20%;
   background:
-    radial-gradient(35% 35% at 20% 30%, hsl(var(--accent-500) / 22%), transparent 70%),
-    radial-gradient(40% 40% at 80% 70%, hsl(var(--accent-500) / 18%), transparent 70%),
-    radial-gradient(30% 30% at 50% 85%, hsl(var(--accent-500) / 14%), transparent 70%);
+    radial-gradient(40% 40% at 50% 50%, hsl(var(--accent-500) / 14%), transparent 70%);
   filter: blur(var(--blur-bg));
   -webkit-filter: blur(var(--blur-bg));
   pointer-events: none;
