@@ -725,6 +725,8 @@ body[data-route^="/photo/"] .app-body::before {
 
 .detail-section__heading {
   margin: 0;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid hsl(var(--border-glass));
 }
 
 .detail-section__empty {
@@ -1589,6 +1591,8 @@ form button.search-submit {
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-3);
+  max-width: var(--content-max);
+  margin: 0 auto;
   background: hsl(var(--surface-glass) / 85%);
   border: 1px solid hsl(var(--border-glass));
   border-radius: var(--radius-md);
@@ -1770,6 +1774,28 @@ a:hover {
   margin: 0 auto;
   padding: var(--space-3) 0;
   position: relative;
+}
+
+/* App footer — minimal, no chrome, just a whisper of branding. */
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--text-xs);
+  color: hsl(var(--ink-off-white));
+}
+.app-footer__link {
+  color: hsl(var(--ink-off-white));
+  text-decoration: none;
+}
+.app-footer__link:hover {
+  color: hsl(var(--fg));
+  text-decoration: underline;
+}
+.app-footer__sep {
+  opacity: 0.4;
 }
 
 .search-submit-bar {

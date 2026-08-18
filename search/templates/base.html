@@ -86,9 +86,15 @@
     </div>
   </header>
 
-  <main class="site-main">
+  <main class="site-main" role="main">
     {% block content %}{% endblock %}
   </main>
+
+  <footer class="app-footer">
+    <span class="app-footer__text">Image Search</span>
+    <span class="app-footer__sep">·</span>
+    <a class="app-footer__link" href="https://github.com/isaaclb98/image-search" target="_blank" rel="noopener">source</a>
+  </footer>
 
   <section id="photo-lightbox" class="photo-lightbox" data-photo-lightbox hidden role="dialog" aria-modal="true" aria-labelledby="photo-lightbox-title">
     <button type="button" class="photo-lightbox-backdrop" data-lightbox-close aria-label="Close photo viewer"></button>
