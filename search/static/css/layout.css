@@ -164,8 +164,10 @@
 }
 .nav-link.is-active,
 .nav-link[aria-pressed="true"] {
-  /* inherits the .glass-pill.is-active state from glass.css */
-  color: hsl(var(--fg));
+  /* Inherit the single primary treatment via .glass-pill.is-active
+     (set in glass.css): solid accent fill, white text. The selector
+     specificity matches the glass-pill rule; the LAST assignment
+     wins on cascade, so we just don't redeclare color / bg here. */
 }
 
 /* Narrow-viewport: the nav list scrolls horizontally. No drawer,
@@ -813,6 +815,17 @@ body[data-route^="/photo/"] .app-body::before {
 }
 .search-submit.is-dirty {
   box-shadow: 0 0 0 3px hsl(var(--accent-500) / 18%);
+}
+
+/* Legacy site.css re-skin sets 'background: linear-gradient(...)'
+   on .search-form button using the legacy --accent (#f06595 PINK).
+   Force the solid accent to win — no gradient, no pink. */
+.search-form button.search-submit,
+form button.search-submit {
+  background: hsl(var(--accent-500)) !important;
+  background-image: none !important;
+  color: hsl(var(--fg-on-accent)) !important;
+  border-color: hsl(var(--accent-500)) !important;
 }
 
 
