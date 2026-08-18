@@ -417,9 +417,10 @@
   gap: var(--space-2);
 }
 
-.prompt-toolbar > .search-submit {
-  margin-left: auto;
-}
+/* Search submit no longer pushed to far-right via margin-left: auto.
+   Doing so created a 148px gap between the Save button and the
+   Search button (everything to the right of saved-bar was empty).
+   Items now flow naturally with the toolbar's flex gap. */
 
 .prompt-composition-title {
   display: block;
@@ -979,14 +980,13 @@ form button.search-submit {
 
 /* The text input lives inside .prompt-chip-list, not in its own
    wrapper. It flex-grows to fill the row so chips + input always
-   share the available 1fr space, but caps at 28rem (~448px) so
-   the input doesn't span the whole composer on wide screens.
+   share the available space. min-width 12rem ensures the
+   placeholder doesn't get clipped.
 
    Pill-shaped — consistent with every other interactive element. */
 .prompt-input {
   flex: 1 1 12rem;
   min-width: 12rem;
-  max-width: 28rem;
   min-height: 2.5rem;
   padding: var(--space-1) var(--space-3);
   border: 1px solid hsl(var(--border-glass));
@@ -1012,14 +1012,17 @@ form button.search-submit {
   background: hsl(var(--surface-glass) / 90%);
 }
 
-/* Prompt row — 4 columns: label | chip-list (chips + input) | +
-   button | hint. Everything aligns on the same baseline because
-   every column has align-items: center from the grid. */
+/* Prompt row — flex layout (was a 4-column grid). The grid version
+   caused a 200+px gap between the input and the + button because
+   the input was max-width 28rem sitting inside a 640px 1fr column
+   — the empty space at the end of the column showed up as
+   visible whitespace between input and button. Flex lets the
+   input grow to fill the chip-list, the chip-list grow to fill
+   the row, and the gap collapses to a normal flex gap. */
 .prompt-row {
-  display: grid;
-  grid-template-columns: 4.75rem minmax(0, 1fr) 2.5rem auto;
+  display: flex;
   align-items: center;
-  column-gap: var(--space-2);
+  gap: var(--space-2);
   min-height: 2.5rem;
 }
 
@@ -1028,6 +1031,7 @@ form button.search-submit {
    always fills the remaining row space. */
 .prompt-chip-list {
   display: flex;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
