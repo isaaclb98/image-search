@@ -192,10 +192,6 @@
   background: hsl(var(--surface) / 85%);
   border-color: hsl(var(--border-strong));
 }
-.photo-card .fav-badge.is-on {
-  color: hsl(var(--err-500));
-  background: hsl(var(--surface) / 75%);
-}
 
 @media (prefers-reduced-motion: reduce) {
   .photo-card,

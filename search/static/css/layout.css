@@ -284,15 +284,6 @@
       Other components compose it.
    ============================================================ */
 
-.app-panel {
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
-  padding: var(--space-3);
-}
 
 /* ============================================================
    6. EYEBROW — small uppercase label. Used inside panels.
@@ -417,33 +408,6 @@
 
 /* Toolbar and prompts card share the same horizontal padding so their
    text columns align. */
-.search-intro {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2) 0;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.search-intro-title {
-  font-size: var(--text-base);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
-  line-height: var(--leading-tight);
-}
-
-.search-intro-hint {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-subtle));
-  line-height: var(--leading-snug);
-}
-
-.search-intro-hint.is-dirty {
-  color: hsl(var(--accent-500));
-}
 
 /* ============================================================
    8. APP TOOLBAR — controls row inside the prompt-composition panel.
@@ -780,17 +744,6 @@ body[data-route^="/photo/"] .app-body::before {
   min-width: 0;
 }
 
-.photo-detail-panel .meta .meta__path {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: hsl(var(--fg));
-  background: hsl(var(--surface-glass) / 55%);
-  border: 1px solid hsl(var(--border-glass));
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-  word-break: break-all;
-  line-height: var(--leading-snug);
-}
 
 .photo-detail-panel .album-pills__list {
   list-style: none;
@@ -877,7 +830,6 @@ body[data-route^="/photo/"] .app-body::before {
 
 .view-toggle-btn,
 .surprise-btn,
-.diverse-btn,
 .diversity-control,
 .search-submit {
   display: inline-flex;
@@ -902,7 +854,6 @@ body[data-route^="/photo/"] .app-body::before {
 
 .view-toggle-btn:hover,
 .surprise-btn:hover,
-.diverse-btn:hover,
 .diversity-control:hover {
   background: hsl(var(--surface) / 50%);
   border-color: hsl(var(--border-strong));
@@ -911,7 +862,6 @@ body[data-route^="/photo/"] .app-body::before {
 }
 
 .view-toggle-btn--active,
-.diverse-btn--active,
 .search-submit {
   background: hsl(var(--photo-dominant) / 30%);
   border-color: hsl(var(--photo-dominant) / 55%);
@@ -935,13 +885,6 @@ body[data-route^="/photo/"] .app-body::before {
   transform: translateY(-0.5px);
 }
 
-.diversity-depth-label {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: hsl(var(--fg-muted));
-}
 
 .diversity-select {
   min-height: 2.25rem;
@@ -1184,28 +1127,8 @@ body[data-route^="/photo/"] .app-body::before {
   gap: var(--space-3);
 }
 
-.saved-card__title,
-.album-card__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
-  line-height: var(--leading-tight);
-}
 
-.saved-card__meta,
-.album-card__meta {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  font-variant-numeric: tabular-nums;
-}
 
-.saved-card__body,
-.album-card__body {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-normal);
-}
 
 /* ============================================================
   19. SAVED CARD + ALBUM CARD — list pages. PAGE — pair picker.
@@ -1453,92 +1376,7 @@ body[data-route^="/photo/"] .app-body::before {
   text-decoration: underline;
 }
 
-.centroid-section-heading {
-  margin: var(--space-3) 0 var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  color: hsl(var(--fg-muted));
-}
 
-.centroid-section-sub {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-subtle));
-}
-
-.centroid-empty {
-  padding: 3rem var(--space-3);
-}
-
-/* ============================================================
-   12. SAVED SEARCH + ALBUM LIST ITEMS.
-   ============================================================ */
-
-.saved-search-card,
-.album-card-link,
-.saved-card-link {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  background: hsl(var(--surface-glass) / 65%);
-  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border: 1px solid hsl(var(--border-glass));
-  box-shadow: var(--shadow-2);
-  text-decoration: none;
-  color: inherit;
-  transition: transform var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out),
-              border-color var(--dur-fast) var(--ease-out);
-}
-.saved-search-card:hover,
-.album-card-link:hover,
-.saved-card-link:hover {
-  transform: translateY(-1px);
-  border-color: hsl(var(--border-strong));
-  box-shadow: var(--shadow-2);
-}
-
-.saved-search-card__title,
-.album-card-link__title,
-.saved-card-link__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: hsl(var(--fg));
-  line-height: var(--leading-tight);
-}
-
-.saved-search-card__meta,
-.album-card-link__meta,
-.saved-card-link__meta {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  font-variant-numeric: tabular-nums;
-}
-
-.saved-search-card__body,
-.album-card-link__body,
-.saved-card-link__body {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  line-height: var(--leading-normal);
-}
-
-/* ============================================================
-   13. ALBUM DETAIL.
-   ============================================================ */
-
-.album-detail-page {
-  width: min(100% - var(--space-3) * 2, 80rem);
-  margin: 0 auto;
-  padding: var(--space-3) 0;
-  position: relative;
-}
 
 .album-detail-header {
   display: flex;
@@ -1555,31 +1393,11 @@ body[data-route^="/photo/"] .app-body::before {
   box-shadow: var(--shadow-3);
 }
 
-.album-detail-title {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-  color: hsl(var(--fg));
-}
-
-.album-detail-meta {
-  font-size: var(--text-sm);
-  color: hsl(var(--fg-muted));
-  font-variant-numeric: tabular-nums;
-  margin-top: var(--space-1);
-}
 
 /* ============================================================
    14. CENTROID HEADER (on /centroids).
    ============================================================ */
 
-.centroids-page {
-  width: min(100% - var(--space-3) * 2, 80rem);
-  margin: 0 auto;
-  padding: var(--space-3) 0;
-  position: relative;
-}
 
 /* ============================================================
    15. TYPE OVERRIDES — DaisyUI/Tailwind text-* classes flow
@@ -1622,14 +1440,9 @@ body[data-route^="/photo/"] .app-body::before {
 .font-bold { font-weight: var(--weight-bold); }
 .font-semibold { font-weight: var(--weight-semibold); }
 .font-medium { font-weight: var(--weight-medium); }
-.font-normal,
-.font-regular { font-weight: var(--weight-regular); }
 
 /* Letter-spacing / tracking. */
 .tracking-tight { letter-spacing: var(--tracking-tight); }
-.tracking-normal { letter-spacing: var(--tracking-normal); }
-.tracking-wide { letter-spacing: var(--tracking-wide); }
-.tracking-eyebrow { letter-spacing: var(--tracking-eyebrow); }
 
 /* Colors — opacity-modulated ink. */
 .text-base-content { color: hsl(var(--fg)); }
