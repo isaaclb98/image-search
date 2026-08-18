@@ -21,7 +21,7 @@
 const feed = document.querySelector("[data-feed-root]");
 const emptyState = document.querySelector("[data-empty-state]");
 const freshChip = document.querySelector("[data-freshness-chip]");
-const freshText = document.querySelector("[data-fresh-text]");
+let freshText = document.querySelector("[data-fresh-text]");
 const freshestAt = document.querySelector(".for-you-page")?.dataset.freshest || "";
 const resetBtn = document.querySelector("[data-reset-feedback]");
 

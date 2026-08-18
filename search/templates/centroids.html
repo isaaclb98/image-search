@@ -158,8 +158,15 @@
     {{ ui.empty_state(
         icon='sparkles',
         title='No centroids to show',
-        body='Set CENTROIDS_DIR to a directory of .pt files produced by isaac-image-scoring, then restart the container. If the directory is set but empty, run `isaac-image-scoring extract` to generate a centroid and click reload above.',
+        body='Set CENTROIDS_DIR to a directory of <code>.pt</code> files, then restart the container. If the directory is set but empty, generate a centroid and click reload above.',
     ) }}
+    <details class="centroids-advanced">
+      <summary>Show setup commands</summary>
+      <pre><code>export CENTROIDS_DIR=/path/to/centroids
+# Then, from the host, with isaac-image-scoring installed:
+isaac-image-scoring extract
+# After files appear on disk, come back and click reload.</code></pre>
+    </details>
   {% endif %}
 </section>
 {% endblock %}

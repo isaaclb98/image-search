@@ -37,7 +37,7 @@
                 {% for p in s.negatives %}<span class="badge badge-soft badge-error badge-sm line-through">{{ p }}</span>{% endfor %}
               {% endif %}
             </div>
-            <div class="text-xs text-base-content/60 mt-2 tabular-nums">saved {{ s.created_at }}</div>
+            <div class="text-xs text-base-content/60 mt-2 tabular-nums">saved {{ s.created_at[:10] }}</div>
           </div>
         </li>
       {% endfor %}
