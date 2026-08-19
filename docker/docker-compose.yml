@@ -1,12 +1,10 @@
-# Local dev: search container + Qdrant.
+# Local dev: search container + Qdrant + frontend.
 # Run:    docker compose -f docker/docker-compose.yml up
-# Then:  open http://localhost:8000
+# Then:  open http://localhost:5173 (frontend) or :8000 (raw API)
 #
 # Note: the indexer is NOT in this compose. Run it on the host (or
 # another compose service in v1.1) where the NAS is mounted and
 # the GPU lives.
-
-version: "3.9"
 
 services:
   qdrant:
@@ -37,14 +35,38 @@ services:
       QDRANT_COLLECTION: images
       # QDRANT_API_KEY: replace-with-your-key  # Required if your Qdrant has auth enabled
       NAS_IMAGES_BASE: /nas
-      WEB_UI_URL: http://localhost:8000
+      WEB_UI_URL: http://localhost:5173
       LOG_LEVEL: INFO
+    # Search API is reachable from the frontend container on the
+    # `search` hostname (compose service name). The frontend proxies
+    # /api + /photo + /albums/download.zip + /favorites/download.zip
+    # to it. Port 8000 is also exposed for direct access / debugging.
     ports:
       - "8000:8000"
     volumes:
       # Mount your NAS / image folder read-only at /nas.
       # On Windows, this could be a Z:\ drive or a bind mount.
       - ${NAS_IMAGES_PATH:-./_fixtures}:/nas:ro
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: image-search-frontend
+    restart: unless-stopped
+    depends_on:
+      search:
+        condition: service_started
+    environment:
+      # Tell SvelteKit where the API lives. In the compose network,
+      # the search service is reachable as `search:8000`.
+      PUBLIC_API_URL: http://search:8000
+      # Vite/SvelteKit dev server reads ORIGIN / HOST headers.
+      ORIGIN: http://localhost:5173
+      HOST: 0.0.0.0
+      PORT: "5173"
+    ports:
+      - "5173:5173"
 
 volumes:
   qdrant_data:

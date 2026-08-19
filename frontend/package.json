@@ -1,0 +1,39 @@
+{
+  "name": "image-search-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "gen:openapi": "node scripts/gen-openapi.mjs",
+    "gen:types": "node scripts/gen-types.mjs",
+    "gen:zod": "node scripts/gen-zod.mjs",
+    "gen": "npm run gen:openapi && npm run gen:types && npm run gen:zod",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@sveltejs/adapter-node": "^5.5.7",
+    "@sveltejs/kit": "^2.70.3",
+    "@sveltejs/vite-plugin-svelte": "^4.0.4",
+    "@testing-library/svelte": "^5.4.2",
+    "@types/node": "^22.20.1",
+    "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.13.0",
+    "svelte": "^5.56.9",
+    "svelte-check": "^4.7.6",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
+  },
+  "dependencies": {
+    "blurhash": "^2.0.5",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,2264 @@
+{
+  "components": {
+    "schemas": {
+      "AlbumCreateRequest": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AlbumCreateRequest",
+        "type": "object"
+      },
+      "AlbumDetailResponse": {
+        "description": "Full album row + paginated members (UI rendering shape).\n\nMembers are photo metadata joined from the `images` cache, so\norphan memberships (favourites whose photo is gone) are hidden.\nThe album centroid compute still sees them via\n`list_album_member_ids`.",
+        "properties": {
+          "cover_favorite_id": {
+            "title": "Cover Favorite Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_total": {
+            "title": "Member Total",
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumMemberItem"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "cover_favorite_id",
+          "created_at",
+          "updated_at",
+          "members",
+          "member_total"
+        ],
+        "title": "AlbumDetailResponse",
+        "type": "object"
+      },
+      "AlbumMemberItem": {
+        "properties": {
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "added_at"
+        ],
+        "title": "AlbumMemberItem",
+        "type": "object"
+      },
+      "AlbumMemberResponse": {
+        "properties": {
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "album_id": {
+            "title": "Album Id",
+            "type": "integer"
+          },
+          "favorite_id": {
+            "title": "Favorite Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "album_id",
+          "favorite_id",
+          "added_at"
+        ],
+        "title": "AlbumMemberResponse",
+        "type": "object"
+      },
+      "AlbumMembershipsResponse": {
+        "description": "List of albums containing a given favourite, used by the\nper-photo UI to show which albums a photo is in.",
+        "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumSummary"
+            },
+            "title": "Albums",
+            "type": "array"
+          },
+          "favorite_id": {
+            "title": "Favorite Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "favorite_id",
+          "albums"
+        ],
+        "title": "AlbumMembershipsResponse",
+        "type": "object"
+      },
+      "AlbumSummary": {
+        "description": "Lightweight album row for list views.\n\n`member_count` is the count from `album_memberships`, which\nincludes orphan memberships (favourites whose photo is no\nlonger in the cache). For a UI count that hides orphans, use\nthe detail endpoint.\n\n`first_member_id` is the chronologically first photo added to\nthe album (ORDER BY album_memberships.added_at ASC LIMIT 1).\nDrives the /albums index card thumbnail \u2014 prefer it over\n`cover_favorite_id` for display. Empty string when the album\nhas no members yet.",
+        "properties": {
+          "cover_favorite_id": {
+            "title": "Cover Favorite Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "first_member_id": {
+            "default": "",
+            "title": "First Member Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "cover_favorite_id",
+          "member_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AlbumSummary",
+        "type": "object"
+      },
+      "AlbumUpdateRequest": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "AlbumUpdateRequest",
+        "type": "object"
+      },
+      "AlbumsListResponse": {
+        "properties": {
+          "albums": {
+            "items": {
+              "$ref": "#/components/schemas/AlbumSummary"
+            },
+            "title": "Albums",
+            "type": "array"
+          }
+        },
+        "required": [
+          "albums"
+        ],
+        "title": "AlbumsListResponse",
+        "type": "object"
+      },
+      "DiscoveryImage": {
+        "description": "One image in a discovery feed pair or in the liked gallery.",
+        "properties": {
+          "blurhash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional client-decoded low-quality image placeholder.",
+            "title": "Blurhash"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_favorite": {
+            "default": false,
+            "description": "True when the image is in favourites.",
+            "title": "Is Favorite",
+            "type": "boolean"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "picked_round": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picked Round"
+          },
+          "url": {
+            "default": "",
+            "description": "Public URL for /photo/{id}/raw",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "path"
+        ],
+        "title": "DiscoveryImage",
+        "type": "object"
+      },
+      "DiscoveryPair": {
+        "description": "A two-image pair shown to the user. The user picks one.",
+        "properties": {
+          "left": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscoveryImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "right": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscoveryImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "round": {
+            "description": "1-based round number for this pair",
+            "title": "Round",
+            "type": "integer"
+          },
+          "source": {
+            "default": "",
+            "description": "Where the pair came from: 'random' (seed phase) or 'recommend'.",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "round"
+        ],
+        "title": "DiscoveryPair",
+        "type": "object"
+      },
+      "DiscoveryPickResponse": {
+        "properties": {
+          "liked_count": {
+            "description": "Total picks in this session so far.",
+            "title": "Liked Count",
+            "type": "integer"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscoveryPair"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next pair. None if the session is gone (treat as 'start over')."
+          },
+          "round": {
+            "description": "Round number the user just completed (1-based).",
+            "title": "Round",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "round",
+          "liked_count"
+        ],
+        "title": "DiscoveryPickResponse",
+        "type": "object"
+      },
+      "DiscoveryStartResponse": {
+        "properties": {
+          "pair": {
+            "$ref": "#/components/schemas/DiscoveryPair"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "pair"
+        ],
+        "title": "DiscoveryStartResponse",
+        "type": "object"
+      },
+      "DiversityMetadata": {
+        "description": "What the search-side Diversity ranker actually did.",
+        "properties": {
+          "applied": {
+            "default": false,
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "candidate_count": {
+            "default": 0,
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "depth": {
+            "default": "auto",
+            "description": "Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
+            "title": "Depth",
+            "type": "string"
+          },
+          "duplicate_images_collapsed": {
+            "default": 0,
+            "title": "Duplicate Images Collapsed",
+            "type": "integer"
+          },
+          "mode": {
+            "default": "off",
+            "title": "Mode",
+            "type": "string"
+          },
+          "pool_depth": {
+            "default": 0,
+            "description": "Number of candidates actually retrieved for the ranking pass.",
+            "title": "Pool Depth",
+            "type": "integer"
+          },
+          "requested": {
+            "default": false,
+            "title": "Requested",
+            "type": "boolean"
+          },
+          "result_count": {
+            "default": 0,
+            "title": "Result Count",
+            "type": "integer"
+          },
+          "semantic_groups_covered": {
+            "default": 0,
+            "title": "Semantic Groups Covered",
+            "type": "integer"
+          },
+          "strength": {
+            "default": 0.0,
+            "title": "Strength",
+            "type": "number"
+          }
+        },
+        "title": "DiversityMetadata",
+        "type": "object"
+      },
+      "FavoriteToggleResponse": {
+        "properties": {
+          "favorited_at": {
+            "title": "Favorited At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "favorited_at"
+        ],
+        "title": "FavoriteToggleResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "SavedSearch": {
+        "description": "One saved-search row, as returned by every saved-search\nendpoint. `positives` / `negatives` are always Python lists of\nstrings on the wire \u2014 the IndexDB serialises JSON on disk and\ndeserialises on read so callers don't need to think about the\non-disk shape.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "negatives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Negatives",
+            "type": "array"
+          },
+          "positives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Positives",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "positives",
+          "negatives",
+          "created_at"
+        ],
+        "title": "SavedSearch",
+        "type": "object"
+      },
+      "SavedSearchCreateRequest": {
+        "description": "Body for POST /api/saved-searches.\n\n`positives` / `negatives` are lists of free-text prompts. Both\nmay be empty, but at least one prompt total must be present\n(the route enforces this with a 400 if neither list has a\nnon-empty entry). Name is trimmed and length-checked in the\nroute (1\u201380 chars after strip).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "negatives": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Negatives",
+            "type": "array"
+          },
+          "positives": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Positives",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SavedSearchCreateRequest",
+        "type": "object"
+      },
+      "SavedSearchListResponse": {
+        "description": "Paginated list response for GET /api/saved-searches.\n\nNewest-first ordering matches the dropdown UX (most recently\nsaved at the top of the list). `total` is the unpaginated row\ncount so the UI can show a \"showing N of M\" hint if it ever\nwants to.",
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "saved_searches": {
+            "items": {
+              "$ref": "#/components/schemas/SavedSearch"
+            },
+            "title": "Saved Searches",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "saved_searches",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "SavedSearchListResponse",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "properties": {
+          "centroid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First active centroid name, when any centroids are in play. Kept for backward compat with single-centroid clients; the full list lives in `centroids`. Mutually exclusive with q/positives/negatives.",
+            "title": "Centroid"
+          },
+          "centroids": {
+            "description": "Active centroid names in blend order. Empty when no centroid search is in play. One or more names blends via weighted mean.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Centroids",
+            "type": "array"
+          },
+          "diverse": {
+            "default": false,
+            "description": "Backwards-compatible flag; true when search Diversity was applied.",
+            "title": "Diverse",
+            "type": "boolean"
+          },
+          "diversity": {
+            "$ref": "#/components/schemas/DiversityMetadata",
+            "description": "Diagnostics for the search-only Diversity ranking pass."
+          },
+          "has_more": {
+            "default": false,
+            "description": "True when more results likely exist on a subsequent page",
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Max results requested for this page",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "negatives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Negatives",
+            "type": "array"
+          },
+          "offset": {
+            "default": 0,
+            "description": "Offset of this page in the full result set",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "positives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Positives",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "surprise": {
+            "default": false,
+            "description": "True when results were randomly sampled from a deep pool (Surprise Me mode).",
+            "title": "Surprise",
+            "type": "boolean"
+          },
+          "took_ms": {
+            "title": "Took Ms",
+            "type": "integer"
+          },
+          "view": {
+            "default": "grid",
+            "description": "Result view requested: 'grid' (default) or 'feed' (single-column, full-width).",
+            "title": "View",
+            "type": "string"
+          },
+          "weights": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per-centroid weights, same order as `centroids`. None means all weights equal 1.0 (the default).",
+            "title": "Weights"
+          }
+        },
+        "required": [
+          "query",
+          "results",
+          "took_ms",
+          "limit"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SearchResult": {
+        "properties": {
+          "blurhash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LQIP (low-quality image placeholder). Decoded client-side into a tinted background while the real image loads. None when the encoder failed or the point was indexed before the blurhash feature shipped.",
+            "title": "Blurhash"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Photo height in pixels, when known. None for older rows that were indexed before width/height were recorded.",
+            "title": "Height"
+          },
+          "id": {
+            "description": "Qdrant point id (32-char hex prefix)",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_favorite": {
+            "default": false,
+            "description": "True when the image is marked as a favourite",
+            "title": "Is Favorite",
+            "type": "boolean"
+          },
+          "path": {
+            "description": "Absolute source path on the NAS",
+            "title": "Path",
+            "type": "string"
+          },
+          "score": {
+            "description": "Cosine similarity in [-1, 1]",
+            "title": "Score",
+            "type": "number"
+          },
+          "score_str": {
+            "default": "",
+            "description": "Score formatted to 3 decimals, e.g. '0.873'. Computed server-side so SSR + JS render identically.",
+            "title": "Score Str",
+            "type": "string"
+          },
+          "url": {
+            "default": "",
+            "description": "Public URL for the /photo/{id}/raw endpoint",
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Photo width in pixels, when known. None for older rows that were indexed before width/height were recorded.",
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "score"
+        ],
+        "title": "SearchResult",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "image-search",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/albums/{album_id}/download.zip": {
+      "get": {
+        "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Album Download Zip"
+      },
+      "head": {
+        "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Album Download Zip"
+      }
+    },
+    "/api/albums": {
+      "get": {
+        "operationId": "list_albums_api_albums_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumsListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Albums"
+      },
+      "post": {
+        "operationId": "create_album_api_albums_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlbumCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Album"
+      }
+    },
+    "/api/albums/by-favorite/{favorite_id}": {
+      "get": {
+        "description": "Return every album that contains `favorite_id`.\n\nUsed by the per-photo UI to show which albums a photo is\nin. The summary shape omits member_count (always 1 for\nthis view) so we re-use AlbumSummary with count=1.",
+        "operationId": "list_albums_for_favorite_api_albums_by_favorite__favorite_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "favorite_id",
+            "required": true,
+            "schema": {
+              "title": "Favorite Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMembershipsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Albums For Favorite"
+      }
+    },
+    "/api/albums/{album_id}": {
+      "delete": {
+        "operationId": "delete_album_api_albums__album_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Album"
+      },
+      "get": {
+        "operationId": "get_album_api_albums__album_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "max members to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max members to return",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into members",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into members",
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Album"
+      },
+      "patch": {
+        "operationId": "update_album_api_albums__album_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlbumUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Album"
+      }
+    },
+    "/api/albums/{album_id}/members/{favorite_id}": {
+      "delete": {
+        "operationId": "remove_album_member_api_albums__album_id__members__favorite_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "favorite_id",
+            "required": true,
+            "schema": {
+              "title": "Favorite Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Album Member"
+      },
+      "post": {
+        "operationId": "add_album_member_api_albums__album_id__members__favorite_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "favorite_id",
+            "required": true,
+            "schema": {
+              "title": "Favorite Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlbumMemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Album Member"
+      }
+    },
+    "/api/cache/refresh": {
+      "get": {
+        "operationId": "api_cache_refresh_api_cache_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Cache Refresh"
+      },
+      "post": {
+        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Cache Refresh"
+      }
+    },
+    "/api/cache/status": {
+      "get": {
+        "description": "Operator visibility into the dual-store sync.\n\nReturns last refresh timestamp + duration, point counts in\nboth stores, drift between them, the liveness cache size +\ncap, and the configured refresh interval / TTL. Drift is\n\"unknown\" when Qdrant is unreachable (qdrant_count == -1)\nso operators don't see a misleading negative number.",
+        "operationId": "cache_status_api_cache_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cache Status Api Cache Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cache Status"
+      }
+    },
+    "/api/centroids": {
+      "get": {
+        "description": "List all centroids currently loaded from CENTROIDS_DIR.\nEach entry includes model/dim metadata so the UI can show\n\"expected vs loaded\" mismatches if a future debug view needs it.\n\nDynamic centroids (runtime-computed, currently just\n`favourites`) are returned alongside the static ones in a\nseparate `dynamic_centroids` list so the UI can render them\nin their own section.",
+        "operationId": "list_centroids_api_centroids_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Centroids Api Centroids Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Centroids"
+      }
+    },
+    "/api/centroids/reload": {
+      "post": {
+        "description": "Rescan CENTROIDS_DIR and rebuild the in-memory store.\n\nManual on purpose \u2014 the search side has no filesystem watcher.\nThe response includes the new count and the directory that\nwas scanned, so the caller can confirm what was reloaded.",
+        "operationId": "reload_centroids_api_centroids_reload_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reload Centroids Api Centroids Reload Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reload Centroids"
+      }
+    },
+    "/api/centroids/{name}/search": {
+      "get": {
+        "description": "Search using a loaded centroid as the query vector. Mutually\nexclusive with text prompts (the URL shape carries no prompt\nparams, so the only failure mode is an unknown centroid name).",
+        "operationId": "search_by_centroid_api_centroids__name__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max results",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into the full result set",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into the full result set",
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search By Centroid"
+      }
+    },
+    "/api/collections": {
+      "get": {
+        "description": "Return a list of distinct library (`collection` payload field)\nvalues with point counts. Drives the chip-style filter UI on\nthe frontend; one call per page load.",
+        "operationId": "list_collections_api_collections_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Collections"
+      }
+    },
+    "/api/discover/pick": {
+      "post": {
+        "description": "Record a pick and return the next pair.\n\nReturns pair=None if the session is gone (expired TTL,\nserver restart, fake id). The frontend treats that as\n\"session ended, start over\" and redirects to /discover.",
+        "operationId": "discover_pick_api_discover_pick_post",
+        "parameters": [
+          {
+            "description": "discovery session id",
+            "in": "query",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "description": "discovery session id",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the image id the user picked",
+            "in": "query",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "description": "the image id the user picked",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryPickResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Pick"
+      }
+    },
+    "/api/discover/start": {
+      "post": {
+        "description": "Create a new discovery session and return the first pair.",
+        "operationId": "discover_start_api_discover_start_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Discover Start"
+      }
+    },
+    "/api/dislikes": {
+      "get": {
+        "operationId": "list_dislikes_api_dislikes_get",
+        "parameters": [
+          {
+            "description": "max dislikes",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max dislikes",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into dislikes",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into dislikes",
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "return SearchResponse-compatible shape",
+            "in": "query",
+            "name": "as_results",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "return SearchResponse-compatible shape",
+              "title": "As Results",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Dislikes"
+      }
+    },
+    "/api/dislikes/{point_id}": {
+      "delete": {
+        "operationId": "unmark_dislike_api_dislikes__point_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unmark Dislike"
+      },
+      "post": {
+        "operationId": "mark_dislike_api_dislikes__point_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "manual",
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Dislike"
+      }
+    },
+    "/api/favorites": {
+      "get": {
+        "operationId": "api_favorites_api_favorites_get",
+        "parameters": [
+          {
+            "description": "max favourites",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max favourites",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into favourites",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into favourites",
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "return SearchResponse-compatible shape",
+            "in": "query",
+            "name": "as_results",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "return SearchResponse-compatible shape",
+              "title": "As Results",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Favorites"
+      }
+    },
+    "/api/favorites/{point_id}": {
+      "delete": {
+        "operationId": "unmark_favorite_api_favorites__point_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unmark Favorite"
+      },
+      "post": {
+        "operationId": "mark_favorite_api_favorites__point_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteToggleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Favorite"
+      }
+    },
+    "/api/for-you/feed": {
+      "get": {
+        "description": "Heavy path: rebuild signal + Qdrant recommend + diversity.",
+        "operationId": "for_you_feed_api_for_you_feed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "diversity",
+            "required": false,
+            "schema": {
+              "default": "balanced",
+              "title": "Diversity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "diversity_depth",
+            "required": false,
+            "schema": {
+              "default": "auto",
+              "title": "Diversity Depth",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response For You Feed Api For You Feed Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "For You Feed"
+      }
+    },
+    "/api/for-you/reset": {
+      "post": {
+        "operationId": "for_you_reset_api_for_you_reset_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "For You Reset"
+      }
+    },
+    "/api/for-you/state": {
+      "get": {
+        "description": "Cheap signal snapshot for the header chip and empty-state.",
+        "operationId": "for_you_state_api_for_you_state_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response For You State Api For You State Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "For You State"
+      }
+    },
+    "/api/random": {
+      "get": {
+        "operationId": "api_random_api_random_get",
+        "parameters": [
+          {
+            "description": "max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max results",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "restrict to one or more collections; empty = whole set",
+            "in": "query",
+            "name": "collections",
+            "required": false,
+            "schema": {
+              "default": [],
+              "description": "restrict to one or more collections; empty = whole set",
+              "items": {
+                "type": "string"
+              },
+              "title": "Collections",
+              "type": "array"
+            }
+          },
+          {
+            "description": "result view: 'grid' or 'feed'",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "grid",
+              "description": "result view: 'grid' or 'feed'",
+              "title": "View",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Random"
+      }
+    },
+    "/api/saved-searches": {
+      "get": {
+        "operationId": "list_saved_searches_api_saved_searches_get",
+        "parameters": [
+          {
+            "description": "max saved searches",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "description": "max saved searches",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into saved searches",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into saved searches",
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearchListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Searches"
+      },
+      "post": {
+        "operationId": "create_saved_search_api_saved_searches_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedSearchCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saved Search"
+      }
+    },
+    "/api/saved-searches/{saved_id}": {
+      "delete": {
+        "operationId": "delete_saved_search_api_saved_searches__saved_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_id",
+            "required": true,
+            "schema": {
+              "title": "Saved Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saved Search"
+      },
+      "get": {
+        "operationId": "get_saved_search_api_saved_searches__saved_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_id",
+            "required": true,
+            "schema": {
+              "title": "Saved Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Saved Search"
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "api_search_api_search_get",
+        "parameters": [
+          {
+            "description": "text query",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "text query",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "max results",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max results",
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into the full result set",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into the full result set",
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "result view: 'grid' or 'feed'",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "grid",
+              "description": "result view: 'grid' or 'feed'",
+              "title": "View",
+              "type": "string"
+            }
+          },
+          {
+            "description": "restrict results to favourites",
+            "in": "query",
+            "name": "favorites",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "restrict results to favourites",
+              "title": "Favorites",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "apply MMR diversity re-ranking",
+            "in": "query",
+            "name": "diverse",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "apply MMR diversity re-ranking",
+              "title": "Diverse",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Diversity strength: off, low, balanced, or high",
+            "in": "query",
+            "name": "diversity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Diversity strength: off, low, balanced, or high",
+              "title": "Diversity"
+            }
+          },
+          {
+            "description": "Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+            "in": "query",
+            "name": "diversity_depth",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+              "title": "Diversity Depth"
+            }
+          },
+          {
+            "description": "Surprise Me \u2014 random sample from deep pool",
+            "in": "query",
+            "name": "surprise",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Surprise Me \u2014 random sample from deep pool",
+              "title": "Surprise",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Search"
+      }
+    },
+    "/favorites/download.zip": {
+      "get": {
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Favorites Download Zip"
+      },
+      "head": {
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Favorites Download Zip"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    },
+    "/photo/{point_id}/raw": {
+      "get": {
+        "operationId": "photo_raw_photo__point_id__raw_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Photo Raw"
+      }
+    }
+  }
+}

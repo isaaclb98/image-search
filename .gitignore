@@ -67,3 +67,6 @@ photos/
 # Design-system build artifacts (Tailwind standalone CLI + compiled CSS)
 bin/
 frontend/node_modules/
+frontend/test-results/
+frontend/build/
+frontend/.svelte-kit/

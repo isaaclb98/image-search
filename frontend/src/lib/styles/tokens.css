@@ -1,0 +1,85 @@
+/**
+ * design tokens — the single source of truth for color, spacing,
+ * type, radius, glass blur. Pages and components import these via
+ * CSS variables on :root. NEVER hardcode colour/spacing values
+ * in component CSS — add a token here instead and reference it.
+ *
+ * Aesthetic: Wii-menu glass. Tinted transparencies on dark base.
+ * Photos bleed muted colour into surrounding glass.
+ */
+
+:root {
+  /* surfaces */
+  --bg-0: #0e0f14;          /* page background, deepest */
+  --bg-1: #161821;          /* panel background, non-glass */
+  --glass-1: rgba(255,255,255,0.06);  /* default panel */
+  --glass-2: rgba(255,255,255,0.10);  /* raised panel / hovered */
+  --glass-edge: rgba(255,255,255,0.14);  /* hairline border */
+  --glass-edge-strong: rgba(255,255,255,0.22);
+
+  /* text */
+  --fg-1: #f3f4f7;          /* primary */
+  --fg-2: #b9bcc7;          /* secondary */
+  --fg-3: #7e8290;          /* tertiary / placeholder */
+  --fg-on-accent: #0e0f14;
+
+  /* accent — single hue, used sparingly */
+  --accent: #6cc6ff;        /* primary blue */
+  --accent-2: #5fb5ff;      /* hover */
+  --accent-soft: rgba(108,198,255,0.18);
+
+  /* semantic */
+  --negative: #ff7a8a;      /* negative prompts / dislikes */
+  --negative-soft: rgba(255,122,138,0.22);
+  --success: #6ad4a8;
+  --danger: #ff5d6c;
+  --warn: #ffc266;
+
+  /* radii */
+  --r-1: 6px;
+  --r-2: 12px;
+  --r-3: 18px;
+  --r-4: 24px;
+  --r-pill: 999px;
+
+  /* spacing — 4px grid */
+  --s-0: 4px;
+  --s-1: 8px;
+  --s-2: 12px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 32px;
+  --s-6: 48px;
+
+  /* type — one font stack. NO font-weight switches. */
+  --font-stack: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+                'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-2xl: 28px;
+  --fs-3xl: 36px;
+  --lh-tight: 1.15;
+  --lh-body: 1.45;
+
+  /* glass */
+  --glass-blur: 18px;
+  --glass-blur-strong: 28px;
+  --glass-saturate: 160%;
+
+  /* shadows */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.18);
+  --shadow-2: 0 4px 12px rgba(0,0,0,0.40), 0 12px 32px rgba(0,0,0,0.28);
+  --shadow-3: 0 12px 28px rgba(0,0,0,0.55), 0 32px 80px rgba(0,0,0,0.40);
+
+  /* layout */
+  --topbar-h: 56px;
+  --grid-gutter: 14px;
+
+  /* motion */
+  --ease-out: cubic-bezier(0.16, 0.84, 0.32, 1);
+  --t-fast: 120ms;
+  --t-med: 220ms;
+}
