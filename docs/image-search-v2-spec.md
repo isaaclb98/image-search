@@ -52,6 +52,13 @@
 - An image can be opened in a new tab, which displays the stand-alone photo page.  
 - Will be re-usable general grid as other features, including centroid search, closest image, etc.
 
+Saved searches
+
+- Save the current search (its positive/negative prompts) under a name.
+- Saved searches appear in a dropdown on the search bar; picking one re-applies its prompts and runs the search.
+- Can delete a saved search. No editing — delete and re-save.
+- List is newest-first.
+
 Photo page
 
 - Display the image prominently.  
