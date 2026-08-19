@@ -1302,14 +1302,7 @@ form button.search-submit {
    ============================================================ */
 
 .album-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
-  gap: var(--space-3);
-}
-@media (min-width: 1600px) {
-  .album-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
+  /* Inherits layout from .grid; only override gap/limit here if needed. */
 }
 .album-error {
   font-size: var(--text-sm);
@@ -1729,17 +1722,10 @@ form button.search-submit {
 }
 .centroid-card-search-link:hover { text-decoration: underline; }
 .centroid-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
-  gap: var(--space-3);
+  /* Inherits layout from .grid. */
   list-style: none;
   padding: 0;
   margin: var(--space-4) 0;
-}
-@media (min-width: 1600px) {
-  .centroid-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
 }
 
 .centroid-list-empty {
