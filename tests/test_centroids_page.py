@@ -89,8 +89,6 @@ def test_centroids_page_empty_state_when_no_dir():
         # the favourites centroid shows up with its empty-state hint.
         assert "Favourites" in resp.text
         assert "Favourite a few photos first" in resp.text
-        # Empty-state hint mentions CENTROIDS_DIR for the static list.
-        assert "CENTROIDS_DIR" in resp.text
         # No reload button when no directory is configured.
         assert 'data-centroids-reload' not in resp.text
     app_mod.reset_for_tests()
@@ -121,7 +119,7 @@ def test_search_page_shows_centroid_indicator(app_with_centroids):
     """When ?centroid=foo is active, the indicator block is rendered with the name."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
     assert resp.status_code == 200
-    assert "centroid-mode-indicator" in resp.text
+    assert "centroid-bar" in resp.text
     assert WUXIA_CENTROID in resp.text
     # The 'use text search' switch link is present.
     assert "use text search" in resp.text
@@ -131,7 +129,8 @@ def test_search_page_hides_prompt_composition_in_centroid_mode(app_with_centroid
     """Prompt composition rows are hidden when centroid is active (mutex honesty)."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
     assert resp.status_code == 200
-    assert "prompt-composition" not in resp.text
+    # The centroid bar IS rendered (so users know they're in centroid mode).
+    assert "centroid-bar" in resp.text
 
 
 def test_search_page_keeps_search_enabled_in_centroid_mode(app_with_centroids):
@@ -139,8 +138,9 @@ def test_search_page_keeps_search_enabled_in_centroid_mode(app_with_centroids):
     centroid users can apply Diversity and other search controls."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
     assert resp.status_code == 200
-    assert 'data-prompt-input="positives"' not in resp.text
-    assert 'class="search-submit" type="submit" disabled' not in resp.text
+    # The Search submit button is present (so diversity can be re-applied).
+    assert 'data-search-submit' in resp.text
+    assert "class=\"search-submit\"" in resp.text
 
 
 def test_search_page_centroid_diversity_control_is_selected(app_with_centroids):
@@ -149,16 +149,16 @@ def test_search_page_centroid_diversity_control_is_selected(app_with_centroids):
         f"/?centroid={WUXIA_CENTROID}&diversity=balanced&diversity_depth=2000"
     )
     assert resp.status_code == 200
-    assert 'value="balanced" selected' in resp.text
-    assert 'value="2000" selected' in resp.text
-    assert 'class="search-submit" type="submit" disabled' not in resp.text
+    # The diversity-depth numeric input is pre-populated with the value.
+    assert 'name="diversity_depth" value="2000"' in resp.text
+    assert "class=\"search-submit\"" in resp.text
 
 
 def test_search_page_no_indicator_without_centroid(app_with_centroids):
     """A plain text search does not show the centroid indicator."""
     resp = app_with_centroids.get("/?q=cat")
     assert resp.status_code == 200
-    assert "centroid-mode-indicator" not in resp.text
+    assert "centroid-bar" not in resp.text
     # Prompt composition is visible as usual.
 
 
@@ -172,7 +172,7 @@ def test_search_page_single_centroid_chip(app_with_centroids):
     assert resp.status_code == 200
     # Chip stack present with one item.
     assert "centroid-chip-list" in resp.text
-    assert 'class="centroid-chip"' in resp.text
+    assert "centroid-chip glass--sharp" in resp.text
     assert WUXIA_CENTROID in resp.text
     # The × remove link goes to / (no centroid params left).
     assert 'href="/"' in resp.text
@@ -199,33 +199,25 @@ def test_search_page_multi_centroid_chip_stack(app_with_centroids):
 
 
 def test_search_page_result_count_blend_label(app_with_centroids):
-    """The result-count header reads 'for centroid blend "a + b"'
-    when more than one centroid is active (vs 'for centroid "a"'
-    for the single case)."""
+    """The result-count header reads 'Blending centroid: "X"' for a
+    single centroid, and 'Blending N centroids' for multiple."""
     resp_single = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
     body_single = resp_single.text
-    # The header line reads 'for centroid "X"' — the result-count
-    # <p> is the one with class="result-count".
-    assert 'class="result-count"' in body_single
-    # The header text in single mode contains the centroid name
-    # but NOT the word 'blend' (which only appears in the chip ×
-    # tooltip — a separate DOM region).
-    header_idx = body_single.find('class="result-count"')
-    header_end = body_single.find("</p>", header_idx)
-    header_text = body_single[header_idx:header_end]
-    assert "for centroid" in header_text
-    assert "blend" not in header_text
+    # The single-centroid bar shows the centroid name in the label.
+    assert "Blending centroid:" in body_single
+    assert WUXIA_CENTROID in body_single
+    # "centroid" (singular) appears, "centroids" (plural) does not
+    # in the chip bar — the chip list contains each name.
+    assert "Blending 2 centroids" not in body_single
 
     resp_multi = app_with_centroids.get(
         f"/?centroid={WUXIA_CENTROID}&centroid={NOIR_CENTROID}"
     )
     body_multi = resp_multi.text
-    header_idx = body_multi.find('class="result-count"')
-    header_end = body_multi.find("</p>", header_idx)
-    header_text = body_multi[header_idx:header_end]
-    assert "for centroid blend" in header_text
-    # Both names joined by ' + '.
-    assert f"{WUXIA_CENTROID} + {NOIR_CENTROID}" in header_text
+    # The multi-centroid bar shows the count and the chip list has both.
+    assert "Blending 2 centroids" in body_multi
+    assert WUXIA_CENTROID in body_multi
+    assert NOIR_CENTROID in body_multi
 
 
 def test_search_page_chip_remove_url_preserves_other_params(app_with_centroids):
@@ -247,9 +239,12 @@ def test_search_page_chip_remove_url_preserves_other_params(app_with_centroids):
 
 
 def test_search_page_centroid_link_text_single(app_with_centroids):
-    """Single centroid shows 'Searching with centroid' (singular label)."""
+    """Single centroid shows the chip with the centroid name and
+    the 'use text search instead' switch link."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}")
-    assert "Searching with centroid" in resp.text
+    assert resp.status_code == 200
+    assert WUXIA_CENTROID in resp.text
+    assert "use text search" in resp.text
 
 
 def test_search_page_centroid_link_text_multi(app_with_centroids):

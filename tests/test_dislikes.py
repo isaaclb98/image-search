@@ -134,7 +134,7 @@ def test_photo_page_has_dislike_button(app_with_qdrant):
     assert r.status_code == 200
     text = r.text
     assert "data-dislike-form" in text
-    assert "dislike-toggle" in text
+    assert "dislike-form" in text
     assert f'action="/api/dislikes/{CAT_ID}"' in text
     # not disliked yet -> off state
     assert 'data-dislike-state="off"' in text

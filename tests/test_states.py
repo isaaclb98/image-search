@@ -70,7 +70,7 @@ def macros_template(jinja_env):
 def test_page_header_renders_title(macros_template):
     out = macros_template.module.page_header("Albums")
     assert "Albums" in out
-    assert "text-2xl" in out  # Tailwind class — proves we're using the new design system
+    assert "page-intro-title" in out  # design-system page header (glass-era)
 
 
 def test_page_header_renders_count_singular(macros_template):
@@ -171,9 +171,9 @@ def test_search_page_still_works_without_macros():
     is intentionally NOT rewritten in this branch — guard against accidental
     regressions that would break the `test_search_api` suite."""
     src = _page("search.html")
-    # search.html uses the view-toggle + result-grid partial; no ui.* macros.
-    # The empty/error states for search are intentionally SSR-light: server
-    # returns an empty results list + no error. Verify the page still
-    # references _result_grid.html so we get the grid styling.
-    assert "view-toggle-btn" in src
-    assert '{% include "_result_grid.html" %}' in src
+    # search.html renders the prompt-composition surface inline (no ui.*
+    # macros) with an SSR grid carrying data-feed-root for the JS
+    # controllers (infinite scroll + prompt chips) to bind to.
+    assert "data-prompt-input=\"positives\"" in src
+    assert 'data-feed-root' in src
+    assert "data-search-submit" in src

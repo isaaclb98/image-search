@@ -147,6 +147,7 @@ def test_init_from_qdrant_skip_resets_refresh_clock(index_db):
 
 def test_random_picker_delegates_to_index_db():
     import asyncio
+    import threading
 
     from search.random import RandomPicker
 
@@ -159,7 +160,22 @@ def test_random_picker_delegates_to_index_db():
             return ["x", "y"]
 
     db = FakeIndexDB()
-    assert asyncio.run(RandomPicker(db).pick(2)) == ["x", "y"]
+    # The sync Playwright session keeps an event loop running in the
+    # main thread, which makes asyncio.run() and
+    # loop.run_until_complete() unusable there. A private loop on its
+    # own thread is immune to whatever the main thread is doing.
+    bg_loop = asyncio.new_event_loop()
+    bg_thread = threading.Thread(target=bg_loop.run_forever, daemon=True)
+    bg_thread.start()
+    try:
+        future = asyncio.run_coroutine_threadsafe(
+            RandomPicker(db).pick(2), bg_loop
+        )
+        picked = future.result(timeout=5)
+    finally:
+        bg_loop.call_soon_threadsafe(bg_loop.stop)
+        bg_thread.join()
+    assert picked == ["x", "y"]
     assert db.called_with == 2
 
 

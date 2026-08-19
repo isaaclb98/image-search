@@ -755,8 +755,8 @@ def test_liked_page_default_view_is_grid(app_with_qdrant):
     assert 'grid-item\"' in body  # li class is now 'photo-card grid-item'
     assert 'class="feed"' not in body
     assert 'feed-item\"' not in body  # see note above
-    # View toggle is rendered with grid active.
-    assert "view-toggle" in body
+    # View toggle is rendered with grid active (segmented control).
+    assert "segmented" in body
     assert 'data-view="grid"' in body
     assert 'data-view="feed"' in body
 
@@ -773,7 +773,7 @@ def test_liked_page_feed_view(app_with_qdrant):
     assert 'class="feed"' in body
     assert 'feed-item\"' in body  # li class is now 'photo-card feed-item'
     # Feed button has the active class.
-    assert 'view-toggle-btn--active' in body
+    assert "segmented-btn is-active" in body
     # Grid classes absent.
     assert 'class="grid"' not in body
     assert 'grid-item\"' not in body  # see note above
@@ -799,8 +799,8 @@ def test_liked_page_view_toggle_links_to_other_view(app_with_qdrant):
         r'<button[^>]*data-view="feed"[^>]*>', body,
     )
     assert grid_btn and feed_btn, "view toggle buttons missing"
-    assert "view-toggle-btn--active" in grid_btn.group(0)
-    assert "view-toggle-btn--active" not in feed_btn.group(0)
+    assert "segmented-btn is-active" in grid_btn.group(0)
+    assert "segmented-btn is-active" not in feed_btn.group(0)
 
     # In feed mode, the inverse is true.
     r2 = app_with_qdrant.get(f"/discover/liked?session_id={sid}&view=feed")
@@ -811,8 +811,8 @@ def test_liked_page_view_toggle_links_to_other_view(app_with_qdrant):
     feed_btn2 = re.search(
         r'<button[^>]*data-view="feed"[^>]*>', body2,
     )
-    assert "view-toggle-btn--active" in feed_btn2.group(0)
-    assert "view-toggle-btn--active" not in grid_btn2.group(0)
+    assert "segmented-btn is-active" in feed_btn2.group(0)
+    assert "segmented-btn is-active" not in grid_btn2.group(0)
 
 
 def test_liked_page_invalid_view_falls_back_to_grid(app_with_qdrant):
@@ -832,7 +832,7 @@ def test_liked_page_invalid_view_falls_back_to_grid(app_with_qdrant):
     grid_btn = re.search(
         r'<button[^>]*data-view="grid"[^>]*>', body,
     )
-    assert "view-toggle-btn--active" in grid_btn.group(0)
+    assert "segmented-btn is-active" in grid_btn.group(0)
 
 
 def test_liked_page_loads_discover_liked_js(app_with_qdrant):
@@ -850,7 +850,7 @@ def test_liked_page_session_gone_hides_view_toggle(app_with_qdrant):
     r = app_with_qdrant.get("/discover/liked?session_id=nope&view=feed")
     # No images -> the actions row (with the toggle) isn't rendered.
     # The grid container is also not rendered.
-    assert "view-toggle" not in r.text
+    assert "segmented" not in r.text
     assert 'class="feed"' not in r.text
     assert 'class="grid"' not in r.text
 

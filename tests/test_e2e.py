@@ -232,7 +232,7 @@ class TestCentroidSearch:
     def test_centroid_search_has_diversity(self, page: Page):
         _goto(page, "/?centroid=favourites")
         page.wait_for_timeout(1000)
-        diversity = page.locator("[data-diversity-select]")
+        diversity = page.locator("[name='diversity']")
         assert diversity.count() >= 1, "Centroid search should have diversity controls"
 
     def test_centroid_search_has_submit(self, page: Page):
@@ -338,17 +338,20 @@ class TestSavedSearches:
         expect(save_btn).not_to_be_disabled()
         save_btn.click()
         page.wait_for_timeout(1000)
-        # Verify saved search appears in dropdown
-        options = page.locator('#saved-search-select option[value]:not([value=""])')
-        assert options.count() >= 1
+        # Verify the saved search appears on the /saved page (the
+        # dropdown was removed in the T-refactor; /saved is the
+        # canonical list surface now).
+        _goto(page, "/saved")
+        page.wait_for_selector(".saved-card")
+        expect(page.locator(".saved-card")).to_contain_text("mountain")
 
 class TestAlbumActions:
     def test_create_album(self, page: Page):
         _goto(page, "/albums")
         page.fill('input[name="name"]', "Test Album")
         page.click('button:has-text("Create album")')
-        page.wait_for_selector('.album-list')
-        expect(page.locator('.album-list')).to_contain_text("Test Album")
+        page.wait_for_selector("a.album-card")
+        expect(page.get_by_role("link", name="Test Album")).to_be_visible()
 
 
 
@@ -369,6 +372,11 @@ class TestDislikeToggle:
         page.wait_for_selector(".photo-page")
         btn = page.locator("[data-dislike-form] [data-dislike-id]")
         expect(btn).to_be_visible()
+        # The demo server persists dislike state between runs, so the
+        # assertion must be relative to the current aria-pressed value
+        # (clicking toggles it) rather than assuming an initial "off".
+        initial = btn.get_attribute("aria-pressed")
         btn.click()
         page.wait_for_timeout(500)
-        expect(btn).to_have_attribute("aria-pressed", "true")
+        expected = "false" if initial == "true" else "true"
+        expect(btn).to_have_attribute("aria-pressed", expected)

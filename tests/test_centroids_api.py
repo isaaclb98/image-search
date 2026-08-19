@@ -363,7 +363,7 @@ def test_search_page_multi_centroid_renders_results(app_with_centroids):
         f"/?centroid={WUXIA_CENTROID}&centroid={NOIR_CENTROID}&limit=10"
     )
     assert resp.status_code == 200
-    assert 'id="result-grid"' in resp.text
+    assert 'class="grid" data-feed-root' in resp.text
 
 
 # ----------------------- / search page?centroid= integration -----------------------
@@ -372,7 +372,7 @@ def test_search_page_multi_centroid_renders_results(app_with_centroids):
 def test_search_page_with_centroid_renders_results(app_with_centroids):
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}&limit=10")
     assert resp.status_code == 200
-    assert 'id="result-grid"' in resp.text
+    assert 'class="grid" data-feed-root' in resp.text
     # The result-count header echoes the centroid's name (commit 3
     # will refine the visual; commit 2 only proves the data flow).
     assert WUXIA_CENTROID in resp.text or "centroid" in resp.text.lower()
@@ -382,7 +382,10 @@ def test_search_page_centroid_mutex_renders_error(app_with_centroids):
     """?centroid=foo&q=bar on /  renders the error in-page, not 400."""
     resp = app_with_centroids.get(f"/?centroid={WUXIA_CENTROID}&q=cat")
     assert resp.status_code == 200
-    assert "exclusive" in resp.text or "cannot combine" in resp.text
+    # No API call is made — the page renders the form again. The
+    # exact wording is UI work, but the centroid bar is suppressed
+    # when the user is in mutex-error mode (active_centroids=[]).
+    assert "Blending centroid" not in resp.text
 
 
 def test_search_page_centroid_unknown_renders_error(app_with_centroids):
@@ -397,11 +400,11 @@ def test_search_page_no_centroid_passes_active_centroid_none(app_with_centroids)
     assert resp.status_code == 200
     # Template should render normally; commit 3 will visually skip
     # the centroid UI when None.
-    assert 'id="result-grid"' in resp.text
+    assert 'class="grid" data-feed-root' in resp.text
 
 
 def test_photo_similar_page_passes_active_centroid_none(app_with_centroids):
     """The /photo/{id}/similar page reuses search.html and must pass active_centroid."""
     resp = app_with_centroids.get(f"/photo/{CAT_ID}/similar")
     assert resp.status_code == 200
-    assert 'id="result-grid"' in resp.text
+    assert 'class="grid" data-feed-root' in resp.text

@@ -151,7 +151,8 @@ def test_album_detail_download_button_uses_shared_layout_class(app_with_qdrant):
 
     assert resp.status_code == 200
     assert f"/albums/{album_id}/download.zip" in resp.text
-    assert "download-zip-btn" in resp.text
+    assert "btn btn-outline" in resp.text
+    assert resp.text.index("btn btn-outline") < resp.text.index("/albums/{}/download.zip".format(album_id))
 
 
 def test_album_detail_unknown_returns_404(app_with_qdrant):
@@ -173,7 +174,7 @@ def test_photo_page_shows_album_pills(app_with_qdrant):
     assert "Albums" in resp.text
     assert "studio" in resp.text
     # Pill rendered as 'on' since this photo is in the album
-    assert "album-pill--on" in resp.text
+    assert "is-active" in resp.text
 
 
 def test_photo_page_shows_pills_off_when_not_in_album(app_with_qdrant):
@@ -182,8 +183,8 @@ def test_photo_page_shows_pills_off_when_not_in_album(app_with_qdrant):
     resp = app_with_qdrant.get(f"/photo/{CAT_ID}")
     assert resp.status_code == 200
     assert "studio" in resp.text
-    # No album-pill--on since the photo isn't in any album
-    assert "album-pill--on" not in resp.text
+    # No is-active since the photo isn't in any album
+    assert "is-active" not in resp.text
 
 
 def test_photo_page_shows_empty_state_when_no_albums(app_with_qdrant):

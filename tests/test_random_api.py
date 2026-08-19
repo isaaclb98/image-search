@@ -234,7 +234,7 @@ def test_random_page_view_echoes_in_toggle(random_app):
     """
     resp = random_app.get("/random?view=feed")
     assert resp.status_code == 200
-    assert "view-toggle-btn--active" in resp.text
+    assert "segmented-btn is-active" in resp.text
     # The feed button specifically carries the active class.
     feed_section = resp.text.split('data-view="feed"')[0]
-    assert "view-toggle-btn--active" in feed_section[-200:]
+    assert "segmented-btn is-active" in feed_section[-200:]
