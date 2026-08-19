@@ -2,6 +2,7 @@
 // favourites, and the small keyboard shortcut surface shared by every page.
 
 import { enhancePhotoCards, setFavoriteLabel } from "./lib/photo-card.js";
+import { PromptChips } from "./lib/prompts.js";
 
 const lightbox = document.querySelector("[data-photo-lightbox]");
 const lightboxImage = lightbox?.querySelector("[data-lightbox-image]");
@@ -386,6 +387,112 @@ if ("MutationObserver" in window) {
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// ── Search page infinite scroll ──────────────────────────────────
+import { appendToGrid, addSentinel, removeSentinel } from "./lib/grid.js";
+const resultGrid = document.getElementById("result-grid");
+const searchRoute = document.querySelector("[data-route]")?.dataset.route;
+if (resultGrid && (searchRoute === "/" || searchRoute?.startsWith("/?"))) {
+  let searchLoading = false;
+  let searchObserver = null;
+
+  function buildSearchUrl() {
+    const offset = parseInt(resultGrid.dataset.offset || "0", 10);
+    const limit = parseInt(resultGrid.dataset.limit || "35", 10);
+    const params = new URLSearchParams();
+    const q = resultGrid.dataset.q;
+    if (q) params.set("q", q);
+    const positives = resultGrid.dataset.positives;
+    if (positives) positives.split("\t").filter(Boolean).forEach(p => params.append("positives", p));
+    const negatives = resultGrid.dataset.negatives;
+    if (negatives) negatives.split("\t").filter(Boolean).forEach(p => params.append("negatives", p));
+    const filename = new URLSearchParams(window.location.search).get("filename");
+    if (filename) params.set("filename", filename);
+    const diversity = new URLSearchParams(window.location.search).get("diversity");
+    if (diversity && diversity !== "off") params.set("diversity", diversity);
+    const diversityDepth = new URLSearchParams(window.location.search).get("diversity_depth");
+    if (diversityDepth && diversityDepth !== "auto") params.set("diversity_depth", diversityDepth);
+    params.set("offset", String(offset));
+    params.set("limit", String(limit));
+    params.set("view", "grid");
+    return "/api/search?" + params.toString();
+  }
+
+  async function searchLoadMore() {
+    if (searchLoading) return;
+    searchLoading = true;
+    try {
+      const resp = await fetch(buildSearchUrl());
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data.results?.length) return;
+      removeSentinel(resultGrid);
+      appendToGrid(resultGrid, data.results);
+      resultGrid.dataset.offset = String(parseInt(resultGrid.dataset.offset || "0") + data.results.length);
+      resultGrid.dataset.hasMore = String(data.has_more);
+      if (data.has_more) {
+        addSentinel(resultGrid);
+        setupSearchObserver();
+      }
+    } catch (_) { /* silent */ } finally { searchLoading = false; }
+  }
+
+  function setupSearchObserver() {
+    if (searchObserver) searchObserver.disconnect();
+    const sentinel = resultGrid.querySelector(":scope > .grid-sentinel");
+    if (!sentinel || !("IntersectionObserver" in window)) return;
+    searchObserver = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) searchLoadMore();
+    }, { rootMargin: "200px 0px" });
+    searchObserver.observe(sentinel);
+  }
+
+  if (resultGrid.dataset.hasMore === "true") setupSearchObserver();
+}
+
+// ── Search page prompt chip controller ──────────────────────────
+const searchForm = document.querySelector("form.search-form");
+if (searchForm) {
+  const chips = new PromptChips(searchForm);
+
+  // Intercept form submit: merge chip state into URL params so
+  // all active chips are included alongside any in-progress text.
+  searchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const params = new URLSearchParams(window.location.search);
+
+    // Clear old positives/negatives from URL
+    params.delete("positives");
+    params.delete("negatives");
+
+    // Add chip state
+    for (const p of chips.state.positives) params.append("positives", p);
+    for (const n of chips.state.negatives) params.append("negatives", n);
+
+    // Include any in-progress text not yet chipped
+    const posInput = searchForm.querySelector("[data-prompt-input='positives']");
+    const negInput = searchForm.querySelector("[data-prompt-input='negatives']");
+    const currentPos = posInput?.value?.trim() || "";
+    const currentNeg = negInput?.value?.trim() || "";
+    if (currentPos && !chips.state.positives.some(p => p.toLowerCase() === currentPos.toLowerCase())) {
+      params.append("positives", currentPos);
+    }
+    if (currentNeg && !chips.state.negatives.some(n => n.toLowerCase() === currentNeg.toLowerCase())) {
+      params.append("negatives", currentNeg);
+    }
+
+    // Preserve other params (diversity, filename, etc.)
+    const formData = new FormData(searchForm);
+    for (const [key, value] of formData.entries()) {
+      if (key !== "positives" && key !== "negatives" && value) {
+        if (!params.has(key)) params.set(key, value);
+      }
+    }
+
+    const qs = params.toString();
+    window.location.href = "/" + (qs ? "?" + qs : "");
+  });
 }
 
 window.imageSearchUI = { enhancePhotoCards, openLightbox, closeLightbox };

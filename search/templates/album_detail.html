@@ -6,70 +6,46 @@
 
 {% block content %}
 <section class="album-detail-page app-page">
-  <nav class="album-nav">
-    <a href="/albums">← Back to albums</a>
-  </nav>
-
-  <header class="album-detail-header page-intro">
-    <div class="page-intro-main"><h1 class="page-intro-title">{{ album.name }}</h1>
+  <header class="page-intro">
+    <div class="page-intro-main">
+      <h1 class="page-intro-title">{{ album.name }}</h1>
       {% if album.description %}
-        <p class="page-intro-description album-detail-description">{{ album.description }}</p>
+        <p class="page-intro-description">{{ album.description }}</p>
       {% endif %}
     </div>
     {% if total %}
-      <p class="page-intro-meta">{{ total }} {{ 'photo' if total == 1 else 'photos' }}</p>
+      <span class="page-intro-meta">{{ total }} {{ 'photo' if total == 1 else 'photos' }}</span>
     {% endif %}
-    </p>
+  </header>
 
+  <div class="album-detail-toolbar glass--sharp">
     {% if total %}
       <a
-        class="download-zip-btn album-download btn btn-sm"
+        class="btn btn-outline"
         href="/albums/{{ album.id }}/download.zip"
         download
-      >
-        Download .zip
-      </a>
+      >Download .zip</a>
     {% endif %}
 
-    <div class="album-detail-actions">
-      {# Edit form — inline rename + description. PATCH
-         /api/albums/{id} handles the submission. #}
-      <form
-        class="album-edit"
-        data-album-edit="{{ album.id }}"
-      >
+    <form class="album-edit" data-album-edit="{{ album.id }}">
+      <div class="album-edit-row">
         <label class="album-edit__field">
-          <span>Rename</span>
-          <input
-            type="text"
-            name="name"
-            value="{{ album.name }}"
-            maxlength="200"
-            required
-          >
+          <span>Name</span>
+          <input type="text" name="name" value="{{ album.name }}" maxlength="200" required>
         </label>
         <label class="album-edit__field">
           <span>Description</span>
-          <input
-            type="text"
-            name="description"
-            value="{{ album.description or '' }}"
-            maxlength="500"
-          >
+          <input type="text" name="description" value="{{ album.description or '' }}" maxlength="500">
         </label>
         <button type="submit" class="btn btn-primary">Save</button>
-        <p class="album-edit__status" data-album-edit-status hidden></p>
-      </form>
+      </div>
+      <span class="album-edit__status" data-album-edit-status hidden></span>
+    </form>
 
-      <form
-        class="album-delete"
-        data-album-delete="{{ album.id }}"
-        data-album-name="{{ album.name }}"
-      >
-        <button type="submit" class="btn btn-danger">Delete album</button>
-      </form>
-    </div>
-  </header>
+    <form class="album-delete" data-album-delete="{{ album.id }}" data-album-name="{{ album.name }}">
+      <button type="submit" class="btn btn-danger">Delete album</button>
+    </form>
+  </div>
 
   {% if results %}
     {% include "_result_grid.html" %}

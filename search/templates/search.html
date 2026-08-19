@@ -44,7 +44,34 @@
 {# Prompt composition is hidden in centroid mode — text prompts would be
    misleading beside a centroid anchor. The mutex is enforced server-side;
    the hide keeps the UI honest. #}
-{% if not active_centroids %}
+{% if active_centroids %}
+  {# Centroid mode: show diversity controls + search button directly. #}
+  <div class="glass prompt-composition prompt-composition--primary" style="padding: var(--space-3);">
+    <div class="prompt-toolbar app-toolbar">
+      <div class="diversity-filters">
+        <label class="diversity-control" title="Balance relevance against visual repetition">
+          {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+          <span class="sr-only">Diversity strength</span>
+          <select class="diversity-select" data-diversity-select name="diversity" aria-label="Diversity strength">
+            {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+              <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="diversity-control diversity-depth-control" title="How many candidates to consider before applying Diversity">
+          {{ ui.ui_icon('layers', 'h-4 w-4') }}
+          <span class="sr-only">Diversity candidate depth</span>
+          <select class="diversity-select" data-diversity-depth-select name="diversity_depth" aria-label="Diversity candidate depth">
+            {% for option in [('auto', 'Depth auto'), ('500', '500'), ('1000', '1000'), ('2000', '2000'), ('5000', '5000')] %}
+              <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <button type="submit" class="search-submit" data-search-submit>Search</button>
+    </div>
+  </div>
+{% else %}
   <section class="glass prompt-composition prompt-composition--primary" aria-label="Search prompts">
     <div class="prompt-composition-heading">
       <div class="prompt-composition-intro">
@@ -52,24 +79,7 @@
         <span class="prompt-composition-hint" data-search-draft-status>Include what you want to find; optionally exclude what you do not.</span>
       </div>
       <div class="prompt-toolbar app-toolbar">
-        {# View toggle — joined segmented control. Sit the two options
-           in a single rounded pill (.segmented) so they read as one
-           toggle, not two standalone buttons. #}
-        <div class="segmented" role="group" aria-label="Result view">
-          <button
-            type="button"
-            class="segmented-btn {% if view == 'grid' %}is-active{% endif %}"
-            data-view="grid"
-            aria-pressed="{{ 'true' if view == 'grid' else 'false' }}"
-          >{{ ui.ui_icon('grid', 'h-4 w-4') }}<span>Grid</span></button>
-          <button
-            type="button"
-            class="segmented-btn {% if view == 'feed' %}is-active{% endif %}"
-            data-view="feed"
-            aria-pressed="{{ 'true' if view == 'feed' else 'false' }}"
-          >{{ ui.ui_icon('feed', 'h-4 w-4') }}<span>Feed</span></button>
-        </div>
-        {% if q or positives or negatives or collections or filename %}
+  {% if q or positives or negatives or collections or filename %}
           <a class="clear-link" href="/">clear all</a>
         {% endif %}
         {# Saved control row lives in the toolbar so it shares the
@@ -197,26 +207,7 @@
     </div>
   </details>
 
-  {# Quick-prompt examples — only shown when the composer is empty
-     (no active prompts). Gives first-time visitors something to
-     try without scrolling past a void. #}
-  {% if not positives and not negatives and not active_centroids and not filename %}
-    <section class="quick-prompts" aria-label="Example searches">
-      <ul class="quick-prompts-list">
-        {% for example in [('mountain cabin at dusk', 'positives'),
-                            ('retro futurism poster', 'positives'),
-                            ('minimalist product photo, soft light', 'positives'),
-                            ('watercolor landscape, muted', 'positives'),
-                            ('isometric room', 'positives')] %}
-          <li>
-            <button type="button" class="quick-prompt-chip" data-quick-prompt="{{ example[1] }}" data-quick-prompt-text="{{ example[0] }}">
-              {{ example[0] }}
-            </button>
-          </li>
-        {% endfor %}
-      </ul>
-    </section>
-  {% endif %}
+
 {% endif %}
 </form>
 
