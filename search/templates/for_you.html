@@ -5,7 +5,7 @@
 {% block title %}For You — Image Search{% endblock %}
 
 {% block content %}
-<section class="for-you-page app-page" data-freshest="{{ for_you_freshest or '' }}">
+<section class="app-page" data-freshest="{{ for_you_freshest or '' }}">
   {% set for_you_meta %}
     {% if for_you_n_likes > 0 or for_you_n_dislikes > 0 %}
       <div class="for-you-meta">

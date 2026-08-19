@@ -59,13 +59,13 @@
       <p class="dynamic-centroids-sub">
         Built from your activity. Pick one or more to blend.
       </p>
-      <ul class="centroid-list">
+      <ul class="grid centroid-list">
         {% for d in dynamic_centroids %}
           <li
             class="centroid-card dynamic-centroid-card{% if d.is_empty %} is-empty{% endif %}"
             data-centroid-card="{{ d.name }}"
           >
-            <header class="centroid-card-header app-page-header glass--sharp">
+            <header class="centroid-card-header glass--sharp">
               {% if d.is_empty %}
                 <span class="centroid-card-name centroid-card-name--empty">{{ d.label }}</span>
                 <span class="centroid-card-dim">dynamic</span>
@@ -103,10 +103,10 @@
   {% if centroids %}
     <section class="static-centroids" aria-label="Static centroids">
       <h2 class="static-centroids-title">Static</h2>
-      <ul class="centroid-list">
+      <ul class="grid centroid-list">
       {% for c in centroids %}
         <li class="centroid-card" data-centroid-card="{{ c.name }}">
-          <header class="centroid-card-header app-page-header glass--sharp">
+          <header class="centroid-card-header glass--sharp">
             <label class="centroid-card-checkbox-wrap">
               <input
                 type="checkbox"

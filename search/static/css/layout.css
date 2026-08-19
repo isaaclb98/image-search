@@ -1495,14 +1495,6 @@ form button.search-submit {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
-.random-page .grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
-}
-@media (min-width: 1600px) {
-  .random-page .grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
 
 .for-you-grid {
   min-height: 30rem;
