@@ -16,23 +16,11 @@
     const id = $page.params.id ?? '';
     loading = true;
     try {
-      // /api/search requires prompts, but the standalone photo
-      // page can be reached without any. Use /api/random for
-      // metadata, then look up our specific id.
-      const res = await fetch('/api/random?limit=80', { credentials: 'include' });
+      // Use the dedicated metadata endpoint I just added.
+      const res = await fetch(`/api/photo/${id}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Not found or failed to load`);
       const data = await res.json();
-      const match = (data?.results ?? []).find((r: any) => r.id === id);
-      if (match) {
-        point = match;
-      } else if (id) {
-        // Last resort: synthesise a display only from id + path
-        point = {
-          id,
-          path: '(unknown)',
-          url: photoUrl(id),
-          score: 0
-        };
-      }
+      point = data;
     } catch (e: any) {
       error = e?.message ?? 'Failed to load photo';
     } finally {
@@ -66,84 +54,77 @@
           <dt>Size</dt><dd>{point.width}×{point.height}</dd>
         {/if}
       </dl>
-      <a class="raw" href={photoUrl(point.id)} target="_blank" rel="noopener">
-        Open raw
-      </a>
+      <a class="button open" href={photoUrl(point.id)} target="_blank" rel="noopener">Open raw</a>
     </div>
   </article>
 {/if}
 
 <style>
-  .back {
+  a.back {
     display: inline-block;
-    margin: 12px 0 18px;
+    margin-bottom: 1rem;
     color: var(--fg-2);
+    text-decoration: none;
+    font-weight: 500;
   }
-  .back:hover { color: var(--fg-1); }
   .page {
-    padding: 18px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 18px;
-    align-items: start;
-  }
-  @media (max-width: 900px) {
-    .page { grid-template-columns: 1fr; }
+    grid-template-columns: 1fr 320px;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    border-radius: var(--r-2);
+    box-shadow: 0 8px 32px var(--shadow-1);
   }
   .frame {
-    background: var(--bg-1);
+    background: var(--bg-2);
     border-radius: var(--r-2);
-    border: 1px solid var(--glass-edge);
     overflow: hidden;
-    display: grid;
-    place-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
   }
   .frame img {
-    width: 100%;
-    height: auto;
+    max-width: 100%;
     max-height: 80vh;
     object-fit: contain;
   }
   .meta h2 {
-    margin: 0 0 12px;
-    font-size: var(--fs-md);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: var(--fg-2);
+    margin: 0;
+    font-size: var(--fs-xl);
+    line-height: 1.2;
+    margin-bottom: 1rem;
     word-break: break-all;
   }
   dl {
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 6px 12px;
-    margin: 0 0 16px;
+    grid-template-columns: 100px 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
   }
   dt {
-    color: var(--fg-3);
-    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--fg-2);
   }
   dd {
     margin: 0;
     color: var(--fg-1);
   }
-  .raw {
-    display: inline-flex;
-    align-items: center;
-    height: 40px;
-    padding: 0 18px;
-    border-radius: var(--r-pill);
-    background: var(--glass-2);
+  .open {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--bg-glass-strong);
     color: var(--fg-1);
     text-decoration: none;
-    border: 1px solid var(--glass-edge-strong);
+    border-radius: var(--r-1);
+    font-weight: 600;
+    border: 1px solid var(--border);
+    transition: background 0.2s, border-color 0.2s;
   }
-  .raw:hover { background: rgba(255,255,255,0.14); }
-  .placeholder {
-    color: var(--fg-3);
-    padding: 32px 16px;
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    text-align: center;
+  .open:hover {
+    background: var(--bg-glass);
+    border-color: var(--fg-2);
   }
-  .placeholder.error { color: var(--negative); }
 </style>

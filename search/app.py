@@ -1306,6 +1306,33 @@ def create_app(
             content=ErrorResponse(error="internal_error", detail=detail, code="internal_error").model_dump(),
         )
 
+    @app.get("/api/photo/{point_id}")
+    async def photo_metadata(point_id: str) -> JSONResponse:
+        """Fetch metadata for a single photo by ID. 
+        Used by the frontend's dedicated photo page to render the frame and panel.
+        """
+        try:
+            hit = qdrant.retrieve(point_id)
+        except (ConnectionError, OSError) as e:
+            logger.warning("Qdrant unreachable for /api/photo/%s: %s", point_id, e)
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+        if hit is None:
+            raise HTTPException(status_code=404, detail="Photo not found")
+        
+        # Determine favorite status
+        fav_ids = await _favorite_id_set([point_id])
+        is_fav = point_id in fav_ids
+        
+        return JSONResponse(content={
+            "id": hit.id,
+            "path": hit.path,
+            "score": 1.0, # Lookup is not ranked, score is conceptually 1.0
+            "is_favorite": is_fav,
+            "url": f"/photo/{point_id}/raw",
+            "width": None, # Metadata doesn't track size natively yet
+            "height": None
+        })
+
     @app.get("/photo/{point_id}/raw")
     async def photo_raw(request: Request, point_id: str) -> Response:
         try:
