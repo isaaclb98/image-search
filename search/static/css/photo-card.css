@@ -16,6 +16,9 @@
               box-shadow var(--dur-base) var(--ease-out),
               background var(--dur-base) var(--ease-out);
 }
+.photo-card.grid-item {
+  aspect-ratio: 1 / 1;
+}
 
 .photo-card::before {
   /* Color-tinted glow from the photo's dominant hue. */
@@ -130,8 +133,7 @@
 }
 
 /* Grid mode — square-ish cells via aspect-ratio. */
-.photo-card.grid-item .photo-card-img {
-  aspect-ratio: 1 / 1;
+.photo-card.grid-item img {
   object-fit: cover;
 }
 
