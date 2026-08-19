@@ -221,3 +221,26 @@ body[data-route^="/photo/"] .grid-score,
 body[data-route^="/photo/"] .feed-score {
   display: revert;
 }
+
+/* Blurhash placeholder — sits behind the <img>, fades out on load. */
+.blurhash-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  z-index: 0;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.has-blurhash img {
+  position: relative;
+  z-index: 1;
+}
+.has-blurhash.is-loaded .blurhash-canvas {
+  opacity: 0;
+}
+.thumb-link {
+  position: relative;
+}

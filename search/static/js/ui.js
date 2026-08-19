@@ -388,4 +388,96 @@ if ("MutationObserver" in window) {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
+// ── Search page infinite scroll ──────────────────────────────────
+const resultGrid = document.getElementById("result-grid");
+const searchRoute = document.querySelector("[data-route]")?.dataset.route;
+if (resultGrid && (searchRoute === "/" || searchRoute?.startsWith("/?"))) {
+  let searchLoading = false;
+  let searchObserver = null;
+
+  function buildSearchUrl() {
+    const offset = parseInt(resultGrid.dataset.offset || "0", 10);
+    const limit = parseInt(resultGrid.dataset.limit || "35", 10);
+    const params = new URLSearchParams();
+    const q = resultGrid.dataset.q;
+    if (q) params.set("q", q);
+    const positives = resultGrid.dataset.positives;
+    if (positives) positives.split("\t").filter(Boolean).forEach(p => params.append("positives", p));
+    const negatives = resultGrid.dataset.negatives;
+    if (negatives) negatives.split("\t").filter(Boolean).forEach(p => params.append("negatives", p));
+    const filename = new URLSearchParams(window.location.search).get("filename");
+    if (filename) params.set("filename", filename);
+    const diversity = new URLSearchParams(window.location.search).get("diversity");
+    if (diversity && diversity !== "off") params.set("diversity", diversity);
+    const diversityDepth = new URLSearchParams(window.location.search).get("diversity_depth");
+    if (diversityDepth && diversityDepth !== "auto") params.set("diversity_depth", diversityDepth);
+    params.set("offset", String(offset));
+    params.set("limit", String(limit));
+    params.set("view", "grid");
+    return "/api/search?" + params.toString();
+  }
+
+  async function searchLoadMore() {
+    if (searchLoading) return;
+    searchLoading = true;
+    try {
+      const resp = await fetch(buildSearchUrl());
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data.results?.length) return;
+      const sentinel = resultGrid.querySelector(":scope > .grid-sentinel");
+      if (sentinel) sentinel.remove();
+      for (const r of data.results) {
+        const li = document.createElement("li");
+        li.className = "photo-card grid-item";
+        li.dataset.id = r.id;
+        li.dataset.score = r.score;
+        li.dataset.photoId = r.id;
+        li.dataset.photoSrc = r.url;
+        li.dataset.photoPath = r.path || "";
+        li.dataset.photoBlurhash = r.blurhash || "";
+        const href = "/photo/" + r.id + (resultGrid.dataset.q ? "?q=" + encodeURIComponent(resultGrid.dataset.q) : "");
+        const img = document.createElement("img");
+        img.className = "block w-full h-full object-cover transition-opacity duration-150";
+        img.loading = "lazy";
+        img.decoding = "async";
+        img.src = r.url;
+        img.alt = "";
+        img.onerror = function() { this.classList.add("img-error"); };
+        const link = document.createElement("a");
+        link.href = href;
+        link.className = "thumb-link block w-full h-full overflow-hidden";
+        link.dataset.lightboxTrigger = "";
+        link.dataset.photoId = r.id;
+        link.dataset.photoSrc = r.url;
+        link.setAttribute("aria-label", "Open photo");
+        link.appendChild(img);
+        li.appendChild(link);
+        resultGrid.appendChild(li);
+      }
+      resultGrid.dataset.offset = String(offset + data.results.length);
+      resultGrid.dataset.hasMore = String(data.has_more);
+      if (data.has_more) {
+        const s = document.createElement("li");
+        s.className = "grid-sentinel";
+        s.setAttribute("aria-hidden", "true");
+        resultGrid.appendChild(s);
+        setupSearchObserver();
+      }
+    } catch (_) { /* silent */ } finally { searchLoading = false; }
+  }
+
+  function setupSearchObserver() {
+    if (searchObserver) searchObserver.disconnect();
+    const sentinel = resultGrid.querySelector(":scope > .grid-sentinel");
+    if (!sentinel || !("IntersectionObserver" in window)) return;
+    searchObserver = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) searchLoadMore();
+    }, { rootMargin: "200px 0px" });
+    searchObserver.observe(sentinel);
+  }
+
+  if (resultGrid.dataset.hasMore === "true") setupSearchObserver();
+}
+
 window.imageSearchUI = { enhancePhotoCards, openLightbox, closeLightbox };

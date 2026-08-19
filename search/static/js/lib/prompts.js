@@ -75,7 +75,8 @@ export class PromptChips {
     for (const side of ["positives", "negatives"]) {
       const list = this.root.querySelector(`[data-prompt-chips="${side}"]`);
       if (!list) continue;
-      list.innerHTML = "";
+      // Remove chip buttons and hidden inputs but preserve the text input.
+      list.querySelectorAll(".prompt-chip, input[type='hidden']").forEach(el => el.remove());
       const frag = document.createDocumentFragment();
       for (const prompt of this.state[side]) {
         const chip = document.createElement("button");
