@@ -66,3 +66,4 @@ photos/
 
 # Design-system build artifacts (Tailwind standalone CLI + compiled CSS)
 bin/
+frontend/node_modules/
