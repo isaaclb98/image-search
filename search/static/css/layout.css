@@ -2119,3 +2119,13 @@ button:not(.discover-image-btn),
   opacity: 0.5 !important;
   cursor: not-allowed !important;
 }
+
+/* Ensure album-list <li> grid items stretch to fill their cell. */
+.album-list > li {
+  min-width: 0;
+}
+.album-list > li > a.album-card,
+.album-list > li > a.glass {
+  width: 100%;
+  height: 100%;
+}

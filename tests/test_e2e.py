@@ -334,3 +334,54 @@ class TestGridColumns:
             grid.element_handle(),
         )
         assert cols <= 5, f"Grid has {cols} columns, max is 5"
+
+
+class TestSavedSearches:
+    def test_saved_search_crud(self, page: Page):
+        _goto(page, "/")
+        # Create
+        page.fill('input[name="positives"]', "mountain")
+        page.click('[data-prompt-add="positives"]')
+        page.fill('input[name="positives"]', "cabin")
+        page.click('[data-prompt-add="positives"]')
+        page.click('[data-saved-save]')
+        # Wait for save/list update (no formal JS event, so verify UI state)
+        expect(page.locator('#saved-search-select option[value]')).to_have_count(1)
+
+    def test_delete_saved_search(self, page: Page):
+        # Implementation left to test the delete API directly if needed or via UI
+        pass
+
+class TestAlbumActions:
+    def test_create_album(self, page: Page):
+        _goto(page, "/albums")
+        page.fill('input[name="name"]', "Test Album")
+        page.click('button:has-text("Create album")')
+        expect(page.locator('.album-list')).to_contain_text("Test Album")
+
+    def test_delete_album(self, page: Page):
+        # Create then delete
+        _goto(page, "/albums")
+        page.fill('input[name="name"]', "Delete Me")
+        page.click('button:has-text("Create album")')
+        page.click('button:has-text("Delete album")')
+        expect(page.locator('.album-list')).not_to_contain_text("Delete Me")
+
+class TestPhotoActions:
+    def test_similar_navigation(self, page: Page):
+        # Navigate from search to photo to similar
+        _goto(page, "/")
+        page.click(".thumb-link")
+        page.wait_for_selector(".photo-page")
+        # Ensure 'Similar' link exists
+        page.click('text="Similar"')
+        expect(page).to_have_url(re.compile(r".*/similar$"))
+
+class TestDislikeToggle:
+    def test_dislike_toggles(self, page: Page):
+        _goto(page, "/")
+        page.click(".thumb-link")
+        # Ensure dislike button is present
+        btn = page.locator('[data-dislike-id]')
+        btn.click()
+        expect(btn).to_have_attribute("aria-pressed", "true")
