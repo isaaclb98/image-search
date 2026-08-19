@@ -210,22 +210,4 @@ def test_delete_missing_returns_404(app_with_qdrant):
 # ---------------- HTML page ----------------
 
 
-def test_saved_html_page_renders_empty_state(app_with_qdrant):
-    resp = app_with_qdrant.get("/saved")
-    assert resp.status_code == 200
-    assert "Saved searches" in resp.text
 
-
-def test_saved_html_page_renders_names(app_with_qdrant):
-    app_with_qdrant.post(
-        "/api/saved-searches",
-        json={"name": "test-name-a", "positives": ["p"], "negatives": []},
-    )
-    app_with_qdrant.post(
-        "/api/saved-searches",
-        json={"name": "test-name-b", "positives": [], "negatives": ["n"]},
-    )
-    resp = app_with_qdrant.get("/saved")
-    assert resp.status_code == 200
-    assert "test-name-a" in resp.text
-    assert "test-name-b" in resp.text

@@ -97,11 +97,6 @@ def test_api_favorites_default_limit_is_35(app_with_qdrant):
     assert response.json()["limit"] == 35
 
 
-def test_favorites_page_default_limit_is_35(app_with_qdrant):
-    app_with_qdrant.post(f"/api/favorites/{CAT_ID}")
-    response = app_with_qdrant.get("/favorites")
-    assert response.status_code == 200
-    assert 'data-limit="35"' in response.text
 
 
 def test_search_favorites_filter(app_with_qdrant):

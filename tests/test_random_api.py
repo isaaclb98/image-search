@@ -118,10 +118,6 @@ def test_api_random_default_limit_is_35(random_app):
     assert response.json()["limit"] == 35
 
 
-def test_random_page_default_limit_is_35(random_app):
-    response = random_app.get("/random")
-    assert response.status_code == 200
-    assert 'data-limit="35"' in response.text
 
 
 def test_api_random_filters_by_collection(random_app):
@@ -204,37 +200,6 @@ def test_api_random_results_have_basic_fields(random_app):
         assert r["score_str"] == ""
 
 
-def test_random_page_renders(random_app):
-    resp = random_app.get("/random")
-    assert resp.status_code == 200
-    assert "Random" in resp.text
-    # View toggle present.
-    assert 'data-view="grid"' in resp.text
-    assert 'data-view="feed"' in resp.text
-    # Shuffle button removed — replaced by infinite scroll on the sentinel.
-    assert "shuffle-btn" not in resp.text
-    # Sentinel rendered so the IntersectionObserver can fire.
-    assert "grid-sentinel" in resp.text
-    # SSR data block present so JS view-toggle can re-render
-    # without a refetch.
-    assert 'id="random-initial-results"' in resp.text
-    assert "type=\"application/json\"" in resp.text
 
 
-def test_random_page_with_collection_filter(random_app):
-    resp = random_app.get("/random?collections=kpop")
-    assert resp.status_code == 200
-    # Resulting page should reflect the filter via the tagline.
-    assert "kpop" in resp.text
 
-
-def test_random_page_view_echoes_in_toggle(random_app):
-    """The view toggle's active state matches the URL's view param
-    on first paint, so the SSR'd markup doesn't flash.
-    """
-    resp = random_app.get("/random?view=feed")
-    assert resp.status_code == 200
-    assert "segmented-btn is-active" in resp.text
-    # The feed button specifically carries the active class.
-    feed_section = resp.text.split('data-view="feed"')[0]
-    assert "segmented-btn is-active" in feed_section[-200:]

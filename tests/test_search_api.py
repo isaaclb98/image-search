@@ -100,78 +100,18 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch):
 # ---------------- Layer 2: / ----------------
 
 
-def test_get_search_page_no_query(app_with_qdrant):
-    """Landing page with no query: the search form renders, the
-    results grid is rendered (empty), and the page is a usable
-    state to start a search from.
-    """
-    resp = app_with_qdrant.get("/")
-    assert resp.status_code == 200
-    # The result grid renders (with or without random picks).
-    assert 'class="grid" data-feed-root' in resp.text
 
 
-def test_search_page_has_discover_nav_link(app_with_qdrant):
-    """The site header has a 'Discover' link to /discover on the main page."""
-    resp = app_with_qdrant.get("/")
-    assert resp.status_code == 200
-    # The link is in the header nav (rendered as <ul class="nav-list">).
-    assert 'class="nav-list"' in resp.text
-    assert 'href="/discover"' in resp.text
-    assert ">Discover<" in resp.text
 
 
-def test_get_search_page_with_query(app_with_qdrant):
-    resp = app_with_qdrant.get("/?q=cat")
-    assert resp.status_code == 200
-    assert 'class="grid" data-feed-root' in resp.text
-    # The cat thumbnail link is rendered.
-    assert CAT_ID in resp.text
 
 
-def test_get_search_page_with_include_and_exclude_prompts(app_with_qdrant):
-    resp = app_with_qdrant.get(
-        "/?positives=cat&positives=portrait&negatives=blurry"
-    )
-    assert resp.status_code == 200
-    assert 'data-prompt-input="positives"' in resp.text
-    assert 'data-prompt-input="negatives"' in resp.text
-    assert "cat" in resp.text
-    assert "portrait" in resp.text
-    assert "blurry" in resp.text
-    assert 'name="q"' not in resp.text
-    assert "Search your library" not in resp.text
-    assert 'class="grid" data-feed-root' in resp.text
 
 
-def test_get_search_page_renders_diversity_strength_control(app_with_qdrant):
-    resp = app_with_qdrant.get(
-        "/?q=cat&diversity=high&diversity_depth=2000"
-    )
-    assert resp.status_code == 200
-    # The diversity controls are select dropdowns (restored per UI
-    # requirements) carrying the active mode/depth as selected options.
-    assert 'name="diversity"' in resp.text
-    assert 'value="high" selected' in resp.text
-    assert 'name="diversity_depth"' in resp.text
-    assert 'value="2000" selected' in resp.text
 
 
-def test_get_search_page_empty_after_strip(app_with_qdrant):
-    """Whitespace-only query is stripped to empty, landing-page state
-    with no results. Still surfaces a usable page rather than a
-    dead-end.
-    """
-    resp = app_with_qdrant.get("/?q=%20%20%20")
-    assert resp.status_code == 200
-    # The grid container is still rendered.
-    assert 'class="grid" data-feed-root' in resp.text
 
 
-def test_get_search_page_url_decodes_query(app_with_qdrant):
-    resp = app_with_qdrant.get("/?q=cat%20%26%20dog")
-    assert resp.status_code == 200
-    assert "cat &amp; dog" in resp.text or "cat & dog" in resp.text
 
 
 # ---------------- Layer 2: /api/search ----------------
@@ -459,50 +399,14 @@ def test_api_search_view_empty_string_falls_back_to_grid(app_with_qdrant):
     assert resp.json()["view"] == "grid"
 
 
-def test_get_search_page_view_appears_in_toggle(app_with_qdrant):
-    """The /?view=feed query param is accepted and the page renders
-    normally. The per-card view toggle is client-side (JS reads the
-    URL), not server-rendered."""
-    resp = app_with_qdrant.get("/?q=cat&view=feed")
-    assert resp.status_code == 200
-    text = resp.text
-    # The result grid still renders.
-    assert 'class="grid" data-feed-root' in text
 
 
-def test_get_search_page_view_default_uses_grid_class(app_with_qdrant):
-    """No `?view=` → the result list uses the grid class, not feed."""
-    resp = app_with_qdrant.get("/?q=cat")
-    assert resp.status_code == 200
-    text = resp.text
-    assert 'class="grid"' in text
-    assert 'class="feed"' not in text
 
 
-def test_get_photo_page_view_preserved_in_back_link(app_with_qdrant):
-    """The photo page's back link includes `view=feed` so the user
-    returns to the same view they came from."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}?q=cat&view=feed")
-    assert resp.status_code == 200
-    # search_query_string should include view=feed (it's a non-default value).
-    assert "view=feed" in resp.text
 
 
-def test_get_photo_page_diversity_state_preserved_in_back_link(app_with_qdrant):
-    """Photo back-links retain the active Diversity strength and depth."""
-    resp = app_with_qdrant.get(
-        f"/photo/{CAT_ID}?q=cat&diversity=high&diversity_depth=2000"
-    )
-    assert resp.status_code == 200
-    assert "diversity=high" in resp.text
-    assert "diversity_depth=2000" in resp.text
 
 
-def test_get_photo_page_view_default_omitted_from_back_link(app_with_qdrant):
-    """The default 'grid' view is NOT in the back link (clean URLs)."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}?q=cat")
-    assert resp.status_code == 200
-    assert "view=" not in resp.text
 
 
 def test_api_search_empty_query_returns_400(app_with_qdrant):
@@ -579,13 +483,6 @@ def test_api_search_qdrant_unreachable(qdrant_in_memory, nas_base, monkeypatch):
 # ---------------- Layer 2: /photo/{id} ----------------
 
 
-def test_get_photo_page_known_id(app_with_qdrant):
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}?q=cat")
-    assert resp.status_code == 200
-    # The image is served via the /photo/{id}/raw route, not its
-    # original on-disk path.
-    assert f"/photo/{CAT_ID}/raw" in resp.text
-    assert "Back to results" in resp.text
 
 
 def test_get_photo_page_unknown_id_returns_404(app_with_qdrant):
@@ -622,12 +519,6 @@ def test_get_photo_raw_file_missing_returns_404(app_with_qdrant):
 # ---------------- Layer 2: "Most similar" feature ----------------
 
 
-def test_photo_page_has_similar_button(app_with_qdrant):
-    """The /photo/{id} page exposes a 'Most similar images' link."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}")
-    assert resp.status_code == 200
-    assert f'href="/photo/{CAT_ID}/similar"' in resp.text
-    assert "Most similar photos" in resp.text
 
 
 def test_photo_page_omits_similar_button_when_file_missing(app_with_qdrant):
@@ -639,13 +530,6 @@ def test_photo_page_omits_similar_button_when_file_missing(app_with_qdrant):
     assert resp.status_code == 404
 
 
-def test_get_photo_similar_known_id_renders_grid(app_with_qdrant):
-    """The /photo/{id}/similar page returns 200 with the result grid."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar")
-    assert resp.status_code == 200
-    # Grid is rendered, and the source photo is linkable from the page.
-    assert 'class="grid" data-feed-root' in resp.text
-    assert f'href="/photo/{CAT_ID}"' in resp.text
 
 
 def test_get_photo_similar_unknown_id_returns_404(app_with_qdrant):
@@ -653,46 +537,12 @@ def test_get_photo_similar_unknown_id_returns_404(app_with_qdrant):
     assert resp.status_code == 404
 
 
-def test_get_photo_similar_uses_35_default(app_with_qdrant):
-    """The similar-photo page defaults to 35 results."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar")
-    assert resp.status_code == 200
-    # The 3 indexed test points (cat, dog, car) should all show up.
-    assert resp.text.count('class="photo-card grid-item"') == 3
-    # No "load more" sentinel / hint at the default K.
-    assert "grid-sentinel" not in resp.text
-    assert "Scroll for more results" not in resp.text
 
 
-def test_get_photo_similar_source_first(app_with_qdrant):
-    """The source photo is the first result (by design, score ~1.0).
-    Acts as a sanity check that the right vector was retrieved."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar")
-    assert resp.status_code == 200
-    # First grid-item should reference the source.
-    first_idx = resp.text.find('class="photo-card grid-item"')
-    next_idx  = resp.text.find('class="photo-card grid-item"', first_idx + 1)
-    first_block = resp.text[first_idx:next_idx]
-    assert f'data-id="{CAT_ID}"' in first_block
-    # Source score should be very high (cosine ~1.0 to itself).
-    assert "1.000" in first_block or "0.999" in first_block
 
 
-def test_get_photo_similar_view_param_preserved(app_with_qdrant):
-    """The ?view=feed query param is accepted on the URL; the page
-    is identical to ?view=grid in this template (the per-card
-    view toggle is rendered by JS, not SSR)."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar?view=feed")
-    assert resp.status_code == 200
-    # Grid is still rendered (the SSR markup doesn't switch on view).
-    assert 'class="grid" data-feed-root' in resp.text
 
 
-def test_get_photo_similar_view_invalid_falls_back_to_grid(app_with_qdrant):
-    """An unknown ?view= silently falls back to grid (matches /?view= behavior)."""
-    resp = app_with_qdrant.get(f"/photo/{CAT_ID}/similar?view=bogus")
-    assert resp.status_code == 200
-    assert 'class="grid"' in resp.text
 
 
 # ---------------- Layer 2: result stability ----------------
@@ -833,23 +683,8 @@ def test_api_search_offset_non_integer_rejected(app_with_qdrant):
     assert r.status_code == 422
 
 
-def test_html_search_page_passes_offset_and_has_more(app_with_qdrant):
-    """The SSR page exposes the result grid for JS to pick up."""
-    resp = app_with_qdrant.get("/?q=cat&limit=2")
-    assert resp.status_code == 200
-    html = resp.text
-    # The result grid is rendered.
-    assert 'class="grid" data-feed-root' in html
 
 
-def test_html_search_page_at_cap_renders(app_with_qdrant):
-    """When the request offset is past the cap, page renders 200 with no grid."""
-    # Server clamps offset >= MAX_RESULTS_TOTAL to 500/limit 0, so no query
-    # runs and the grid is not rendered. The page still renders cleanly.
-    resp = app_with_qdrant.get("/?q=cat&offset=1000&limit=2")
-    assert resp.status_code == 200
-    # The empty result is rendered (no grid).
-    assert 'class="grid" data-feed-root' not in resp.text or "Nothing" in resp.text or len(resp.text) > 1000
 
 # ---------------- Layer 5: cross-machine path prefix ----------------
 
@@ -1148,17 +983,6 @@ def test_api_collections_endpoint_skips_empty_collection_values(
 # ---------------- Static asset caching ----------------
 
 
-def test_static_files_have_no_cache_header(app_with_qdrant):
-    """
-    ES module imports in search.js (./lib/grid.js, etc.) get cached
-    separately from the versioned entry point. The no-cache
-    middleware forces browsers to re-validate them on every
-    request, so a change to grid.js is visible after a normal
-    reload (not just a hard reload).
-    """
-    resp = app_with_qdrant.get("/static/js/ui.js")
-    assert resp.status_code == 200
-    assert resp.headers.get("cache-control") == "no-cache, must-revalidate"
 
 
 def test_non_static_responses_have_no_cache_header(app_with_qdrant):

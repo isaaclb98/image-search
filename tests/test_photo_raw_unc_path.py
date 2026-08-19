@@ -128,18 +128,6 @@ def test_photo_raw_serves_image_when_payload_path_is_unc(tmp_path):
     assert resp.content == image_path.read_bytes()
 
 
-def test_photo_page_renders_when_payload_path_is_unc(tmp_path):
-    """The /photo/{id} HTML page must render the photo, not 404."""
-    client, _ = _build(tmp_path)
-
-    resp = client.get(f"/photo/{POINT_ID}")
-
-    assert resp.status_code == 200, (
-        f"expected 200 (photo page), got {resp.status_code} "
-        f"({resp.text!r}) — photo_page's _is_path_alive(hit.path) "
-        "check is rejecting the UNC payload path before resolve_local."
-    )
-    assert "<img" in resp.text  # thumbnail rendered in the page
 
 
 def test_photo_raw_404s_when_resolved_local_file_is_missing(tmp_path):

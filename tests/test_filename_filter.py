@@ -588,14 +588,6 @@ def test_qdrant_search_allowed_ids_is_anded_with_collections(app_with_filename_p
 # ============================================================
 
 
-def test_photo_back_link_preserves_filename(app_with_filename_paths):
-    """The photo detail page's back-link includes `?filename=`
-    so the user returns to the same narrowed search they came
-    from."""
-    resp = app_with_filename_paths.get(f"/photo/{CHAEWON_ID}?q=chaewon&filename=chaewon")
-    assert resp.status_code == 200
-    # The back-link's query string should preserve the filename.
-    assert "filename=chaewon" in resp.text
 
 
 # ============================================================

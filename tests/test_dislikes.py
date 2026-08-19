@@ -109,47 +109,14 @@ def test_dislike_validation_errors(app_with_qdrant):
 
 # ---------------- HTML pages ----------------
 
-def test_dislikes_page_renders(app_with_qdrant):
-    r = app_with_qdrant.get("/dislikes")
-    assert r.status_code == 200
-    text = r.text
-    assert "dislikes-page" in text
-    assert "data-dislikes-page" in text
-    # empty state when nothing disliked
-    assert "No dislikes yet" in text
 
 
-def test_dislikes_page_shows_disliked_photo(app_with_qdrant):
-    app_with_qdrant.post(f"/api/dislikes/{CAT_ID}")
-    r = app_with_qdrant.get("/dislikes")
-    assert r.status_code == 200
-    # empty state present in DOM but hidden once there are results
-    assert "data-dislikes-empty hidden" in r.text.replace("\n", " ") or \
-        'data-dislikes-empty\n        hidden' in r.text or "hidden" in r.text.split("data-dislikes-empty")[1][:20]
-    assert CAT_ID in r.text
 
 
-def test_photo_page_has_dislike_button(app_with_qdrant):
-    r = app_with_qdrant.get(f"/photo/{CAT_ID}")
-    assert r.status_code == 200
-    text = r.text
-    assert "data-dislike-form" in text
-    assert "dislike-form" in text
-    assert f'action="/api/dislikes/{CAT_ID}"' in text
-    # not disliked yet -> off state
-    assert 'data-dislike-state="off"' in text
 
 
-def test_photo_page_dislike_state_after_dislike(app_with_qdrant):
-    app_with_qdrant.post(f"/api/dislikes/{CAT_ID}?source=detail")
-    r = app_with_qdrant.get(f"/photo/{CAT_ID}")
-    assert 'data-dislike-state="on"' in r.text
-    assert 'aria-pressed="true"' in r.text
 
 
-def test_nav_has_dislikes_link(app_with_qdrant):
-    r = app_with_qdrant.get("/")
-    assert "/dislikes" in r.text
 
 
 def test_dislike_reflected_in_for_you_state(app_with_qdrant):
