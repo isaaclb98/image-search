@@ -43,7 +43,12 @@ async function loadFeed() {
   aborter = new AbortController();
 
   try {
-    const res = await fetch("/api/for-you/feed?limit=30", {
+    // Read diversity controls if present
+    const diversitySelect = document.querySelector("[data-diversity-select]");
+    const depthSelect = document.querySelector("[data-diversity-depth-select]");
+    const diversity = diversitySelect?.value || "balanced";
+    const depth = depthSelect?.value || "auto";
+    const res = await fetch(`/api/for-you/feed?limit=30&diversity=${diversity}&diversity_depth=${depth}`, {
       signal: aborter.signal,
       headers: { Accept: "application/json" },
     });

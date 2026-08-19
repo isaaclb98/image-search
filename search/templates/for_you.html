@@ -24,6 +24,34 @@
        meta=for_you_meta
      ) }}
 
+  {% if for_you_n_likes > 0 %}
+    <div class="glass prompt-composition prompt-composition--primary" style="padding: var(--space-3); margin-bottom: var(--space-3);">
+      <div class="prompt-toolbar app-toolbar">
+        <div class="diversity-filters">
+          <label class="diversity-control" title="Balance relevance against visual repetition">
+            {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+            <span class="sr-only">Diversity strength</span>
+            <select class="diversity-select" data-diversity-select name="diversity" aria-label="Diversity strength">
+              {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+                <option value="{{ option[0] }}">{{ option[1] }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="diversity-control diversity-depth-control" title="How many candidates to consider before applying Diversity">
+            {{ ui.ui_icon('layers', 'h-4 w-4') }}
+            <span class="sr-only">Diversity candidate depth</span>
+            <select class="diversity-select" data-diversity-depth-select name="diversity_depth" aria-label="Diversity candidate depth">
+              {% for option in [('auto', 'Depth auto'), ('64', 'Depth 64'), ('128', 'Depth 128'), ('256', 'Depth 256'), ('512', 'Depth 512')] %}
+                <option value="{{ option[0] }}">{{ option[1] }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary btn-sm" data-for-you-refresh>Refresh</button>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
   {% if for_you_n_likes == 0 %}
     <section class="ui-empty-state glass app-empty-state" data-empty-state>
       <div class="ui-empty-state__icon" aria-hidden="true">{{ ui.ui_icon('heart', 'h-6 w-6') }}</div>
@@ -39,7 +67,7 @@
       </div>
     </section>
   {% else %}
-    <div class="for-you-grid"
+    <div class="grid for-you-grid"
          data-feed-root
          aria-live="polite"
          aria-busy="true">

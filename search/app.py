@@ -3923,7 +3923,11 @@ def create_app(
         }
 
     @app.get("/api/for-you/feed")
-    async def for_you_feed(limit: int = 30) -> dict:
+    async def for_you_feed(
+        limit: int = 30,
+        diversity: str = "balanced",
+        diversity_depth: str = "auto",
+    ) -> dict:
         """Heavy path: rebuild signal + Qdrant recommend + diversity."""
         try:
             limit = max(1, min(int(limit), 100))
@@ -3941,6 +3945,8 @@ def create_app(
                 dis_ids=dis_ids,
                 qdrant=qdrant,
                 limit=limit,
+                diversity_mode=diversity,
+                diversity_depth=diversity_depth,
             )
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)

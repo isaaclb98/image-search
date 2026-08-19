@@ -72,6 +72,8 @@ def rank(
     qdrant,
     limit: int = 30,
     pool_k: int | None = None,
+    diversity_mode: str = "balanced",
+    diversity_depth: str = "auto",
 ) -> list:
     """Recommend + diversity rerank for the for-you feed.
 
@@ -131,8 +133,9 @@ def rank(
         ranking = rank_diverse(
             pool,
             [0.0] * 1536,
-            mode="balanced",
+            mode=diversity_mode,
             max_results=limit,
+            depth=diversity_depth,
         )
         return list(ranking.hits)
     except Exception as exc:  # pragma: no cover — defensive

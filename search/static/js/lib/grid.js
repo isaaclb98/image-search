@@ -44,7 +44,7 @@ export function appendToGrid(rootEl, results) {
   const frag = document.createDocumentFragment();
   for (const r of results) {
     const li = document.createElement("li");
-    li.className = "grid-item";
+    li.className = "photo-card grid-item";
     li.dataset.id = r.id;
     li.dataset.score = r.score;
     li.dataset.photoId = r.id;

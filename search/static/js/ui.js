@@ -456,6 +456,52 @@ const searchForm = document.querySelector("form.search-form");
 if (searchForm) {
   const chips = new PromptChips(searchForm);
 
+  // Enable/disable the save button based on whether prompts exist.
+  const saveBtn = searchForm.querySelector("[data-saved-save]");
+  if (saveBtn) {
+    searchForm.addEventListener("promptschanged", (e) => {
+      const hasPrompts = e.detail.positives.length > 0 || e.detail.negatives.length > 0;
+      saveBtn.disabled = !hasPrompts;
+      saveBtn.title = hasPrompts
+        ? "Save this search"
+        : "Add an Include/Exclude prompt to save";
+    });
+    saveBtn.addEventListener("click", async () => {
+      const errorEl = searchForm.querySelector("[data-saved-error]");
+      if (errorEl) { errorEl.hidden = true; errorEl.textContent = ""; }
+      try {
+        const resp = await fetch("/api/saved-searches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            positives: chips.state.positives,
+            negatives: chips.state.negatives,
+            name: chips.state.positives.join(", ") || "Untitled search",
+          }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const saved = await resp.json();
+        // Add to dropdown
+        const select = searchForm.querySelector("[data-saved-select]");
+        if (select) {
+          const opt = document.createElement("option");
+          opt.value = saved.id;
+          opt.textContent = saved.name || saved.positives.join(", ");
+          select.prepend(opt);
+          select.value = saved.id;
+        }
+        // Show confirmation
+        saveBtn.textContent = "Saved ✓";
+        setTimeout(() => { saveBtn.textContent = "Save"; }, 1500);
+      } catch (err) {
+        if (errorEl) {
+          errorEl.textContent = "Failed to save: " + err.message;
+          errorEl.hidden = false;
+        }
+      }
+    });
+  }
+
   // Intercept form submit: merge chip state into URL params so
   // all active chips are included alongside any in-progress text.
   searchForm.addEventListener("submit", (event) => {
