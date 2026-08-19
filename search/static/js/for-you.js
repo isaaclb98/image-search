@@ -83,7 +83,7 @@ function renderFeed(data) {
 
 function renderCard(it, idx) {
   return `
-    <article class="photo-card for-you-card" data-photo-id="${it.id}" data-photo-blurhash="${it.blurhash || ""}" data-freshness="${idx}">
+    <article class="photo-card grid-item for-you-card" data-photo-id="${it.id}" data-photo-blurhash="${it.blurhash || ""}" data-freshness="${idx}">
       <a class="photo-card-link" href="/photo/${it.id}">
         <img src="${it.url}" alt="" loading="lazy" decoding="async" class="photo-card-img">
       </a>

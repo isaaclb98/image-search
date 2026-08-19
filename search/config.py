@@ -22,7 +22,7 @@ load_dotenv()
 
 DEFAULT_MODEL: str = "ViT-gopt-16-SigLIP2-384"
 DEFAULT_COLLECTION: str = "images"
-DEFAULT_RESULT_LIMIT: int = 35
+DEFAULT_RESULT_LIMIT: int = 20
 
 # Mapping from open_clip arch tag → (centroid-file `model` string,
 # expected feature dim). The centroid's `model` field is a short

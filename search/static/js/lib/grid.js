@@ -82,6 +82,12 @@ export function appendToGrid(rootEl, results) {
     frag.appendChild(li);
   }
   rootEl.appendChild(frag);
+  
+  // Re-add sentinel at the end if the list still has more items.
+  if (rootEl.dataset.hasMore === "true") {
+      addSentinel(rootEl);
+  }
+  
   enhancePhotoCards(rootEl);
 }
 

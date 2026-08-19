@@ -172,8 +172,9 @@ def test_search_page_still_works_without_macros():
     regressions that would break the `test_search_api` suite."""
     src = _page("search.html")
     # search.html renders the prompt-composition surface inline (no ui.*
-    # macros) with an SSR grid carrying data-feed-root for the JS
-    # controllers (infinite scroll + prompt chips) to bind to.
+    # macros) and delegates the SSR grid (carrying data-feed-root for the
+    # JS controllers — infinite scroll + prompt chips) to the shared
+    # _result_grid.html partial.
     assert "data-prompt-input=\"positives\"" in src
-    assert 'data-feed-root' in src
+    assert '{% include "_result_grid.html" %}' in src
     assert "data-search-submit" in src

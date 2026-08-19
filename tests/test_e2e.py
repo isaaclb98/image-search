@@ -333,14 +333,16 @@ class TestSavedSearches:
         page.fill('[data-prompt-input="positives"]', "mountain")
         page.locator('[data-prompt-add="positives"]').click()
         page.wait_for_timeout(300)
+        # Open the collapsible Filters section (saved-search controls live
+        # inside it; it defaults to collapsed).
+        page.locator(".search-advanced summary").click()
         # Save button should now be enabled
         save_btn = page.locator('[data-saved-save]')
         expect(save_btn).not_to_be_disabled()
         save_btn.click()
         page.wait_for_timeout(1000)
         # Verify the saved search appears on the /saved page (the
-        # dropdown was removed in the T-refactor; /saved is the
-        # canonical list surface now).
+        # canonical list surface).
         _goto(page, "/saved")
         page.wait_for_selector(".saved-card")
         expect(page.locator(".saved-card")).to_contain_text("mountain")

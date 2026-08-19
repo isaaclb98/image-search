@@ -149,9 +149,12 @@ def test_get_search_page_renders_diversity_strength_control(app_with_qdrant):
         "/?q=cat&diversity=high&diversity_depth=2000"
     )
     assert resp.status_code == 200
-    # The diversity controls are a range + number input pair.
+    # The diversity controls are select dropdowns (restored per UI
+    # requirements) carrying the active mode/depth as selected options.
     assert 'name="diversity"' in resp.text
-    assert 'name="diversity_depth" value="2000"' in resp.text
+    assert 'value="high" selected' in resp.text
+    assert 'name="diversity_depth"' in resp.text
+    assert 'value="2000" selected' in resp.text
 
 
 def test_get_search_page_empty_after_strip(app_with_qdrant):
@@ -1203,3 +1206,4 @@ def test_normalize_query_is_idempotent():
     once = _normalize_query_for_siglip2(text)
     twice = _normalize_query_for_siglip2(once)
     assert once == twice == "mixed case"
+

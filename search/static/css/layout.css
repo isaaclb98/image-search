@@ -416,6 +416,15 @@
   flex-wrap: wrap;
 }
 
+/* app-toolbar is a semantic alias for prompt-toolbar — same flex
+   row, used in for-you and centroid toolbars. */
+.app-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 .prompt-toolbar > .saved-search-bar {
   /* Saved control row inside the toolbar — inline, no own surface. */
   display: inline-flex;
@@ -1049,8 +1058,7 @@ form button.search-submit {
 
    Pill-shaped — consistent with every other interactive element. */
 .prompt-input {
-  flex: 1 1 12rem;
-  min-width: 12rem;
+  width: 100%;
   min-height: 2.5rem;
   padding: var(--space-1) var(--space-3);
   border: 1px solid hsl(var(--border-glass));
@@ -1085,32 +1093,18 @@ form button.search-submit {
    the row, and the gap collapses to a normal flex gap. */
 .prompt-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  min-height: 2.5rem;
+  padding: var(--space-2) 0;
 }
-
-/* The chip-list contains chips AND the input. flex-wrap means
-   chips flow onto multiple lines when they overflow; the input
-   always fills the remaining row space. */
 .prompt-chip-list {
   display: flex;
-  flex: 1 1 auto;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--space-2);
-  min-width: 0;
+  width: 100%;
 }
-
-/* Form labels — all labels read as dark text, never as accent
-   color. Accent stays reserved for interactive elements (active
-   buttons, segment toggles, links). Labels are presentational,
-   not action. */
-.prompt-row-label {
-  display: inline-block;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: hsl(var(--ink-bright));
+.prompt-input {
+  width: 100%;
 }
 
 .prompt-row--primary .prompt-row-label {
@@ -1314,6 +1308,20 @@ form button.search-submit {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  /* Uniform size — every album card gets the same 4:3 cover aspect
+     so the grid doesn't jump between different heights. */
+  min-height: 14rem;
+}
+.album-card .album-card__cover {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: hsl(var(--surface) / 8%);
+}
+.album-card .album-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .saved-card {
   /* Surface supplied by .glass on the element. Internal layout only. */
@@ -1498,6 +1506,17 @@ form button.search-submit {
 
 .for-you-grid {
   min-height: 30rem;
+}
+
+/* For You cards use the same 1:1 square as search grid items. */
+.for-you-card {
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+.for-you-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* The for-you page reuses the shared .ui-empty-state component for
@@ -2090,12 +2109,238 @@ button:not(.discover-image-btn),
   cursor: not-allowed !important;
 }
 
-/* Ensure album-list <li> grid items stretch to fill their cell. */
-.album-list > li {
+/* Ensure album <li> grid items stretch to fill their cell. */
+ul.grid > li.album-card {
   min-width: 0;
 }
-.album-list > li > a.album-card,
-.album-list > li > a.glass {
+ul.grid > li.album-card > a.album-card,
+ul.grid > li.album-card > a.glass {
   width: 100%;
   height: 100%;
+}
+
+/* ============================================================
+   12. FAVOURITES PAGE — hide redundant heart badges.
+   ============================================================ */
+[data-favorites-page] .photo-card .fav-badge {
+  display: none;
+}
+
+/* ============================================================
+   13. CENTROID PAGE — source path & section polish.
+   ============================================================ */
+.centroid-source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: hsl(var(--surface-glass) / 50%);
+  border: 1px solid hsl(var(--border-glass));
+  font-size: var(--text-xs);
+  color: hsl(var(--ink-off-white));
+  word-break: break-all;
+}
+.centroid-source code {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs);
+}
+.centroid-source .btn {
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   14. PHOTO LIGHTBOX — modal overlay for image preview.
+   ============================================================ */
+.photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(0 0% 0% / 70%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-base) var(--ease-out),
+              visibility var(--dur-base);
+}
+.photo-lightbox[open],
+.photo-lightbox.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+.photo-lightbox[hidden] {
+  display: none !important;
+}
+.photo-lightbox:not([hidden]) {
+  display: flex;
+}
+
+/* Prevent body scroll when lightbox is open. */
+body.lightbox-open {
+  overflow: hidden;
+}
+
+/* Backdrop / close click target. */
+.photo-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  z-index: 0;
+}
+
+/* Dialog container. */
+.photo-lightbox-dialog {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 90vw;
+  max-height: 90vh;
+  background: hsl(var(--surface-glass) / 90%);
+  backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+}
+
+/* Header row — title + close button. */
+.photo-lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid hsl(var(--border-glass));
+}
+.photo-lightbox-kicker {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--ink-off-white));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Image body — side-by-side on wide, stacked on narrow. */
+.photo-lightbox-body {
+  display: flex;
+  min-height: 0;
+  overflow: auto;
+}
+.photo-lightbox-figure {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 60%;
+  min-width: 0;
+  min-height: 20rem;
+  background: hsl(0 0% 0% / 30%);
+  margin: 0;
+}
+.photo-lightbox-figure img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  display: block;
+}
+
+/* Nav arrows. */
+.photo-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: hsl(0 0% 0% / 50%);
+  backdrop-filter: blur(4px);
+  border: 1px solid hsl(0 0% 100% / 10%);
+  color: hsl(0 0% 100% / 90%);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+  z-index: 2;
+}
+.photo-lightbox-nav:hover {
+  background: hsl(0 0% 0% / 75%);
+}
+.photo-lightbox-nav--prev { left: var(--space-3); }
+.photo-lightbox-nav--next { right: var(--space-3); }
+
+/* Detail sidebar. */
+.photo-lightbox-details {
+  flex: 0 0 16rem;
+  padding: var(--space-3);
+  border-left: 1px solid hsl(var(--border-glass));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+}
+.photo-lightbox-eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--ink-off-white));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.photo-lightbox-details h2 {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+  margin: 0;
+}
+.photo-lightbox-path {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono, monospace);
+  color: hsl(var(--ink-off-white));
+  word-break: break-all;
+}
+.photo-lightbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+/* Album selector in lightbox. */
+.photo-lightbox-albums {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.photo-lightbox-albums h3 {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: hsl(var(--ink-off-white));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+/* Responsive — stack on narrow viewports. */
+@media (max-width: 640px) {
+  .photo-lightbox-dialog {
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .photo-lightbox-body {
+    flex-direction: column;
+  }
+  .photo-lightbox-details {
+    flex: none;
+    border-left: none;
+    border-top: 1px solid hsl(var(--border-glass));
+  }
 }

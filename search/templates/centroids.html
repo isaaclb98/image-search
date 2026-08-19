@@ -36,7 +36,7 @@
        description="Pre-computed embedding vectors. Pick one or more to blend, or click a card name to search against just that one."
      ) }}
   {% if centroids_dir %}
-    <p class="text-xs text-base-content/60 -mt-2 mb-6">
+    <p class="centroid-source" style="margin-bottom: var(--space-4);">
       <span class="font-medium">source</span>
       <code>{{ centroids_dir }}</code>
       <button
