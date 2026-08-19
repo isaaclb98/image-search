@@ -1,5 +1,3 @@
-import { enhancePhotoCards, addFavoriteButton } from "./photo-card.js";
-
 // lib/feed.js — render the result list as a phone-style single-column feed
 //
 // Symmetric with lib/grid.js: same `render(rootEl, results, opts)` shape,
@@ -13,6 +11,8 @@ import { enhancePhotoCards, addFavoriteButton } from "./photo-card.js";
 // on the cell). Keeping the two renderers in their own files means each
 // one stays small and focused, and the diff when toggling view modes is
 // local to the JS file the toggle actually affects.
+
+import { enhancePhotoCards, addFavoriteButton } from "./photo-card.js";
 
 export function renderFeed(rootEl, results, opts = {}) {
   if (!rootEl) return;
@@ -86,24 +86,26 @@ export function appendToFeed(rootEl, results) {
     frag.appendChild(li);
   }
   rootEl.appendChild(frag);
+
+  // Re-add sentinel at the end.
+  const sentinelNew = document.createElement("li");
+  sentinelNew.className = "grid-sentinel";
+  sentinelNew.setAttribute("aria-hidden", "true");
+  rootEl.appendChild(sentinelNew);
+
   enhancePhotoCards(rootEl);
 }
 
-function addSentinel(rootEl) {
+export function addSentinel(rootEl) {
   if (!rootEl) return;
   removeSentinel(rootEl);
   const li = document.createElement("li");
   li.className = "grid-sentinel";
   li.setAttribute("aria-hidden", "true");
-  // In feed mode the sentinel is a single empty <li> in a vertical stack
-  // — it has zero height by default, which can fool some IntersectionObserver
-  // implementations when rootMargin is generous. 1px is enough to make
-  // intersection reliable without adding visible whitespace.
-  li.style.minHeight = "1px";
   rootEl.appendChild(li);
 }
 
-function removeSentinel(rootEl) {
+export function removeSentinel(rootEl) {
   if (!rootEl) return;
   const existing = rootEl.querySelector(":scope > .grid-sentinel");
   if (existing) existing.remove();

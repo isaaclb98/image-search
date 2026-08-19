@@ -124,6 +124,9 @@
   position: relative;
   text-decoration: none;
 }
+.photo-card.grid-item .photo-card-link {
+  height: 100%;
+}
 
 .photo-card-img {
   display: block;
@@ -132,8 +135,11 @@
   background: hsl(var(--surface) / 8%);
 }
 
-/* Grid mode — square-ish cells via aspect-ratio. */
+/* Grid mode — square cells. The card's aspect-ratio is 1/1 (set on
+   .photo-card.grid-item above); the image must stretch to fill it. */
 .photo-card.grid-item img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
@@ -145,6 +151,60 @@
   width: 100%;
   height: auto;
   object-fit: cover;
+}
+
+/* Card action buttons (favourite / dislike) — absolutely positioned
+   overlay on the photo so the tile stays a clean square. Hidden until
+   hover/focus, revealed on interaction. */
+.photo-card-actions {
+  position: absolute;
+  bottom: var(--space-2);
+  left: var(--space-2);
+  z-index: 4;
+  display: flex;
+  gap: var(--space-1);
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition: opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.grid-item:hover .photo-card-actions,
+.grid-item:focus-within .photo-card-actions,
+.feed-item:hover .photo-card-actions,
+.feed-item:focus-within .photo-card-actions,
+.photo-card-actions:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+}
+.photo-card-favorite,
+.photo-card-dislike {
+  display: inline-grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 1px solid hsl(0 0% 100% / 25%);
+  border-radius: var(--radius-pill);
+  background: hsl(0 0% 0% / 48%);
+  color: hsl(0 0% 100% / 92%);
+  cursor: pointer;
+  backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  -webkit-backdrop-filter: blur(var(--blur-pill)) saturate(var(--saturate-glass));
+  transition: color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out);
+}
+.photo-card-favorite:hover,
+.photo-card-favorite.is-active {
+  color: hsl(350 75% 65%);
+  background: hsl(0 0% 0% / 68%);
+}
+.photo-card-favorite.is-active svg {
+  fill: currentColor;
+}
+.photo-card-dislike:hover,
+.photo-card-dislike.is-active {
+  color: hsl(0 0% 100%);
+  background: hsl(0 0% 0% / 68%);
 }
 
 /* Score badge — top-right of each card. */

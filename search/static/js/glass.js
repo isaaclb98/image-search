@@ -19,6 +19,7 @@ const BATCH_SIZE = 6;        // cards per microtask tick
 const OBSERVER_ROOT_MARGIN = "200px 0px";  // start work before scroll-in
 
 let cardsObserved = false;
+let pageAccentSet = false;
 
 function applyCardColors(card, colors) {
   if (!colors) return;
@@ -60,6 +61,20 @@ async function processInBatches(cards) {
   for (let i = 0; i < cards.length; i += BATCH_SIZE) {
     const batch = cards.slice(i, i + BATCH_SIZE);
     await Promise.all(batch.map(processCard));
+    // If the page accent hasn't been set yet (no [data-page-accent-from]
+    // on this page), derive it from the first card that has a blurhash.
+    // This makes the ambient mesh and glass tint work on dynamically
+    // loaded grids like /for-you and /search results.
+    if (!pageAccentSet) {
+      for (const card of batch) {
+        const bh = cardBlurhash(card);
+        if (bh) {
+          setPageAccent(bh);
+          pageAccentSet = true;
+          break;
+        }
+      }
+    }
     // Give the rendering thread a tick between batches.
     await new Promise((r) => requestAnimationFrame(r));
   }
@@ -165,7 +180,10 @@ export function initGlass() {
     document.querySelector(".photo-card[data-photo-blurhash]");
   if (trigger) {
     const bh = trigger.dataset.pageAccentFrom || cardBlurhash(trigger);
-    if (bh) setPageAccent(bh);
+    if (bh) {
+      setPageAccent(bh);
+      pageAccentSet = true;
+    }
   }
 }
 

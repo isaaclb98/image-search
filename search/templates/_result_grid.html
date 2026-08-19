@@ -4,39 +4,30 @@
   /photo/{id}/similar.
 
   Renders the <ul class="grid|feed"> of image results plus the
-  "load more" / "capped" hint, and nothing else. The "Showing N-M
-  for X" preamble stays in the parent template (the wording depends
-  on the page's mode — text query, positive chips, or similar).
-
-  T6 polish (2026-08-05):
-    - Edge-to-edge thumbs (image fills the card).
-    - No border; hover raises shadow-md → shadow-lg.
-    - Score / favourite overlays stay in the top corners (small, semantic).
-    - Loading="lazy" + decoding="async" preserved.
+  "load more" / "capped" hint. The grid container is ALWAYS rendered
+  so the infinite-scroll JS can bind to it.
 
   Required context:
-    results               list[SearchResult] (each has .id, .url, .score, .score_str)
+    results               list[SearchResult]
     view                  'grid' | 'feed'
     offset                int
     limit                 int
     has_more              bool
     max_results_total     int
-    search_query_string   str   — appended to /photo/{id} back-links from each tile
-    q                     str   — echoed on the grid's data-q attribute
+    search_query_string   str
+    q                     str
     positives             list[str]
     negatives             list[str]
 #}
-{% if results %}
-  <ul
-    class="{{ 'feed' if view == 'feed' else 'grid' }}"
-    id="result-grid"
-    data-q="{{ q|urlencode }}"
-    data-positives="{{ positives|join('	') }}"
-    data-negatives="{{ negatives|join('	') }}"
-    data-offset="{{ offset + results|length }}"
-    data-limit="{{ limit }}"
-    data-has-more="{{ 'true' if has_more else 'false' }}"
-  >
+<ul class="grid" data-feed-root id="result-grid"
+  data-q="{{ q|urlencode }}"
+  data-positives="{{ positives|join('\t') }}"
+  data-negatives="{{ negatives|join('\t') }}"
+  data-offset="{{ (offset + results|length) if results else offset }}"
+  data-limit="{{ limit }}"
+  data-has-more="{{ 'true' if has_more else 'false' }}"
+>
+  {% if results %}
     {% for r in results %}
       <li
         class="photo-card {{ 'feed-item' if view == 'feed' else 'grid-item' }}"
@@ -71,8 +62,8 @@
               alt=""
               loading="lazy"
               decoding="async"
-              onerror="this.classList.add('img-error')"
-              class="block w-full h-full object-cover"
+              class="w-full h-full object-cover"
+              onerror="this.parentElement.innerHTML='<span class=\\'thumb-fallback\\'>📷</span>'"
             >
           </a>
         {% endif %}
@@ -86,7 +77,7 @@
             aria-label="{{ 'Remove from favourites' if r.is_favorite else 'Add to favourites' }}"
             title="{{ 'Remove from favourites' if r.is_favorite else 'Add to favourites' }}"
           >
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.7c0 5.3-8.8 10.1-8.8 10.1S3.2 14 3.2 8.7A4.7 4.7 0 0 1 12 6.2a4.7 4.7 0 0 1 8.8 2.5Z"></path></svg>
+            {{ ui.ui_icon('heart', 'h-4 w-4') }}
           </button>
         </div>
         {% if r.width and r.height %}
@@ -99,8 +90,8 @@
     {% if has_more %}
       <li class="grid-sentinel" aria-hidden="true"></li>
     {% endif %}
-  </ul>
-  {% if has_more %}
-    <p class="load-more-hint" data-max-total="{{ max_results_total }}">Scroll for more results.</p>
   {% endif %}
+</ul>
+{% if has_more %}
+  <p class="load-more-hint" data-max-total="{{ max_results_total }}">Scroll for more results.</p>
 {% endif %}

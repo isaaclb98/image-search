@@ -150,7 +150,7 @@ def test_search_page_centroid_diversity_control_is_selected(app_with_centroids):
     )
     assert resp.status_code == 200
     # The diversity-depth numeric input is pre-populated with the value.
-    assert 'name="diversity_depth" value="2000"' in resp.text
+    assert 'value="2000" selected' in resp.text
     assert "class=\"search-submit\"" in resp.text
 
 

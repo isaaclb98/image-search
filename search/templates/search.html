@@ -35,16 +35,40 @@
 {% endif %}
 
 <form class="search-form" method="get" action="/">
-  {# Always show full prompt composition UI. #}
-  <div class="glass prompt-composition prompt-composition--primary" style="padding: var(--space-3);">
+{% if active_centroids %}
+  {# Centroid mode: diversity controls + search button directly. #}
+  <div class="glass prompt-composition prompt-composition--primary">
     <div class="prompt-toolbar app-toolbar">
       <div class="diversity-filters">
-        <label>Diversity: <input type="range" name="diversity" value="{{ diversity }}" min="0" max="1" step="0.1"></label>
-        <label>Depth: <input type="number" name="diversity_depth" value="{{ diversity_depth }}" min="1" max="100"></label>
+        <label class="diversity-control" title="Balance relevance against visual repetition">
+          {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+          <select class="diversity-select" data-diversity-select name="diversity" aria-label="Diversity strength">
+            {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+              <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="diversity-control" title="How many candidates to consider for diversity re-ranking">
+          <select class="diversity-select" data-diversity-depth-select name="diversity_depth" aria-label="Diversity candidate depth">
+            {% for option in [('auto', 'Depth auto'), ('500', '500'), ('1000', '1000'), ('2000', '2000'), ('5000', '5000')] %}
+              <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
       </div>
       <button type="submit" class="search-submit" data-search-submit>Search</button>
-      <button type="button" class="saved-search-save" data-saved-save disabled title="Add an Include/Exclude prompt to save">Save</button>
     </div>
+  </div>
+{% else %}
+  {# Text search mode: full composition UI. #}
+  <section class="glass prompt-composition prompt-composition--primary">
+    <div class="prompt-toolbar app-toolbar">
+      <button type="submit" class="search-submit" data-search-submit>Search</button>
+      {% if q or positives or negatives or collections or filename %}
+        <a class="clear-link" href="/">clear all</a>
+      {% endif %}
+    </div>
+
     <div class="prompt-row prompt-row--primary" data-prompt-row="positives">
       <span class="prompt-row-label">Include</span>
       <div class="prompt-chip-list" data-prompt-chips="positives">
@@ -56,9 +80,10 @@
           <input type="hidden" name="positives" value="{{ prompt }}">
         {% endfor %}
       </div>
-      <input class="prompt-input" type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt" autofocus>
+      <input class="prompt-input" type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
       <button class="prompt-add" type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
     </div>
+
     <div class="prompt-row prompt-row--secondary" data-prompt-row="negatives">
       <span class="prompt-row-label">Exclude</span>
       <div class="prompt-chip-list" data-prompt-chips="negatives">
@@ -73,24 +98,151 @@
       <input class="prompt-input" type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, text, watermark" aria-label="Add Exclude prompt">
       <button class="prompt-add" type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
     </div>
-  </div>
+
+    <span class="prompt-composition-hint" data-search-draft-status>Include what you want to find; optionally exclude what you do not.</span>
+
+    {# Advanced filters — collapsible, default open when any filter active. #}
+    <details class="search-advanced"{% if q or positives or negatives or collections or filename or diversity_mode|default('off') != 'off' %} open{% endif %}>
+      <summary class="search-advanced-summary">
+        {{ ui.ui_icon('filter', 'h-4 w-4') }}
+        <span>Filters</span>
+      </summary>
+      <div class="search-advanced-body">
+        <div class="saved-search-bar" data-saved-bar>
+            <label class="saved-search-bar-label" for="saved-search-select">Saved</label>
+            <select
+              id="saved-search-select"
+              class="saved-search-select"
+              data-saved-select
+              aria-label="Apply a saved search"
+            >
+              <option value="" data-saved-default-option>Pick a saved search</option>
+              {% for s in saved_searches %}
+                <option
+                  data-saved-positives='{{ s.positives|tojson }}'
+                  data-saved-negatives='{{ s.negatives|tojson }}'
+                >{{ s.name }}</option>
+              {% endfor %}
+            </select>
+            <button
+              type="button"
+              class="saved-search-save"
+              data-saved-save
+              disabled
+              title="Add an Include/Exclude prompt to save"
+            >Save</button>
+            <span data-saved-status class="saved-search-status"></span>
+          </div>
+
+        <div class="diversity-filters">
+          <label class="diversity-control" title="Balance relevance against visual repetition">
+            {{ ui.ui_icon('shuffle', 'h-4 w-4') }}
+            <select class="diversity-select" data-diversity-select name="diversity" aria-label="Diversity strength">
+              {% for option in [('off', 'Diversity off'), ('low', 'Diversity low'), ('balanced', 'Diversity balanced'), ('high', 'Diversity high')] %}
+                <option value="{{ option[0] }}"{% if (diversity_mode|default('off')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="diversity-control" title="How many candidates to consider for diversity re-ranking">
+            <select class="diversity-select" data-diversity-depth-select name="diversity_depth" aria-label="Diversity candidate depth">
+              {% for option in [('auto', 'Depth auto'), ('500', '500'), ('1000', '1000'), ('2000', '2000'), ('5000', '5000')] %}
+                <option value="{{ option[0] }}"{% if (diversity_depth|default('auto')) == option[0] %} selected{% endif %}>{{ option[1] }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <label class="filename-filter" for="filename-filter-input">
+          <span class="filename-label">Filename</span>
+          <input
+            class="filename-input"
+            type="text"
+            id="filename-filter-input"
+            name="filename"
+            value="{{ filename|default('') }}"
+            placeholder="e.g. IMG_2024"
+            autocomplete="off"
+            title="Restrict results to photos whose path matches this token."
+          >
+        </label>
+      </div>
+    </details>
+  </section>
+{% endif %}
 </form>
 
-<ul class="grid" data-feed-root aria-live="polite" aria-busy="true">
-  {% for r in results %}
-    <li class="photo-card grid-item" data-id="{{ r.id }}" data-score="{{ r.score }}">
-      <a class="thumb-link" href="/photo/{{ r.id }}{{ '?q=' ~ q if q else '' }}" data-lightbox-trigger="{{ r.url }}" data-blurhash="{{ r.blurhash }}">
-        <img class="photo-card-img" src="{{ r.url }}" alt="" loading="lazy" onload="this.classList.add('is-loaded')">
-        <canvas class="blurhash-canvas"></canvas>
-      </a>
-      <div class="photo-card-actions">
-        <form class="fav-form" data-fav-form data-fav-id="{{ r.id }}">
-          <button type="submit" class="photo-action-btn" data-fav-state="{{ ('true' if r.is_favorite else 'false') }}" aria-pressed="{{ ('true' if r.is_favorite else 'false') }}">
-            <span class="fav-icon">{{ ui.ui_icon('heart', 'h-4 w-4') }}</span>
-          </button>
-        </form>
-      </div>
-    </li>
-  {% endfor %}
-</ul>
+{% if error %}
+  <p class="state state-error" role="alert">
+    {{ error }}
+    <a href="/{% if search_query_string %}?{{ search_query_string }}{% endif %}">retry</a>
+  </p>
+{% endif %}
+
+{# Result count header. #}
+{% if source_photo_id %}
+  <p class="result-count">
+    {% if results %}
+      {{ results|length }} most similar images to
+      <a href="/photo/{{ source_photo_id }}">{{ source_photo_id[:8] }}…</a>
+      <span class="took">({{ took_ms }} ms)</span>
+    {% else %}
+      No similar images found.
+    {% endif %}
+  </p>
+  <p class="similar-back-link">
+    <a href="/photo/{{ source_photo_id }}">← Back to photo</a>
+  </p>
+{% elif positives or active_centroids or filename %}
+  <p class="result-count">
+    {% if results %}
+      Showing {{ offset + 1 }}–{{ offset + results|length }}
+      {% if has_more %}(of more than {{ offset + results|length }}){% endif %}
+      {% if active_centroids %}
+        {% if active_centroids|length == 1 %}
+          for centroid &ldquo;{{ active_centroids[0] }}&rdquo;
+        {% else %}
+          for centroid blend &ldquo;{{ active_centroids|join(' + ') }}&rdquo;
+        {% endif %}
+      {% endif %}
+      {% if filename %}
+        in paths matching &ldquo;{{ filename }}&rdquo;
+      {% endif %}
+      <span class="took">({{ took_ms }} ms)</span>
+    {% else %}
+      No results
+      {% if active_centroids %}
+        {% if active_centroids|length == 1 %}
+          for centroid &ldquo;{{ active_centroids[0] }}&rdquo;
+        {% else %}
+          for centroid blend &ldquo;{{ active_centroids|join(' + ') }}&rdquo;
+        {% endif %}
+      {% else %}
+        for
+          {% if positives %}
+            &ldquo;{{ positives|join(' + ') }}&rdquo;
+          {% endif %}
+          {% if negatives %}
+            without &ldquo;{{ negatives|join(', ') }}&rdquo;
+          {% endif %}
+      {% endif %}
+      {% if filename %}
+        in paths matching &ldquo;{{ filename }}&rdquo;
+      {% endif %}
+    {% endif %}
+  </p>
+{% elif q %}
+  <p class="result-count">
+    {% if results %}
+      Showing {{ offset + 1 }}–{{ offset + results|length }}
+      {% if has_more %}(of more than {{ offset + results|length }}){% endif %}
+      for &ldquo;{{ q }}&rdquo;
+      <span class="took">({{ took_ms }} ms)</span>
+    {% else %}
+      No results for &ldquo;{{ q }}&rdquo;.
+    {% endif %}
+  </p>
+{% endif %}
+
+{# The result grid is always rendered — empty state handled by JS. #}
+{% include "_result_grid.html" %}
 {% endblock %}
