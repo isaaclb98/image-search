@@ -65,7 +65,6 @@
 
 <svelte:window
   onclick={onClose}
-  oncontextmenu={onClose}
   onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
 />
 
