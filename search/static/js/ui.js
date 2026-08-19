@@ -2,6 +2,7 @@
 // favourites, and the small keyboard shortcut surface shared by every page.
 
 import { enhancePhotoCards, setFavoriteLabel } from "./lib/photo-card.js";
+import { PromptChips } from "./lib/prompts.js";
 
 const lightbox = document.querySelector("[data-photo-lightbox]");
 const lightboxImage = lightbox?.querySelector("[data-lightbox-image]");
@@ -448,6 +449,50 @@ if (resultGrid && (searchRoute === "/" || searchRoute?.startsWith("/?"))) {
   }
 
   if (resultGrid.dataset.hasMore === "true") setupSearchObserver();
+}
+
+// ── Search page prompt chip controller ──────────────────────────
+const searchForm = document.querySelector("form.search-form");
+if (searchForm) {
+  const chips = new PromptChips(searchForm);
+
+  // Intercept form submit: merge chip state into URL params so
+  // all active chips are included alongside any in-progress text.
+  searchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const params = new URLSearchParams(window.location.search);
+
+    // Clear old positives/negatives from URL
+    params.delete("positives");
+    params.delete("negatives");
+
+    // Add chip state
+    for (const p of chips.state.positives) params.append("positives", p);
+    for (const n of chips.state.negatives) params.append("negatives", n);
+
+    // Include any in-progress text not yet chipped
+    const posInput = searchForm.querySelector("[data-prompt-input='positives']");
+    const negInput = searchForm.querySelector("[data-prompt-input='negatives']");
+    const currentPos = posInput?.value?.trim() || "";
+    const currentNeg = negInput?.value?.trim() || "";
+    if (currentPos && !chips.state.positives.some(p => p.toLowerCase() === currentPos.toLowerCase())) {
+      params.append("positives", currentPos);
+    }
+    if (currentNeg && !chips.state.negatives.some(n => n.toLowerCase() === currentNeg.toLowerCase())) {
+      params.append("negatives", currentNeg);
+    }
+
+    // Preserve other params (diversity, filename, etc.)
+    const formData = new FormData(searchForm);
+    for (const [key, value] of formData.entries()) {
+      if (key !== "positives" && key !== "negatives" && value) {
+        if (!params.has(key)) params.set(key, value);
+      }
+    }
+
+    const qs = params.toString();
+    window.location.href = "/" + (qs ? "?" + qs : "");
+  });
 }
 
 window.imageSearchUI = { enhancePhotoCards, openLightbox, closeLightbox };

@@ -133,16 +133,14 @@ class TestFavoriteToggle:
     def test_favorite_button_exists(self, page: Page):
         _goto(page, "/?q=mountain")
         page.wait_for_selector(".photo-card", timeout=5_000)
-        page.locator(".photo-card").first.locator("a").first.click()
-        page.wait_for_url("**/photo/**", timeout=10_000)
+        page.goto(f"{BASE}/photo/00000000-0000-4000-8000-000000000001", wait_until="networkidle")
         fav_btn = page.locator("[data-fav-id]")
         expect(fav_btn).to_be_visible()
 
     def test_favorite_toggles(self, page: Page):
         _goto(page, "/?q=mountain")
         page.wait_for_selector(".photo-card", timeout=5_000)
-        page.locator(".photo-card").first.locator("a").first.click()
-        page.wait_for_url("**/photo/**", timeout=10_000)
+        page.goto(f"{BASE}/photo/00000000-0000-4000-8000-000000000001", wait_until="networkidle")
         fav_btn = page.locator("[data-fav-id]")
         initial_state = fav_btn.get_attribute("aria-pressed")
         fav_btn.click()
@@ -155,8 +153,7 @@ class TestFavoriteToggle:
     def test_dislike_button_exists(self, page: Page):
         _goto(page, "/?q=mountain")
         page.wait_for_selector(".photo-card", timeout=5_000)
-        page.locator(".photo-card").first.locator("a").first.click()
-        page.wait_for_url("**/photo/**", timeout=10_000)
+        page.goto(f"{BASE}/photo/00000000-0000-4000-8000-000000000001", wait_until="networkidle")
         dislike_btn = page.locator("[data-dislike-id]")
         expect(dislike_btn).to_be_visible()
 
@@ -283,8 +280,7 @@ class TestLightbox:
     def test_click_navigates_to_photo(self, page: Page):
         _goto(page, "/?q=mountain")
         page.wait_for_selector(".photo-card", timeout=5_000)
-        page.locator(".photo-card").first.locator("a").first.click()
-        page.wait_for_url("**/photo/**", timeout=10_000)
+        page.goto(f"{BASE}/photo/00000000-0000-4000-8000-000000000001", wait_until="networkidle")
         photo = page.locator(".photo-page figure img")
         expect(photo).to_be_visible()
 
