@@ -36,7 +36,7 @@
 ### Home page
 
 - Search page controls to begin a search  
-- A small set, 20, of For you recommended images, chosen randomly from the top 800 recommended images.
+- A small set, 20, of For you recommended images, chosen randomly from the top 800 recommended images. This row IS the For You feature — same recommendation engine as the For You page, one surface for it on Home.
 
 ### Search
 
