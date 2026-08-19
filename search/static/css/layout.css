@@ -79,7 +79,7 @@
   background: hsl(var(--surface-glass) / 75%);
   backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
   -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(var(--saturate-glass));
-  border-bottom: 1px solid hsl(var(--border-glass));
+  /* No border-bottom — elevation comes from the shadow alone. */
   box-shadow:
     0 1px 0 hsl(0 0% 100% / 50%) inset,
     0 1px 14px hsl(220 30% 12% / 12%);
@@ -242,12 +242,9 @@
   align-items: end;
   justify-content: space-between;
   gap: var(--space-4);
-  /* Tighter padding than before — generous whitespace inside
-     a 1152px-wide page intro read as 'empty' rather than 'calm'.
-     The border-bottom already provides the visual break from
-     the page body — no extra margin needed. */
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid hsl(var(--border-glass));
+  /* No border-bottom — the page body separates from the header by
+     whitespace alone (cleaner than a hard rule on every page). */
+  padding: var(--space-3) 0 var(--space-4);
 }
 .page-intro-main {
   display: flex;
@@ -502,7 +499,6 @@
   display: grid;
   gap: var(--space-4);
   padding: var(--space-4);
-  border-top: 1px solid hsl(var(--border-glass));
 }
 
 /* ============================================================
@@ -1107,6 +1103,22 @@ form button.search-submit {
   width: 100%;
 }
 
+/* Input + add-button share a row; chips stack below (see .prompt-row
+   column layout above). */
+.prompt-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+.prompt-input-row .prompt-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.prompt-input-row .prompt-add {
+  flex: 0 0 auto;
+}
+
 .prompt-row--primary .prompt-row-label {
   color: hsl(var(--ink-bright));
 }
@@ -1275,8 +1287,6 @@ form button.search-submit {
   gap: var(--space-2);
   align-items: center;
   padding-bottom: var(--space-2);
-  margin-bottom: var(--space-2);
-  border-bottom: 1px solid hsl(var(--border-glass));
 }
 .filename-filter {
   display: grid;

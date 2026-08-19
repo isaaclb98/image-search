@@ -71,6 +71,10 @@
 
     <div class="prompt-row prompt-row--primary" data-prompt-row="positives">
       <span class="prompt-row-label">Include</span>
+      <div class="prompt-input-row">
+        <input class="prompt-input" type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
+        <button class="prompt-add" type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
+      </div>
       <div class="prompt-chip-list" data-prompt-chips="positives">
         {% for prompt in positive_chips %}
           <button class="prompt-chip prompt-chip--positive" type="button" data-prompt-chip="{{ prompt }}" aria-label='Remove include prompt "{{ prompt }}"'>
@@ -80,12 +84,14 @@
           <input type="hidden" name="positives" value="{{ prompt }}">
         {% endfor %}
       </div>
-      <input class="prompt-input" type="text" name="positives" data-prompt-input="positives" placeholder="e.g. mountain cabin at dusk" aria-label="Add Include prompt"{% if not results and not positive_chips %} autofocus{% endif %}>
-      <button class="prompt-add" type="button" data-prompt-add="positives" aria-label="Add Include prompt">+</button>
     </div>
 
     <div class="prompt-row prompt-row--secondary" data-prompt-row="negatives">
       <span class="prompt-row-label">Exclude</span>
+      <div class="prompt-input-row">
+        <input class="prompt-input" type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, text, watermark" aria-label="Add Exclude prompt">
+        <button class="prompt-add" type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
+      </div>
       <div class="prompt-chip-list" data-prompt-chips="negatives">
         {% for prompt in negative_chips %}
           <button class="prompt-chip prompt-chip--negative" type="button" data-prompt-chip="{{ prompt }}" aria-label='Remove exclude prompt "{{ prompt }}"'>
@@ -95,8 +101,6 @@
           <input type="hidden" name="negatives" value="{{ prompt }}">
         {% endfor %}
       </div>
-      <input class="prompt-input" type="text" name="negatives" data-prompt-input="negatives" placeholder="e.g. blurry, text, watermark" aria-label="Add Exclude prompt">
-      <button class="prompt-add" type="button" data-prompt-add="negatives" aria-label="Add Exclude prompt">+</button>
     </div>
 
     <span class="prompt-composition-hint" data-search-draft-status>Include what you want to find; optionally exclude what you do not.</span>
@@ -105,7 +109,7 @@
     <details class="search-advanced"{% if q or positives or negatives or collections or filename or diversity_mode|default('off') != 'off' %} open{% endif %}>
       <summary class="search-advanced-summary">
         {{ ui.ui_icon('filter', 'h-4 w-4') }}
-        <span>Filters</span>
+        <span>Additional options</span>
       </summary>
       <div class="search-advanced-body">
         <div class="saved-search-bar" data-saved-bar>
