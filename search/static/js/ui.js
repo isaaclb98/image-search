@@ -389,6 +389,7 @@ if ("MutationObserver" in window) {
 }
 
 // ── Search page infinite scroll ──────────────────────────────────
+import { appendToGrid, addSentinel, removeSentinel } from "./lib/grid.js";
 const resultGrid = document.getElementById("result-grid");
 const searchRoute = document.querySelector("[data-route]")?.dataset.route;
 if (resultGrid && (searchRoute === "/" || searchRoute?.startsWith("/?"))) {
@@ -425,43 +426,12 @@ if (resultGrid && (searchRoute === "/" || searchRoute?.startsWith("/?"))) {
       if (!resp.ok) return;
       const data = await resp.json();
       if (!data.results?.length) return;
-      const sentinel = resultGrid.querySelector(":scope > .grid-sentinel");
-      if (sentinel) sentinel.remove();
-      for (const r of data.results) {
-        const li = document.createElement("li");
-        li.className = "photo-card grid-item";
-        li.dataset.id = r.id;
-        li.dataset.score = r.score;
-        li.dataset.photoId = r.id;
-        li.dataset.photoSrc = r.url;
-        li.dataset.photoPath = r.path || "";
-        li.dataset.photoBlurhash = r.blurhash || "";
-        const href = "/photo/" + r.id + (resultGrid.dataset.q ? "?q=" + encodeURIComponent(resultGrid.dataset.q) : "");
-        const img = document.createElement("img");
-        img.className = "block w-full h-full object-cover transition-opacity duration-150";
-        img.loading = "lazy";
-        img.decoding = "async";
-        img.src = r.url;
-        img.alt = "";
-        img.onerror = function() { this.classList.add("img-error"); };
-        const link = document.createElement("a");
-        link.href = href;
-        link.className = "thumb-link block w-full h-full overflow-hidden";
-        link.dataset.lightboxTrigger = "";
-        link.dataset.photoId = r.id;
-        link.dataset.photoSrc = r.url;
-        link.setAttribute("aria-label", "Open photo");
-        link.appendChild(img);
-        li.appendChild(link);
-        resultGrid.appendChild(li);
-      }
-      resultGrid.dataset.offset = String(offset + data.results.length);
+      removeSentinel(resultGrid);
+      appendToGrid(resultGrid, data.results);
+      resultGrid.dataset.offset = String(parseInt(resultGrid.dataset.offset || "0") + data.results.length);
       resultGrid.dataset.hasMore = String(data.has_more);
       if (data.has_more) {
-        const s = document.createElement("li");
-        s.className = "grid-sentinel";
-        s.setAttribute("aria-hidden", "true");
-        resultGrid.appendChild(s);
+        addSentinel(resultGrid);
         setupSearchObserver();
       }
     } catch (_) { /* silent */ } finally { searchLoading = false; }

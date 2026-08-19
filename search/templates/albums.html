@@ -42,15 +42,15 @@
       >
     </label>
     <button type="submit" class="btn btn-primary">Create album</button>
-    <p class="basis-full text-sm text-error" data-album-error hidden></p>
+    <p class="album-error" data-album-error hidden></p>
   </form>
 
   {% if albums %}
-    <ul class="album-list grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4">
+    <ul class="album-list">
       {% for a in albums %}
         <li class="album-card">
           <a class="glass album-card" href="/albums/{{ a.id }}">
-            <div class="album-card__cover aspect-square overflow-hidden bg-base-300" data-album-cover="{{ a.id }}">
+            <div class="album-card__cover" data-album-cover="{{ a.id }}">
               {# Cover = the chronologically first photo added to
                  the album (album_memberships.added_at ASC LIMIT 1).
                  Falls back to cover_favorite_id only when the album

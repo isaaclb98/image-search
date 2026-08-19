@@ -707,6 +707,53 @@ body[data-route^="/photo/"] .app-body::before {
   transform: scale(1.1);
 }
 
+.album-detail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.album-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex: 1;
+}
+.album-edit__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 10rem;
+}
+.album-edit__field span {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: hsl(var(--ink-off-white));
+}
+.album-edit__field input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid hsl(var(--border-glass));
+  border-radius: var(--radius-md);
+  background: hsl(var(--surface-glass) / 50%);
+  color: hsl(var(--fg));
+  font-size: var(--text-sm);
+}
+.album-edit__field input:focus {
+  outline: none;
+  border-color: hsl(var(--accent-500));
+}
+.album-edit__status {
+  font-size: var(--text-sm);
+  color: hsl(var(--ink-off-white));
+}
+.album-delete {
+  margin-left: auto;
+}
+
 /* Album pills — active state driven by .is-active on .glass-pill.
    .glass-pill sets the base pill surface; .is-active paints the
    selected variant. */
@@ -1254,6 +1301,20 @@ form button.search-submit {
   18. FILTERS BODY — filename input, range sliders, etc. + ALBUM CARD — list pages.
    ============================================================ */
 
+.album-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 1600px) {
+  .album-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.album-error {
+  font-size: var(--text-sm);
+  color: hsl(var(--err-500));
+}
 .album-card {
   /* Surface supplied by .glass on the element. Internal layout only. */
   padding: var(--space-3) var(--space-4);
@@ -1675,6 +1736,20 @@ form button.search-submit {
   font-size: var(--text-sm);
 }
 .centroid-card-search-link:hover { text-decoration: underline; }
+.centroid-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+  gap: var(--space-3);
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0;
+}
+@media (min-width: 1600px) {
+  .centroid-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
 .centroid-list-empty {
   color: hsl(var(--ink-off-white));
   border: 1px dashed hsl(var(--border-glass));

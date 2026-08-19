@@ -1,7 +1,7 @@
 // photo.js — detail-page enhancements
 
 const form = document.querySelector("[data-fav-form]");
-const button = form?.querySelector(".fav-toggle");
+const button = form?.querySelector("[data-fav-id]");
 const label = button?.querySelector(".fav-label");
 
 if (form && button && label) {
@@ -37,7 +37,7 @@ function setFavorite(on) {
 }
 
 const dislikeForm = document.querySelector("[data-dislike-form]");
-const dislikeButton = dislikeForm?.querySelector(".dislike-toggle");
+const dislikeButton = dislikeForm?.querySelector("[data-dislike-id]");
 const dislikeLabel = dislikeButton?.querySelector(".dislike-label");
 
 if (dislikeForm && dislikeButton && dislikeLabel) {
