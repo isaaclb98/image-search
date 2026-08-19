@@ -49,8 +49,37 @@ class Palette:
 class Subject:
     name: str
     palettes: Sequence[Palette]
-    canvas: tuple[int, int]
+    canvases: Sequence[tuple[int, int]]  # multiple aspect ratios per subject
     family: str  # 'landscape' | 'urban' | 'wildlife' | 'portrait' | 'still'
+
+
+# Aspect ratios we exercise. The grid renders 1:1 (uniform squares),
+# but the underlying photo bytes vary across these so:
+#   - infinite scroll gets a real test (lots of tiles, lots of
+#     bytes to load, lots of reflows)
+#   - the standalone /photo page and the lightbox surface render
+#     at the actual aspect ratio (no crop), so variety is visible
+#     there
+#   - backend IndexDB stores width/height per point, so any
+#     downstream feature that respects the ratio gets exercised
+ASPECT_RATIOS: dict[str, tuple[int, int]] = {
+    "panoramic":   (2400, 800),    # 3:1 — landscape banner
+    "wide":        (1920, 1080),   # 16:9 — modern photo
+    "landscape":   (1600, 1200),   # 4:3 — classic
+    "square":      (1200, 1200),   # 1:1
+    "portrait":    (900, 1200),    # 3:4
+    "tall":        (720, 1280),    # 9:16 — phone portrait
+    "ultra_tall":  (540, 1440),    # 9:24 — cinematic poster
+}
+
+
+def _cv(name: str) -> list[tuple[int, int]]:
+    """Resolve a single aspect ratio name into its canvas size."""
+    return [ASPECT_RATIOS[name]]
+
+
+def _all() -> list[tuple[int, int]]:
+    return list(ASPECT_RATIOS.values())
 
 
 SUBJECTS: list[Subject] = [
@@ -60,102 +89,102 @@ SUBJECTS: list[Subject] = [
         Palette((20, 24, 36), (88, 72, 96), (50, 40, 60), (24, 22, 26), (255, 200, 100)),
         Palette((180, 130, 90), (240, 200, 150), (120, 100, 80), (70, 60, 50), (255, 240, 220)),
         Palette((20, 40, 70), (110, 150, 200), (40, 60, 100), (15, 25, 35), (240, 220, 150)),
-    ], (1280, 800), "landscape"),
+    ], _all(), "landscape"),
     Subject("beach", [
         Palette((60, 130, 180), (180, 210, 230), (110, 150, 170), (220, 200, 160), (245, 220, 130)),
         Palette((220, 130, 100), (250, 210, 170), (180, 120, 90), (220, 200, 170), (255, 240, 200)),
         Palette((20, 30, 60), (60, 90, 130), (40, 50, 80), (15, 18, 28), (200, 180, 100)),
         Palette((180, 200, 220), (240, 240, 240), (140, 160, 180), (200, 180, 150), (255, 230, 150)),
-    ], (960, 720), "landscape"),
+    ], _all(), "landscape"),
     Subject("forest", [
         Palette((50, 70, 50), (110, 130, 90), (35, 55, 35), (60, 80, 50), (200, 180, 80)),
         Palette((30, 30, 30), (70, 70, 60), (20, 25, 22), (40, 50, 40), (240, 200, 90)),
         Palette((200, 180, 130), (240, 220, 180), (140, 120, 80), (100, 80, 60), (255, 240, 180)),
         Palette((60, 90, 110), (130, 160, 170), (50, 75, 90), (30, 50, 60), (200, 180, 120)),
-    ], (1100, 800), "landscape"),
+    ], _all(), "landscape"),
     Subject("desert", [
         Palette((220, 150, 100), (250, 200, 150), (180, 120, 80), (200, 160, 110), (255, 240, 200)),
         Palette((150, 100, 80), (220, 170, 130), (130, 90, 70), (170, 130, 90), (255, 220, 170)),
         Palette((60, 30, 30), (180, 80, 60), (90, 50, 40), (120, 70, 50), (240, 140, 80)),
-    ], (1200, 700), "landscape"),
+    ], _all(), "landscape"),
     Subject("snow", [
         Palette((180, 200, 220), (240, 245, 250), (200, 210, 220), (245, 248, 250), (255, 255, 255)),
         Palette((60, 80, 110), (160, 180, 200), (90, 100, 120), (180, 190, 200), (220, 230, 240)),
         Palette((200, 220, 240), (255, 255, 255), (220, 230, 240), (250, 252, 255), (255, 255, 255)),
-    ], (1280, 800), "landscape"),
+    ], _all(), "landscape"),
     Subject("autumn", [
         Palette((170, 80, 50), (240, 160, 80), (130, 70, 40), (90, 50, 30), (250, 220, 100)),
         Palette((100, 60, 40), (200, 130, 80), (80, 50, 30), (70, 40, 25), (240, 180, 80)),
         Palette((60, 80, 100), (130, 150, 160), (50, 70, 90), (40, 60, 80), (200, 180, 140)),
-    ], (1100, 800), "landscape"),
+    ], _all(), "landscape"),
     Subject("lake", [
         Palette((60, 130, 160), (180, 210, 220), (100, 140, 160), (40, 90, 110), (200, 220, 200)),
         Palette((220, 150, 100), (250, 200, 160), (180, 120, 80), (200, 180, 160), (240, 220, 180)),
         Palette((30, 50, 70), (90, 110, 130), (50, 70, 90), (20, 40, 60), (180, 180, 150)),
-    ], (1280, 800), "landscape"),
+    ], _all(), "landscape"),
     Subject("waterfall", [
         Palette((40, 100, 110), (180, 220, 220), (60, 120, 130), (30, 80, 90), (200, 220, 200)),
         Palette((60, 80, 50), (140, 160, 130), (50, 70, 50), (40, 60, 40), (180, 180, 150)),
-    ], (900, 1200), "landscape"),
+    ], _all(), "landscape"),
 
     # ---- urban ----
     Subject("city_night", [
         Palette((15, 18, 32), (40, 50, 80), (10, 15, 25), (20, 25, 40), (250, 220, 80)),
         Palette((20, 30, 60), (80, 60, 110), (15, 20, 45), (25, 30, 50), (240, 100, 140)),
         Palette((10, 12, 25), (40, 30, 50), (8, 10, 20), (15, 18, 30), (200, 220, 255)),
-    ], (1400, 700), "urban"),
+    ], _all(), "urban"),
     Subject("city_day", [
         Palette((150, 200, 220), (200, 230, 240), (120, 150, 170), (180, 180, 170), (240, 230, 200)),
         Palette((180, 180, 200), (220, 220, 230), (150, 150, 170), (170, 170, 180), (255, 240, 200)),
-    ], (1400, 700), "urban"),
+    ], _all(), "urban"),
     Subject("street", [
         Palette((60, 70, 90), (140, 140, 160), (50, 60, 75), (80, 80, 90), (220, 180, 80)),
         Palette((40, 50, 70), (110, 110, 130), (35, 45, 60), (60, 70, 80), (240, 200, 100)),
-    ], (1200, 800), "urban"),
+    ], _all(), "urban"),
 
     # ---- wildlife ----
     Subject("fox", [
         Palette((180, 90, 50), (240, 160, 90), (130, 60, 30), (60, 40, 30), (255, 220, 100)),
         Palette((60, 30, 20), (130, 60, 30), (40, 25, 18), (30, 20, 15), (220, 180, 80)),
-    ], (900, 900), "wildlife"),
+    ], _all(), "wildlife"),
     Subject("owl", [
         Palette((60, 50, 80), (120, 110, 140), (50, 45, 70), (40, 35, 60), (200, 180, 140)),
         Palette((100, 90, 70), (160, 150, 130), (80, 70, 55), (70, 60, 50), (220, 200, 170)),
-    ], (800, 1000), "wildlife"),
+    ], _all(), "wildlife"),
     Subject("butterfly", [
         Palette((220, 130, 80), (240, 200, 100), (200, 100, 60), (60, 150, 80), (240, 240, 220)),
         Palette((100, 100, 200), (200, 150, 220), (60, 60, 140), (40, 90, 60), (240, 220, 120)),
-    ], (900, 900), "wildlife"),
+    ], _all(), "wildlife"),
     Subject("deer", [
         Palette((60, 100, 50), (140, 160, 100), (50, 80, 40), (40, 60, 30), (180, 150, 80)),
         Palette((100, 70, 50), (180, 130, 90), (80, 50, 30), (60, 40, 25), (220, 200, 140)),
-    ], (1000, 700), "wildlife"),
+    ], _all(), "wildlife"),
 
     # ---- portraits ----
     Subject("silhouette", [
         Palette((220, 100, 70), (250, 180, 100), (180, 70, 50), (40, 30, 30), (255, 230, 180)),
         Palette((40, 60, 100), (110, 140, 200), (30, 50, 90), (20, 20, 30), (220, 200, 100)),
         Palette((100, 50, 130), (200, 100, 180), (80, 40, 100), (30, 25, 40), (255, 220, 150)),
-    ], (700, 1000), "portrait"),
+    ], _all(), "portrait"),
 
     # ---- still life ----
     Subject("flowers", [
         Palette((80, 150, 90), (180, 220, 150), (60, 120, 70), (50, 80, 50), (240, 100, 140)),
         Palette((220, 130, 180), (250, 200, 220), (180, 90, 140), (80, 100, 60), (240, 220, 100)),
-    ], (900, 900), "still"),
+    ], _all(), "still"),
     Subject("cafe", [
         Palette((180, 140, 100), (220, 190, 150), (150, 110, 80), (100, 80, 60), (240, 220, 180)),
         Palette((80, 60, 50), (140, 110, 90), (60, 45, 35), (50, 40, 30), (200, 170, 130)),
-    ], (1100, 800), "still"),
+    ], _all(), "still"),
     Subject("neon", [
         Palette((15, 10, 30), (60, 30, 90), (10, 8, 20), (20, 15, 40), (240, 80, 160)),
         Palette((10, 20, 30), (30, 60, 100), (8, 12, 20), (15, 20, 35), (100, 200, 240)),
-    ], (1200, 800), "urban"),
+    ], _all(), "urban"),
     Subject("abstract", [
         Palette((200, 100, 60), (240, 180, 100), (160, 80, 50), (60, 40, 80), (220, 200, 240)),
         Palette((60, 100, 160), (140, 180, 220), (40, 80, 130), (80, 60, 100), (240, 220, 100)),
         Palette((180, 80, 120), (220, 160, 200), (140, 60, 90), (60, 80, 60), (200, 240, 220)),
-    ], (1000, 1000), "still"),
+    ], _all(), "still"),
 ]
 
 
@@ -417,15 +446,25 @@ class SynthResult:
 
 def generate(
     out_dir: Path,
-    count: int = 60,
+    count: int = 200,
     *,
     seed: int = 0xC0FFEE,
     prefix: str = "synth",
 ) -> SynthResult:
     """Generate `count` synthetic JPEGs into `<out_dir>/`.
 
-    Subject order cycles through SUBJECTS so families are mixed,
-    not blocked. The RNG seeded globally for reproducibility.
+    Subject order cycles through SUBJECTS, then within each
+    subject we cycle through its canvases (aspect ratios). So a
+    200-photo set with 20 subjects × 7 aspect ratios = 140
+    unique (subject, aspect) pairs, with a few repeats to reach
+    `count`. The seeded RNG is stable across runs.
+
+    The 7 aspect ratios per subject are: panoramic (3:1), wide
+    (16:9), landscape (4:3), square (1:1), portrait (3:4),
+    tall (9:16), ultra_tall (9:24). The grid renders all as 1:1
+    for visual uniformity, but the bytes underneath carry the
+    shape so /photo/[id], lightbox, and any future masonry-style
+    view can render correctly.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
@@ -434,16 +473,24 @@ def generate(
     index: list[dict] = []
 
     n_subjects = len(SUBJECTS)
+    n_ratios = len(ASPECT_RATIOS)
+
     for i in range(count):
         subject = SUBJECTS[i % n_subjects]
+        # Within each subject, cycle through ratios as well.
+        ratio_idx = (i // n_subjects) % len(subject.canvases)
+        canvas = subject.canvases[ratio_idx]
         palette = subject.palettes[rng.randrange(len(subject.palettes))]
-        # carve out a per-subject RNG so the same subject gets
-        # the same composition family across runs (deterministic
-        # seeds matter for snapshot tests).
-        sub_rng = random.Random(_h("sub", seed, subject.name, palette.sky_top, i))
-        img = Image.new("RGB", subject.canvas, (0, 0, 0))
+
+        sub_rng = random.Random(_h("sub", seed, subject.name, palette.sky_top, i, canvas))
+        img = Image.new("RGB", canvas, (0, 0, 0))
         RENDERERS[subject.family if subject.family != "forest" else "forest"](
             img, palette, sub_rng
+        )
+
+        ratio_name = next(
+            (k for k, v in ASPECT_RATIOS.items() if v == canvas),
+            "unknown",
         )
         path = out_dir / f"{prefix}_{i:04d}.jpg"
         img.save(path, "JPEG", quality=85)
@@ -453,8 +500,9 @@ def generate(
             "path": str(path),
             "subject": subject.name,
             "family": subject.family,
-            "width": subject.canvas[0],
-            "height": subject.canvas[1],
+            "aspect_ratio": ratio_name,
+            "width": canvas[0],
+            "height": canvas[1],
         })
 
     (out_dir / "index.json").write_text(json.dumps(index, indent=2))
@@ -464,7 +512,12 @@ def generate(
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--out", type=Path, required=True, help="output directory")
-    p.add_argument("--count", type=int, default=60)
+    p.add_argument(
+        "--count",
+        type=int,
+        default=200,
+        help="total photo count (default: 200 — enough to exercise infinite scroll)",
+    )
     p.add_argument("--prefix", default="synth")
     p.add_argument("--seed", type=int, default=0xC0FFEE)
     args = p.parse_args()

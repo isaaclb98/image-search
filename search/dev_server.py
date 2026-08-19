@@ -20,14 +20,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--demo-data",
         action="store_true",
-        help="Start with a tiny in-memory Qdrant collection and five demo photos.",
+        help="Start with an in-memory Qdrant collection and N demo photos (--demo-count).",
     )
     parser.add_argument(
         "--demo-count",
         type=int,
-        default=10,
+        default=200,
         metavar="N",
-        help="Number of generated demo photos (default: 10).",
+        help="Number of generated demo photos (default: 200 — enough to exercise infinite scroll).",
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)

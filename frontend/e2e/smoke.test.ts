@@ -228,3 +228,60 @@ test('Right-click opens the photo context menu', async ({ page }) => {
   await page.locator('main').click();
   await expect(page.locator('.menu[role="menu"]')).toBeHidden({ timeout: 3000 });
 });
+
+/**
+ * Infinite scroll: scrolling near the bottom triggers loadMore
+ * which appends more tiles. The sentinel uses IntersectionObserver
+ * with a 600px rootMargin so the trigger fires well before the
+ * viewport edge — we exercise it by scrolling to ~80% page height.
+ *
+ * Requires a non-empty library (--demo-count >= ~60 in the dev
+ * server). The default demo-count is now 200, so this should be
+ * reliable.
+ */
+test('Random page infinite-scrolls: scrolling loads more tiles', async ({ page }) => {
+  await page.goto(APP + '/random');
+  await appReady(page);
+  await waitFor(page, '.tile', 10000);
+
+  // Wait for the initial fetch to settle so the count is stable.
+  await page.waitForFunction(() => !window.__random_loading, null, { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(800);
+
+  const initial = await page.locator('.tile').count();
+  expect(initial).toBeGreaterThan(0);
+
+  // Scroll in chunks to keep firing the IntersectionObserver sentinel.
+  for (let i = 0; i < 4; i++) {
+    await page.evaluate(
+      ({ ratio }) => window.scrollTo({ top: document.body.scrollHeight * ratio }),
+      { ratio: (i + 1) * 0.25 }
+    );
+    await page.waitForTimeout(800);
+  }
+
+  const final = await page.locator('.tile').count();
+  expect(final).toBeGreaterThan(initial);
+
+  const endVisible = await page.locator('.end').isVisible().catch(() => false);
+  expect(endVisible || final > initial * 2).toBe(true);
+});
+
+test('Search page infinite-scrolls: scrolls append a second page', async ({ page }) => {
+  await page.goto(APP + '/search?positives=beach');
+  await searchPageReady(page);
+  await waitFor(page, '.tile', 10000);
+
+  // Initial 20 tiles (spec)
+  const initial = await page.locator('.tile').count();
+  expect(initial).toBe(20);
+
+  // Scroll repeatedly to fire the sentinel + wait for fetches
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight }));
+    await page.waitForTimeout(800);
+  }
+
+  const final = await page.locator('.tile').count();
+  expect(final).toBeGreaterThan(20);
+});

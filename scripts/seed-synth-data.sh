@@ -26,7 +26,7 @@ REPO="$(cd "$HERE/.." && pwd)"
 VENV="$REPO/.venv-test"
 
 OUT_DIR="/tmp/is-synth"
-COUNT=80
+COUNT=200
 SEED=42
 
 while [[ $# -gt 0 ]]; do

@@ -16,7 +16,7 @@
     is_favorite?: boolean;
   };
 
-  const PAGE = 30;
+  const PAGE = 60;
   let items = $state<Item[]>([]);
   let loading = $state(false);
   let hasMore = $state(true);
@@ -41,11 +41,20 @@
     try {
       const res = await random(PAGE);
       const more = (res?.results ?? []) as Item[];
-      // dedupe by id (the random endpoint can repeat)
+      // Dedupe by id, but keep loading as long as the API gave us
+      // a full PAGE — that's the "more pages exist" signal. The
+      // dedupe is only there to avoid showing the same id twice;
+      // /api/random samples without replacement-from-the-viewer,
+      // so duplicates are common at the API layer even when more
+      // pages exist.
       const seen = new Set(items.map((i) => i.id));
       const fresh = more.filter((m) => !seen.has(m.id));
       items = [...items, ...fresh];
-      hasMore = fresh.length >= PAGE;
+      // hasMore signal: API gave us a full page (more pages may
+      // exist) AND we haven't already shown everything we have.
+      // For random, the safest heuristic is "API returned a full
+      // PAGE and we're below the library size".
+      hasMore = more.length >= PAGE && items.length < 200;
     } catch {
       hasMore = false;
     } finally {

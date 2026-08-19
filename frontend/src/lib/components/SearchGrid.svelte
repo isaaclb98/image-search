@@ -63,9 +63,24 @@
     menuFor = null;
   }
 
-  onMount(() => {
+  // IntersectionObserver for infinite scroll. The sentinel div
+  // may not exist at onMount time (the grid is initially empty
+  // while items are being fetched), so we use `$effect` to set up
+  // the observer whenever the sentinel becomes available. Re-running
+  // the effect is fine — each call disconnects the previous IO.
+  let io: IntersectionObserver | undefined;
+  $effect(() => {
+    // Touch the reactive deps so the effect re-runs on changes.
+    void sentinel;
+    void hasMore;
+    void loading;
     if (!sentinel || !onLoadMore) return;
-    const io = new IntersectionObserver(
+    if (!hasMore) {
+      io?.disconnect();
+      return;
+    }
+    io?.disconnect();
+    io = new IntersectionObserver(
       (entries) => {
         for (const ent of entries) {
           if (ent.isIntersecting && hasMore && !loading) {
@@ -76,7 +91,7 @@
       { rootMargin: '600px 0px' }
     );
     io.observe(sentinel);
-    return () => io.disconnect();
+    return () => io?.disconnect();
   });
 </script>
 
