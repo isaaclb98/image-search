@@ -28,15 +28,22 @@ COPY search ./search
 COPY indexer ./indexer
 RUN pip install --no-cache-dir .
 
-# Pre-download the SigLIP2 model so cold-start is fast.
-# Loaded via open_clip from the HuggingFace hub. We run a tiny
-# `import open_clip; create_model_from_pretrained(...)` to warm
-# the HF cache and pre-fetch the model weights.
-# (Skippable in CI by overriding MODEL_NAME / removing this line.)
+# Pre-download the SigLIP2 model so cold-start is fast. Bakes the
+# weights into a layer so the first request doesn't pay the HF
+# download cost. OFF by default because it needs ~15GB free disk
+# during build (7.5GB model + ~7.5GB compressed-diff intermediate).
+# Opt in with `--build-arg PREWARM_MODEL=1` when you have the disk.
+# The model still downloads at first start if you skip this step.
 ARG MODEL_NAME=hf-hub:timm/ViT-gopt-16-SigLIP2-384
-RUN python -c "import open_clip; \
-    open_clip.create_model_from_pretrained('${MODEL_NAME}'); \
-    open_clip.get_tokenizer('${MODEL_NAME}')"
+ARG PREWARM_MODEL=0
+RUN if [ "$PREWARM_MODEL" = "1" ]; then \
+      python -c "import open_clip; \
+        open_clip.create_model_from_pretrained('${MODEL_NAME}'); \
+        open_clip.get_tokenizer('${MODEL_NAME}')"; \
+    else \
+      echo "Skipping model pre-warm (PREWARM_MODEL=${PREWARM_MODEL})."; \
+      echo "Model will download from HF Hub on first container start."; \
+    fi
 
 ENV MODEL_NAME=${MODEL_NAME} \
     MODEL_DIR=/root/.cache/huggingface \
