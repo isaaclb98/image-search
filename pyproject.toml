@@ -3,7 +3,6 @@ name = "image-search"
 version = "0.1.0"
 description = "Self-hosted semantic image search. SigLIP2 embeddings → Qdrant → text/image queries."
 requires-python = ">=3.10"
-readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Isaac" }]
 
@@ -11,8 +10,6 @@ dependencies = [
     # Search side (FastAPI app)
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
-    "jinja2>=3.1",
-    "python-multipart>=0.0.9",
     "qdrant-client>=1.10",
     # .env file loading (used by both indexer + search)
     "python-dotenv>=1.0",

@@ -2,7 +2,7 @@
 search/app.py — FastAPI factory.
 
 Routes, request/response models, and startup/shutdown wiring live here.
-See templates/ for the HTML side and static/ for assets.
+The app is a pure JSON API; the SvelteKit frontend consumes it.
 """
 
 from __future__ import annotations
@@ -22,11 +22,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from starlette.responses import RedirectResponse
-
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from search import config, discover, text_encoder
 from search.auth import (
     AuthGateMiddleware,
@@ -54,10 +50,6 @@ from search.diversity import (
     resolve_mode,
 )
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
-from search.assets import HashedStaticApp as _HashedStaticApp
-from search.assets import is_hashed_path as _is_hashed_static_path
-from search.assets import init as _init_asset_manifest
-from search.assets import MANIFEST as _ASSET_MANIFEST
 from search.for_you import build_state as _for_you_build_state
 from search.for_you import rank as _for_you_rank
 from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
@@ -386,13 +378,6 @@ def _invalidate_album_centroid(album_id: int) -> None:
 
 
 HERE = Path(__file__).parent
-TEMPLATES_DIR = HERE / "templates"
-STATIC_DIR = HERE / "static"
-# Build the content-hashed asset manifest once at import. Templates
-# use ``{{ asset('js/app.js') }}`` to get ``/static/js/app.<hash>.js``
-# so the cached-forever headers below are safe in prod. Devs iterating
-# on a file get a new hash the next process restart.
-_init_asset_manifest(STATIC_DIR)
 # Module-level sentinel for FastAPI `Query([])` default — using a literal
 # list in a default arg would call `Query()` once at import time, which
 # ruff B008 forbids. Use `None` as the default and resolve to a fresh
@@ -457,55 +442,12 @@ def reset_for_tests() -> None:
     text_encoder.reset_encoder_for_tests()
 
 
-# ---------------------- Auth-aware templates ----------------------
-
-
-class AuthAwareTemplates(Jinja2Templates):
-    """Jinja2Templates subclass that injects the current authenticated
-    user into the template context automatically.
-
-    The auth gate middleware (see AuthGateMiddleware below) sets
-    `request.state.current_user` before any route runs; templates
-    that extend base.html can read `{{ current_user }}` to
-    conditionally render the logout link and any other auth-aware
-    chrome. When auth is disabled the value is always `None`.
-
-    Subclassing instead of monkey-patching keeps the override
-    discoverable (one grep finds it) and means every existing
-    `templates.TemplateResponse(request, name, context)` call in
-    create_app gets the auth context for free — no per-callsite
-    changes.
-    """
-
-    def TemplateResponse(  # type: ignore[override]
-        self,
-        request: Request,
-        name: str,
-        context: dict | None = None,
-        status_code: int = 200,
-        headers: dict | None = None,
-        **kwargs,
-    ):
-        ctx = dict(context or {})
-        ctx.setdefault("request", request)
-        ctx.setdefault("current_user", getattr(request.state, "current_user", None))
-        return super().TemplateResponse(
-            request,
-            name,
-            ctx,
-            status_code=status_code,
-            headers=headers,
-            **kwargs,
-        )
-
-
 # ---------------------- App factory ----------------------
 
 
 def create_app(
     cfg: config.Config | None = None,
     qdrant: QdrantSearch | None = None,
-    templates: Jinja2Templates | None = None,
     index_db: IndexDB | None = None,
 ) -> FastAPI:
     """
@@ -514,8 +456,6 @@ def create_app(
     Args:
         cfg: pre-loaded config (defaults to config.load())
         qdrant: pre-built QdrantSearch (defaults to one built from cfg)
-        templates: pre-built Jinja2Templates (defaults to one reading
-            from search/templates)
         index_db: pre-built IndexDB (defaults to one built from cfg)
     """
     global _qdrant, _cfg, _index_db
@@ -589,43 +529,6 @@ def create_app(
         _dynamic_centroids.register(
             _make_album_centroid_spec(qdrant, index_db, existing["id"])
         )
-
-    templates = templates or AuthAwareTemplates(directory=str(TEMPLATES_DIR))
-    templates.env.globals["asset"] = _ASSET_MANIFEST.url
-    templates.env.globals["static_url"] = _ASSET_MANIFEST.url
-
-    def _strip_query_param(url, name: str, value: str | None = None) -> str:
-        """Return `url` with every `name=` param removed.
-
-        When `value` is given, only params matching that exact value
-        are removed (use case: remove one centroid from a blend while
-        preserving the others). Without `value`, every occurrence of
-        `name` is dropped (use case: clear all `centroid=` for the
-        'switch to text search' link).
-
-        Always returns a RELATIVE path (scheme + netloc stripped) so
-        the chip × links are clean `/?...` style. Operates on the
-        URL's raw query string so it round-trips every other param
-        (q, positives, negatives, view, favorites, weights, etc.)
-        untouched. Accepts both `str` and httpx `URL` (from
-        `request.url` in templates — FastAPI hands those to Jinja
-        unchanged).
-        """
-        url_str = str(url)
-        parsed = urlparse(url_str)
-        params = parse_qsl(parsed.query, keep_blank_values=True)
-        if value is None:
-            kept = [(k, v) for (k, v) in params if k != name]
-        else:
-            kept = [(k, v) for (k, v) in params if not (k == name and v == value)]
-        new_query = urlencode(kept)
-        # path-only output. Re-attach query only if non-empty so
-        # the clear-everything case yields `/` not `/?`.
-        if new_query:
-            return f"{parsed.path}?{new_query}"
-        return parsed.path or "/"
-
-    templates.env.filters["strip_query_param"] = _strip_query_param
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -715,142 +618,21 @@ def create_app(
         redirect_slashes=False,
     )
 
-    @app.middleware("http")
-    async def _static_cache_middleware(request, call_next):
-        """
-        Cache headers for ``/static/*``.
-
-        - Content-hashed paths (``js/app.abc12345.js``) get
-          ``public, max-age=31536000, immutable``. Edits change the
-          hash → new URL → no stale-content risk.
-        - Any other request to ``/static/*`` falls back to
-          ``no-cache, must-revalidate`` so dev iteration without a
-          restart is still visible.
-
-        The dev fallback is rare in prod: templates go through the
-        ``asset()`` helper, which always produces the hashed URL.
-        The fallback covers direct links, hand-written test URLs,
-        and stale HTML referencing old query-string versions.
-        """
-        response = await call_next(request)
-        if not request.url.path.startswith("/static/"):
-            return response
-        if _is_hashed_static_path(request.url.path):
-            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        else:
-            response.headers["Cache-Control"] = "no-cache, must-revalidate"
-        return response
-
     app.state.index_db = index_db
     app.state.random_picker = random_picker
     app.state.diversity_cache = diversity_cache
-    # HashedStaticApp rewrites /static/<name>.<hash>.<ext> → /static/<name>.<ext>
-    # so StaticFiles serves the real file without build artifacts.
-    app.mount(
-        "/static",
-        _HashedStaticApp(
-            StaticFiles(directory=str(STATIC_DIR)),
-            _ASSET_MANIFEST,
-        ),
-        name="static",
-    )
 
-    # ---------------------- Auth gate + login routes ----------------------
+    # ---------------------- Auth gate ----------------------
     #
     # Single-user app-level login (see search/auth.py). When
     # AUTH_PASSWORD_HASH is configured in the environment, every
     # request except /login, /logout, /static/* and /healthz is
     # gated on a valid signed session cookie. When the hash is
-    # blank (dev / tests), the middleware is a no-op and /login
-    # itself redirects home so the route isn't reachable in the
-    # first place.
+    # blank (dev / tests), the middleware is a no-op.
     auth_cfg = auth_config_from(_cfg)
 
     if is_enabled(auth_cfg):
-        # add_middleware order: later-added = outermost = runs first.
-        # Putting auth after the no-cache middleware means an
-        # unauthenticated request gets the 302 before any other
-        # middleware has a chance to do work (e.g. set cache headers
-        # on a response we're about to discard).
         app.add_middleware(AuthGateMiddleware, auth=auth_cfg, enabled=True)
-
-    @app.get("/login", response_class=HTMLResponse)
-    def login_get(request: Request, next: str = "/") -> HTMLResponse:
-        # If auth is disabled there's nothing to log into. Bounce
-        # home so the route can't be poked at in dev / tests.
-        if not is_enabled(auth_cfg):
-            return RedirectResponse("/", status_code=302)
-        error = request.query_params.get("error")
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {
-                "next": next,
-                "error": error,
-                "auth_username": auth_cfg.username,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    @app.post("/login")
-    def login_post(
-        request: Request,
-        username: str = Form(...),
-        password: str = Form(...),
-        remember: str | None = Form(None),
-        next: str = Form("/"),
-    ):
-        if not is_enabled(auth_cfg):
-            return RedirectResponse("/", status_code=302)
-
-        # Sanitize `next` to a same-origin relative path. Anything
-        # else (absolute URL, protocol-relative //foo, empty) falls
-        # back to "/" — prevents open-redirect via crafted form
-        # submissions or third-party links to /login?next=https://evil.
-        if not next or not next.startswith("/") or next.startswith("//"):
-            next = "/"
-
-        if (
-            username != auth_cfg.username
-            or not verify_password(password, auth_cfg.password_hash)
-        ):
-            # Re-render with an inline error. 401 status so the
-            # browser doesn't try to cache or auto-fill the form
-            # body on back-navigation.
-            return templates.TemplateResponse(
-                request,
-                "login.html",
-                {
-                    "next": next,
-                    "error": "Invalid username or password.",
-                    "auth_username": auth_cfg.username,
-                    "static_assets_version": _cfg.static_assets_version,
-                },
-                status_code=401,
-            )
-
-        response = RedirectResponse(next, status_code=302)
-        set_session_cookie(
-            response,
-            secret_key=auth_cfg.secret_key,
-            username=username,
-            remember=bool(remember),
-            cookie_secure=auth_cfg.cookie_secure,
-            remember_days=auth_cfg.remember_days,
-        )
-        return response
-
-    @app.post("/logout")
-    def logout(request: Request):
-        # Always available (it's in AUTH_PUBLIC_PATHS) so the user
-        # can end their session even if the auth middleware is in
-        # the way. Redirects to /login regardless of auth state.
-        response = RedirectResponse("/login", status_code=302)
-        if is_enabled(auth_cfg):
-            clear_session_cookie(response, cookie_secure=auth_cfg.cookie_secure)
-        return response
-
-    # ---------------------- Routes ----------------------
 
     def _parse_collections(request: Request) -> list[str]:
         """
@@ -1485,467 +1267,71 @@ def create_app(
         page = ranking.hits[offset:offset + effective_limit]
         return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
 
-    @app.get("/", response_class=HTMLResponse)
-    async def search_page(
-        request: Request,
-        q: str = Query("", description="text query"),
-        limit: int = Query(_cfg.top_k_default, description="max results"),
-        offset: int = Query(0, description="offset into the full result set"),
-        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
-        favorites: bool = Query(False, description="restrict results to favourites"),
-        diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
-        diversity: str | None = Query(
-            None, description="Diversity strength: off, low, balanced, or high",
-        ),
-        diversity_depth: str | None = Query(
-            None, description="Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
-        ),
-        surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
-    ) -> HTMLResponse:
-        view = _coerce_view(view)
-        diversity_error: str | None = None
-        try:
-            diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
-        except ValueError as exc:
-            diversity_mode, diversity_strength = "off", 0.0
-            diversity_error = str(exc)
-        try:
-            diversity_depth_mode, diversity_pool_depth = resolve_depth(
-                diversity_depth, diversity_mode,
-            )
-        except ValueError as exc:
-            diversity_depth_mode, diversity_pool_depth = "auto", 0
-            diversity_error = diversity_error or str(exc)
-        diverse = diversity_mode != "off"
-        # Clamp limit here so the form's "?limit=99999" still works
-        # (server-rendered pages render whatever limit is given, just
-        # capped). The /api/search endpoint returns 400 on out-of-range.
-        try:
-            limit = max(1, min(int(limit), _cfg.top_k_max))
-        except (TypeError, ValueError):
-            limit = _cfg.top_k_default
-        try:
-            offset = max(0, int(offset))
-        except (TypeError, ValueError):
-            offset = 0
-        # Hard cap on total cumulative results served. Once the user
-        # scrolls past this, has_more is False even if more exist.
-        if offset >= _cfg.max_results_total:
-            offset = _cfg.max_results_total
-            limit = 0
+    def _hydrate_pair_urls(pair: DiscoveryPair | None) -> DiscoveryPair | None:
+        """Fill in the public /photo/{id}/raw URL on each image.
 
-        collections = _parse_collections(request)
-        prompt_state = _normalize_prompt_state(
-            q,
-            _parse_prompts(request, "positives"),
-            _parse_prompts(request, "negatives"),
-        )
-        active_centroids = _parse_centroids(request)
-        active_weights = _parse_weights(request, len(active_centroids))
-        active_centroid = active_centroids[0] if active_centroids else None
-        filename_pattern = _parse_filename(request)
-        # Resolve `allowed_ids` from the filename pattern up front so
-        # any 400 lands before the long-running Qdrant search. Empty
-        # / no-op patterns short-circuit to None here.
-        allowed_ids, fname_err = await _resolve_filename_filter(
-            filename_pattern
-        )
-        if fname_err == "bad_request":
-            return _bad_request(filename_pattern and
-                f"invalid filename pattern: {filename_pattern!r}" or
-                "invalid filename pattern"
-            )
+        discover.py builds pairs with empty URLs because it doesn't
+        know the web_ui_url. We patch them in here, where the
+        config is available.
+        """
+        if pair is None:
+            return None
+        if pair.left is not None and not pair.left.url:
+            pair.left.url = resolve_url(pair.left.id, _cfg.web_ui_url)
+        if pair.right is not None and not pair.right.url:
+            pair.right.url = resolve_url(pair.right.id, _cfg.web_ui_url)
+        return pair
 
-        # Mutex: a centroid search cannot coexist with text prompts.
-        # The user is asked to pick one. A friendly error renders on
-        # the page (no API call is made).
-        if active_centroids and (prompt_state.q or prompt_state.positives or prompt_state.negatives):
-            return templates.TemplateResponse(
-                request,
-                "search.html",
-                {
-                    "q": prompt_state.q,
-                    "positives": prompt_state.positives,
-                    "negatives": prompt_state.negatives,
-                    "positive_chips": prompt_state.positive_chips,
-                    "negative_chips": prompt_state.negative_chips,
-                    "collections": collections,
-                    "view": view,
-                    "favorites_filter": favorites,
-                    "diverse": diverse,
-                    "diversity_mode": diversity_mode,
-                    "diversity_depth": diversity_depth_mode,
-                    "filename": filename_pattern,
-                    "search_query_string": _search_query_string(
-                        prompt_state.q,
-                        prompt_state.positive_chips,
-                        prompt_state.negative_chips,
-                        collections,
-                        view=view,
-                        centroids=active_centroids,
-                        weights=active_weights,
-                        favorites=favorites,
-                        diverse=diverse,
-                        diversity_mode=diversity_mode,
-                        diversity_depth=diversity_depth_mode,
-                        filename=filename_pattern,
-                    ),
-                    "limit": limit,
-                    "offset": offset,
-                    "has_more": False,
-                    "max_results_total": _cfg.max_results_total,
-                    "results": [],
-                    "error": (
-                        f"Centroid search is exclusive — cannot combine ?centroid="
-                        f"{composite_centroid_name(active_centroids)!r} with text prompts."
-                    ),
-                    "took_ms": 0,
-                    "top_k_default": _cfg.top_k_default,
-                    "active_centroid": None,
-                    "active_centroids": [],
-                    "active_weights": active_weights,
-                    "static_assets_version": _cfg.static_assets_version,
-                },
-            )
-
-        results: list[dict] = []
-        error: str | None = diversity_error
-        took_ms: int = 0
-        has_more = False
-        attempted_search = bool(
-            active_centroids
-            or prompt_state.q
-            or request.query_params.getlist("positives")
-            or request.query_params.getlist("negatives")
-            or filename_pattern
+    def _bad_request(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=ErrorResponse(error="bad_request", detail=detail, code="bad_request").model_dump(),
         )
 
-        if surprise and diverse:
-            error = "Diversity cannot be combined with Surprise Me. Choose one search mode."
-        elif attempted_search and not active_centroids and not prompt_state.positives and not filename_pattern and not surprise and not error:
-            error = "At least one positive prompt is required."
-        elif attempted_search and limit > 0 and not error:
-            if surprise and not prompt_state.positives and not active_centroids:
-                # Surprise with no query: use zero vector so Qdrant
-                # returns results from the whole collection.
-                dim = _cfg.centroid_expected_feature_dim
-                vec = [0.0] * dim
-                vec_err = None
-                vec_detail = None
-            else:
-                vec, vec_err, vec_detail = _resolve_query_vector(
-                    active_centroids, prompt_state, weights=active_weights,
-                    filename_pattern=filename_pattern,
-                )
-            if vec_err == "centroid_not_found":
-                error = (
-                    f"Centroid {active_centroid!r} is not loaded."
-                    if active_centroids and len(active_centroids) == 1
-                    else vec_detail
-                    or "one of the centroids is not loaded"
-                )
-            elif vec_err == "empty":
-                error = "At least one positive prompt is required."
-            else:
-                t0 = time.time()
-                # `allowed_ids == []` is a legitimate outcome from
-                # `_resolve_filename_filter`: the pattern was valid
-                # but matched zero images. The user expected an
-                # empty result list, NOT a full ranking — skip the
-                # Qdrant call entirely and return zero hits. (We
-                # can't pass `has_id=[]` to HasIdCondition because
-                # Qdrant treats an empty list as "filter off" rather
-                # than "match nothing". Skipping the round-trip is
-                # cheaper and clearer.)
-                if allowed_ids is not None and not allowed_ids:
-                    hits: list = []
-                    has_more = False
-                    results: list[dict] = []
-                    took_ms = int((time.time() - t0) * 1000)
-                else:
-                    try:
-                        # Don't let one page exceed the total cap.
-                        effective_limit = min(limit, _cfg.max_results_total - offset)
-                        diversity_meta = DiversityMetadata()
-                        if diverse:
-                            favorite_ids = await _favorite_ids_for_filter() if favorites else None
-                            hits, has_more, diversity_meta = _diversity_page(  # noqa: RUF059  (used downstream in SearchResponse.diversity)
-                                vec,
-                                effective_limit,
-                                offset,
-                                collections,
-                                allowed_ids,
-                                favorite_ids,
-                                diversity_mode,
-                                diversity_strength,
-                                diversity_depth_mode,
-                                diversity_pool_depth,
-                            )
-                            results = await _results_from_hits(hits, favorite_ids)
-                        elif favorites:
-                            favorite_ids = await _favorite_ids_for_filter()
-                            hits_all, _ = qdrant.search(
-                                vec, limit=_cfg.max_results_total, offset=0,
-                                collections=collections or None,
-                                allowed_ids=allowed_ids,
-                            )
-                            favorite_hits = [h for h in hits_all if h.id in favorite_ids]
-                            hits = favorite_hits[offset:offset + effective_limit]
-                            has_more = len(favorite_hits) > offset + effective_limit
-                            results = await _results_from_hits(hits, favorite_ids)
-                        elif surprise:
-                            pool = _cfg.surprise_pool_size
-                            k = _cfg.surprise_result_count
-                            hits, _ = qdrant.search(
-                                vec, limit=pool, offset=0,
-                                collections=collections or None,
-                                allowed_ids=allowed_ids,
-                            )
-                            hits = _surprise_search(hits, k)
-                            has_more = False
-                            results = await _results_from_hits(hits)
-                        else:
-                            hits, has_more = qdrant.search(
-                                vec, limit=effective_limit, offset=offset,
-                                collections=collections or None,
-                                allowed_ids=allowed_ids,
-                            )
-                            results = await _results_from_hits(hits)
-                        took_ms = int((time.time() - t0) * 1000)
-                    except (ConnectionError, OSError) as e:
-                        took_ms = int((time.time() - t0) * 1000)
-                        logger.warning("Qdrant unreachable for /: %s", e)
-                        error = "Search is currently unavailable."
-                    except Exception:
-                        took_ms = int((time.time() - t0) * 1000)
-                        logger.exception("search failed")
-                        error = "Search is currently unavailable."
-
-        # When the landing page is hit with no query and no centroid,
-        # surface a small random sample below the form. Reuses the
-        # same SQLite sample path as /random so the cache stays the
-        # single source of truth. Skipped on error paths so a stale
-        # random block doesn't paper over a real failure message.
-        random_picks: list[dict] = []
-        if (
-            not error
-            and not active_centroids
-            and not prompt_state.q
-            and not prompt_state.positives
-            and not prompt_state.negatives
-            and not filename_pattern
-        ):
-            try:
-                random_rows = await asyncio.to_thread(
-                    index_db.pick_random_rows, HOME_RANDOM_PICKS
-                )
-                random_picks = [r.model_dump() for r in _random_rows_to_results(random_rows)]
-            except Exception as e:  # noqa: BLE001
-                # Random picks are a nicety, not critical. If the
-                # sample fails, render the page without them.
-                logger.warning("home random picks failed: %s", e)
-
-        # Saved-search dropdown population. Pull up to 200 rows — the
-        # dropdown is a flat list with no pagination, and most users
-        # accumulate tens, not thousands. Failure here shouldn't
-        # break the page (the dropdown just shows the default
-        # "pick a saved search" option only).
-        try:
-            saved_rows, _ = await asyncio.to_thread(
-                index_db.list_saved_searches, 200, 0,
-            )
-            saved_searches_for_template = [
-                {
-                    "id": int(r["id"]),
-                    "name": str(r["name"]),
-                    "positives": list(r.get("positives") or []),
-                    "negatives": list(r.get("negatives") or []),
-                }
-                for r in saved_rows
-            ]
-        except Exception as e:  # noqa: BLE001
-            logger.warning("saved searches list failed: %s", e)
-            saved_searches_for_template = []
-
-        return templates.TemplateResponse(
-            request,
-            "search.html",
-            {
-                "q": prompt_state.q,
-                "positives": prompt_state.positives,
-                "negatives": prompt_state.negatives,
-                "positive_chips": prompt_state.positive_chips,
-                "negative_chips": prompt_state.negative_chips,
-                "collections": collections,
-                "view": view,
-                "favorites_filter": favorites,
-                "diverse": diverse,
-                "diversity_mode": diversity_mode,
-                "diversity_depth": diversity_depth_mode,
-                "filename": filename_pattern,
-                "search_query_string": _search_query_string(
-                    prompt_state.q,
-                    prompt_state.positive_chips,
-                    prompt_state.negative_chips,
-                    collections,
-                    view=view,
-                    centroid=active_centroid,
-                    favorites=favorites,
-                    diverse=diverse,
-                    diversity_mode=diversity_mode,
-                    diversity_depth=diversity_depth_mode,
-                    filename=filename_pattern,
-                ),
-                "limit": limit,
-                "offset": offset,
-                "has_more": has_more,
-                "max_results_total": _cfg.max_results_total,
-                "results": results,
-                "random_picks": random_picks,
-                "random_picks_count": len(random_picks),
-                "error": error,
-                "took_ms": took_ms,
-                "top_k_default": _cfg.top_k_default,
-                "active_centroid": active_centroid,
-                "active_centroids": active_centroids,
-                "active_weights": active_weights,
-                "saved_searches": saved_searches_for_template,
-                "static_assets_version": _cfg.static_assets_version,
-            },
+    def _qdrant_unreachable(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content=ErrorResponse(error="qdrant_unreachable", detail=detail, code="qdrant_unreachable").model_dump(),
         )
 
-    @app.get("/photo/{point_id}", response_class=HTMLResponse)
-    async def photo_page(
-        request: Request,
-        point_id: str,
-        q: str = Query("", description="originating query string for back link"),
-        view: str = Query(_cfg.default_view, description="originating view for back link"),
-        favorites: bool = Query(False, description="originating favourites filter"),
-        from_favorites: bool = Query(False, description="return to favourites page"),
-        diverse: bool = Query(False, description="originating legacy Diversity flag"),
-        diversity: str | None = Query(
-            None, description="originating Diversity strength",
-        ),
-        diversity_depth: str | None = Query(
-            None, description="originating Diversity candidate depth",
-        ),
-    ) -> HTMLResponse:
-        view = _coerce_view(view)
-        try:
-            diversity_mode, _ = resolve_mode(diversity, diverse)
-        except ValueError:
-            # A stale or hand-edited photo URL should still render. Fall back
-            # to the safe baseline rather than carrying an invalid mode back
-            # into search.
-            diversity_mode = "off"
-        try:
-            diversity_depth_mode, _ = resolve_depth(diversity_depth, diversity_mode)
-        except ValueError:
-            diversity_depth_mode = "auto"
-        diverse = diversity_mode != "off"
+    def _qdrant_timeout(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=504,
+            content=ErrorResponse(error="qdrant_timeout", detail=detail, code="qdrant_timeout").model_dump(),
+        )
+
+    def _internal_error(detail: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=500,
+            content=ErrorResponse(error="internal_error", detail=detail, code="internal_error").model_dump(),
+        )
+
+    @app.get("/api/photo/{point_id}")
+    async def photo_metadata(point_id: str) -> JSONResponse:
+        """Fetch metadata for a single photo by ID. 
+        Used by the frontend's dedicated photo page to render the frame and panel.
+        """
         try:
             hit = qdrant.retrieve(point_id)
         except (ConnectionError, OSError) as e:
-            logger.warning("Qdrant unreachable for /photo/%s: %s", point_id, e)
+            logger.warning("Qdrant unreachable for /api/photo/%s: %s", point_id, e)
             raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
-        # Lazy liveness: if the file is gone from disk, 404 immediately.
-        # The raw-image route would 404 anyway, but a 404 at the page
-        # level is a cleaner signal than rendering "File not found" in
-        # the middle of the photo detail page. Resolve the payload path
-        # to its local mount first — the payload path is often a Windows
-        # UNC that is never alive on the search server, so checking it
-        # directly would 404 every photo.
-        local = resolve_local(hit.path, _cfg.nas_images_base, _cfg.path_prefix)
-        file_missing = local is None
-        # Belt-and-braces: even if `resolve_local` succeeded, the file
-        # may have been deleted since the last IndexDB refresh.
-        if not file_missing and not _is_path_alive(str(local)):
-            file_missing = True
-        if file_missing:
-            raise HTTPException(status_code=404, detail="Photo file missing")
-        prompt_state = _normalize_prompt_state(
-            q,
-            _parse_prompts(request, "positives"),
-            _parse_prompts(request, "negatives"),
-        )
-        collections = _parse_collections(request)
-        # Preserve `?centroid=&centroid=&weights=` so the back button
-        # returns the user to the centroid search they came from,
-        # not a bare `/`. The JS already forwards it on the photo
-        # link (currentSearchParams), so we just need to read it
-        # back here.
-        active_centroids = _parse_centroids(request)
-        active_weights = _parse_weights(request, len(active_centroids))
-        active_centroids[0] if active_centroids else None
-        filename_pattern = _parse_filename(request)
-        cached_row = await asyncio.to_thread(index_db.get_by_id, hit.id)
-        is_favorite = bool(cached_row and int(cached_row.get("is_favorite") or 0) == 1)
-        is_disliked = await asyncio.to_thread(index_db.is_disliked, hit.id)
-        # Photo metadata surfaced on the /photo/{id} page. The path
-        # is intentionally hidden (C.1 in PLAN.md); we expose date
-        # and dimensions instead. payload carries width/height
-        # directly; indexed_at comes from the SQLite cache row.
-        photo_width = (hit.payload or {}).get("width")
-        photo_height = (hit.payload or {}).get("height")
-        photo_indexed_at = (cached_row or {}).get("indexed_at")
-        # Lazy liveness for the /photo page too (same check as the
-        # raw route). Defensive: catches filesystem deletions that the
-        # IndexDB refresh hasn't caught up with yet.
-        # All user albums + which ones contain this photo, for the
-        # album pill toggles on the photo detail page. Loaded in
-        # parallel via gather so the photo page latency stays flat
-        # regardless of album count.
-        import asyncio as _asyncio
-        all_albums, photo_albums = await _asyncio.gather(
-            asyncio.to_thread(index_db.list_albums),
-            asyncio.to_thread(index_db.list_albums_for_favorite, hit.id),
-        )
-        photo_album_ids = {str(a["id"]) for a in photo_albums}
-        return templates.TemplateResponse(
-            request,
-            "photo.html",
-            {
-                "id": hit.id,
-                "path": hit.path,
-                "url": resolve_url(hit.id, _cfg.web_ui_url),
-                "photo_width": photo_width,
-                "photo_height": photo_height,
-                "photo_indexed_at": photo_indexed_at,
-                "q": prompt_state.q,
-                "positives": prompt_state.positives,
-                "negatives": prompt_state.negatives,
-                "positive_chips": prompt_state.positive_chips,
-                "negative_chips": prompt_state.negative_chips,
-                "collections": collections,
-                "view": view,
-                "favorites_filter": favorites,
-                "from_favorites": from_favorites,
-                "filename": filename_pattern,
-                "search_query_string": _search_query_string(
-                    prompt_state.q,
-                    prompt_state.positive_chips,
-                    prompt_state.negative_chips,
-                    collections,
-                    view=view,
-                    centroids=active_centroids,
-                    weights=active_weights,
-                    favorites=favorites,
-                    diverse=diverse,
-                    diversity_mode=diversity_mode,
-                    diversity_depth=diversity_depth_mode,
-                    filename=filename_pattern,
-                ),
-                "payload": hit.payload or {},
-                "file_missing": file_missing,
-                "is_favorite": is_favorite,
-            "is_disliked": is_disliked,
-                "all_albums": all_albums,
-                "photo_album_ids": photo_album_ids,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
+        
+        # Determine favorite status
+        fav_ids = await _favorite_id_set([point_id])
+        is_fav = point_id in fav_ids
+        
+        return JSONResponse(content={
+            "id": hit.id,
+            "path": hit.path,
+            "score": hit.score,
+            "is_favorite": is_fav,
+            "url": f"/photo/{point_id}/raw",
+            "width": hit.payload.get("width") if hit.payload else None,
+            "height": hit.payload.get("height") if hit.payload else None
+        })
 
     @app.get("/photo/{point_id}/raw")
     async def photo_raw(request: Request, point_id: str) -> Response:
@@ -1992,91 +1378,6 @@ def create_app(
                 # bytes while its on-disk mtime+size match. A new
                 # ETag is issued on any byte change.
                 "Cache-Control": "public, max-age=31536000, immutable",
-            },
-        )
-
-    @app.get("/photo/{point_id}/similar", response_class=HTMLResponse)
-    async def photo_similar(
-        request: Request,
-        point_id: str,
-        view: str = Query(_cfg.default_view, description="result view for grid"),
-    ) -> HTMLResponse:
-        """
-        Render the top-K most similar images to the given photo.
-
-        The source photo is included in result #1 with score ~1.0
-        (by design — acts as a sanity check that the right vector
-        was retrieved). Cross-collection by default: no `collections`
-        filter is applied, so the result set spans every library
-        indexed under the configured Qdrant collection.
-
-        Two Qdrant round-trips per request:
-          1. retrieve_with_vector(point_id) — get the source embedding
-          2. query_points(query=<vec>, limit=top_k_default) — top-K HNSW
-        Both are O(1) / O(log N). Worst case latency is the sum of
-        the two timeout windows; the second call dominates.
-        """
-        cfg = get_cfg()
-        view = _coerce_view(view)
-        try:
-            fetched = qdrant.retrieve_with_vector(point_id)
-        except (ConnectionError, OSError) as e:
-            logger.warning(
-                "Qdrant unreachable for /photo/%s/similar: %s", point_id, e
-            )
-            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-        if fetched is None:
-            raise HTTPException(status_code=404, detail="Photo not found")
-        vec, hit = fetched
-
-        t0 = time.time()
-        try:
-            # No `collections` filter → cross-collection. The photo's
-            # own vector is reused as the query vector, so result #1
-            # is always the source itself at score ~1.0. That's
-            # intentional: it doubles as a "this is the right point"
-            # confirmation when the page renders.
-            hits, _ = qdrant.search(vec, limit=cfg.top_k_default)
-        except (ConnectionError, OSError) as e:
-            logger.warning(
-                "Qdrant unreachable during similar-search for %s: %s",
-                point_id, e,
-            )
-            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-        took_ms = int((time.time() - t0) * 1000)
-
-        results = await _results_from_hits(hits)
-
-        return templates.TemplateResponse(
-            request,
-            "search.html",
-            {
-                # Empty `q` and no prompt chips: the search input
-                # renders blank, the prompt-composition rows show
-                # "add prompt" placeholders (same as a fresh home
-                # page state).
-                "q": "",
-                "positives": [],
-                "negatives": [],
-                "positive_chips": [],
-                "negative_chips": [],
-                "collections": [],
-                "view": view,
-                "results": results,
-                # Mirror the SearchResponse shape so the template
-                # has no special cases for the result grid.
-                "offset": 0,
-                "limit": cfg.top_k_default,
-                "has_more": False,  # The configured K is the whole answer, no pagination
-                "took_ms": took_ms,
-                "max_results_total": cfg.top_k_default,
-                # Mode marker: when set, search.html branches into
-                # the "most similar" header + back-link shape.
-                "source_photo_id": hit.id,
-                "source_photo_path": hit.path,
-                "search_query_string": "",  # back button goes to /photo/{id}, not /?...
-                "active_centroid": None,  # this route is text/photo-anchored, never centroid
-                "static_assets_version": _cfg.static_assets_version,
             },
         )
 
@@ -2419,6 +1720,7 @@ def create_app(
         out: list[SearchResult] = []
         for row in rows:
             is_fav = bool(int(row.get("is_favorite") or 0))
+            _bh = row.get("blurhash") or None
             out.append(
                 SearchResult(
                     id=str(row["id"]),
@@ -2429,6 +1731,7 @@ def create_app(
                     is_favorite=is_fav,
                     width=_maybe_int(row.get("width")),
                     height=_maybe_int(row.get("height")),
+                    blurhash=_bh,
                 )
             )
         return out
@@ -2504,6 +1807,184 @@ def create_app(
             total=total,
             limit=limit,
             offset=offset,
+        )
+
+    # ---------------------- Favourites ZIP download ----------------------
+    #
+    # One-shot .zip of every favourite currently in the cache. Streamed
+    # end-to-end so the response begins before every file has been
+    # read into memory. Entry names are flattened to `{shard}__{basename}`
+    # to avoid silent overwrites when two favourites share a basename
+    # but live in different shards, and to avoid zip-path traversal
+    # entirely. Files that can't be resolved on disk (deleted after
+    # indexing, NAS unmounted) are skipped and recorded in a
+    # `_missing.txt` manifest at the root of the archive.
+
+    FAVORITES_ZIP_PAGE_SIZE = 500
+
+    @app.api_route(
+        "/favorites/download.zip", methods=["GET", "HEAD"],
+        response_class=StreamingResponse,
+    )
+    async def favorites_download_zip() -> StreamingResponse:
+        zs = zipstream.ZipStream(compress_type=zipstream.ZIP_STORED)
+
+        # Favourites whose local file we couldn't resolve. Collected
+        # here and emitted as `_missing.txt` at the root of the
+        # archive so the user can see what was skipped.
+        missing: list[tuple[str, str]] = []
+
+        offset = 0
+        while True:
+            rows = index_db.list_favorites(
+                limit=FAVORITES_ZIP_PAGE_SIZE,
+                offset=offset,
+            )
+            if not rows:
+                break
+            for row in rows:
+                point_id = str(row["id"])
+                payload_path = str(row.get("path") or "")
+                shard = str(row.get("shard") or "").strip()
+                local = resolve_local(
+                    payload_path,
+                    _cfg.nas_images_base,
+                    _cfg.path_prefix,
+                )
+                if local is None:
+                    missing.append((point_id, payload_path))
+                    continue
+                # Flatten with shard prefix when known, otherwise
+                # bare basename. We strip path separators from the
+                # shard so no entry can ever traverse (``local.name``
+                # is already just the file name via Path.name).
+                safe_shard = (
+                    shard.replace("/", "_").replace("\\", "_").strip("_")
+                )
+                entry_name = (
+                    f"{safe_shard}__{local.name}" if safe_shard
+                    else local.name
+                )
+                try:
+                    # add_path streams the file in chunks as the
+                    # consumer drains the response — no
+                    # full-file buffering in RAM.
+                    zs.add_path(local, arcname=entry_name)
+                except (FileNotFoundError, OSError) as e:
+                    logger.warning(
+                        "favourites zip: failed to add %s for point %s: %s",
+                        local, point_id, e,
+                    )
+                    missing.append((point_id, str(local)))
+            offset += FAVORITES_ZIP_PAGE_SIZE
+
+        if missing:
+            lines = [
+                "favourites zip manifest",
+                f"missing files: {len(missing)}",
+                "",
+            ]
+            for point_id, payload_path in missing:
+                lines.append(f"{point_id}\t{payload_path}")
+            zs.add("\n".join(lines) + "\n", arcname="_missing.txt")
+
+        stamp = time.strftime("%Y-%m-%d")
+        filename = f"favorites-{stamp}.zip"
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        }
+        return StreamingResponse(
+            zs,
+            media_type="application/zip",
+            headers=headers,
+        )
+
+    @app.api_route(
+        "/albums/{album_id}/download.zip", methods=["GET", "HEAD"],
+        response_class=StreamingResponse,
+    )
+    async def album_download_zip(album_id: int) -> StreamingResponse:
+        """Stream an album's photos as a zip — same shape and rules
+        as `/favorites/download.zip`. Membership comes from
+        `index_db.list_album_members` (INNER JOIN against the cache,
+        so orphan rows are hidden from the archive too). Files we
+        can't resolve on disk are skipped and recorded in
+        `_missing.txt`. Album id with no row → 404.
+        """
+        album = index_db.get_album(album_id)
+        if album is None:
+            raise HTTPException(
+                status_code=404, detail=f"Album {album_id} not found",
+            )
+
+        zs = zipstream.ZipStream(compress_type=zipstream.ZIP_STORED)
+        missing: list[tuple[str, str]] = []
+
+        offset = 0
+        while True:
+            rows = index_db.list_album_members(
+                album_id,
+                limit=FAVORITES_ZIP_PAGE_SIZE,
+                offset=offset,
+            )
+            if not rows:
+                break
+            for row in rows:
+                point_id = str(row["id"])
+                payload_path = str(row.get("path") or "")
+                shard = str(row.get("shard") or "").strip()
+                local = resolve_local(
+                    payload_path,
+                    _cfg.nas_images_base,
+                    _cfg.path_prefix,
+                )
+                if local is None:
+                    missing.append((point_id, payload_path))
+                    continue
+                safe_shard = (
+                    shard.replace("/", "_").replace("\\", "_").strip("_")
+                )
+                entry_name = (
+                    f"{safe_shard}__{local.name}" if safe_shard
+                    else local.name
+                )
+                try:
+                    zs.add_path(local, arcname=entry_name)
+                except (FileNotFoundError, OSError) as e:
+                    logger.warning(
+                        "album zip: failed to add %s for point %s: %s",
+                        local, point_id, e,
+                    )
+                    missing.append((point_id, str(local)))
+            offset += FAVORITES_ZIP_PAGE_SIZE
+
+        if missing:
+            lines = [
+                f"album {album_id} zip manifest",
+                f"missing files: {len(missing)}",
+                "",
+            ]
+            for point_id, payload_path in missing:
+                lines.append(f"{point_id}\t{payload_path}")
+            zs.add("\n".join(lines) + "\n", arcname="_missing.txt")
+
+        stamp = time.strftime("%Y-%m-%d")
+        # Slug the album name for the filename. Empty / unsafe names
+        # fall back to the bare id (the prefix below adds "album-").
+        # Cap length so the filename stays well under common
+        # filesystem limits even after concatenation.
+        raw = re.sub(r"[^A-Za-z0-9._-]+", "-", album["name"]).strip("-")
+        slug = raw[:64] if raw else str(album_id)
+        filename = f"album-{slug}-{stamp}.zip"
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        }
+        return StreamingResponse(
+            zs,
+            media_type="application/zip",
+            headers=headers,
         )
 
     # ---------------------- Albums ----------------------
@@ -2801,113 +2282,6 @@ def create_app(
             "path_liveness_cache_max": _PATH_LIVENESS_CACHE_MAX,
         }
 
-    @app.get("/favorites", response_class=HTMLResponse)
-    async def favorites_page(
-        request: Request,
-        limit: int = Query(_cfg.top_k_default, description="max favourites"),
-        offset: int = Query(0, description="offset into favourites"),
-        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
-    ) -> HTMLResponse:
-        view = _coerce_view(view)
-        try:
-            limit = max(1, min(int(limit), 1000))
-        except (TypeError, ValueError):
-            limit = get_cfg().top_k_default
-        try:
-            offset = max(0, int(offset))
-        except (TypeError, ValueError):
-            offset = 0
-        rows = await asyncio.to_thread(index_db.list_favorites, limit, offset)
-        total = await asyncio.to_thread(index_db.count_favorites)
-        results = _favorite_rows_to_results(rows)
-        return templates.TemplateResponse(
-            request,
-            "favorites.html",
-            {
-                "results": results,
-                "total": total,
-                "limit": limit,
-                "offset": offset,
-                "has_more": offset + len(results) < total,
-                "max_results_total": total,
-                "view": view,
-                "q": "",
-                "positives": [],
-                "negatives": [],
-                "search_query_string": "from_favorites=true",
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    @app.get("/dislikes", response_class=HTMLResponse)
-    async def dislikes_page(
-        request: Request,
-        limit: int = Query(_cfg.top_k_default, description="max dislikes"),
-        offset: int = Query(0, description="offset into dislikes"),
-        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
-    ) -> HTMLResponse:
-        view = _coerce_view(view)
-        try:
-            limit = max(1, min(int(limit), 1000))
-        except (TypeError, ValueError):
-            limit = get_cfg().top_k_default
-        try:
-            offset = max(0, int(offset))
-        except (TypeError, ValueError):
-            offset = 0
-        rows = await asyncio.to_thread(index_db.list_dislikes, limit, offset)
-        total = await asyncio.to_thread(index_db.count_dislikes)
-        results = _dislike_rows_to_results(rows)
-        return templates.TemplateResponse(
-            request,
-            "dislikes.html",
-            {
-                "results": results,
-                "total": total,
-                "limit": limit,
-                "offset": offset,
-                "has_more": offset + len(results) < total,
-                "max_results_total": total,
-                "view": view,
-                "q": "",
-                "positives": [],
-                "negatives": [],
-                "search_query_string": "",
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    # ---------------------- Albums HTML pages ----------------------
-    #
-    # Two routes: /albums (index with create form) and
-    # /albums/{id} (detail with member grid + edit/delete).
-    # Both reuse the same _result_grid.html partial the
-    # favourites page uses, so the photo tile styling stays
-    # consistent across all member-bearing surfaces.
-
-    @app.get("/albums", response_class=HTMLResponse)
-    async def albums_index(request: Request) -> HTMLResponse:
-        rows = await asyncio.to_thread(index_db.list_albums)
-        return templates.TemplateResponse(
-            request,
-            "albums.html",
-            {
-                "albums": rows,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    # ---------------------- Saved searches ----------------------
-    #
-    # Named prompt presets. The user types a (positives, negatives)
-    # combo into the search bar, names it, and the JSON shape is
-    # stored verbatim. Applying a saved search in the UI just
-    # re-populates the chip controllers — view, centroid,
-    # favourites-filter and result limits are intentionally NOT
-    # captured, because those are session state that wouldn't make
-    # sense to recall across sessions (the photo set changes,
-    # centroids get reloaded, view is whatever the device wants).
-
     @app.post("/api/saved-searches", response_model=SavedSearch, status_code=201)
     async def create_saved_search(body: SavedSearchCreateRequest) -> SavedSearch:
         # Name: trim, length-check. Empty / whitespace-only / >80
@@ -2981,275 +2355,12 @@ def create_app(
         if not ok:
             raise HTTPException(status_code=404, detail="Saved search not found")
 
-    @app.get("/saved", response_class=HTMLResponse)
-    async def saved_searches_index(request: Request) -> HTMLResponse:
-        """Server-rendered list page for saved searches.
-
-        Mostly a management view — delete a saved search by name.
-        The primary entry point for *applying* a saved search is
-        the dropdown on /  (the search bar), not this page. Kept
-        simple: just a list with delete buttons, matching the
-        shape of /favorites and /albums as "user state" landing
-        pages.
-        """
-        rows, total = await asyncio.to_thread(
-            index_db.list_saved_searches, 1000, 0,
-        )
-        return templates.TemplateResponse(
-            request,
-            "saved.html",
-            {
-                "saved_searches": rows,
-                "total": total,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    @app.get("/albums/{album_id}", response_class=HTMLResponse)
-    async def album_detail_page(
-        request: Request,
-        album_id: int,
-        limit: int = Query(_cfg.top_k_default, description="max members to render"),
-        offset: int = Query(0, description="offset into members"),
-        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
-    ) -> HTMLResponse:
-        view = _coerce_view(view)
-        album = await asyncio.to_thread(index_db.get_album, album_id)
-        if album is None:
-            raise HTTPException(status_code=404, detail="Album not found")
-        try:
-            limit = max(1, min(int(limit), 1000))
-        except (TypeError, ValueError):
-            limit = get_cfg().top_k_default
-        try:
-            offset = max(0, int(offset))
-        except (TypeError, ValueError):
-            offset = 0
-        rows = await asyncio.to_thread(
-            index_db.list_album_members, album_id, limit, offset,
-        )
-        total = await asyncio.to_thread(
-            index_db.count_album_members, album_id
-        )
-        results = _album_member_rows_to_results(rows)
-        return templates.TemplateResponse(
-            request,
-            "album_detail.html",
-            {
-                "album": album,
-                "results": results,
-                "total": total,
-                "limit": limit,
-                "offset": offset,
-                "has_more": offset + len(results) < total,
-                "max_results_total": total,
-                "view": view,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    # ---------------------- Favourites ZIP download ----------------------
-    #
-    # One-shot .zip of every favourite currently in the cache. Streamed
-    # end-to-end so the response begins before every file has been
-    # read into memory. Entry names are flattened to `{shard}__{basename}`
-    # to avoid silent overwrites when two favourites share a basename
-    # but live in different shards, and to avoid zip-path traversal
-    # entirely. Files that can't be resolved on disk (deleted after
-    # indexing, NAS unmounted) are skipped and recorded in a
-    # `_missing.txt` manifest at the root of the archive.
-
-    FAVORITES_ZIP_PAGE_SIZE = 500
-
-    @app.api_route(
-        "/favorites/download.zip", methods=["GET", "HEAD"],
-        response_class=StreamingResponse,
-    )
-    async def favorites_download_zip() -> StreamingResponse:
-        zs = zipstream.ZipStream(compress_type=zipstream.ZIP_STORED)
-
-        # Favourites whose local file we couldn't resolve. Collected
-        # here and emitted as `_missing.txt` at the root of the
-        # archive so the user can see what was skipped.
-        missing: list[tuple[str, str]] = []
-
-        offset = 0
-        while True:
-            rows = index_db.list_favorites(
-                limit=FAVORITES_ZIP_PAGE_SIZE,
-                offset=offset,
-            )
-            if not rows:
-                break
-            for row in rows:
-                point_id = str(row["id"])
-                payload_path = str(row.get("path") or "")
-                shard = str(row.get("shard") or "").strip()
-                local = resolve_local(
-                    payload_path,
-                    _cfg.nas_images_base,
-                    _cfg.path_prefix,
-                )
-                if local is None:
-                    missing.append((point_id, payload_path))
-                    continue
-                # Flatten with shard prefix when known, otherwise
-                # bare basename. We strip path separators from the
-                # shard so no entry can ever traverse (``local.name``
-                # is already just the file name via Path.name).
-                safe_shard = (
-                    shard.replace("/", "_").replace("\\", "_").strip("_")
-                )
-                entry_name = (
-                    f"{safe_shard}__{local.name}" if safe_shard
-                    else local.name
-                )
-                try:
-                    # add_path streams the file in chunks as the
-                    # consumer drains the response — no
-                    # full-file buffering in RAM.
-                    zs.add_path(local, arcname=entry_name)
-                except (FileNotFoundError, OSError) as e:
-                    logger.warning(
-                        "favourites zip: failed to add %s for point %s: %s",
-                        local, point_id, e,
-                    )
-                    missing.append((point_id, str(local)))
-            offset += FAVORITES_ZIP_PAGE_SIZE
-
-        if missing:
-            lines = [
-                "favourites zip manifest",
-                f"missing files: {len(missing)}",
-                "",
-            ]
-            for point_id, payload_path in missing:
-                lines.append(f"{point_id}\t{payload_path}")
-            zs.add("\n".join(lines) + "\n", arcname="_missing.txt")
-
-        stamp = time.strftime("%Y-%m-%d")
-        filename = f"favorites-{stamp}.zip"
-        headers = {
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Cache-Control": "no-store",
-        }
-        return StreamingResponse(
-            zs,
-            media_type="application/zip",
-            headers=headers,
-        )
-
-    @app.api_route(
-        "/albums/{album_id}/download.zip", methods=["GET", "HEAD"],
-        response_class=StreamingResponse,
-    )
-    async def album_download_zip(album_id: int) -> StreamingResponse:
-        """Stream an album's photos as a zip — same shape and rules
-        as `/favorites/download.zip`. Membership comes from
-        `index_db.list_album_members` (INNER JOIN against the cache,
-        so orphan rows are hidden from the archive too). Files we
-        can't resolve on disk are skipped and recorded in
-        `_missing.txt`. Album id with no row → 404.
-        """
-        album = index_db.get_album(album_id)
-        if album is None:
-            raise HTTPException(
-                status_code=404, detail=f"Album {album_id} not found",
-            )
-
-        zs = zipstream.ZipStream(compress_type=zipstream.ZIP_STORED)
-        missing: list[tuple[str, str]] = []
-
-        offset = 0
-        while True:
-            rows = index_db.list_album_members(
-                album_id,
-                limit=FAVORITES_ZIP_PAGE_SIZE,
-                offset=offset,
-            )
-            if not rows:
-                break
-            for row in rows:
-                point_id = str(row["id"])
-                payload_path = str(row.get("path") or "")
-                shard = str(row.get("shard") or "").strip()
-                local = resolve_local(
-                    payload_path,
-                    _cfg.nas_images_base,
-                    _cfg.path_prefix,
-                )
-                if local is None:
-                    missing.append((point_id, payload_path))
-                    continue
-                safe_shard = (
-                    shard.replace("/", "_").replace("\\", "_").strip("_")
-                )
-                entry_name = (
-                    f"{safe_shard}__{local.name}" if safe_shard
-                    else local.name
-                )
-                try:
-                    zs.add_path(local, arcname=entry_name)
-                except (FileNotFoundError, OSError) as e:
-                    logger.warning(
-                        "album zip: failed to add %s for point %s: %s",
-                        local, point_id, e,
-                    )
-                    missing.append((point_id, str(local)))
-            offset += FAVORITES_ZIP_PAGE_SIZE
-
-        if missing:
-            lines = [
-                f"album {album_id} zip manifest",
-                f"missing files: {len(missing)}",
-                "",
-            ]
-            for point_id, payload_path in missing:
-                lines.append(f"{point_id}\t{payload_path}")
-            zs.add("\n".join(lines) + "\n", arcname="_missing.txt")
-
-        stamp = time.strftime("%Y-%m-%d")
-        # Slug the album name for the filename. Empty / unsafe names
-        # fall back to the bare id (the prefix below adds "album-").
-        # Cap length so the filename stays well under common
-        # filesystem limits even after concatenation.
-        raw = re.sub(r"[^A-Za-z0-9._-]+", "-", album["name"]).strip("-")
-        slug = raw[:64] if raw else str(album_id)
-        filename = f"album-{slug}-{stamp}.zip"
-        headers = {
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Cache-Control": "no-store",
-        }
-        return StreamingResponse(
-            zs,
-            media_type="application/zip",
-            headers=headers,
-        )
-
-    # ---------------------- Random shuffle ----------------------
-    #
-    # /random surfaces a fresh batch of photos from the index cache
-    # without going through Qdrant. The cache is the source of truth
-    # for random sampling — every photo there is already indexed, so
-    # the cache has id/path/dimensions, which is everything the page
-    # needs. A "shuffle" button just hits the API again and re-renders.
-    #
-    # Collection filter is a list (multi-value query param), so the
-    # UI can offer chips; passing no filter means "from the whole set".
-
-    RANDOM_DEFAULT_LIMIT = _cfg.top_k_default
     RANDOM_MAX_LIMIT = 200
-
-    # Number of random photos shown on the default landing page
-    # (when there's no query and no centroid). Lightweight — just a
-    # visual nudge toward the collection when nothing else is asked
-    # for. Same SQLite sample path as /api/random.
-    HOME_RANDOM_PICKS = 28
 
     @app.get("/api/random", response_model=SearchResponse)
     async def api_random(
         request: Request,
-        limit: int = Query(RANDOM_DEFAULT_LIMIT, description="max results"),
+        limit: int = Query(_cfg.top_k_default, description="max results"),
         collections: Annotated[list[str], Query(description="restrict to one or more collections; empty = whole set")] = [],  # noqa: B006
         view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> SearchResponse:
@@ -3296,66 +2407,6 @@ def create_app(
             limit=limit,
             has_more=has_more,
         )
-
-    @app.get("/random", response_class=HTMLResponse)
-    async def random_page(
-        request: Request,
-        limit: int = Query(RANDOM_DEFAULT_LIMIT, description="max results"),
-        collections: Annotated[list[str], Query(description="restrict to one or more collections; empty = whole set")] = [],  # noqa: B006
-        view: str = Query(_cfg.default_view, description="result view: 'grid' or 'feed'"),
-    ) -> HTMLResponse:
-        view = _coerce_view(view)
-        try:
-            limit = max(1, min(int(limit), RANDOM_MAX_LIMIT))
-        except (TypeError, ValueError):
-            limit = RANDOM_DEFAULT_LIMIT
-        # Clean collections the same way the API does.
-        seen: set[str] = set()
-        clean_collections: list[str] = []
-        for c in collections:
-            c = (c or "").strip()
-            if c and c not in seen:
-                seen.add(c)
-                clean_collections.append(c)
-        try:
-            rows = await asyncio.to_thread(
-                index_db.pick_random_rows, limit, clean_collections or None
-            )
-        except Exception:
-            logger.exception("random page render failed")
-            return templates.TemplateResponse(
-                request,
-                "random.html",
-                {
-                    "results": [],
-                    "view": view,
-                    "collections": clean_collections,
-                    "limit": limit,
-                    "error": "Could not sample photos right now.",
-                    "static_assets_version": _cfg.static_assets_version,
-                },
-                status_code=500,
-            )
-        results = _random_rows_to_results(rows)
-        # JSON-serialisable dicts for the SSR data block. SearchResult
-        # is a pydantic model; Jinja's tojson filter can't serialise
-        # it directly. List of dicts is what `_result_grid.html`
-        # consumes too (it only reads attributes).
-        results_dicts = [r.model_dump() for r in results]
-        return templates.TemplateResponse(
-            request,
-            "random.html",
-            {
-                "results": results_dicts,
-                "view": view,
-                "collections": clean_collections,
-                "limit": limit,
-                "error": None,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    # ---------------------- Collections endpoint ----------------------
 
     @app.get("/api/collections")
     async def list_collections():
@@ -3690,102 +2741,6 @@ def create_app(
             "centroids_dir": str(_centroid_store.centroids_dir) if _centroid_store.centroids_dir else None,
         }
 
-    @app.get("/centroids", response_class=HTMLResponse)
-    async def centroids_page(request: Request) -> HTMLResponse:
-        """
-        List page for loaded centroids. Each row is a card with
-        the centroid's name, model/dim, source image count, and
-        a link that drops the user into the search results with
-        that centroid as the anchor.
-
-        The page is read-only — there is no edit/create path on
-        the search side. Centroids are owned by `isaac-image-scoring`.
-        A "reload" button calls POST /api/centroids/reload to
-        rescan the directory without restarting the container.
-        """
-        if _centroid_store is None:
-            centroids: list = []
-            dir_label = None
-        else:
-            centroids = [c.as_dict() for c in _centroid_store.list()]
-            dir_label = str(_centroid_store.centroids_dir) if _centroid_store.centroids_dir else None
-        # Dynamic centroids: include each spec + its empty-state flag
-        # + the cached n_images (None if never computed) so the
-        # template can show a friendly hint when compute returned None.
-        dynamic = []
-        if _dynamic_centroids is not None:
-            for spec in _dynamic_centroids.list():
-                # Trigger a compute (cached) so the page can render
-                # the empty-state hint or the live n_images count
-                # rather than the "not yet computed" state. Cheap:
-                # one Qdrant retrieve + numpy mean + L2 norm.
-                _dynamic_centroids.get_vector(spec.name)
-                dynamic.append({
-                    "name": spec.name,
-                    "label": spec.label,
-                    "description": spec.description,
-                    "source": spec.source,
-                    "empty_message": spec.empty_message,
-                    "n_images": _dynamic_centroids.cached_n_images(spec.name),
-                    "is_empty": _dynamic_centroids.is_empty(spec.name),
-                })
-        return templates.TemplateResponse(
-            request,
-            "centroids.html",
-            {
-                "centroids": centroids,
-                "centroids_dir": dir_label,
-                "dynamic_centroids": dynamic,
-                # Pre-check the multi-select checkboxes for whatever
-                # centroids are already active in the URL. Lets users
-                # land on /centroids from a blended search and add a
-                # third centroid without re-picking the first two.
-                "preselected_centroids": _parse_centroids(request),
-                "expected_model": _cfg.centroid_expected_model if _cfg else None,
-                "expected_feature_dim": _cfg.centroid_expected_feature_dim if _cfg else None,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    # ---------------------- Discovery rabbithole ----------------------
-    #
-    # Read-only, ephemeral two-image pick flow. Qdrant never gets
-    # written to; session state is in-memory only (lost on server
-    # restart). The user is the only one who can end the session.
-    #
-    # Routes:
-    #   GET  /discover               — render the empty page (JS hydrates)
-    #   POST /api/discover/start     — create session, return first pair
-    #   POST /api/discover/pick      — submit a pick, return next pair
-    #   GET  /discover/liked         — render the gallery of picks
-
-    @app.get("/discover", response_class=HTMLResponse)
-    async def discover_page(request: Request) -> HTMLResponse:
-        """Render the discovery page. The JS controller hydrates
-        the first pair via /api/discover/start."""
-        return templates.TemplateResponse(
-            request,
-            "discover.html",
-            {
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    def _hydrate_pair_urls(pair: DiscoveryPair | None) -> DiscoveryPair | None:
-        """Fill in the public /photo/{id}/raw URL on each image.
-
-        discover.py builds pairs with empty URLs because it doesn't
-        know the web_ui_url. We patch them in here, where the
-        config is available.
-        """
-        if pair is None:
-            return None
-        if pair.left is not None and not pair.left.url:
-            pair.left.url = resolve_url(pair.left.id, _cfg.web_ui_url)
-        if pair.right is not None and not pair.right.url:
-            pair.right.url = resolve_url(pair.right.id, _cfg.web_ui_url)
-        return pair
-
     @app.post("/api/discover/start", response_model=DiscoveryStartResponse)
     async def discover_start() -> DiscoveryStartResponse:
         """Create a new discovery session and return the first pair."""
@@ -3827,89 +2782,6 @@ def create_app(
             pair=_hydrate_pair_urls(next_pair),
             round=round_completed,
             liked_count=liked_count,
-        )
-
-    @app.get("/discover/liked", response_class=HTMLResponse)
-    async def discover_liked_page(
-        request: Request,
-        session_id: str = Query(..., description="discovery session id"),
-        view: str = Query(_cfg.default_view, description="result view: 'grid' (default) or 'feed'"),
-    ) -> HTMLResponse:
-        """Render the gallery of images the user picked in this session."""
-        view = _coerce_view(view)
-        images = discover.list_liked(qdrant, session_id, _cfg.web_ui_url, index_db)
-        if images is None:
-            # Session gone. Render a friendly empty state with a
-            # link back to /discover.
-            return templates.TemplateResponse(
-                request,
-                "discover_liked.html",
-                {
-                    "session_id": session_id,
-                    "view": view,
-                    "images": [],
-                    "session_gone": True,
-                    "static_assets_version": _cfg.static_assets_version,
-                },
-            )
-        return templates.TemplateResponse(
-            request,
-            "discover_liked.html",
-            {
-                "session_id": session_id,
-                "view": view,
-                "images": images,
-                "session_gone": False,
-                "static_assets_version": _cfg.static_assets_version,
-            },
-        )
-
-    # ---------------------- Error response helpers ----------------------
-
-    def _bad_request(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=400,
-            content=ErrorResponse(error="bad_request", detail=detail, code="bad_request").model_dump(),
-        )
-
-    def _qdrant_unreachable(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=502,
-            content=ErrorResponse(error="qdrant_unreachable", detail=detail, code="qdrant_unreachable").model_dump(),
-        )
-
-    def _qdrant_timeout(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=504,
-            content=ErrorResponse(error="qdrant_timeout", detail=detail, code="qdrant_timeout").model_dump(),
-        )
-
-    def _internal_error(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=500,
-            content=ErrorResponse(error="internal_error", detail=detail, code="internal_error").model_dump(),
-        )
-
-    # ----------------------------------------------------------------
-    # /for-you — persistent rolling recommendation feed
-    #
-    # Read favourites + dislikes (persistent, IndexDB), build a
-    # state snapshot, ask Qdrant for k-nearest unseen photos via the
-    # Recommend API, rerank with MMR for diversity, return as JSON.
-    # Front-end hydrates and renders the /for-you page.
-    # ----------------------------------------------------------------
-    @app.get("/for-you", response_class=HTMLResponse)
-    async def for_you_page(request: Request) -> HTMLResponse:
-        state = _for_you_build_state(index_db=index_db)
-        return templates.TemplateResponse(
-            request,
-            "for_you.html",
-            {
-                "static_assets_version": _cfg.static_assets_version,
-                "for_you_n_likes": state.n_likes,
-                "for_you_n_dislikes": state.n_dislikes,
-                "for_you_freshest": state.freshest_feedback_ts,
-            },
         )
 
     @app.get("/api/for-you/state")

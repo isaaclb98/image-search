@@ -711,22 +711,8 @@ def test_recommend_failure_falls_back_to_random(app_with_qdrant):
 # ---------------- /discover/liked ----------------
 
 
-def test_get_liked_page_renders_picks(app_with_qdrant):
-    sid, pair = _start(app_with_qdrant)
-    # Pick a couple to populate liked.
-    app_with_qdrant.post(f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}")
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}")
-    assert r.status_code == 200
-    assert "your picks" in r.text
-    assert pair["left"]["id"] in r.text
 
 
-def test_get_liked_page_unknown_session_renders_gracefully(app_with_qdrant):
-    r = app_with_qdrant.get("/discover/liked?session_id=nope")
-    assert r.status_code == 200
-    # Shows the "session gone" empty state with a link back.
-    assert "no longer active" in r.text
-    assert "/discover" in r.text
 
 
 def test_list_liked_unknown_session_returns_none():
@@ -742,105 +728,14 @@ def test_list_liked_unknown_session_returns_none():
 # ---------------- /discover/liked grid/feed toggle ----------------
 
 
-def test_liked_page_default_view_is_grid(app_with_qdrant):
-    """No ?view= -> grid classes, no feed classes."""
-    sid, pair = _start(app_with_qdrant)
-    app_with_qdrant.post(
-        f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
-    )
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}")
-    body = r.text
-    # Grid container, grid items, no feed container.
-    assert 'class="grid"' in body
-    assert 'grid-item\"' in body  # li class is now 'photo-card grid-item'
-    assert 'class="feed"' not in body
-    assert 'feed-item\"' not in body  # see note above
-    # View toggle is rendered with grid active (segmented control).
-    assert "segmented" in body
-    assert 'data-view="grid"' in body
-    assert 'data-view="feed"' in body
 
 
-def test_liked_page_feed_view(app_with_qdrant):
-    """?view=feed -> feed classes, no grid classes. The score badge
-    becomes .feed-score (matches the search page's behaviour)."""
-    sid, pair = _start(app_with_qdrant)
-    app_with_qdrant.post(
-        f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
-    )
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}&view=feed")
-    body = r.text
-    assert 'class="feed"' in body
-    assert 'feed-item\"' in body  # li class is now 'photo-card feed-item'
-    # Feed button has the active class.
-    assert "segmented-btn is-active" in body
-    # Grid classes absent.
-    assert 'class="grid"' not in body
-    assert 'grid-item\"' not in body  # see note above
 
 
-def test_liked_page_view_toggle_links_to_other_view(app_with_qdrant):
-    """The view toggle's click handlers are wired up. Server-side
-    we just verify the markup is right — the JS handler is in
-    discover_liked.js and is exercised by browser tests, not here."""
-    sid, pair = _start(app_with_qdrant)
-    app_with_qdrant.post(
-        f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
-    )
-    # In grid mode, only the grid button carries --active.
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}")
-    body = r.text
-    # Walk the two toggle buttons and check which one is active.
-    import re
-    grid_btn = re.search(
-        r'<button[^>]*data-view="grid"[^>]*>', body,
-    )
-    feed_btn = re.search(
-        r'<button[^>]*data-view="feed"[^>]*>', body,
-    )
-    assert grid_btn and feed_btn, "view toggle buttons missing"
-    assert "segmented-btn is-active" in grid_btn.group(0)
-    assert "segmented-btn is-active" not in feed_btn.group(0)
-
-    # In feed mode, the inverse is true.
-    r2 = app_with_qdrant.get(f"/discover/liked?session_id={sid}&view=feed")
-    body2 = r2.text
-    grid_btn2 = re.search(
-        r'<button[^>]*data-view="grid"[^>]*>', body2,
-    )
-    feed_btn2 = re.search(
-        r'<button[^>]*data-view="feed"[^>]*>', body2,
-    )
-    assert "segmented-btn is-active" in feed_btn2.group(0)
-    assert "segmented-btn is-active" not in grid_btn2.group(0)
 
 
-def test_liked_page_invalid_view_falls_back_to_grid(app_with_qdrant):
-    """Unknown ?view= values coerce to grid (same as the search page)."""
-    sid, pair = _start(app_with_qdrant)
-    app_with_qdrant.post(
-        f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
-    )
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}&view=wat")
-    body = r.text
-    # Falls back to grid.
-    assert 'class="grid"' in body
-    assert 'grid-item\"' in body  # li class is now 'photo-card grid-item'
-    assert 'class="feed"' not in body
-    # The toggle's grid button is the active one.
-    import re
-    grid_btn = re.search(
-        r'<button[^>]*data-view="grid"[^>]*>', body,
-    )
-    assert "segmented-btn is-active" in grid_btn.group(0)
 
 
-def test_liked_page_loads_discover_liked_js(app_with_qdrant):
-    """The view-toggle + copy-paths controller script is included
-    on /discover/liked."""
-    sid, pair = _start(app_with_qdrant)
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}")
-    assert "discover_liked" in r.text
 
 
 def test_liked_page_session_gone_hides_view_toggle(app_with_qdrant):
@@ -855,36 +750,11 @@ def test_liked_page_session_gone_hides_view_toggle(app_with_qdrant):
     assert 'class="grid"' not in r.text
 
 
-def test_liked_page_tiles_have_data_path(app_with_qdrant):
-    """Each tile carries data-path so the copy-paths JS can grab
-    the underlying file path (one per line, pick order)."""
-    sid, pair = _start(app_with_qdrant)
-    app_with_qdrant.post(
-        f"/api/discover/pick?session_id={sid}&image_id={pair['left']['id']}"
-    )
-    r = app_with_qdrant.get(f"/discover/liked?session_id={sid}")
-    body = r.text
-    # Find the tile for the picked image and verify data-path is
-    # populated (not the bare /photo/<id> URL fallback).
-    assert "data-path=" in body
-    # Pick a tile's data-path and verify it's a real path (not /photo/...).
-    import re
-    paths = re.findall(r'data-path="([^"]+)"', body)
-    assert paths, "no data-path attributes found"
-    assert all(not p.startswith("/photo/") for p in paths), (
-        f"data-path fell back to photo URL: {paths}"
-    )
 
 
 # ---------------- /discover page ----------------
 
 
-def test_get_discover_page_renders(app_with_qdrant):
-    r = app_with_qdrant.get("/discover")
-    assert r.status_code == 200
-    assert "discover-pair" in r.text
-    assert "done \u2192" in r.text or "done &rarr;" in r.text
-    assert "discover" in r.text
 
 
 def test_seed_phase_uses_index_db_pick_unseen():

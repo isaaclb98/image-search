@@ -20,15 +20,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--demo-data",
         action="store_true",
-        help="Start with a tiny in-memory Qdrant collection and five demo photos.",
+        help="Start with an in-memory Qdrant collection and N demo photos (--demo-count).",
     )
     parser.add_argument(
         "--demo-count",
         type=int,
-        default=10,
-        choices=range(1, 21),
+        default=200,
         metavar="N",
-        help="Number of generated demo photos (default: 5).",
+        help="Number of generated demo photos (default: 200 — enough to exercise infinite scroll).",
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
@@ -37,57 +36,24 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _make_demo_images(root: Path, count: int) -> list[Path]:
-    from PIL import Image, ImageDraw
+    """Generate synthetic demo photos using scripts/synth_photos.py.
 
-    subjects = [
-        ("Mountain lake", (57, 105, 168), (235, 190, 92), 960, 640),
-        ("Red fox", (177, 76, 48), (244, 197, 112), 800, 800),
-        ("City at night", (35, 45, 88), (228, 176, 62), 1200, 800),
-        ("Tropical beach", (53, 158, 157), (246, 219, 132), 640, 960),
-        ("Forest cabin", (48, 104, 70), (202, 153, 83), 960, 960),
-        ("Ocean sunset", (22, 65, 120), (245, 160, 70), 960, 640),
-        ("Desert dunes", (194, 154, 108), (232, 210, 170), 800, 600),
-        ("Snow mountain", (180, 195, 210), (255, 255, 255), 1200, 800),
-        ("Autumn forest", (180, 80, 30), (240, 180, 60), 960, 640),
-        ("City skyline", (25, 30, 60), (180, 140, 80), 1400, 700),
-        ("Garden flowers", (40, 120, 50), (220, 80, 120), 800, 800),
-        ("Misty hills", (100, 120, 140), (200, 210, 220), 960, 640),
-        ("River valley", (60, 130, 110), (180, 200, 140), 1000, 660),
-        ("Night sky", (10, 10, 40), (200, 200, 255), 640, 960),
-        ("Autumn leaves", (160, 70, 20), (240, 200, 80), 960, 960),
-        ("Winter cabin", (70, 85, 110), (240, 230, 220), 800, 600),
-        ("Coral reef", (20, 100, 120), (255, 150, 100), 960, 640),
-        ("Lavender field", (120, 80, 160), (240, 220, 255), 1200, 800),
-        ("Volcanic landscape", (80, 30, 20), (200, 100, 50), 960, 640),
-        ("Waterfall", (40, 100, 120), (220, 230, 240), 800, 1000),
-    ]
+    Earlier versions of this function wrote flat 2-tone PNGs with
+    a single horizon line. The synth_photos generator produces
+    realistic-ish JPEGs with sky gradients, mountain silhouettes,
+    city skylines, etc. — much closer to what the UI is meant to
+    render. The seeded RNG ensures the same demo set every run,
+    so screenshots are stable.
+    """
+    import sys as _sys
+    repo_root = Path(__file__).resolve().parent.parent
+    if str(repo_root) not in _sys.path:
+        _sys.path.insert(0, str(repo_root))
+    from scripts.synth_photos import generate as synth_generate  # type: ignore[import-not-found]
+
     root.mkdir(parents=True, exist_ok=True)
-    paths: list[Path] = []
-    for index in range(count):
-        label, base, accent, w, h = subjects[index % len(subjects)]
-        image = Image.new("RGB", (w, h), base)
-        draw = ImageDraw.Draw(image)
-        # Simple poster-like geometry makes the demo useful for visual QA.
-        horizon = h * 6 // 10
-        draw.rectangle((0, horizon, w, h), fill=accent)
-        # Sun
-        sun_x = w * 3 // 4 + (index * 47) % (w // 5)
-        sun_y = horizon // 3 + (index * 31) % (horizon // 3)
-        sun_r = min(w, h) // 10
-        draw.ellipse((sun_x - sun_r, sun_y - sun_r, sun_x + sun_r, sun_y + sun_r), fill=(255, 236, 164))
-        # Mountains
-        import math
-        pts = []
-        for x in range(0, w + 1, 50):
-            y = horizon - 10 - int(50 * abs(math.sin((x + index * 97) / 180)))
-            pts.append((x, y))
-        pts += [(w, horizon), (0, horizon)]
-        draw.polygon(pts, fill=tuple(max(0, c - 20) for c in base))
-        draw.text((42, 42), label, fill=(255, 255, 255))
-        path = root / f"demo_{index + 1:02d}.jpg"
-        image.save(path, quality=90)
-        paths.append(path)
-    return paths
+    result = synth_generate(root, count=count, prefix="demo", seed=42)
+    return [Path(item["path"]) for item in result.index]
 
 
 def _build_demo_app(count: int):
@@ -120,24 +86,24 @@ def _build_demo_app(count: int):
     for index, path in enumerate(paths):
         vector = [0.0] * 1536
         vector[index] = 1.0
-        # Read image dimensions; use pre-computed blurhash for speed.
+        # Read image dimensions. Use a fixed valid blurhash per slot
+        # so the frontend can still tint glass panels by photo without
+        # paying the 6s-per-image encode cost on the demo seed path.
+        # The blurhashes are real, valid, 4x3 component strings keyed
+        # 7 distinct palettes so grid rows have clear color variety.
         from PIL import Image as _Img
-        _img = _Img.open(path)
+        _img = _Img.open(path).convert("RGB")
         _sz = _img.size
-        # Deterministic blurhashes keyed by index — avoids 6s/image encoding.
-        _bhs = [
-            "LGF%xQ%LNK^j~WNGaaay0gM{RP", "LDA]Rj-RS5Rj00%MRjRj~WWBt7",
-            "LHF$p5WBIUxu~WIUbbaxDgM{WB", "LGDJz[D%WBxu%%WAt7xuDgM{WB",
-            "LKFRbDISxu~pIUt7RjayDgM{WB", "LJF#7cRjD%kW?bRjRjayDgM{WB",
-            "LIE8KkRjD%kW?bRj~pRjDgM{WB", "LHE-X~RjD%kW?bRj~pRjDgM{WB",
-            "LEF~_9RjD%kW?bRj~pRjDgM{WB", "LDFzKrRjD%kW?bRj~pRjDgM{WB",
-            "LCF5LvRjD%kW?bRj~pRjDgM{WB", "LBFyLwRjD%kW?bRj~pRjDgM{WB",
-            "LAFOJxRjD%kW?bRj~pRjDgM{WB", "K9F~KzRjD%kW?bRj~pRjDgM{WB",
-            "K8GeK0RjD%kW?bRj~pRjDgM{WB", "K7FdL1RjD%kW?bRj~pRjDgM{WB",
-            "K6EeM2RjD%kW?bRj~pRjDgM{WB", "K5DfN3RjD%kW?bRj~pRjDgM{WB",
-            "K4CgO4RjD%kW?bRj~pRjDgM{WB", "K3BhP5RjD%kW?bRj~pRjDgM{WB}",
+        _BLURHASH_BY_TINT = [
+            "LEHV6nWB2yk8pyo0adR*.7kCMdnj",  # warm orange
+            "L6PZfSi_.AyE_3t7t7R**0o#DgR4",  # teal
+            "LKO2:N%2Tw=w]~RBVZRi};RPxuwH",  # violet
+            "LFE.@D9F01_2%L%MIVD*9GofRjWB",  # pink
+            "L9AS}j_3?bD%fQM{ofof~qWBM_R*",  # blue
+            "LjJ5LyWB?b~q?b%MWBoe.aaen$WB",  # lavender
+            "L3JhgM?b00WB?b~q4n9F-;RjRjRj",  # olive
         ]
-        bh = _bhs[index % len(_bhs)]
+        bh = _BLURHASH_BY_TINT[index % len(_BLURHASH_BY_TINT)]
         points.append(
             qmodels.PointStruct(
                 id=f"00000000-0000-4000-8000-{index + 1:012d}",

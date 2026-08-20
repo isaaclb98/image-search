@@ -207,24 +207,3 @@ def test_zip_unsharded_uses_bare_basename(zip_app):
     assert zf.namelist() == ["solo.jpg"]
 
 
-def test_zip_download_button_on_favorites_page(zip_app):
-    """The /favorites template surfaces a download link only when
-    there is at least one favourite."""
-    app, _tmp_path, _qdrant = zip_app
-    # Empty: no button.
-    resp = app.get("/favorites")
-    assert resp.status_code == 200
-    assert "/favorites/download.zip" not in resp.text
-
-    # Seed + favourite + refresh.
-    client = zip_app[2]
-    pid = str(uuid.uuid4())
-    _seed_point(client, "images_test_zip", pid, "photos/x.jpg",
-                shard="kpop", base_dir=zip_app[1])
-    _refresh_cache(app, client, "images_test_zip")
-    _favorite(app, pid)
-
-    resp = app.get("/favorites")
-    assert "/favorites/download.zip" in resp.text
-    assert "download-zip-btn" in resp.text
-    assert "download" in resp.text.lower()

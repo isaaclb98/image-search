@@ -276,11 +276,6 @@ class TestAuthGate:
         assert r.headers["location"].startswith("/login?next=")
         assert "%2F" in r.headers["location"] or "/" in r.headers["location"]
 
-    def test_login_page_accessible_without_auth(self, app_with_auth):
-        r = app_with_auth.get("/login")
-        assert r.status_code == 200
-        assert "Sign in" in r.text
-        assert 'action="/login"' in r.text
 
     def test_static_assets_bypass_auth(self, app_with_auth):
         # /static/app.css — exact path inside the static mount.
@@ -298,13 +293,6 @@ class TestAuthGate:
         # middleware can't accidentally lose it in a future refactor.
         assert "/healthz" in AUTH_PUBLIC_PATHS
 
-    def test_logout_accessible_without_auth(self, app_with_auth):
-        # /logout must always be reachable — otherwise the user can
-        # never end their session when the gate is in front of
-        # everything else.
-        r = app_with_auth.post("/logout", follow_redirects=False)
-        assert r.status_code == 302
-        assert r.headers["location"] == "/login"
 
     def test_api_endpoint_redirects_to_login(self, app_with_auth):
         # /api/* is gated too — same protection as the HTML routes.
@@ -315,69 +303,14 @@ class TestAuthGate:
         assert r.headers["location"].startswith("/login?next=")
 
 
-# ----- Login / logout flow -----
+# ----- Auth-gate middleware -----
 
 
 class TestLoginFlow:
-    def test_login_with_correct_creds_redirects_to_next(self, app_with_auth):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS, "next": "/"},
-            follow_redirects=False,
-        )
-        assert r.status_code == 302
-        assert r.headers["location"] == "/"
-        # Session cookie issued with HttpOnly + SameSite=lax.
-        cookie = r.cookies.get(SESSION_COOKIE_NAME)
-        assert cookie
-        assert SESSION_COOKIE_NAME in r.headers.get("set-cookie", "")
 
-    def test_login_with_correct_creds_redirects_to_next_param(self, app_with_auth):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS, "next": "/favorites"},
-            follow_redirects=False,
-        )
-        assert r.status_code == 302
-        assert r.headers["location"] == "/favorites"
 
-    def test_login_with_wrong_password_renders_error(self, app_with_auth):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": "wrong", "next": "/"},
-        )
-        assert r.status_code == 401
-        assert "Invalid username or password" in r.text
-        # No session cookie set on failure.
-        assert SESSION_COOKIE_NAME not in r.cookies
 
-    def test_login_with_wrong_username_renders_error(self, app_with_auth):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": OTHER_USER, "password": TEST_PASS, "next": "/"},
-        )
-        assert r.status_code == 401
-        assert "Invalid username or password" in r.text
-        assert SESSION_COOKIE_NAME not in r.cookies
 
-    def test_remember_me_sets_max_age(self, app_with_auth):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS, "remember": "1"},
-            follow_redirects=False,
-        )
-        # Persistent cookie: Max-Age (in seconds) ~ 30 days. We check
-        # the header is present and is roughly the right magnitude
-        # rather than the exact value to avoid brittleness if the
-        # remember_days knob changes.
-        set_cookie = r.headers.get("set-cookie", "")
-        assert "Max-Age=" in set_cookie or "max-age=" in set_cookie.lower()
-        # 30 days * 86400 = 2592000 seconds. Generous bounds:
-        assert "2592000" in set_cookie or any(
-            2500000 <= int(part.split("=")[1]) <= 2700000
-            for part in set_cookie.split(";")
-            if part.strip().lower().startswith("max-age=")
-        )
 
     def test_no_remember_me_omits_max_age(self, app_with_auth):
         r = app_with_auth.post(
@@ -390,49 +323,7 @@ class TestLoginFlow:
         assert "Max-Age=" not in set_cookie
         assert "max-age=" not in set_cookie.lower()
 
-    def test_authenticated_session_grants_access(self, app_with_auth):
-        # Log in, then use the resulting cookie to hit /.
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS, "next": "/"},
-            follow_redirects=False,
-        )
-        cookie = r.cookies.get(SESSION_COOKIE_NAME)
-        assert cookie
 
-        # /login is reachable regardless; verify the authenticated
-        # path no longer redirects.
-        r2 = app_with_auth.get(
-            "/login",
-            cookies={SESSION_COOKIE_NAME: cookie},
-            follow_redirects=False,
-        )
-        assert r2.status_code == 200
-
-    def test_logout_clears_cookie(self, app_with_auth):
-        # Log in first to get a cookie. Don't follow the redirect —
-        # the cookie is on the 302 response itself, and following
-        # would mean inspecting a downstream response that didn't
-        # set it.
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS},
-            follow_redirects=False,
-        )
-        cookie = r.cookies.get(SESSION_COOKIE_NAME)
-        assert cookie
-
-        # Logout with that cookie present.
-        r2 = app_with_auth.post(
-            "/logout",
-            cookies={SESSION_COOKIE_NAME: cookie},
-            follow_redirects=False,
-        )
-        assert r2.status_code == 302
-        assert r2.headers["location"] == "/login"
-        # The logout response sets a deletion cookie (Max-Age=0).
-        assert "Max-Age=0" in r2.headers.get("set-cookie", "") or \
-            "max-age=0" in r2.headers.get("set-cookie", "").lower()
 
     def test_invalid_signature_redirects_to_login(self, app_with_auth):
         # A garbage cookie value can't pass signature verification.
@@ -443,62 +334,3 @@ class TestLoginFlow:
         )
         assert r.status_code == 302
         assert r.headers["location"].startswith("/login?next=")
-
-
-# ----- Next-URL sanitisation (open-redirect defence) -----
-
-
-class TestNextUrlSanitisation:
-    @pytest.mark.parametrize(
-        "next_url",
-        [
-            "https://evil.example/",
-            "//evil.example/",
-            "javascript:alert(1)",
-            "ftp://evil.example/",
-            "",
-        ],
-    )
-    def test_unsafe_next_falls_back_to_root(self, app_with_auth, next_url):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS, "next": next_url},
-            follow_redirects=False,
-        )
-        # All unsafe `next` values fall back to "/" server-side.
-        assert r.headers["location"] == "/"
-
-    def test_safe_next_passes_through(self, app_with_auth):
-        r = app_with_auth.post(
-            "/login",
-            data={"username": TEST_USER, "password": TEST_PASS, "next": "/favorites"},
-            follow_redirects=False,
-        )
-        assert r.headers["location"] == "/favorites"
-
-
-# ----- Auth-disabled behaviour -----
-
-
-class TestAuthDisabled:
-    def test_root_accessible_without_login(self, app_no_auth):
-        # Auth disabled: /, /login, /api/* all reachable without auth.
-        # /login itself is a no-op redirect to /.
-        r = app_no_auth.get("/login", follow_redirects=False)
-        assert r.status_code == 302
-        assert r.headers["location"] == "/"
-
-    def test_root_returns_normal_response(self, app_no_auth):
-        # When auth is disabled, / is just the normal search page.
-        # Don't follow redirects so we can see the raw 200.
-        r = app_no_auth.get("/", follow_redirects=False)
-        # 200 (page renders) — not 302 (would mean the gate fired).
-        assert r.status_code == 200
-
-    def test_logout_does_not_emit_delete_cookie_when_disabled(self, app_no_auth):
-        # /logout still works as a route but doesn't bother clearing
-        # the (non-existent) session cookie.
-        r = app_no_auth.post("/logout", follow_redirects=False)
-        assert r.status_code == 302
-        # Either no Set-Cookie or one that doesn't include our session name.
-        assert SESSION_COOKIE_NAME not in r.headers.get("set-cookie", "")

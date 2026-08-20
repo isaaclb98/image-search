@@ -1,0 +1,22 @@
+# Frontend container — SvelteKit dev server for local iteration.
+# In production this would be a built Node bundle behind nginx;
+# for local dev we run the dev server with HMR.
+
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install dependencies first (cached on dep changes).
+COPY frontend/package.json frontend/package-lock.json* ./frontend/
+WORKDIR /app/frontend
+RUN npm install --no-audit --no-fund
+
+# Copy source — invalidates when files change.
+WORKDIR /app
+COPY frontend ./frontend
+
+EXPOSE 5173
+
+# Default to dev mode with HMR. Override CMD to run a production
+# build + node adapter (see docs/docker-prod.md when added).
+CMD ["npm", "--prefix", "frontend", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

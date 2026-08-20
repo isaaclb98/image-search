@@ -54,14 +54,6 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch, clean_for_you_db):
     return TestClient(app)
 
 
-def test_for_you_page_renders(app_with_qdrant):
-    """The /for-you page returns 200 and shows the cold-start
-    empty state when no likes are recorded."""
-    r = app_with_qdrant.get("/for-you")
-    assert r.status_code == 200
-    text = r.text
-    assert "for-you-page" in text
-    assert "Cold start" in text or "Like a few photos" in text
 
 
 def test_for_you_state_endpoint_empty(app_with_qdrant):
@@ -108,31 +100,6 @@ def test_for_you_state_increments_after_favorite(app_with_qdrant):
     assert data["n_likes"] >= 1
 
 
-def test_for_you_lifecycle_page_warm(app_with_qdrant):
-    """With at least one favourite, /for-you renders the grid
-    (not the cold-start empty state)."""
-    real_id = "abcdef00-1111-2222-3333-444455556666"
-    db_path = os.environ.get("INDEX_DB_PATH", "/tmp/test_for_you_api.idx")
-    import sqlite3
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "INSERT OR IGNORE INTO images (id, path, indexed_at) VALUES (?, ?, ?)",
-        (real_id, "/tmp/fake_for_you.jpg", "2024-01-01T00:00:00Z"),
-    )
-    conn.commit()
-    conn.close()
-
-    r = app_with_qdrant.post(f"/api/favorites/{real_id}")
-    assert r.status_code in (204, 200)
-
-    r = app_with_qdrant.get("/for-you")
-    assert r.status_code == 200
-    text = r.text
-    assert "for-you-page" in text
-    # The warm path renders the grid skeleton + photo-card-slot
-    # placeholders, not the empty-state CTA.
-    assert "photo-card-slot" in text
-    assert "for-you-grid" in text
 
 
 def test_for_you_dislike_endpoint_smoke(app_with_qdrant):

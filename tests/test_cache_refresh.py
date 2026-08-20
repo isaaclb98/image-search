@@ -176,14 +176,3 @@ def test_api_cache_refresh_preserves_favourites(refresh_app, refresh_app_state):
     assert refresh_app.get("/api/favorites").json()["total"] == 1
 
 
-def test_cache_refresh_no_nav_button(refresh_app):
-    """The nav intentionally has no Refresh button — the endpoint
-    is curl-driven, not UI-driven. Sanity-check the form is gone
-    from every page so a future refactor that adds it back
-    consciously is a one-line change.
-    """
-    for path in ("/", "/random", "/favorites"):
-        resp = refresh_app.get(path)
-        assert resp.status_code == 200
-        assert "Refresh cache" not in resp.text
-        assert "site-nav-form" not in resp.text

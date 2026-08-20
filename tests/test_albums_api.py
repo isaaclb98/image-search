@@ -201,16 +201,6 @@ def test_get_album_api_default_limit_is_35(app_with_qdrant, monkeypatch):
     assert observed["limit"] == 35
 
 
-def test_album_page_default_limit_is_35(app_with_qdrant):
-    album_id = app_with_qdrant.post(
-        "/api/albums", json={"name": "default limit"},
-    ).json()["id"]
-    app_with_qdrant.post(f"/api/albums/{album_id}/members/{CAT_ID}")
-
-    response = app_with_qdrant.get(f"/albums/{album_id}")
-
-    assert response.status_code == 200
-    assert 'data-limit="35"' in response.text
 
 
 def test_get_album_unknown_returns_404(app_with_qdrant):

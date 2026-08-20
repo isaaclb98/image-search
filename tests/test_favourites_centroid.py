@@ -258,22 +258,8 @@ def test_api_centroids_includes_dynamic_favourites(fav_app):
     assert fav["n_images"] is None
 
 
-def test_centroids_page_renders_dynamic_section_when_empty(fav_app):
-    resp = fav_app.get("/centroids")
-    assert resp.status_code == 200
-    assert "Dynamic" in resp.text
-    assert "Favourites" in resp.text
-    assert "Favourite a few photos first" in resp.text
 
 
-def test_centroids_page_shows_count_after_marking(fav_app):
-    fav_id = fav_app.app.state.test_seed_ids["a"]
-    fav_app.post(f"/api/favorites/{fav_id}")
-
-    resp = fav_app.get("/centroids")
-    assert resp.status_code == 200
-    assert "Built from" in resp.text
-    assert ">1</strong>" in resp.text or "1 photo" in resp.text
 
 
 def test_search_by_favourites_centroid_uses_computed_vector(fav_app):

@@ -300,25 +300,3 @@ def test_zip_filename_uses_slugified_album_name(album_zip_app):
     assert m2.group(1).startswith(f"album-{fallback_id}-")
 
 
-def test_zip_download_button_on_album_detail_page(album_zip_app):
-    """The album detail template surfaces a download link only when
-    there is at least one member."""
-    app, tmp_path, client = album_zip_app
-    album_id = _create_album(app, "Visible")
-
-    # Empty: no button.
-    resp = app.get(f"/albums/{album_id}")
-    assert resp.status_code == 200
-    assert "/download.zip" not in resp.text
-
-    # Seed + add member + refresh.
-    pid = str(uuid.uuid4())
-    _seed_point(client, "images_test_album_zip", pid, "photos/x.jpg",
-                shard="library", base_dir=tmp_path)
-    _refresh_cache(app)
-    _favorite(app, pid)
-    _add_member(app, album_id, pid)
-
-    resp = app.get(f"/albums/{album_id}")
-    assert f"/albums/{album_id}/download.zip" in resp.text
-    assert "download" in resp.text.lower()
