@@ -90,5 +90,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from intentionally omitted on first build with the
+          # new single-container Dockerfile — the previous cache was
+          # keyed off a different build context and reports a phantom
+          # `/data` file that no longer exists. cache-to is still set
+          # so subsequent rebuilds get the speedup.
+          cache-to: type=gha,mode=max,scope=image-search-build
