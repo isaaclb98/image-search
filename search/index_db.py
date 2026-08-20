@@ -780,8 +780,8 @@ class IndexDB:
             rows = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height, i.blurhash
-                       f.favorited_at
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash,
+                                              f.favorited_at
                 FROM images i
                 INNER JOIN favorites f ON i.id = f.id
                 ORDER BY f.favorited_at DESC
@@ -861,7 +861,7 @@ class IndexDB:
             rows = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height, i.blurhash
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash,
                        d.disliked_at, d.source
                 FROM images i
                 INNER JOIN dislikes d ON i.id = d.id
@@ -1175,7 +1175,7 @@ class IndexDB:
             rows = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height, i.blurhash
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash,
                        m.added_at
                 FROM album_memberships m
                 INNER JOIN images i ON i.id = m.favorite_id

@@ -1,57 +1,80 @@
-# Search-side container. Built on a slim Python image; pulls the
-# SigLIP2 model at build time so cold-start is fast.
+# Single-container image for image-search.
 #
-# Build:  docker build -f docker/Dockerfile.search -t image-search .
-# Run:    docker run --rm -p 8000:8000 \
-#             -e QDRANT_URL=http://qdrant:6333 \
-#             -e NAS_IMAGES_BASE=/nas \
-#             -v /path/to/nas:/nas:ro \
-#             image-search
+# Builds the SvelteKit frontend as a static SPA and packages it with
+# the FastAPI backend into one image. The FastAPI app serves both the
+# JSON API (existing /api/* routes) and the SPA static files (mounts
+# /_app/ for hashed assets, falls back to index.html for any other
+# path). One container, one port (8000), one Service — eliminates the
+# per-route Caddy config that required cluster DNS lookups.
 
-FROM python:3.12-slim
+ARG NODE_VERSION=20.19.0
+ARG PYTHON_VERSION=3.11
 
-# System deps for pillow + pillow-heif
+#--------------------------------------------------------------------
+# Stage 1 — build the SvelteKit SPA (adapter-static)
+#--------------------------------------------------------------------
+FROM node:${NODE_VERSION}-alpine AS frontend-build
+WORKDIR /web
+
+# Install deps first for layer caching
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+# Build. adapter-static output lands in /web/build
+COPY frontend/ ./
+RUN npm run build
+
+#--------------------------------------------------------------------
+# Stage 2 — Python backend with the SPA bundled in
+#--------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim AS backend
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Build toolchain + curl for the HEALTHCHECK
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libjpeg-dev zlib1g-dev libpng-dev \
+        build-essential \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Single source of truth for dependencies: pyproject.toml. We copy
-# everything needed for `pip install .` (project metadata, README,
-# and both packages) and install in one shot. The dep resolution
-# is fast on rebuilds because pip's wheel cache is keyed on the
-# pyproject content; source-only edits invalidate the layer but
-# pip skips re-downloading wheels it already has.
+# Copy package layout FIRST so `pip install .` can find the search
+# and indexer packages declared in pyproject.toml. The layer above
+# (pyproject.toml + README.md) ensures the dep install is cached as
+# long as deps don't change.
 COPY pyproject.toml README.md ./
-COPY search ./search
-COPY indexer ./indexer
-RUN pip install --no-cache-dir .
+COPY search/ ./search/
+COPY indexer/ ./indexer/
 
-# Pre-download the SigLIP2 model so cold-start is fast. Bakes the
-# weights into a layer so the first request doesn't pay the HF
-# download cost. OFF by default because it needs ~15GB free disk
-# during build (7.5GB model + ~7.5GB compressed-diff intermediate).
-# Opt in with `--build-arg PREWARM_MODEL=1` when you have the disk.
-# The model still downloads at first start if you skip this step.
-ARG MODEL_NAME=hf-hub:timm/ViT-gopt-16-SigLIP2-384
+RUN pip install --upgrade pip && pip install .
+
+# Source code that isn't part of the installed package
+COPY scripts/ ./scripts/
+COPY data/ ./data/
+
+# Bundle the prebuilt SPA at /app/static. The backend's create_app()
+# mounts /_app/ for hashed assets and falls back to index.html for
+# everything else.
+COPY --from=frontend-build /web/build /app/static
+
+# Optional: pre-warm the SigLIP2 model into the image (default OFF;
+# leaves ~7.5GB image delta and ~15GB peak build disk).
 ARG PREWARM_MODEL=0
 RUN if [ "$PREWARM_MODEL" = "1" ]; then \
-      python -c "import open_clip; \
-        open_clip.create_model_from_pretrained('${MODEL_NAME}'); \
-        open_clip.get_tokenizer('${MODEL_NAME}')"; \
-    else \
-      echo "Skipping model pre-warm (PREWARM_MODEL=${PREWARM_MODEL})."; \
-      echo "Model will download from HF Hub on first container start."; \
+        SEARCH_TEST_MODE=1 python -m scripts.prewarm_model; \
     fi
 
-ENV MODEL_NAME=${MODEL_NAME} \
-    MODEL_DIR=/root/.cache/huggingface \
-    DEVICE=cpu \
-    NAS_IMAGES_BASE=/nas \
-    WEB_UI_URL=http://localhost:8000 \
-    LOG_LEVEL=INFO
+ENV WEB_CONCURRENCY=2 \
+    PORT=8000
 
 EXPOSE 8000
 
-CMD ["python", "-m", "search.app"]
+# Healthcheck against the backend's own /healthz
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
+
+CMD ["sh", "-c", "exec gunicorn search.app:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --access-logfile -"]

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import os
 import random
 import re
 import time
@@ -23,6 +24,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from search import config, discover, text_encoder
 from search.auth import (
     AuthGateMiddleware,
@@ -2917,6 +2919,34 @@ def create_app(
     async def healthz() -> dict:
         ok = qdrant.healthz()
         return {"qdrant": ok, "test_mode": _cfg.test_mode}
+
+    # ------------------------------------------------------------------
+    # Static SPA fallback
+    # ------------------------------------------------------------------
+    # When the image-search image is built as a single container (see
+    # docker/Dockerfile.search), the SvelteKit build output lands at
+    # /app/static. Mount its hashed assets at /_app and fall back to
+    # index.html for every other path so the SPA can hydrate and route
+    # client-side via hash or pushState.
+    static_dir = Path(os.environ.get("FRONTEND_DIR", "/app/static"))
+    if static_dir.is_dir():
+        app_static = static_dir / "_app"
+        if app_static.is_dir():
+            app.mount("/_app", StaticFiles(directory=str(app_static)), name="spa-assets")
+
+        @app.get("/favicon.svg", include_in_schema=False)
+        async def favicon() -> FileResponse:
+            return FileResponse(static_dir / "favicon.svg")
+
+        # SPA fallback — every non-API path returns index.html
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_shell(full_path: str) -> FileResponse:
+            # Strip the leading slash; resolve and guard against
+            # directory traversal.
+            safe = (static_dir / full_path).resolve()
+            if safe.is_file() and safe.is_relative_to(static_dir.resolve()):
+                return FileResponse(safe)
+            return FileResponse(static_dir / "index.html")
 
     return app
 

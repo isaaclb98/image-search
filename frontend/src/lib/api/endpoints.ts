@@ -23,7 +23,10 @@ export type AlbumDetail = components['schemas']['AlbumDetailResponse'];
 // component), so we describe the shape here and rely on the zod
 // validator in dev mode for drift detection.
 export type ForYouFeedResponse = {
-  items: SearchResult[];
+  results: SearchResult[];
+  n_likes?: number;
+  n_dislikes?: number;
+  freshest_feedback_ts?: string | null;
   ranker_state?: Record<string, unknown>;
 };
 export type ForYouState = {
