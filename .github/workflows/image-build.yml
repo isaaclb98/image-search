@@ -45,6 +45,7 @@ on:
       - search/**
       - indexer/**
       - frontend/**
+      - .dockerignore
       - .github/workflows/image-build.yml
 
 jobs:
