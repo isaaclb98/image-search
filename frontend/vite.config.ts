@@ -1,6 +1,17 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 
+// Dev-server proxy target. In Isaac's local dev setup this points at
+// the FastAPI backend on localhost:8765; in the k8s cluster the
+// Deployment sets API_PROXY_TARGET=http://image-search:8000 (the
+// in-cluster Service), so vite proxies API + photo-raw + zip routes
+// directly to the backend pod instead of relying on Caddy's path-
+// matching routing. Removing the Caddy-side path split makes Caddy a
+// pure passthrough and prevents the kubelet→projected-volume→caddy
+// reload race that can leave Caddy serving the OLD Caddyfile while
+// the ConfigMap update sits in transit.
+const API_PROXY_TARGET = process.env.API_PROXY_TARGET || 'http://localhost:8765';
+
 export default defineConfig({
   plugins: [sveltekit()],
   // Svelte 5 ships separate server and client runtimes. jsdom is a
@@ -14,8 +25,9 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     proxy: {
-      // Proxy API + photo + zip endpoints to FastAPI in dev. In prod,
-      // docker-compose does the same routing at the network edge.
+      // Proxy API + photo + zip endpoints to FastAPI in dev. In prod
+      // (k8s cluster) the Deployment sets API_PROXY_TARGET to the
+      // in-cluster Service; in local dev it stays on localhost:8765.
       //
       // SvelteKit routes match first when listed in src/routes/. The
       // proxy is only invoked for paths no SvelteKit route handles.
@@ -23,11 +35,11 @@ export default defineConfig({
       // /photo/{id} (the SvelteKit pages) don't get forwarded to
       // FastAPI, but /albums/{id}/download.zip and /photo/{id}/raw do.
       '/api': {
-        target: 'http://localhost:8765',
+        target: API_PROXY_TARGET,
         changeOrigin: true
       },
       '/healthz': {
-        target: 'http://localhost:8765',
+        target: API_PROXY_TARGET,
         changeOrigin: true
       },
       // Backend photo RAW endpoint must be proxied; SvelteKit pages
@@ -35,16 +47,16 @@ export default defineConfig({
       // specific, but the dev proxy still must serve raw bytes when
       // used directly.
       '^/photo/[^/]+/raw$': {
-        target: 'http://localhost:8765',
+        target: API_PROXY_TARGET,
         changeOrigin: true
       },
       // Zip downloads for the Albums page buttons
       '^/albums/[^/]+/download\\.zip$': {
-        target: 'http://localhost:8765',
+        target: API_PROXY_TARGET,
         changeOrigin: true
       },
       '^/favorites/download\\.zip$': {
-        target: 'http://localhost:8765',
+        target: API_PROXY_TARGET,
         changeOrigin: true
       }
     },
