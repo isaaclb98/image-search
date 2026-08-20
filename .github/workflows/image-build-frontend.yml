@@ -1,0 +1,92 @@
+# .github/workflows/image-build-frontend.yml
+#
+# Build the frontend container and push it to GitHub Container Registry
+# so the k8s cluster (synced by ArgoCD from ~/projects/gitops) can pull
+# a fresh image without a local Docker build.
+#
+# Tags:
+#   - `:latest`         — always tracks main; what the cluster's
+#                         `image-search-frontend` Deployment pins to.
+#   - `:sha-<7-char>`   — per-commit; useful for rollback.
+#
+# Image name: `ghcr.io/<owner>/image-search-frontend`. Lives in its own
+# package (separate from the backend's `image-search` package) so the
+# frontend's push history doesn't interleave with backend rebuilds.
+#
+# Trigger filter: `on.push.paths` is an allowlist of paths whose
+# presence in the diff triggers a build. The frontend Dockerfile only
+# depends on `docker/Dockerfile.frontend` and everything under
+# `frontend/`; the workflow file itself is in the allowlist so editing
+# CI still rebuilds. Touching tests, backend code, plain markdown, etc.
+# skips the build entirely — `image-build.yml` covers the backend and
+# `dev-build.yml` covers tests/lint for feature branches.
+#
+# Layer cache: GHA backend (type=gha, mode=max). The npm install layer
+# is the heavy one; it reuses a cache hit whenever `frontend/package.json`
+# is unchanged across commits.
+#
+# Required permission: `packages: write` (scoped to this job) so
+# GITHUB_TOKEN can push to ghcr.io without storing a PAT as a secret.
+# ghcr.io packages default to public when pushed by a GitHub Actions
+# workflow from a public repo — ArgoCD pulls anonymously.
+
+name: image-build-frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docker/Dockerfile.frontend
+      - frontend/**
+      - .github/workflows/image-build-frontend.yml
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Image name: <owner>/image-search-frontend (NOT <repo>/frontend).
+      # <repo> would be `image-search`, so the default would resolve to
+      # ghcr.io/isaaclb98/image-search — colliding with the backend
+      # package. Hardcode the owner and append `-frontend`.
+      - name: Compute image metadata (tags + OCI labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/image-search-frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.title=image-search-frontend
+            org.opencontainers.image.description=SvelteKit SPA for image-search (vite dev server)
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.frontend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
