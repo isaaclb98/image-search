@@ -43,26 +43,20 @@
 </header>
 
 <style>
+  /* Heavy frosted glass header. Sits on top of the full-viewport
+     backdrop (see +layout.svelte) — only 12% dark overlay + heavy
+     backdrop-filter creates the frosted look with the colour tint
+     bleeding through from the current photo. */
   .topbar {
     position: sticky;
     top: 0;
     z-index: 50;
-    background-color: rgba(14,15,20,0.42);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background-color: rgba(14,15,20,0.12);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-bottom: 1px solid var(--glass-edge);
     overflow: hidden;
     box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-  }
-  .topbar::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--glass-tint, none) no-repeat center / cover;
-    filter: blur(32px) saturate(1.5);
-    opacity: 0.5;
-    pointer-events: none;
-    z-index: -1;
   }
   .bar {
     height: var(--topbar-h);

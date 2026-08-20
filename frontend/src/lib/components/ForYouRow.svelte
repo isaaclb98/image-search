@@ -10,6 +10,8 @@
    */
   import { onMount } from 'svelte';
   import { forYouFeed } from '$lib/api/endpoints';
+  import { photoUrl } from '$lib/api/endpoints';
+  import { pageTint } from '$lib/stores/tint';
   import PhotoTile from './PhotoTile.svelte';
   import Lightbox from './Lightbox.svelte';
 
@@ -45,6 +47,9 @@
     } finally {
       loading = false;
     }
+    // Drive the full-viewport backdrop from the first photo (Home page
+    // doesn't render a SearchGrid, so ForYouRow is the tint source here).
+    if (items[0]?.id) pageTint.set(photoUrl(items[0].id));
   }
 
   onMount(load);

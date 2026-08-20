@@ -42,25 +42,20 @@ input, textarea {
 ::selection { background: var(--accent-soft); }
 
 /* utility — keep these small; most styling belongs on components */
+/* Heavy frosted glass. The full-viewport photo backdrop (set in
+   +layout.svelte as a heavily blurred image) shows through because the
+   surface is only 15% opaque. backdrop-filter adds the frost. */
 .glass {
   position: relative;
-  background: rgba(14, 15, 20, 0.45);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: rgba(14, 15, 20, 0.15);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--glass-edge);
   border-radius: var(--r-3);
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-}
-.glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--glass-tint, none) no-repeat center / cover;
-  filter: blur(32px) saturate(1.5);
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 0;
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 .glass-strong {

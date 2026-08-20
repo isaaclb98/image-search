@@ -13,7 +13,7 @@
    */
   import { onMount } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
-  import { blurhashToDataUrl } from './blurhash-bg';
+  import { photoUrl } from '$lib/api/endpoints';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
@@ -46,9 +46,11 @@
 
   $effect(() => {
     if (items.length > 0 && items[0].blurhash) {
-      blurhashToDataUrl(items[0].blurhash, 16, 8).then((u) => {
-        if (u) pageTint.set(u);
-      });
+      // Push the first photo's URL to drive the full-viewport backdrop.
+      // Heavily blurred + saturated in CSS, so the room tint comes from
+      // the actual photo, not a tiny blurhash data URL.
+      const first = items[0];
+      if (first?.id) pageTint.set(photoUrl(first.id));
     }
   });
 
