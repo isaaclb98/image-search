@@ -64,6 +64,7 @@
   href={photoUrl(pointId)}
   onclick={handleClick}
   oncontextmenu={handleContext}
+  style={dataUrl ? `--glass-tint: url(${dataUrl})` : undefined}
   title={scoreStr ? `score ${scoreStr}` : undefined}
 >
   {#if dataUrl}
@@ -120,9 +121,11 @@
     transition: opacity var(--t-med) var(--ease-out);
   }
   .ph {
+    z-index: 0;
     filter: saturate(1.15) blur(0.5px);
   }
   .full {
+    z-index: 1;
     opacity: 0;
   }
   .tile.loaded .full { opacity: 1; }

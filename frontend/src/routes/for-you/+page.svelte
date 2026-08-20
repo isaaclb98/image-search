@@ -28,7 +28,7 @@
     loading = true;
     try {
       const res = await forYouFeed(PAGE);
-      items = (res?.items ?? []) as Item[];
+      items = (res?.results ?? []) as Item[];
       hasMore = items.length >= PAGE;
     } catch {
       items = [];
@@ -43,7 +43,7 @@
     loading = true;
     try {
       const res = await forYouFeed(PAGE);
-      const more = (res?.items ?? []) as Item[];
+      const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       hasMore = more.length >= PAGE;
     } catch {

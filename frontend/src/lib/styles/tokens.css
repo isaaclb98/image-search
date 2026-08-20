@@ -16,6 +16,7 @@
   --glass-2: rgba(255,255,255,0.10);  /* raised panel / hovered */
   --glass-edge: rgba(255,255,255,0.14);  /* hairline border */
   --glass-edge-strong: rgba(255,255,255,0.22);
+  --glass-tint: transparent;           /* dynamic tint source */
 
   /* text */
   --fg-1: #f3f4f7;          /* primary */

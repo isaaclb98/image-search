@@ -12,6 +12,8 @@
    *   - Empty / loading / error states are explicit
    */
   import { onMount } from 'svelte';
+  import { pageTint } from '$lib/stores/tint';
+  import { blurhashToDataUrl } from './blurhash-bg';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
@@ -41,6 +43,14 @@
     onLoadMore,
     onToggleFavorite
   }: Props = $props();
+
+  $effect(() => {
+    if (items.length > 0 && items[0].blurhash) {
+      blurhashToDataUrl(items[0].blurhash, 16, 8).then((u) => {
+        if (u) pageTint.set(u);
+      });
+    }
+  });
 
   let sentinel: HTMLDivElement | undefined = $state();
   let lightboxIndex = $state<number | null>(null);

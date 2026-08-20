@@ -47,11 +47,21 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    /* a subtle glass strip; sits in normal flow, not a floating pill */
-    background: rgba(14,15,20,0.55);
+    background-color: rgba(14,15,20,0.72);
     backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
     -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
     border-bottom: 1px solid var(--glass-edge);
+    overflow: hidden;
+  }
+  .topbar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--glass-tint, none) no-repeat center / cover;
+    filter: blur(20px) saturate(1.2);
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: -1;
   }
   .bar {
     height: var(--topbar-h);

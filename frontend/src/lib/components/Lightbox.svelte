@@ -67,8 +67,14 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="overlay" onclick={onClose} role="dialog" aria-modal="true">
-  {#if tint}<div class="tint" style:background-image="url({tint})" aria-hidden="true"></div>{/if}
+<div
+  class="overlay"
+  style={tint ? `--glass-tint: url(${tint})` : undefined}
+  onclick={onClose}
+  role="dialog"
+  aria-modal="true"
+>
+  {#if tint}<div class="tint" style:background="var(--glass-tint) no-repeat center/cover" aria-hidden="true"></div>{/if}
   <div class="content" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
     <button class="nav close" type="button" onclick={onClose} aria-label="Close">×</button>
     <button
@@ -125,9 +131,9 @@
     position: fixed;
     inset: 0;
     z-index: 500;
-    background: rgba(8,8,12,0.78);
-    backdrop-filter: blur(28px) saturate(140%);
-    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    background: rgba(8,8,12,0.55);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
     display: grid;
     place-items: center;
     animation: fade var(--t-med) var(--ease-out);
@@ -136,14 +142,14 @@
     from { opacity: 0; }
     to   { opacity: 1; }
   }
-  .tint {
+.tint {
     position: absolute;
     inset: -40px;
-    background-size: cover;
-    background-position: center;
+    background: var(--glass-tint, none) no-repeat center / cover;
     filter: blur(60px) saturate(1.5) brightness(0.55);
-    opacity: 0.5;
+    opacity: 0.65;
     pointer-events: none;
+    z-index: -1;
   }
   .content {
     position: relative;

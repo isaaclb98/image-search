@@ -137,15 +137,17 @@ const ForYouFeedItem = z.object({
 }).passthrough();
 
 const ForYouFeedResponse = z.object({
-  items: z.array(ForYouFeedItem),
+  results: z.array(ForYouFeedItem),
+  n_likes: z.number().int().optional(),
+  n_dislikes: z.number().int().optional(),
+  freshest_feedback_ts: z.union([z.string(), z.null()]).optional(),
   ranker_state: z.record(z.string(), z.unknown()).optional()
 }).passthrough();
 
 const ForYouState = z.object({
-  seen_count: z.number().int().default(0),
-  liked_count: z.number().int().default(0),
-  disliked_count: z.number().int().default(0),
-  last_seen_at: z.string().nullable().optional()
+  n_likes: z.number().int().default(0),
+  n_dislikes: z.number().int().default(0),
+  freshest_feedback_ts: z.union([z.string(), z.null()]).optional()
 }).passthrough();
 
 // ---- misc ----

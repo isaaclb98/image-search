@@ -30,11 +30,11 @@
       const poolSize = 800;
       const want = 20;
       const res = await forYouFeed(poolSize);
-      const pool = res?.items ?? [];
+      const pool = res?.results ?? [];
       // Pick `want` items uniformly without replacement, suffle first.
       const shuffled = [...pool].sort(() => Math.random() - 0.5);
       items = shuffled.slice(0, want).map((it: any) => ({
-        id: it.point_id ?? it.id,
+        id: it.id,
         blurhash: it.blurhash ?? null,
         score_str:
           typeof it.score === 'number' ? it.score.toFixed(3) : '',
