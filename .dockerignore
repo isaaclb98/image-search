@@ -18,9 +18,9 @@ __pycache__/
 *.egg-info/
 bin/
 
-# Local databases (rebuilt by the indexer at runtime)
-data/*.db
-data/*.db-*
+# Local databases (rebuilt by the indexer at runtime / mounted via
+# PVC at /app/data in the cluster, never baked into the image)
+data/
 
 # Local Qdrant
 qdrant_data/

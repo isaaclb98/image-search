@@ -172,8 +172,8 @@ def main(argv: list[str] | None = None) -> None:
         uvicorn.run(app, host=args.host, port=args.port)
     else:
         uvicorn.run(
-            "search.app:_build_default_app",
-            factory=True,
+            "search.app:app",
+            
             host=args.host,
             port=args.port,
             reload=args.reload,

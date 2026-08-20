@@ -10,6 +10,10 @@ dependencies = [
     # Search side (FastAPI app)
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
+    # gunicorn is the process manager for the single-container image
+    # (docker/Dockerfile.search runs `gunicorn -k uvicorn.workers.UvicornWorker`).
+    # Without it the container fails with `exec: gunicorn: not found`.
+    "gunicorn>=21.2",
     "qdrant-client>=1.10",
     # .env file loading (used by both indexer + search)
     "python-dotenv>=1.0",

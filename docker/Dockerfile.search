@@ -54,7 +54,11 @@ RUN pip install --upgrade pip && pip install .
 
 # Source code that isn't part of the installed package
 COPY scripts/ ./scripts/
-COPY data/ ./data/
+# NOTE: no `COPY data/` — that path is local state (the SQLite
+# index cache) and is .gitignore'd. The cluster mounts a PVC at
+# /app/data at runtime, and INDEX_DB_PATH pins the file to
+# /app/data/images.db. See clusters/home/apps/image-search/
+# statefulset.yaml + data-pvc.yaml.
 
 # Bundle the prebuilt SPA at /app/static. The backend's create_app()
 # mounts /_app/ for hashed assets and falls back to index.html for

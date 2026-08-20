@@ -2951,15 +2951,14 @@ def create_app(
     return app
 
 
-# Allow `python -m search.app` to run a dev server.
-app: FastAPI | None = None
-
-
-def _build_default_app() -> FastAPI:
-    return create_app()
+# Build the module-level `app` so production servers (`gunicorn search.app:app`)
+# can load it directly. The defaults are loaded from env once at import time;
+# tests that need a custom config call `create_app(cfg=..., qdrant=...)`
+# explicitly and ignore the module-level instance.
+app: FastAPI = create_app()
 
 
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run("search.app:_build_default_app", factory=True, host="0.0.0.0", port=8000)  # noqa: S104
+    uvicorn.run("search.app:app", host="0.0.0.0", port=8000)  # noqa: S104

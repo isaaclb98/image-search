@@ -50,7 +50,7 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch, clean_for_you_db):
         test_mode=True,
         index_db_path=clean_for_you_db,
     )
-    app = app_mod._build_default_app()
+    app = app_mod.create_app(cfg=cfg, qdrant=qdrant_in_memory)
     return TestClient(app)
 
 
