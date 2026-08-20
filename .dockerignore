@@ -1,0 +1,48 @@
+# .dockerignore — keeps the build context small and deterministic.
+#
+# The single-container build (docker/Dockerfile.search) uses the
+# repo root as its build context. Without this, every test artifact,
+# virtualenv, and local sqlite database gets shipped into BuildKit,
+# which wastes network + disk and (more importantly) causes
+# non-reproducible cache keys when local files change between pushes.
+#
+# `.git/` is also excluded — git history isn't needed to build.
+
+# Python
+.venv/
+.venv-test/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+bin/
+
+# Local databases (rebuilt by the indexer at runtime)
+data/*.db
+data/*.db-*
+
+# Local Qdrant
+qdrant_data/
+
+# Frontend
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/test-results/
+frontend/playwright-report/
+
+# Test artifacts
+/tmp/_is_demo/
+/tmp/is-*
+/tmp/screens/
+/tmp/preview.log
+
+# Git history (not needed for build)
+.git/
+.gitignore
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
