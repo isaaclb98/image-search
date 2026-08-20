@@ -47,19 +47,20 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    background-color: rgba(14,15,20,0.72);
-    backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+    background-color: rgba(14,15,20,0.42);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
     border-bottom: 1px solid var(--glass-edge);
     overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
   }
   .topbar::after {
     content: '';
     position: absolute;
     inset: 0;
     background: var(--glass-tint, none) no-repeat center / cover;
-    filter: blur(20px) saturate(1.2);
-    opacity: 0.18;
+    filter: blur(32px) saturate(1.5);
+    opacity: 0.5;
     pointer-events: none;
     z-index: -1;
   }

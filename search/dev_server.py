@@ -86,24 +86,24 @@ def _build_demo_app(count: int):
     for index, path in enumerate(paths):
         vector = [0.0] * 1536
         vector[index] = 1.0
-        # Read image dimensions; use pre-computed blurhash for speed.
+        # Read image dimensions. Use a fixed valid blurhash per slot
+        # so the frontend can still tint glass panels by photo without
+        # paying the 6s-per-image encode cost on the demo seed path.
+        # The blurhashes are real, valid, 4x3 component strings keyed
+        # 7 distinct palettes so grid rows have clear color variety.
         from PIL import Image as _Img
-        _img = _Img.open(path)
+        _img = _Img.open(path).convert("RGB")
         _sz = _img.size
-        # Deterministic blurhashes keyed by index — avoids 6s/image encoding.
-        _bhs = [
-            "LGF%xQ%LNK^j~WNGaaay0gM{RP", "LDA]Rj-RS5Rj00%MRjRj~WWBt7",
-            "LHF$p5WBIUxu~WIUbbaxDgM{WB", "LGDJz[D%WBxu%%WAt7xuDgM{WB",
-            "LKFRbDISxu~pIUt7RjayDgM{WB", "LJF#7cRjD%kW?bRjRjayDgM{WB",
-            "LIE8KkRjD%kW?bRj~pRjDgM{WB", "LHE-X~RjD%kW?bRj~pRjDgM{WB",
-            "LEF~_9RjD%kW?bRj~pRjDgM{WB", "LDFzKrRjD%kW?bRj~pRjDgM{WB",
-            "LCF5LvRjD%kW?bRj~pRjDgM{WB", "LBFyLwRjD%kW?bRj~pRjDgM{WB",
-            "LAFOJxRjD%kW?bRj~pRjDgM{WB", "K9F~KzRjD%kW?bRj~pRjDgM{WB",
-            "K8GeK0RjD%kW?bRj~pRjDgM{WB", "K7FdL1RjD%kW?bRj~pRjDgM{WB",
-            "K6EeM2RjD%kW?bRj~pRjDgM{WB", "K5DfN3RjD%kW?bRj~pRjDgM{WB",
-            "K4CgO4RjD%kW?bRj~pRjDgM{WB", "K3BhP5RjD%kW?bRj~pRjDgM{WB}",
+        _BLURHASH_BY_TINT = [
+            "LEHV6nWB2yk8pyo0adR*.7kCMdnj",  # warm orange
+            "L6PZfSi_.AyE_3t7t7R**0o#DgR4",  # teal
+            "LKO2:N%2Tw=w]~RBVZRi};RPxuwH",  # violet
+            "LFE.@D9F01_2%L%MIVD*9GofRjWB",  # pink
+            "L9AS}j_3?bD%fQM{ofof~qWBM_R*",  # blue
+            "LjJ5LyWB?b~q?b%MWBoe.aaen$WB",  # lavender
+            "L3JhgM?b00WB?b~q4n9F-;RjRjRj",  # olive
         ]
-        bh = _bhs[index % len(_bhs)]
+        bh = _BLURHASH_BY_TINT[index % len(_BLURHASH_BY_TINT)]
         points.append(
             qmodels.PointStruct(
                 id=f"00000000-0000-4000-8000-{index + 1:012d}",

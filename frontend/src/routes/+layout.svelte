@@ -1,25 +1,18 @@
 <script lang="ts">
   import '../lib/styles/tokens.css';
   import '../lib/styles/global.css';
-  import { onMount } from 'svelte';
   import TopBar from '$lib/components/TopBar.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
   import { pageTint } from '$lib/stores/tint';
 
   let { children } = $props();
-  let tintUrl = $state<string | null>(null);
-
-  onMount(() => {
-    const unsub = pageTint.subscribe((v) => {
-      tintUrl = v;
-    });
-    return unsub;
-  });
+  // Auto-subscribe using $-prefixed store reference.
+  // Svelte 5 reactive store binding: $pageTint tracks the writable value.
 </script>
 
 <div
   class="app-shell"
-  style={tintUrl ? `--glass-tint: url(${tintUrl})` : undefined}
+  style={$pageTint ? `--glass-tint: url(${$pageTint})` : undefined}
 >
   <TopBar />
   <main class="app-main">

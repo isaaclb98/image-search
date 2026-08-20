@@ -83,7 +83,8 @@ class IndexDB:
                   size          INTEGER,
                   indexed_at    TEXT,
                   width         INTEGER,
-                  height        INTEGER
+                  height         INTEGER,
+                  blurhash       TEXT DEFAULT ''
                 );
 
                 -- Persistent user state. Independent of the images
@@ -208,6 +209,7 @@ class IndexDB:
             self._ensure_column("images", "width", "INTEGER")
             self._ensure_column("images", "height", "INTEGER")
             self._ensure_column("images", "collection", "TEXT DEFAULT ''")
+            self._ensure_column("images", "blurhash", "TEXT DEFAULT ''")
             self._conn.executescript(
                 """
                 CREATE INDEX IF NOT EXISTS idx_images_path
@@ -665,8 +667,8 @@ class IndexDB:
                         continue
                     self._conn.executemany(
                         """
-                        INSERT INTO images (id, path, shard, collection, mtime, size, indexed_at)
-                        VALUES (:id, :path, :shard, :collection, :mtime, :size, :indexed_at)
+                        INSERT INTO images (id, path, shard, collection, mtime, size, indexed_at, blurhash)
+                        VALUES (:id, :path, :shard, :collection, :mtime, :size, :indexed_at, :blurhash)
                         """,
                         rows,
                     )
@@ -778,7 +780,7 @@ class IndexDB:
             rows = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height,
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash
                        f.favorited_at
                 FROM images i
                 INNER JOIN favorites f ON i.id = f.id
@@ -859,7 +861,7 @@ class IndexDB:
             rows = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height,
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash
                        d.disliked_at, d.source
                 FROM images i
                 INNER JOIN dislikes d ON i.id = d.id
@@ -1173,7 +1175,7 @@ class IndexDB:
             rows = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height,
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash
                        m.added_at
                 FROM album_memberships m
                 INNER JOIN images i ON i.id = m.favorite_id
@@ -1359,7 +1361,7 @@ class IndexDB:
             row = self._conn.execute(
                 """
                 SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                       i.size, i.indexed_at, i.width, i.height,
+                       i.size, i.indexed_at, i.width, i.height, i.blurhash,
                        (f.id IS NOT NULL) AS is_favorite,
                        f.favorited_at
                 FROM images i
@@ -1441,6 +1443,7 @@ class IndexDB:
             "mtime": _optional_int(payload.get("mtime")),
             "size": _optional_int(payload.get("size")),
             "indexed_at": payload.get("indexed_at"),
+            "blurhash": str(payload.get("blurhash") or ""),
         }
 
     def pick_random_rows(
@@ -1465,7 +1468,7 @@ class IndexDB:
                 rows = self._conn.execute(
                     f"""
                     SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                           i.size, i.indexed_at, i.width, i.height,
+                           i.size, i.indexed_at, i.width, i.height, i.blurhash,
                            (f.id IS NOT NULL) AS is_favorite,
                            f.favorited_at
                     FROM images i
@@ -1480,7 +1483,7 @@ class IndexDB:
                 rows = self._conn.execute(
                     """
                     SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                           i.size, i.indexed_at, i.width, i.height,
+                           i.size, i.indexed_at, i.width, i.height, i.blurhash,
                            (f.id IS NOT NULL) AS is_favorite,
                            f.favorited_at
                     FROM images i

@@ -1326,11 +1326,11 @@ def create_app(
         return JSONResponse(content={
             "id": hit.id,
             "path": hit.path,
-            "score": 1.0, # Lookup is not ranked, score is conceptually 1.0
+            "score": hit.score,
             "is_favorite": is_fav,
             "url": f"/photo/{point_id}/raw",
-            "width": None, # Metadata doesn't track size natively yet
-            "height": None
+            "width": hit.payload.get("width") if hit.payload else None,
+            "height": hit.payload.get("height") if hit.payload else None
         })
 
     @app.get("/photo/{point_id}/raw")
@@ -1720,6 +1720,7 @@ def create_app(
         out: list[SearchResult] = []
         for row in rows:
             is_fav = bool(int(row.get("is_favorite") or 0))
+            _bh = row.get("blurhash") or None
             out.append(
                 SearchResult(
                     id=str(row["id"]),
@@ -1730,6 +1731,7 @@ def create_app(
                     is_favorite=is_fav,
                     width=_maybe_int(row.get("width")),
                     height=_maybe_int(row.get("height")),
+                    blurhash=_bh,
                 )
             )
         return out
