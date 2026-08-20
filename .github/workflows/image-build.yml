@@ -44,6 +44,7 @@ on:
       - README.md
       - search/**
       - indexer/**
+      - frontend/**
       - .github/workflows/image-build.yml
 
 jobs:
