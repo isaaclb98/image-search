@@ -48,27 +48,28 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Moderate blur — enough to be a "wash" but you can still see the
-       photo content. Saturation up so colour bleed is unmistakable. */
-    filter: blur(36px) saturate(300%) brightness(0.95) contrast(110%);
-    transform: scale(1.15);
+    /* Heavier blur + lower opacity so the photo reads as ambient
+       atmosphere rather than a featured picture. The tint is there
+       but it doesn't dominate. */
+    filter: blur(60px) saturate(180%) brightness(0.7);
+    transform: scale(1.2);
     opacity: 0;
-    transition: opacity 600ms ease-out;
+    transition: opacity 800ms ease-out;
   }
   .app-shell.has-tint .bg-backdrop img {
-    opacity: 1;
+    opacity: 0.45;
   }
   .bg-tint {
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 1;
-    /* Just a whisper of dark vignette for text contrast.
-       The photo is the main visual. */
+    /* Subtle vignette so the photo sits behind everything as
+       atmosphere rather than competing for attention. */
     background: radial-gradient(
       ellipse at center,
-      rgba(8, 10, 16, 0) 50%,
-      rgba(8, 10, 16, 0.3) 100%
+      rgba(8, 10, 16, 0.2) 0%,
+      rgba(8, 10, 16, 0.55) 100%
     );
   }
   .app-main,
