@@ -6,6 +6,11 @@
    *   - background blurs + tints from the current photo
    *   - "Most similar" navigates to /similar/{id} (closes itself)
    *
+   * Photo bytes come from /photo/{id}/raw?w=N — the server does a
+   * Lanczos downsample and serves the cached JPEG. This avoids the
+   * quality loss of letting the browser scale a 12 MP source down
+   * to a 1408 px lightbox, and slashes bandwidth by ~10x.
+   *
    * Caller provides the items array (with point IDs) and the
    * index of the currently shown item, plus a way to toggle
    * favourite.
@@ -18,6 +23,19 @@
   function goSimilar(id: string) {
     onClose();
     goto(`/similar/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Pick the right server-side resize width. We aim for 2x of the
+   * rendered CSS width (retina) but cap at 1920 so 4K monitors
+   * don't pull multi-MB files when 1920 px is enough visually.
+   * Falls back to 1920 in SSR (window not available).
+   */
+  function lightboxWidth(): number {
+    if (typeof window === 'undefined') return 1920;
+    const cssWidth = window.innerWidth - 32;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    return Math.min(1920, Math.ceil(cssWidth * dpr));
   }
 
   type Item = {
@@ -101,7 +119,7 @@
     {#if current()}
       {@const it = current()!}
       {#key it.id}
-        <img class="photo" src={photoUrl(it.id)} alt="" />
+        <img class="photo" src={photoUrl(it.id, lightboxWidth())} alt="" />
       {/key}
     {/if}
     <button

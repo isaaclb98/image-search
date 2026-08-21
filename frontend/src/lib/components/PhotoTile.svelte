@@ -61,7 +61,7 @@
   class:loaded
   class:favorite={isFavorite}
   class:menu-open={contextMenuOpen}
-  href={photoUrl(pointId)}
+  href={photoUrl(pointId, 1920)}
   onclick={handleClick}
   oncontextmenu={handleContext}
   style={dataUrl ? `--glass-tint: url(${dataUrl})` : undefined}
@@ -75,7 +75,7 @@
   <img
     bind:this={imgEl}
     class="full"
-    src={photoUrl(pointId)}
+    src={photoUrl(pointId, 640)}
     alt=""
     loading="lazy"
     decoding="async"

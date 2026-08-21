@@ -138,6 +138,17 @@ export async function logout(): Promise<void> {
 }
 
 /** Build an absolute raw-image URL. Photos come from /photo/{id}/raw. */
-export function photoUrl(pointId: string): string {
-  return `/photo/${encodeURIComponent(pointId)}/raw`;
+/**
+ * URL for the raw photo bytes. Pass `width` to ask the server to
+ * Lanczos-resize the source on the fly and serve a smaller file
+ * (bandwidth saver + crisper pixels than letting the browser
+ * downscale). Cached on disk by the server, so repeat requests
+ * hit the cache.
+ */
+export function photoUrl(pointId: string, width?: number): string {
+  const base = `/photo/${encodeURIComponent(pointId)}/raw`;
+  if (width && width > 0) {
+    return `${base}?w=${width}`;
+  }
+  return base;
 }

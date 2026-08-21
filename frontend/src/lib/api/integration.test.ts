@@ -21,6 +21,16 @@ describe('photoUrl', () => {
     expect(photoUrl('with space')).toBe('/photo/with%20space/raw');
     expect(photoUrl('with/slash')).toBe('/photo/with%2Fslash/raw');
   });
+  it('appends ?w= when a width is requested (Lanczos resize)', async () => {
+    const { photoUrl } = await import('./client');
+    expect(photoUrl('abc-123', 1920)).toBe('/photo/abc-123/raw?w=1920');
+    expect(photoUrl('abc-123', 640)).toBe('/photo/abc-123/raw?w=640');
+  });
+  it('omits ?w= when width is 0 or undefined', async () => {
+    const { photoUrl } = await import('./client');
+    expect(photoUrl('abc-123', 0)).toBe('/photo/abc-123/raw');
+    expect(photoUrl('abc-123', undefined)).toBe('/photo/abc-123/raw');
+  });
 });
 
 describe('ApiError', () => {

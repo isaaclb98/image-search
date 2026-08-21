@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import random
@@ -164,6 +165,110 @@ def _is_row_alive(row: dict | None) -> bool:
     if not row:
         return False
     return _is_path_alive(str(row.get("path") or ""))
+
+
+class _ResizeError(Exception):
+    """Raised when the Lanczos-resize path can't produce a cached file."""
+
+
+def _photo_cache_dir() -> Path:
+    """Return (and create) the disk cache dir for resized photos.
+
+    Lives under `cfg.photo_cache_dir` if configured, else under
+    `Path(_cfg.index_db_path).parent / "photo_cache"` so the cache
+    sits on the same volume as the IndexDB. In the cluster the
+    IndexDB is on `/app/data` (PVC), so the cache survives pod
+    restarts and can grow to whatever the PVC allows.
+
+    Falls back to `<cwd>/photo_cache` if `index_db_path` is
+    `:memory:` (test mode) or otherwise has no parent directory.
+    """
+    cfg = _cfg or config.load()
+    override = getattr(cfg, "photo_cache_dir", None)
+    if override:
+        base = Path(override)
+    else:
+        idx = cfg.index_db_path
+        if idx and idx != ":memory:":
+            parent = Path(idx).parent
+            if str(parent) and str(parent) not in ("", "/"):
+                base = parent / "photo_cache"
+            else:
+                base = Path.cwd() / "photo_cache"
+        else:
+            base = Path.cwd() / "photo_cache"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _resize_cached(point_id: str, width: int, source: Path) -> Path:
+    """Return a Lanczos-resized JPEG for `(point_id, width)`.
+
+    Cache layout: `<cache>/<point_id>/w<width>.jpg`. The cache file
+    is keyed off the source's mtime+size, so re-encoding the
+    source on disk produces a new cache entry on the next request
+    (the old one is left behind — harmless, just stale).
+
+    Lanczos is the highest-quality downsampling filter PIL ships
+    with; it's a 3-lobed Lanczos variant that visually beats the
+    browser's default scaling for photos that are downsized by 2x
+    or more (which is most of them, given that a 12 MP source
+    lands in a 1920px-wide lightbox).
+    """
+    from PIL import Image, ImageOps
+
+    target = _photo_cache_dir() / point_id / f"w{width}.jpg"
+    src_stat = source.stat()
+    cache_marker = target.with_suffix(".src.json")
+    # Cache hit check: file exists AND the source fingerprint
+    # matches what we last resized from.
+    if target.exists() and cache_marker.exists():
+        try:
+            meta = json.loads(cache_marker.read_text())
+            if (
+                meta.get("st_mtime_ns") == src_stat.st_mtime_ns
+                and meta.get("st_size") == src_stat.st_size
+            ):
+                return target
+        except (json.JSONDecodeError, OSError):
+            pass  # stale marker — fall through to re-resize
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with Image.open(source) as im:
+            # EXIF orientation: many phone photos are stored
+            # landscape with a rotation flag rather than the
+            # rotated pixels. Without this fix-up, a portrait
+            # shot would display sideways in the lightbox.
+            im = ImageOps.exif_transpose(im)
+            im.load()  # force decode so resize sees real pixels
+            # Convert non-JPEG sources to RGB for JPEG output.
+            if im.mode not in ("RGB", "L"):
+                im = im.convert("RGB")
+            # Only downscale; never upscale. If the source is
+            # smaller than the requested width, copy through.
+            if im.width > width:
+                im = im.resize(
+                    (width, max(1, round(im.height * width / im.width))),
+                    Image.Resampling.LANCZOS,
+                )
+            # quality=90 is a sensible default — visible quality
+            # is indistinguishable from 95 in side-by-side tests,
+            # but the file is ~30% smaller.
+            im.save(target, format="JPEG", quality=90, optimize=True)
+    except (OSError, ValueError) as exc:
+        # Surface as _ResizeError so the caller falls back to the
+        # original file. Common cause: a HEIC the runtime can't
+        # decode, or a corrupt JPEG header.
+        raise _ResizeError(str(exc)) from exc
+
+    cache_marker.write_text(
+        json.dumps(
+            {"st_mtime_ns": src_stat.st_mtime_ns, "st_size": src_stat.st_size}
+        )
+    )
+    return target
 
 
 def _coerce_view(raw: str | None) -> str:
@@ -1336,7 +1441,25 @@ def create_app(
         })
 
     @app.get("/photo/{point_id}/raw")
-    async def photo_raw(request: Request, point_id: str) -> Response:
+    async def photo_raw(
+        request: Request,
+        point_id: str,
+        # Optional target width (pixels). When set, the server
+        # returns a Lanczos-resized version of the original. Width
+        # is preserved; height scales proportionally. Cached on
+        # disk so repeat requests hit the cache. Browsers' default
+        # image scaling (Lanczos or similar) is usually fine, but
+        # serving a pre-resized image at the exact viewport width
+        # avoids the small lossiness of in-browser scaling — and
+        # also slashes bandwidth when the source is e.g. 12 MP
+        # but the lightbox only needs 1920 px wide.
+        w: int | None = Query(
+            None,
+            ge=64,
+            le=8192,
+            description="Optional target width in pixels. Server Lanczos-resizes if set.",
+        ),
+    ) -> Response:
         # Every blocking call in this handler is wrapped in
         # asyncio.to_thread — qdrant.retrieve, resolve_local,
         # _is_path_alive, and local.stat can each block for
@@ -1368,6 +1491,43 @@ def create_app(
         )
         if not is_alive:
             raise HTTPException(status_code=404, detail="File not found on disk")
+
+        # ---- Resize branch ----
+        # Only JPEG/PNG/WebP/HEIF are supported by PIL out of the box
+        # (and the existing code only sets media types for those). If
+        # the original is some exotic format (RAW, TIFF, etc.) or the
+        # resize fails for any reason, fall back to the original file.
+        if w is not None:
+            try:
+                cached = await asyncio.to_thread(_resize_cached, point_id, w, local)
+            except _ResizeError as e:
+                logger.warning("Resize failed for %s @ w=%d: %s", point_id, w, e)
+            else:
+                stat = await asyncio.to_thread(cached.stat)
+                etag = hashlib.md5(
+                    f"{stat.st_mtime_ns}-{stat.st_size}-w{w}".encode()
+                ).hexdigest()
+                if request.headers.get("if-none-match") == etag:
+                    return Response(
+                        status_code=304,
+                        headers={
+                            "ETag": etag,
+                            "Cache-Control": "public, max-age=31536000, immutable",
+                        },
+                    )
+                return FileResponse(
+                    cached,
+                    media_type="image/jpeg",
+                    headers={
+                        "ETag": etag,
+                        # Cached file is immutable for the lifetime of
+                        # the (point_id, width) pair. The cache is
+                        # keyed off the source file's mtime+size
+                        # inside _resize_cached, so a re-encoded
+                        # source automatically invalidates.
+                        "Cache-Control": "public, max-age=31536000, immutable",
+                    },
+                )
 
         stat = await asyncio.to_thread(local.stat)
         etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()

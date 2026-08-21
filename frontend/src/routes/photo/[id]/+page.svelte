@@ -43,7 +43,7 @@
 {:else}
   <article class="page glass">
     <div class="frame">
-      <img src={photoUrl(point.id)} alt={point.path ?? ''} />
+      <img src={photoUrl(point.id, 1920)} alt={point.path ?? ''} />
     </div>
     <div class="meta">
       <h2>{point.path ?? point.id}</h2>
