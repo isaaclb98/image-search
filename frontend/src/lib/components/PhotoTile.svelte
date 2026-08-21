@@ -86,7 +86,7 @@
     <span class="score">{scoreStr}</span>
   {/if}
   {#if isFavorite}
-    <span class="fav" data-no-open title="Favourite">★</span>
+    <span class="fav" data-no-open title="Like">♥</span>
   {/if}
 </a>
 

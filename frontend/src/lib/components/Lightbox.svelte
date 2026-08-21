@@ -25,8 +25,15 @@
     onClose: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
+    /**
+     * "Most similar photos" button click. Caller is expected to
+     * run a similarity search for the current photo and replace
+     * the page's items. We only signal — no fetching inside the
+     * lightbox.
+     */
+    onSimilar?: (id: string) => void;
   };
-  let { items, index, onClose, onToggleFavorite, onDislike }: Props = $props();
+  let { items, index, onClose, onToggleFavorite, onDislike, onSimilar }: Props = $props();
 
   let idx = $state(index);
   $effect(() => { idx = Math.max(0, Math.min(items.length - 1, index)); });
@@ -102,19 +109,29 @@
       <span class="count">{idx + 1} / {items.length}</span>
       <button
         type="button"
-        class="action"
+        class="action like"
+        class:active={current()?.isFavorite}
         onclick={() => current() && onToggleFavorite?.(current()!.id)}
-        title="Pin / unpin"
+        title="Like"
+        aria-pressed={current()?.isFavorite ? 'true' : 'false'}
       >
-        {current()?.isFavorite ? '★ Pinned' : '☆ Pin'}
+        {current()?.isFavorite ? '♥ Liked' : '♡ Like'}
       </button>
       <button
         type="button"
         class="action neg"
         onclick={() => current() && onDislike?.(current()!.id)}
-        title="Not interested"
+        title="Dislike"
       >
-        − Not interested
+        − Dislike
+      </button>
+      <button
+        type="button"
+        class="action similar"
+        onclick={() => current() && onSimilar?.(current()!.id)}
+        title="Find photos that look most like this one"
+      >
+        ⟳ Most similar
       </button>
       <a
         class="action"
@@ -153,19 +170,27 @@
   }
   .content {
     position: relative;
-    width: min(96vw, 1400px);
-    height: min(94vh, 920px);
+    /* Let the photo show at its natural dimensions. The overlay is
+       the only thing that's full-viewport; .content grows to the
+       image's intrinsic size, so nothing is cropped. */
+    max-width: 96vw;
+    max-height: 96vh;
     display: grid;
     place-items: center;
     border-radius: var(--r-3);
-    overflow: hidden;
+    overflow: auto;
     background: rgba(8,8,12,0.4);
     border: 1px solid var(--glass-edge);
   }
   .photo {
+    display: block;
+    /* Scale the photo to the viewport's width; let height follow the
+       natural aspect ratio. Tall portraits keep their full height
+       inside the scrollable .content box (no cropping). */
     max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    width: auto;
+    height: auto;
+    margin: auto;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
   }
@@ -229,4 +254,22 @@
   }
   .action:hover { background: var(--glass-2); }
   .action.neg { color: var(--negative); }
+  /* Pressed feedback: when the photo is liked, the button lights up
+     pink and stays lit so users know their click registered. */
+  .action.like.active {
+    background: rgba(255, 122, 138, 0.18);
+    border-color: rgba(255, 122, 138, 0.55);
+    color: var(--accent-pink);
+  }
+  .action.like.active:hover {
+    background: rgba(255, 122, 138, 0.28);
+  }
+  /* Subtle tint on the "Most similar" button so it doesn't look
+     like a duplicate of Like/Dislike. */
+  .action.similar {
+    background: rgba(108, 198, 255, 0.10);
+    border-color: rgba(108, 198, 255, 0.35);
+    color: var(--accent-blue);
+  }
+  .action.similar:hover { background: rgba(108, 198, 255, 0.18); }
 </style>

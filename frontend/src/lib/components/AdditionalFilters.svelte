@@ -3,26 +3,40 @@
    * AdditionalFilters — the collapsible panel below the search
    * controls. Has a header with title + chevron, body has the
    * filename input and diversity controls.
+   *
+   * Diversity API contract (see search/diversity.py):
+   *   diversity_mode  ∈ {off, low, balanced, high}
+   *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000}
+   *   diversity_strength ∈ [0, 1]
+   *
+   * Frontend used to send the legacy {off, auto, on} triplet which
+   * the backend rejected as invalid (ValueError on resolve_mode),
+   * so the slider/select were silently no-ops. The values below
+   * match the backend contract.
    */
   type Props = {
     open: boolean;
     filename: string;
-    diversityMode: 'off' | 'auto' | 'on' | string;
+    diversityMode: 'off' | 'low' | 'balanced' | 'high' | string;
     diversityStrength: number;
+    diversityDepth?: 'auto' | '500' | '1000' | '2000' | '5000' | string;
     onToggle: () => void;
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
     onDiversityStrength: (v: number) => void;
+    onDiversityDepth?: (v: string) => void;
   };
   let {
     open,
     filename,
     diversityMode,
     diversityStrength,
+    diversityDepth = 'auto',
     onToggle,
     onFilename,
     onDiversityMode,
-    onDiversityStrength
+    onDiversityStrength,
+    onDiversityDepth
   }: Props = $props();
 </script>
 
@@ -58,8 +72,9 @@
             aria-label="Diversity mode"
           >
             <option value="off">Off</option>
-            <option value="auto">Auto</option>
-            <option value="on">On</option>
+            <option value="low">Low</option>
+            <option value="balanced">Balanced</option>
+            <option value="high">High</option>
           </select>
           <input
             type="range"
@@ -72,9 +87,29 @@
                 Number((e.target as HTMLInputElement).value) / 100
               )}
             aria-label="Diversity strength"
+            title="How aggressively to re-rank for diversity"
           />
         </div>
       </div>
+      {#if onDiversityDepth}
+        <div class="field">
+          <span class="lab">Diversity depth</span>
+          <div class="row">
+            <select
+              value={diversityDepth}
+              onchange={(e) => onDiversityDepth((e.target as HTMLSelectElement).value)}
+              aria-label="Diversity depth"
+              title="How many top results to re-rank across for diversity"
+            >
+              <option value="auto">Auto</option>
+              <option value="500">500 photos</option>
+              <option value="1000">1,000 photos</option>
+              <option value="2000">2,000 photos</option>
+              <option value="5000">5,000 photos</option>
+            </select>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </section>

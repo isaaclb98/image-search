@@ -94,8 +94,8 @@
   {#if onToggleFavorite}
     <div class="sep" role="separator"></div>
     <button class="item" role="menuitem" onclick={toggleFav}>
-      <span class="i" aria-hidden="true">{isFavorite ? '☆' : '★'}</span>
-      {isFavorite ? 'Unpin' : 'Pin'}
+      <span class="i" aria-hidden="true">{isFavorite ? '♡' : '♥'}</span>
+      {isFavorite ? 'Unlike' : 'Like'}
     </button>
   {/if}
 </div>

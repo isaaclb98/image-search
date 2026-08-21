@@ -1,18 +1,29 @@
 <script lang="ts">
   /**
-   * Albums — list + create. Each row links to /albums/{id}.
+   * Albums — list + create. Two non-optional system albums (Likes,
+   * Dislikes) are rendered first and cannot be deleted or renamed;
+   * user-created albums follow.
+   *
+   * The system counts are fetched from /api/favorites and
+   * /api/dislikes — the same tables the Like / Dislike buttons
+   * write to — so the count on the album card always matches
+   * what's actually saved.
    */
   import { onMount } from 'svelte';
   import {
     listAlbums,
     createAlbum,
-    deleteAlbum
+    deleteAlbum,
+    listFavorites,
+    listDislikes
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
   let albums = $state<AlbumSummary[]>([]);
   let loading = $state(true);
+  let likesCount = $state(0);
+  let dislikesCount = $state(0);
 
   async function refresh() {
     loading = true;
@@ -24,6 +35,35 @@
     } finally {
       loading = false;
     }
+  }
+
+  async function refreshSystemCounts() {
+    try {
+      const [favs, dis] = await Promise.all([
+        listFavorites(1) as Promise<unknown>,
+        listDislikes(1) as Promise<unknown>
+      ]);
+      likesCount = extractCount(favs);
+      dislikesCount = extractCount(dis);
+    } catch {
+      // Counts are decorative; a 502 on count fetch shouldn't
+      // blank the whole page.
+    }
+  }
+
+  // /api/favorites and /api/dislikes both return either an array
+  // (light shape) or {favorites|dislikes: [...], total: N}. This
+  // extracts the count whichever shape came back.
+  function extractCount(body: unknown): number {
+    if (Array.isArray(body)) return body.length;
+    if (body && typeof body === 'object') {
+      const o = body as Record<string, unknown>;
+      if (typeof o.total === 'number') return o.total;
+      const list =
+        (o.favorites as unknown[]) ?? (o.dislikes as unknown[]) ?? [];
+      if (Array.isArray(list)) return list.length;
+    }
+    return 0;
   }
 
   async function create() {
@@ -48,7 +88,10 @@
     }
   }
 
-  onMount(refresh);
+  onMount(() => {
+    refresh();
+    refreshSystemCounts();
+  });
 </script>
 
 <svelte:head>
@@ -58,16 +101,36 @@
 <section class="head">
   <div>
     <h1>Albums</h1>
-    <p>Group your favourite photos.</p>
+    <p>Like photos to keep them handy, build collections, group memories.</p>
   </div>
   <button type="button" class="new" onclick={create}>+ New album</button>
+</section>
+
+<section class="system" aria-label="Built-in albums">
+  <article class="card glass system-like">
+    <a class="title" href="/albums/likes">♥ Likes</a>
+    <p class="desc">Photos you've liked. Built-in, always here.</p>
+    <footer>
+      <span class="count">{likesCount} photo{likesCount === 1 ? '' : 's'}</span>
+      <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
+    </footer>
+  </article>
+  <article class="card glass system-dislike">
+    <a class="title" href="/albums/dislikes">− Dislikes</a>
+    <p class="desc">Photos you've marked as not interested. Built-in, always here.</p>
+    <footer>
+      <span class="count">{dislikesCount} photo{dislikesCount === 1 ? '' : 's'}</span>
+      <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
+    </footer>
+  </article>
 </section>
 
 {#if loading}
   <div class="placeholder">Loading albums…</div>
 {:else if albums.length === 0}
-  <div class="placeholder empty">No albums yet — create one to group your favourites.</div>
+  <div class="placeholder empty">No custom albums yet — create one to group your photos.</div>
 {:else}
+  <h2 class="section-title">Your albums</h2>
   <div class="grid">
     {#each albums as a (a.id)}
       <article class="card glass">
@@ -113,6 +176,20 @@
   }
   .new:hover { background: var(--accent-2); }
 
+  /* System albums — pinned to the top, never deletable. */
+  .system {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    margin: 0 0 24px;
+  }
+  .section-title {
+    font-size: var(--fs-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-2);
+    margin: 0 0 12px;
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

@@ -20,6 +20,7 @@
     filename: string;
     diversityMode: string;
     diversityStrength: number;
+    diversityDepth?: string;
   };
 
   type Props = {
@@ -31,6 +32,7 @@
     filename: string;
     diversityMode: string;
     diversityStrength: number;
+    diversityDepth?: string;
     filtersOpen: boolean;
     // events
     onInput: (v: string) => void;
@@ -41,6 +43,7 @@
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
     onDiversityStrength: (v: number) => void;
+    onDiversityDepth?: (v: string) => void;
     onToggleFilters: () => void;
     onSearch: () => void;
     onPickSaved: (s: SavedSearch) => void;
@@ -57,6 +60,7 @@
     filename,
     diversityMode,
     diversityStrength,
+    diversityDepth = 'auto',
     filtersOpen,
     onInput,
     onMode,
@@ -66,6 +70,7 @@
     onFilename,
     onDiversityMode,
     onDiversityStrength,
+    onDiversityDepth,
     onToggleFilters,
     onSearch,
     onPickSaved,
@@ -86,7 +91,6 @@
     {onRemovePositive}
     {onRemoveNegative}
     {onMode}
-    onSubmit={onSearch}
   />
   {#if showFilters}
     <AdditionalFilters
@@ -94,10 +98,12 @@
       {filename}
       {diversityMode}
       {diversityStrength}
+      {diversityDepth}
       onToggle={onToggleFilters}
       {onFilename}
       {onDiversityMode}
       {onDiversityStrength}
+      {onDiversityDepth}
     />
   {/if}
   <div class="actions">

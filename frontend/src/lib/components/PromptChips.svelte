@@ -3,7 +3,9 @@
    * PromptChips — positive/negative prompt row. Negative chips
    * render darker (per spec). The +/− toggle flips which kind
    * the next chip will be. Pressing Enter commits the current
-   * input as a chip and clears it (per spec).
+   * input as a chip and clears it (per spec) but does NOT
+   * fire a search — the user explicitly clicks the Search
+   * button (issue #6 from the bug list).
    *
    * Pure UI: state lives in the parent (SearchComposer /
    * SearchPage). The component just renders and signals via
@@ -22,7 +24,6 @@
     onRemovePositive: (i: number) => void;
     onRemoveNegative: (i: number) => void;
     onMode: (m: Mode) => void;
-    onSubmit?: (text: string, mode: Mode) => void;
   };
   let {
     positives,
@@ -33,8 +34,7 @@
     onAdd,
     onRemovePositive,
     onRemoveNegative,
-    onMode,
-    onSubmit
+    onMode
   }: Props = $props();
 
   function commit() {
@@ -42,11 +42,12 @@
     if (!trimmed) return;
     onAdd(trimmed, mode);
     onInput(''); // clear on commit per spec
-    onSubmit?.(trimmed, mode);
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
+      // Only commit the chip. Do NOT fire a search — the user
+      // explicitly clicks the Search button.
       e.preventDefault();
       commit();
     } else if (

@@ -2,10 +2,20 @@
   /**
    * For You — full feed page (vs the Home page which shows a
    * 20-row subset). Same backend endpoint, larger page size.
-   * Provides a "Reset" action so users can clear their signal.
+   *
+   * Note: previously had a "Reset signal" button that wiped
+   * likes + dislikes. The user-facing bug list explicitly
+   * removed Reset; reset is now an admin-only concern
+   * (POST /api/for-you/reset still exists but is no longer
+   * surfaced in the UI).
    */
   import { onMount } from 'svelte';
-  import { forYouFeed, resetForYou } from '$lib/api/endpoints';
+  import {
+    forYouFeed,
+    likePoint,
+    unlikePoint,
+    dislikePoint
+  } from '$lib/api/endpoints';
   import SearchGrid from '$lib/components/SearchGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
@@ -53,13 +63,27 @@
     }
   }
 
-  async function reset() {
-    if (!window.confirm('Reset your For-You signal? Likes and dislikes will be cleared.')) return;
-    await resetForYou();
-    items = [];
-    hasMore = false;
-    await refresh();
-    toast.show('For-You reset.', { kind: 'success' });
+  async function onToggleFavorite(id: string) {
+    const it = items.find((x) => x.id === id);
+    const liked = it?.is_favorite ?? false;
+    try {
+      if (liked) await unlikePoint(id);
+      else await likePoint(id);
+      items = items.map((x) =>
+        x.id === id ? { ...x, is_favorite: !liked } : x
+      );
+    } catch {
+      toast.show('Failed to update like.', { kind: 'error' });
+    }
+  }
+
+  async function onDislike(id: string) {
+    try {
+      await dislikePoint(id);
+      toast.show('Marked as not interested.', { kind: 'success' });
+    } catch {
+      toast.show('Failed to dislike.', { kind: 'error' });
+    }
   }
 
   onMount(refresh);
@@ -74,11 +98,17 @@
     <h1>For you</h1>
     <p>Tuned by your saves, dislikes, and searches.</p>
   </div>
-  <button type="button" class="reset" onclick={reset}>Reset signal</button>
 </section>
 
 <section>
-  <SearchGrid {items} {loading} {hasMore} onLoadMore={loadMore} />
+  <SearchGrid
+    {items}
+    {loading}
+    {hasMore}
+    onLoadMore={loadMore}
+    {onToggleFavorite}
+    {onDislike}
+  />
 </section>
 
 <style>
@@ -96,14 +126,4 @@
     margin: 0;
   }
   .head p { color: var(--fg-2); margin: 4px 0 0; }
-  .reset {
-    height: 40px;
-    padding: 0 18px;
-    border-radius: var(--r-pill);
-    background: transparent;
-    color: var(--fg-2);
-    border: 1px solid var(--glass-edge);
-    font-size: var(--fs-sm);
-  }
-  .reset:hover { background: var(--glass-1); color: var(--fg-1); }
 </style>

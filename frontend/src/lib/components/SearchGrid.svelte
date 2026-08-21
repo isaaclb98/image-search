@@ -35,13 +35,18 @@
     hasMore?: boolean;
     onLoadMore?: () => void;
     onToggleFavorite?: (id: string) => void;
+    onDislike?: (id: string) => void;
+    /** "Most similar photos" handler. */
+    onSimilar?: (id: string) => void;
   };
   let {
     items,
     loading = false,
     hasMore = false,
     onLoadMore,
-    onToggleFavorite
+    onToggleFavorite,
+    onDislike,
+    onSimilar
   }: Props = $props();
 
   $effect(() => {
@@ -146,6 +151,8 @@
     index={lightboxIndex}
     onClose={() => (lightboxIndex = null)}
     onToggleFavorite={(id) => onToggleFavorite?.(id)}
+    onDislike={(id) => onDislike?.(id)}
+    onSimilar={(id) => onSimilar?.(id)}
   />
 {/if}
 

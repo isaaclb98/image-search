@@ -1,11 +1,18 @@
 <script lang="ts">
   /**
    * Random — pick N random photos. Loads more on scroll like
-   * SearchGrid.
+   * SearchGrid. Like / Dislike toggles work in-place; the tile
+   * stays in the grid either way.
    */
   import { onMount } from 'svelte';
-  import { random } from '$lib/api/endpoints';
+  import {
+    random,
+    likePoint,
+    unlikePoint,
+    dislikePoint
+  } from '$lib/api/endpoints';
   import SearchGrid from '$lib/components/SearchGrid.svelte';
+  import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
     id: string;
@@ -41,24 +48,37 @@
     try {
       const res = await random(PAGE);
       const more = (res?.results ?? []) as Item[];
-      // Dedupe by id, but keep loading as long as the API gave us
-      // a full PAGE — that's the "more pages exist" signal. The
-      // dedupe is only there to avoid showing the same id twice;
-      // /api/random samples without replacement-from-the-viewer,
-      // so duplicates are common at the API layer even when more
-      // pages exist.
       const seen = new Set(items.map((i) => i.id));
       const fresh = more.filter((m) => !seen.has(m.id));
       items = [...items, ...fresh];
-      // hasMore signal: API gave us a full page (more pages may
-      // exist) AND we haven't already shown everything we have.
-      // For random, the safest heuristic is "API returned a full
-      // PAGE and we're below the library size".
-      hasMore = more.length >= PAGE && items.length < 200;
+      hasMore = more.length >= PAGE;
     } catch {
       hasMore = false;
     } finally {
       loading = false;
+    }
+  }
+
+  async function onToggleFavorite(id: string) {
+    const it = items.find((x) => x.id === id);
+    const liked = it?.is_favorite ?? false;
+    try {
+      if (liked) await unlikePoint(id);
+      else await likePoint(id);
+      items = items.map((x) =>
+        x.id === id ? { ...x, is_favorite: !liked } : x
+      );
+    } catch {
+      toast.show('Failed to update like.', { kind: 'error' });
+    }
+  }
+
+  async function onDislike(id: string) {
+    try {
+      await dislikePoint(id);
+      toast.show('Marked as not interested.', { kind: 'success' });
+    } catch {
+      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 
@@ -78,7 +98,14 @@
 </section>
 
 <section class="grid-wrap">
-  <SearchGrid {items} {loading} {hasMore} onLoadMore={loadMore} />
+  <SearchGrid
+    {items}
+    {loading}
+    {hasMore}
+    onLoadMore={loadMore}
+    {onToggleFavorite}
+    {onDislike}
+  />
 </section>
 
 <style>

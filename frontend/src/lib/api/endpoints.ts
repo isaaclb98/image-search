@@ -44,6 +44,7 @@ export type SearchParams = {
   filename?: string;
   diversityMode?: string;
   diversityStrength?: number;
+  diversityDepth?: string;
   limit?: number;
   offset?: number;
   /** When set, queries the centroid search endpoint. */
@@ -55,9 +56,13 @@ export function search(params: SearchParams, signal?: AbortSignal) {
   (params.positives ?? []).forEach((p) => qs.append('positives', p));
   (params.negatives ?? []).forEach((p) => qs.append('negatives', p));
   if (params.filename) qs.set('filename', params.filename);
-  if (params.diversityMode) qs.set('diversity_mode', params.diversityMode);
+  // Backend param name is `diversity` (NOT `diversity_mode`); see
+  // search/app.py:/api/search signature.
+  if (params.diversityMode) qs.set('diversity', params.diversityMode);
   if (params.diversityStrength !== undefined)
     qs.set('diversity_strength', String(params.diversityStrength));
+  if (params.diversityDepth && params.diversityDepth !== 'auto')
+    qs.set('diversity_depth', params.diversityDepth);
   if (params.limit !== undefined) qs.set('limit', String(params.limit));
   if (params.offset !== undefined) qs.set('offset', String(params.offset));
   const base = params.centroid
@@ -78,6 +83,22 @@ export function random(limit = 30, signal?: AbortSignal) {
     schema: Z.SearchResponse,
     schemaName: 'SearchResponse (random)'
   });
+}
+
+/**
+ * Most-similar photos for a given point ID — nearest neighbours in
+ * the SigLIP2 embedding space. Used by the Lightbox "Most similar"
+ * button to drill into a photo the user clicked.
+ */
+export function similarPhotos(
+  pointId: string,
+  limit = 30,
+  signal?: AbortSignal
+) {
+  return apiGet<SearchResponse>(
+    `/api/similar/${encodeURIComponent(pointId)}?limit=${limit}`,
+    { signal, schema: Z.SearchResponse, schemaName: 'SearchResponse (similar)' }
+  );
 }
 
 export function forYouFeed(limit = 20, signal?: AbortSignal) {
@@ -108,6 +129,32 @@ export async function dislikePoint(pointId: string) {
 
 export async function undislikePoint(pointId: string) {
   await apiDelete(`/api/dislikes/${encodeURIComponent(pointId)}`);
+}
+
+// ---------- Likes (formerly "favourites") ----------
+
+export async function likePoint(pointId: string) {
+  await apiPost(`/api/favorites/${encodeURIComponent(pointId)}`);
+}
+
+export async function unlikePoint(pointId: string) {
+  await apiDelete(`/api/favorites/${encodeURIComponent(pointId)}`);
+}
+
+/** Lightweight list — the Likes album view uses this. */
+export function listFavorites(limit = 60, offset = 0, signal?: AbortSignal) {
+  return apiGet<unknown>(
+    `/api/favorites?limit=${limit}&offset=${offset}&as_results=1`,
+    { signal, schemaName: 'favorites-list' }
+  );
+}
+
+/** Lightweight list — the Dislikes album view uses this. */
+export function listDislikes(limit = 60, offset = 0, signal?: AbortSignal) {
+  return apiGet<unknown>(
+    `/api/dislikes?limit=${limit}&offset=${offset}&as_results=1`,
+    { signal, schemaName: 'dislikes-list' }
+  );
 }
 
 // ---------- Saved searches ----------

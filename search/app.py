@@ -1780,6 +1780,72 @@ def create_app(
         # to matter. Cheap, simple, correct.
         _invalidate_favourites_centroid()
 
+    @app.get("/api/similar/{point_id}", response_model=SearchResponse)
+    async def similar_photos(
+        point_id: str,
+        limit: int = Query(
+            _cfg.top_k_default,
+            description="max similar photos to return",
+            ge=1,
+            le=200,
+        ),
+        offset: int = Query(0, description="offset into the result set", ge=0),
+    ) -> SearchResponse:
+        """Most-similar photos: nearest neighbours of `point_id` in the
+        embedding space. Used by the Lightbox "Most similar" button.
+
+        Two round-trips: retrieve the source point's vector, then
+        query_points with that vector. No re-encoding (which would
+        re-burn a SigLIP2 forward pass per click) — the source vector
+        already lives in Qdrant. Excludes the source point itself so
+        the user doesn't see the photo they just clicked as the top
+        hit.
+        """
+        started = time.monotonic()
+        try:
+            pair = await asyncio.to_thread(qdrant.retrieve_with_vector, point_id)
+        except (ConnectionError, OSError) as e:
+            logger.warning("Qdrant unreachable for /api/similar/%s: %s", point_id, e)
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+        if pair is None:
+            raise HTTPException(status_code=404, detail="Photo not found")
+        vec, _hit = pair
+        try:
+            hits, has_more = await asyncio.to_thread(
+                qdrant.search,
+                vec,
+                limit + 1,  # +1 because we exclude the source below
+                offset,
+                None,  # no collection whitelist
+                None,  # no allowed_ids
+                [point_id],  # exclude the source photo itself
+            )
+        except (ConnectionError, OSError) as e:
+            logger.warning("Qdrant search failed for /api/similar/%s: %s", point_id, e)
+            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+        # Trim the extra +1 we fetched for exclusion safety; if the
+        # source photo got through (e.g. collection filter dropped
+        # exclude_ids), the trim ensures we still return at most `limit`.
+        hits = hits[:limit]
+        results = await _results_from_hits(hits)
+        return SearchResponse(
+            query="",
+            positives=[],
+            negatives=[],
+            diverse=False,
+            diversity=DiversityMetadata(),
+            surprise=False,
+            view="grid",
+            centroid=None,
+            centroids=[],
+            weights=None,
+            results=results,
+            took_ms=int((time.monotonic() - started) * 1000),
+            offset=offset,
+            limit=limit,
+            has_more=has_more,
+        )
+
     @app.get("/api/favorites")
     async def api_favorites(
         limit: int = Query(_cfg.top_k_default, description="max favourites"),
