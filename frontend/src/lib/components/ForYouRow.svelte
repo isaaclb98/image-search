@@ -6,12 +6,22 @@
    *
    *   - Lightweight: no infinite scroll, no context menu
    *   - Click → opens Lightbox
+   *   - Like/Dislike/Most-similar wired through the Lightbox
+   *     (round-5 #1: For You row Like button now works because
+   *      we pass onToggleFavorite + onDislike + albums down)
    *   - Hover chrome same as SearchGrid tiles
    */
   import { onMount } from 'svelte';
-  import { forYouFeed } from '$lib/api/endpoints';
-  import { photoUrl } from '$lib/api/endpoints';
+  import {
+    forYouFeed,
+    likePoint,
+    unlikePoint,
+    dislikePoint,
+    listAlbums,
+    photoUrl
+  } from '$lib/api/endpoints';
   import { pageTint } from '$lib/stores/tint';
+  import { toast } from './Toaster.svelte';
   import PhotoTile from './PhotoTile.svelte';
   import Lightbox from './Lightbox.svelte';
 
@@ -25,6 +35,7 @@
   let items = $state<Tile[]>([]);
   let loading = $state(true);
   let lightboxIndex = $state<number | null>(null);
+  let albums = $state<{ id: number; name: string }[]>([]);
 
   async function load() {
     loading = true;
@@ -33,7 +44,7 @@
       const want = 20;
       const res = await forYouFeed(poolSize);
       const pool = res?.results ?? [];
-      // Pick `want` items uniformly without replacement, suffle first.
+      // Pick `want` items uniformly without replacement, shuffle first.
       const shuffled = [...pool].sort(() => Math.random() - 0.5);
       items = shuffled.slice(0, want).map((it: any) => ({
         id: it.id,
@@ -52,31 +63,65 @@
     if (items[0]?.id) pageTint.set(photoUrl(items[0].id));
   }
 
-  onMount(load);
+  async function loadAlbums() {
+    if (albums.length > 0) return;
+    try {
+      const res = (await listAlbums()) as { albums?: { id: number; name: string }[] };
+      albums = res?.albums ?? [];
+    } catch {
+      // non-fatal — right-click "Add to album" submenu will show empty
+    }
+  }
+
+  async function onToggleFavorite(id: string) {
+    const it = items.find((x) => x.id === id);
+    const liked = it?.is_favorite ?? false;
+    try {
+      if (liked) await unlikePoint(id);
+      else await likePoint(id);
+      items = items.map((x) =>
+        x.id === id ? { ...x, is_favorite: !liked } : x
+      );
+    } catch {
+      toast.show('Failed to update like.', { kind: 'error' });
+    }
+  }
+
+  async function onDislike(id: string) {
+    try {
+      await dislikePoint(id);
+      // No toast (round-4 #9) — silent. Lightbox button provides
+      // the visual feedback via .action:active { scale(0.96) }.
+    } catch {
+      toast.show('Failed to dislike.', { kind: 'error' });
+    }
+  }
+
+  onMount(() => {
+    load();
+    loadAlbums();
+  });
 </script>
 
 <section class="row-section">
   <header class="head">
     <h2>For you</h2>
-    <a href="/for-you" class="more">See all →</a>
+    <a class="more" href="/for-you">See all →</a>
   </header>
 
-  {#if loading}
-    <div class="placeholder">Tuning your recommendations…</div>
+  {#if loading && items.length === 0}
+    <p class="placeholder empty">Loading recommendations…</p>
   {:else if items.length === 0}
-    <div class="placeholder empty">
-      No recommendations yet — try a few searches and favourites so the
-      ranker has signal.
-    </div>
+    <p class="placeholder empty">No recommendations yet — like or dislike a few photos to seed the signal.</p>
   {:else}
     <div class="scroller" role="list">
-      {#each items as it, i (it.id + ':' + i)}
-        <div class="cell">
+      {#each items as it, i (it.id)}
+        <div class="cell" role="listitem">
           <PhotoTile
             pointId={it.id}
+            scoreStr={it.score_str}
             blurhash={it.blurhash ?? null}
-            scoreStr={it.score_str ?? ''}
-            isFavorite={it.is_favorite ?? false}
+            isFavorite={!!it.is_favorite}
             onOpen={() => (lightboxIndex = i)}
           />
         </div>
@@ -90,6 +135,9 @@
     items={items.map((i) => ({ id: i.id, blurhash: i.blurhash ?? null, isFavorite: !!i.is_favorite }))}
     index={lightboxIndex}
     onClose={() => (lightboxIndex = null)}
+    {onToggleFavorite}
+    {onDislike}
+    {albums}
   />
 {/if}
 

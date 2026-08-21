@@ -25,6 +25,7 @@
     score_str?: string;
     blurhash?: string | null;
     is_favorite?: boolean;
+    is_disliked?: boolean;
   };
 
   type Props = {
@@ -164,12 +165,14 @@
     items={items.map((i) => ({
       id: i.id,
       blurhash: i.blurhash ?? null,
-      isFavorite: i.is_favorite ?? false
+      isFavorite: i.is_favorite ?? false,
+      isDisliked: i.is_disliked ?? false
     }))}
     index={lightboxIndex}
     onClose={() => (lightboxIndex = null)}
     onToggleFavorite={(id) => onToggleFavorite?.(id)}
     onDislike={(id) => onDislike?.(id)}
+    {albums}
   />
 {/if}
 

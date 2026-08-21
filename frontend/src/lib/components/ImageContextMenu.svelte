@@ -48,11 +48,27 @@
 
   let ref: HTMLDivElement | undefined = $state();
   let submenuOpen = $state(false);
+  let submenuDropUp = $state(false);
   let fetchedAlbums = $state<AlbumOption[] | null>(null);
   let loadingAlbums = $state(false);
 
   async function openAlbumSubmenu() {
     submenuOpen = true;
+    // Decide whether to drop up or right based on the menu's
+    // proximity to the viewport bottom (round-5 #5: the user wanted
+    // the album submenu to drop UP when the menu is anchored near
+    // the bottom of the screen). We measure on the next frame so
+    // the .submenu DOM exists.
+    if (typeof window !== 'undefined') {
+      await Promise.resolve();
+      const rect = ref?.getBoundingClientRect();
+      if (rect) {
+        // If the menu bottom is within ~280 px of the viewport bottom,
+        // flip the submenu to drop up (above) the menu.
+        const vh = window.innerHeight;
+        submenuDropUp = vh - rect.bottom < 280;
+      }
+    }
     if (passedAlbums) return; // parent provided them
     if (fetchedAlbums) return; // already fetched
     loadingAlbums = true;
@@ -167,6 +183,7 @@
     {#if submenuOpen}
       <div
         class="submenu glass-strong"
+        class:drop-up={submenuDropUp}
         role="menu"
         onclick={(e) => e.stopPropagation()}
         onmouseleave={closeAlbumSubmenu}
@@ -248,9 +265,7 @@
     font-size: 12px;
   }
   .submenu {
-    /* Pop UP-LEFT or UP-RIGHT depending on the menu's proximity
-       to the right edge — for now, always pop up-right of the
-       parent item. */
+    /* Default: pop to the right of the parent item. */
     position: absolute;
     top: -6px;
     left: 100%;
@@ -268,6 +283,14 @@
   /* If the menu is anchored near the right edge, flip the submenu
      to the LEFT side so it stays in viewport. Best-effort: if the
      container would overflow the viewport, flip. */
+  /* If the parent menu is anchored near the bottom of the
+     viewport, flip the submenu to drop UP-LEFT instead. */
+  .submenu.drop-up {
+    top: auto;
+    bottom: -6px;
+    left: 100%;
+    margin-left: 4px;
+  }
   .submenu-empty {
     padding: 10px 14px;
     color: var(--fg-2);

@@ -4,8 +4,14 @@
    * nearest neighbours in the SigLIP2 embedding space. Reached by
    * clicking "Most similar" in the Lightbox; closes the lightbox
    * and navigates here.
+   *
+   * Round-5 #4: load all 100 in one shot, then show as a grid.
+   * Backend /api/similar accepts limit up to 100, so there's no
+   * need to page. We fetch the full set on mount; the page count
+   * text dynamically reflects what's been loaded.
    */
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import {
     similarPhotos,
@@ -23,13 +29,12 @@
     score_str?: string;
     blurhash?: string | null;
     is_favorite?: boolean;
+    is_disliked?: boolean;
   };
 
-  const PAGE = 20;
   const MAX_TOTAL = 100;
   let items = $state<Item[]>([]);
   let loading = $state(false);
-  let hasMore = $state(false);
   let error = $state<string | null>(null);
 
   async function refresh() {
@@ -37,13 +42,10 @@
     loading = true;
     error = null;
     try {
-      const res = await similarPhotos(id, PAGE);
+      // Fetch the full MAX_TOTAL in one call — the endpoint is a
+      // vector top-k and there's no "next page" semantics.
+      const res = await similarPhotos(id, MAX_TOTAL);
       items = (res?.results ?? []) as Item[];
-      // Hard cap at 100 — backend's limit is also 200, but we
-      // requested only PAGE. hasMore stays false because the
-      // similar-photos endpoint returns the top-k vector search
-      // — there's no "next page" semantics for nearest neighbours.
-      hasMore = false;
     } catch (e: any) {
       error = e?.message ?? 'Failed to load similar photos';
     } finally {
@@ -68,7 +70,11 @@
   async function onDislike(id: string) {
     try {
       await dislikePoint(id);
-      toast.show('Marked as not interested.', { kind: 'success' });
+      // No toast (round-4 #9). Mark disliked so the lightbox
+      // button stays lit until navigation.
+      items = items.map((x) =>
+        x.id === id ? { ...x, is_disliked: true } : x
+      );
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }
@@ -87,13 +93,23 @@
   <title>Most similar · image-search</title>
 </svelte:head>
 
-<a class="back" href="javascript:history.length > 1 ? history.back() : '/random'">
+<button
+  type="button"
+  class="back"
+  onclick={() => (history.length > 1 ? history.back() : goto('/random'))}
+>
   ← Back
-</a>
+</button>
 
 <section class="head glass">
   <h1>Most similar</h1>
-  <p>{items.length} of up to {MAX_TOTAL} nearest neighbours, ranked by visual closeness.</p>
+  <p>
+    {#if items.length === 0}
+      Up to {MAX_TOTAL} nearest neighbours, ranked by visual closeness.
+    {:else}
+      {items.length} of up to {MAX_TOTAL} nearest neighbours, ranked by visual closeness.
+    {/if}
+  </p>
 </section>
 
 {#if loading && items.length === 0}
@@ -109,7 +125,7 @@
     <SearchGrid
       {items}
       {loading}
-      {hasMore}
+      hasMore={false}
       onLoadMore={() => {}}
       {onToggleFavorite}
       {onDislike}
@@ -119,22 +135,27 @@
 
 <style>
   .back {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin: 12px 0 18px;
     color: var(--fg-2);
     background: transparent;
     border: 0;
     padding: 0;
     cursor: pointer;
-    font: inherit;
+    font-size: var(--fs-sm);
   }
   .back:hover { color: var(--fg-1); }
+
   .head {
-    margin: 16px 0 24px;
+    margin: 0 0 16px;
     padding: 22px 26px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 16px;
+    flex-wrap: wrap;
   }
   .head h1 {
     margin: 0;
@@ -144,15 +165,18 @@
   .head p {
     margin: 4px 0 0;
     color: var(--fg-2);
+    flex-basis: 100%;
   }
+
   .placeholder {
-    padding: 32px 24px;
+    color: var(--fg-3);
+    padding: 28px 16px;
+    background: var(--glass-1);
+    border: 1px solid var(--glass-edge);
+    border-radius: var(--r-3);
     text-align: center;
-    color: var(--fg-2);
+    font-size: var(--fs-sm);
   }
-  .placeholder.empty {
-    border: 1px dashed var(--glass-edge);
-    border-radius: var(--r-2);
-  }
-  .placeholder.error { color: var(--negative); }
+  .placeholder.empty,
+  .placeholder.error { color: var(--fg-2); }
 </style>

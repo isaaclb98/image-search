@@ -29,6 +29,7 @@
     score_str?: string;
     blurhash?: string | null;
     is_favorite?: boolean;
+    is_disliked?: boolean;
   };
 
   const PAGE = 20;
@@ -90,9 +91,12 @@
     try {
       await dislikePoint(id);
       // No toast — silent. Visual feedback is on the button itself
-      // (it briefly dims / scales on click; see .action.neg:hover).
-      // The Like/Dislike bar already gives the user a sense of
-      // "this happened" without a popup.
+      // (the .action.neg.active style lights up to mirror Like).
+      // Mark the item as disliked so the button stays in the
+      // "pressed" state until the user navigates away.
+      items = items.map((x) =>
+        x.id === id ? { ...x, is_disliked: true } : x
+      );
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }

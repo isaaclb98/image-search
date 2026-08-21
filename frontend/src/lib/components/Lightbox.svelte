@@ -42,6 +42,7 @@
     id: string;
     blurhash?: string | null;
     isFavorite?: boolean;
+    isDisliked?: boolean;
   };
 
   type Props = {
@@ -50,8 +51,11 @@
     onClose: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
+    /** User-created albums — passed down to the right-click
+     *  "Add to album" submenu (round-5). */
+    albums?: { id: number; name: string }[];
   };
-  let { items, index, onClose, onToggleFavorite, onDislike }: Props = $props();
+  let { items, index, onClose, onToggleFavorite, onDislike, albums }: Props = $props();
 
   let idx = $state(index);
   // Clamp `idx` to a valid range only when it's actually out of
@@ -155,10 +159,12 @@
       <button
         type="button"
         class="action neg"
+        class:active={current()?.isDisliked}
         onclick={() => current() && onDislike?.(current()!.id)}
         title="Dislike"
+        aria-pressed={current()?.isDisliked ? 'true' : 'false'}
       >
-        − Dislike
+        {current()?.isDisliked ? '− Disliked' : '− Dislike'}
       </button>
       <button
         type="button"
@@ -320,6 +326,17 @@
   }
   .action.like.active:hover {
     background: rgba(255, 122, 138, 0.28);
+  }
+  /* Mirror Like's "lit" feedback for Dislike (round-5 #3) so both
+     buttons show a clear pressed state and remain distinct by color
+     — pink for Like, cool blue-grey for Dislike. */
+  .action.neg.active {
+    background: rgba(140, 160, 200, 0.20);
+    border-color: rgba(140, 160, 200, 0.55);
+    color: #c9d3e6;
+  }
+  .action.neg.active:hover {
+    background: rgba(140, 160, 200, 0.30);
   }
   /* Subtle tint on the "Most similar" button so it doesn't look
      like a duplicate of Like/Dislike. */

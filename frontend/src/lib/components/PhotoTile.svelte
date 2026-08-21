@@ -16,8 +16,10 @@
   type Props = {
     pointId: string;
     blurhash?: string | null;
+    /** Back-compat alias for `blurhash` — ForYouRow passes the
+     *  pre-computed blurhash data URL under this name. */
+    dataUrl?: string | null;
     scoreStr?: string;
-    score?: number;
     isFavorite?: boolean;
     contextMenuOpen?: boolean;
     onOpen?: (id: string) => void;
@@ -26,6 +28,7 @@
   let {
     pointId,
     blurhash,
+    dataUrl: dataUrlProp,
     scoreStr,
     isFavorite,
     contextMenuOpen,
@@ -33,12 +36,14 @@
     onContextMenu
   }: Props = $props();
 
-  let dataUrl = $state<string | null>(null);
+  // Pre-computed data URL takes priority (caller already decoded
+  // the blurhash), otherwise we resolve it lazily on mount.
+  let dataUrl = $state<string | null>(dataUrlProp ?? null);
   let loaded = $state(false);
   let imgEl: HTMLImageElement | undefined = $state();
 
   onMount(() => {
-    if (blurhash) {
+    if (!dataUrl && blurhash) {
       blurhashToDataUrl(blurhash).then((u) => {
         if (u) dataUrl = u;
       });

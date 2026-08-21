@@ -32,6 +32,7 @@
     score_str?: string;
     blurhash?: string | null;
     is_favorite?: boolean;
+    is_disliked?: boolean;
   };
 
   const PAGE = 20;
@@ -97,6 +98,11 @@
   async function onDislike(id: string) {
     try {
       await dislikePoint(id);
+      // Mark as disliked so the lightbox button stays lit
+      // (round-5 #3 — visual feedback on Dislike).
+      items = items.map((x) =>
+        x.id === id ? { ...x, is_disliked: true } : x
+      );
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }
