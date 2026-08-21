@@ -1337,8 +1337,16 @@ def create_app(
 
     @app.get("/photo/{point_id}/raw")
     async def photo_raw(request: Request, point_id: str) -> Response:
+        # Every blocking call in this handler is wrapped in
+        # asyncio.to_thread — qdrant.retrieve, resolve_local,
+        # _is_path_alive, and local.stat can each block for
+        # seconds-to-minutes on a slow Qdrant or TrueNAS NFS. Without
+        # these wrappers, a single slow request blocks the entire
+        # uvicorn worker's event loop, and with WEB_CONCURRENCY=1
+        # that hangs the whole service (see probes commit
+        # gitops@9c075d0 — those are the band-aid for this same bug).
         try:
-            hit = qdrant.retrieve(point_id)
+            hit = await asyncio.to_thread(qdrant.retrieve, point_id)
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /photo/%s/raw: %s", point_id, e)
             raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
@@ -1349,11 +1357,19 @@ def create_app(
         # often a Windows UNC (or any source-side path) that is
         # never alive on the search server, so checking it directly
         # 404s every photo.
-        local = resolve_local(hit.path, _cfg.nas_images_base, _cfg.path_prefix)
-        if local is None or not _is_path_alive(str(local)):
+        local = await asyncio.to_thread(
+            resolve_local, hit.path, _cfg.nas_images_base, _cfg.path_prefix
+        )
+        # _is_path_alive does an os.stat / os.path.exists walk that
+        # can hang on a stuck TrueNAS NFS export.
+        is_alive = await asyncio.to_thread(
+            lambda p: local is not None and _is_path_alive(p),
+            str(local) if local is not None else "",
+        )
+        if not is_alive:
             raise HTTPException(status_code=404, detail="File not found on disk")
 
-        stat = local.stat()
+        stat = await asyncio.to_thread(local.stat)
         etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()
 
         # Per-spec If-None-Match: respond 304 with no body if the
@@ -2917,7 +2933,13 @@ def create_app(
 
     @app.get("/healthz")
     async def healthz() -> dict:
-        ok = qdrant.healthz()
+        # qdrant.healthz() is a sync HTTP call. Running it directly
+        # inside this async handler blocks the event loop for the
+        # duration of any slow Qdrant response — with
+        # WEB_CONCURRENCY=1 that means a single slow healthz call
+        # hangs the entire worker. Wrap in asyncio.to_thread so the
+        # loop stays free.
+        ok = await asyncio.to_thread(qdrant.healthz)
         return {"qdrant": ok, "test_mode": _cfg.test_mode}
 
     # ------------------------------------------------------------------
