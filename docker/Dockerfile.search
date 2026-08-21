@@ -72,8 +72,15 @@ RUN if [ "$PREWARM_MODEL" = "1" ]; then \
         SEARCH_TEST_MODE=1 python -m scripts.prewarm_model; \
     fi
 
-ENV WEB_CONCURRENCY=2 \
-    PORT=8000
+ENV WEB_CONCURRENCY=1 \
+    PORT=8000 \
+    # HF model cache lives on the PVC at /app/data/hf-cache so it
+    # survives container restarts AND avoids filling the small root
+    # volume (~14 GB free). Both transformers and open_clip respect
+    # HF_HOME as the canonical cache root.
+    HF_HOME=/app/data/hf-cache \
+    HF_HUB_CACHE=/app/data/hf-cache/hub \
+    TRANSFORMERS_CACHE=/app/data/hf-cache/hub
 
 EXPOSE 8000
 
