@@ -142,7 +142,7 @@ describe('search endpoint URL builder', () => {
     expect(url.searchParams.getAll('positives')).toEqual(['a', 'b']);
     expect(url.searchParams.getAll('negatives')).toEqual(['c']);
     expect(url.searchParams.get('filename')).toBe('IMG');
-    expect(url.searchParams.get('diversity_mode')).toBe('auto');
+    expect(url.searchParams.get('diversity')).toBe('auto');
     expect(url.searchParams.get('diversity_strength')).toBe('0.5');
     expect(url.searchParams.get('limit')).toBe('25');
     expect(url.searchParams.get('offset')).toBe('50');

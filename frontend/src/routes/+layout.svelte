@@ -3,6 +3,7 @@
   import '../lib/styles/global.css';
   import TopBar from '$lib/components/TopBar.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
+  import ScrollToTop from '$lib/components/ScrollToTop.svelte';
   import { pageTint } from '$lib/stores/tint';
 
   let { children } = $props();
@@ -28,6 +29,7 @@
     {@render children?.()}
   </main>
   <Toaster />
+  <ScrollToTop />
 </div>
 
 <style>

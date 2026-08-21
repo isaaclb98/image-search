@@ -68,7 +68,14 @@
   onMount(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prevOverflow; };
+    // Hide the top tab bar while the lightbox is open — otherwise
+    // its z-50 sticky strip bleeds through the semi-transparent
+    // overlay.
+    document.body.classList.add('lightbox-open');
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.classList.remove('lightbox-open');
+    };
   });
 </script>
 
@@ -147,6 +154,7 @@
   .overlay {
     position: fixed;
     inset: 0;
+    /* Above the top bar (z-50) and every other layer. */
     z-index: 500;
     background: rgba(8,8,12,0.55);
     backdrop-filter: blur(28px) saturate(180%);
@@ -154,6 +162,13 @@
     display: grid;
     place-items: center;
     animation: fade var(--t-med) var(--ease-out);
+  }
+  /* When the lightbox is open, the top tab bar would otherwise
+     bleed through the semi-transparent overlay (rgba 0.55). Hide
+     it via a body class so the user isn't fighting two layers of
+     nav at once. */
+  :global(body.lightbox-open .topbar) {
+    display: none;
   }
   @keyframes fade {
     from { opacity: 0; }
@@ -170,27 +185,29 @@
   }
   .content {
     position: relative;
-    /* Let the photo show at its natural dimensions. The overlay is
-       the only thing that's full-viewport; .content grows to the
-       image's intrinsic size, so nothing is cropped. */
-    max-width: 96vw;
-    max-height: 96vh;
+    /* Fit the photo in the viewport (with a small margin so it
+       doesn't kiss the edges). Photos SCALE DOWN to fit — never
+       up — so users never have to scroll inside the lightbox to
+       see the whole photo. */
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
     display: grid;
     place-items: center;
     border-radius: var(--r-3);
-    overflow: auto;
+    overflow: hidden;
     background: rgba(8,8,12,0.4);
     border: 1px solid var(--glass-edge);
   }
   .photo {
     display: block;
-    /* Scale the photo to the viewport's width; let height follow the
-       natural aspect ratio. Tall portraits keep their full height
-       inside the scrollable .content box (no cropping). */
+    /* object-fit: contain + max-* constraints scale the photo to
+       fit the viewport while preserving the natural aspect ratio.
+       No cropping, no scrolling required to see the full image. */
     max-width: 100%;
+    max-height: 100%;
     width: auto;
     height: auto;
-    margin: auto;
+    object-fit: contain;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
   }

@@ -266,10 +266,10 @@
 </section>
 
 <style>
+  /* Scrolls naturally with the page (no sticky). The user wanted
+     the search menu out of the way when reading results; the
+     scroll-to-top button at bottom-right is the way back up. */
   .search-head {
-    position: sticky;
-    top: var(--topbar-h);
-    z-index: 10;
     padding: 16px 0 12px;
     background: linear-gradient(180deg, var(--bg-0) 70%, rgba(14,15,20,0));
   }

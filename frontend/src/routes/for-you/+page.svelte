@@ -14,7 +14,8 @@
     forYouFeed,
     likePoint,
     unlikePoint,
-    dislikePoint
+    dislikePoint,
+    similarPhotos
   } from '$lib/api/endpoints';
   import SearchGrid from '$lib/components/SearchGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
@@ -86,6 +87,18 @@
     }
   }
 
+  async function onSimilar(id: string) {
+    try {
+      const res = await similarPhotos(id, 30);
+      items = (res?.results ?? []) as Item[];
+      hasMore = items.length >= PAGE;
+    } catch (e: any) {
+      toast.show(`Couldn't load similar photos: ${e?.message ?? e}`, {
+        kind: 'error',
+      });
+    }
+  }
+
   onMount(refresh);
 </script>
 
@@ -108,6 +121,7 @@
     onLoadMore={loadMore}
     {onToggleFavorite}
     {onDislike}
+    {onSimilar}
   />
 </section>
 

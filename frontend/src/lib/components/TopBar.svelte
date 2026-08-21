@@ -48,9 +48,11 @@
      backdrop-filter creates the frosted look with the colour tint
      bleeding through from the current photo. */
   .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 50;
+    /* Static (scrolls away with the page) — the user explicitly
+       asked for the top tab bar to NOT follow the screen. The
+       floating scroll-to-top button restores navigation reach
+       after a long scroll. */
+    position: static;
     background-color: rgba(14,15,20,0.12);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);

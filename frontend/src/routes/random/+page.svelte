@@ -1,7 +1,15 @@
 <script lang="ts">
   /**
-   * Random — pick N random photos. Loads more on scroll like
-   * SearchGrid. Like / Dislike toggles work in-place; the tile
+   * Random — pick N random photos. Infinite scroll: keeps loading
+   * more pages of random samples as the user scrolls. The dedupe
+   * pass in loadMore stops the cycle once the dedupe filter
+   * returns nothing new.
+   *
+   * No "Roll again" button — the page is meant to be browsed, not
+   * re-rolled. No "End of results" UI either: when the library is
+   * exhausted the scroll sentinel just stops firing.
+   *
+   * Like / Dislike / Most-similar toggles work in-place; the tile
    * stays in the grid either way.
    */
   import { onMount } from 'svelte';
@@ -9,7 +17,8 @@
     random,
     likePoint,
     unlikePoint,
-    dislikePoint
+    dislikePoint,
+    similarPhotos
   } from '$lib/api/endpoints';
   import SearchGrid from '$lib/components/SearchGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
@@ -33,7 +42,7 @@
     try {
       const res = await random(PAGE);
       items = (res?.results ?? []) as Item[];
-      hasMore = items.length >= PAGE;
+      hasMore = items.length > 0;
     } catch {
       items = [];
       hasMore = false;
@@ -48,10 +57,15 @@
     try {
       const res = await random(PAGE);
       const more = (res?.results ?? []) as Item[];
+      // Dedupe against what's already on screen. With /api/random
+      // returning fresh samples per call, repeats are rare but
+      // possible (especially in the 60-photo demo dataset). If
+      // dedupe yields zero new rows, stop the loop — the library
+      // is exhausted and the sentinel stops firing.
       const seen = new Set(items.map((i) => i.id));
       const fresh = more.filter((m) => !seen.has(m.id));
       items = [...items, ...fresh];
-      hasMore = more.length >= PAGE;
+      hasMore = fresh.length > 0;
     } catch {
       hasMore = false;
     } finally {
@@ -82,6 +96,19 @@
     }
   }
 
+  /** Replace items[] with the source photo's nearest neighbours. */
+  async function onSimilar(id: string) {
+    try {
+      const res = await similarPhotos(id, 30);
+      items = (res?.results ?? []) as Item[];
+      hasMore = items.length >= PAGE;
+    } catch (e: any) {
+      toast.show(`Couldn't load similar photos: ${e?.message ?? e}`, {
+        kind: 'error',
+      });
+    }
+  }
+
   onMount(refresh);
 </script>
 
@@ -91,10 +118,7 @@
 
 <section class="head glass">
   <h1>Random</h1>
-  <p>A smattering of what's on the shelf.</p>
-  <button type="button" class="reroll" onclick={refresh} disabled={loading}>
-    {loading ? 'Rolling…' : 'Roll again'}
-  </button>
+  <p>A smattering of what's on the shelf. Scroll for more.</p>
 </section>
 
 <section class="grid-wrap">
@@ -105,6 +129,7 @@
     onLoadMore={loadMore}
     {onToggleFavorite}
     {onDislike}
+    {onSimilar}
   />
 </section>
 
@@ -112,35 +137,15 @@
   .head {
     margin: 16px 0 24px;
     padding: 22px 26px;
-    display: grid;
-    grid-template-columns: 1fr auto;
+    display: flex;
     align-items: center;
-    gap: 12px 16px;
+    gap: 16px;
   }
   .head h1 {
     font-size: var(--fs-2xl);
     font-weight: 600;
     margin: 0;
-    grid-column: 1;
   }
-  .head p {
-    color: var(--fg-2);
-    margin: 0;
-    grid-column: 1;
-  }
-  .reroll {
-    grid-row: 1 / span 2;
-    grid-column: 2;
-    align-self: center;
-    height: 40px;
-    padding: 0 20px;
-    border-radius: var(--r-pill);
-    background: var(--glass-2);
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge-strong);
-    transition: background var(--t-fast);
-  }
-  .reroll:hover { background: rgba(255,255,255,0.14); }
-  .reroll:disabled { opacity: 0.5; pointer-events: none; }
+  .head p { color: var(--fg-2); margin: 4px 0 0; }
   .grid-wrap { padding-top: 8px; }
 </style>

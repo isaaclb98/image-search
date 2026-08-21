@@ -136,8 +136,6 @@
     {#if loading}
       <div class="loading">Loading more…</div>
     {/if}
-  {:else if items.length > 0}
-    <div class="loading end">End of results.</div>
   {/if}
 {/if}
 
@@ -190,7 +188,6 @@
     padding: 32px 0;
     font-size: var(--fs-sm);
   }
-  .loading.end { color: var(--fg-2); }
   .empty {
     text-align: center;
     padding: 80px 24px;
