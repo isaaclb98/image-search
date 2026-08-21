@@ -88,4 +88,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
 
-CMD ["sh", "-c", "exec gunicorn search.app:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --access-logfile -"]
+CMD ["sh", "-c", "exec gunicorn search.app:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 120 --graceful-timeout 90 --access-logfile -"]

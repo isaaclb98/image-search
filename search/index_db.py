@@ -1454,45 +1454,66 @@ class IndexDB:
         Returns a list of row dicts (id, path, shard, collection, mtime,
         size, indexed_at, is_favorite, favorited_at, width, height) —
         everything the random page needs to render without going back
-        to Qdrant. Uses SQLite's ORDER BY RANDOM() which is fine for
-        the scale this app operates at (≤ ~100k photos); if the
-        collection grows past that we can revisit with a reservoir
-        sample.
+        to Qdrant.
+
+        Implementation: random rowids in [MIN(rowid), MAX(rowid)] plus
+        WHERE rowid IN (...) + ORDER BY id + LIMIT n. Each rowid
+        lookup is an O(log N) index seek, so the whole sample is O(n)
+        instead of `ORDER BY RANDOM()`'s O(N log N) full-table sort.
+        Some random rowids won't match the collection filter (over-
+        fetch handles that), so the returned set is approximately
+        uniform but biased toward collections with denser rowids.
         """
         if n <= 0:
             return []
         collections = [c for c in (collections or []) if c]
+        select_cols = (
+            "i.id, i.path, i.shard, i.collection, i.mtime, i.size, "
+            "i.indexed_at, i.width, i.height, i.blurhash, "
+            "(f.id IS NOT NULL) AS is_favorite, f.favorited_at"
+        )
+        join_sql = "FROM images i LEFT JOIN favorites f ON i.id = f.id"
         with self._lock:
+            # Get the rowid range for the filtered set. With no filter
+            # this is the whole table.
             if collections:
                 placeholders = ",".join("?" for _ in collections)
-                rows = self._conn.execute(
-                    f"""
-                    SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                           i.size, i.indexed_at, i.width, i.height, i.blurhash,
-                           (f.id IS NOT NULL) AS is_favorite,
-                           f.favorited_at
-                    FROM images i
-                    LEFT JOIN favorites f ON i.id = f.id
-                    WHERE i.collection IN ({placeholders})
-                    ORDER BY RANDOM()
-                    LIMIT ?
-                    """,  # noqa: S608 - placeholders are parameterized, values bound separately
-                    [*collections, int(n)],
-                ).fetchall()
+                bounds = self._conn.execute(
+                    f"SELECT MIN(rowid), MAX(rowid) FROM images "
+                    f"WHERE collection IN ({placeholders})",  # noqa: S608
+                    collections,
+                ).fetchone()
             else:
-                rows = self._conn.execute(
-                    """
-                    SELECT i.id, i.path, i.shard, i.collection, i.mtime,
-                           i.size, i.indexed_at, i.width, i.height, i.blurhash,
-                           (f.id IS NOT NULL) AS is_favorite,
-                           f.favorited_at
-                    FROM images i
-                    LEFT JOIN favorites f ON i.id = f.id
-                    ORDER BY RANDOM()
-                    LIMIT ?
-                    """,
-                    (int(n),),
-                ).fetchall()
+                bounds = self._conn.execute(
+                    "SELECT MIN(rowid), MAX(rowid) FROM images"
+                ).fetchone()
+            min_rid, max_rid = bounds[0], bounds[1]
+            if min_rid is None or max_rid is None:
+                return []
+            # Pick n random rowids in [min_rid, max_rid]. Some won't
+            # exist (gaps from deletes) or won't match the collection
+            # filter, so over-fetch by ~3x to amortise that.
+            import random
+            target_count = max(n * 3, n + 8)
+            picked = {random.randint(min_rid, max_rid) for _ in range(target_count)}
+            if not picked:
+                return []
+            rid_placeholders = ",".join("?" for _ in picked)
+            where_parts = [f"i.rowid IN ({rid_placeholders})"]
+            params: list = [*picked]
+            if collections:
+                coll_placeholders = ",".join("?" for _ in collections)
+                where_parts.append(f"i.collection IN ({coll_placeholders})")
+                params.extend(collections)
+            sql = f"""
+                SELECT {select_cols}
+                {join_sql}
+                WHERE {' AND '.join(where_parts)}
+                ORDER BY i.id
+                LIMIT ?
+            """
+            params.append(int(n))
+            rows = self._conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
 
 
