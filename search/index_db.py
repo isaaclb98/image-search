@@ -1541,6 +1541,14 @@ class IndexDB:
                     coll_placeholders = ",".join("?" for _ in collections)
                     where_parts.append(f"i.collection IN ({coll_placeholders})")
                     params.extend(collections)
+                # Over-fetch at SQL level by 3x to give the caller
+                # buffer for _random_rows_to_results' lazy-liveness
+                # filter. The caller still slices the result to `n`,
+                # but if 30%+ of the picked rows have dead NAS files,
+                # we still get a full `n` alive rows back. (Round-6
+                # follow-up — limit*3 lets one pick_random_rows call
+                # absorb the dead-file rate instead of needing 5
+                # caller-level retries.)
                 sql = f"""
                     SELECT {select_cols}
                     {join_sql}
@@ -1548,7 +1556,7 @@ class IndexDB:
                     ORDER BY i.id
                     LIMIT ?
                 """
-                params.append(int(n))
+                params.append(int(n) * 3)
                 rows = self._conn.execute(sql, params).fetchall()
                 for row in rows:
                     row_dict = dict(row)
