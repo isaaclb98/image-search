@@ -1492,29 +1492,52 @@ class IndexDB:
                 return []
             # Pick n random rowids in [min_rid, max_rid]. Some won't
             # exist (gaps from deletes) or won't match the collection
-            # filter, so over-fetch by ~3x to amortise that.
+            # filter, so over-fetch significantly to amortise that.
+            # With a 1.85M-row prod collection that has rowid gaps,
+            # `max(n * 3, n + 8)` under-fetches ~5% of the time
+            # (returns 19 of 20). Bumped to `n * 10` with a +50 floor
+            # to handle small n, plus a 3-attempt retry that picks
+            # another `n * 5` rowids each pass. Total worst-case
+            # budget is `n * 25` picks — still O(n log N) for the
+            # rowid lookups, still much cheaper than ORDER BY RANDOM().
             import random
-            target_count = max(n * 3, n + 8)
-            picked = {random.randint(min_rid, max_rid) for _ in range(target_count)}
-            if not picked:
-                return []
-            rid_placeholders = ",".join("?" for _ in picked)
-            where_parts = [f"i.rowid IN ({rid_placeholders})"]
-            params: list = [*picked]
-            if collections:
-                coll_placeholders = ",".join("?" for _ in collections)
-                where_parts.append(f"i.collection IN ({coll_placeholders})")
-                params.extend(collections)
-            sql = f"""
-                SELECT {select_cols}
-                {join_sql}
-                WHERE {' AND '.join(where_parts)}
-                ORDER BY i.id
-                LIMIT ?
-            """
-            params.append(int(n))
-            rows = self._conn.execute(sql, params).fetchall()
-        return [dict(row) for row in rows]
+            results: list = []
+            seen_ids: set[str] = set()
+            attempts = 0
+            while len(results) < n and attempts < 3:
+                attempts += 1
+                target_count = max(n * 10, n + 50) if attempts == 1 else n * 5
+                picked = {
+                    random.randint(min_rid, max_rid) for _ in range(target_count)
+                }
+                if not picked:
+                    continue
+                rid_placeholders = ",".join("?" for _ in picked)
+                where_parts = [f"i.rowid IN ({rid_placeholders})"]
+                params: list = [*picked]
+                if collections:
+                    coll_placeholders = ",".join("?" for _ in collections)
+                    where_parts.append(f"i.collection IN ({coll_placeholders})")
+                    params.extend(collections)
+                sql = f"""
+                    SELECT {select_cols}
+                    {join_sql}
+                    WHERE {' AND '.join(where_parts)}
+                    ORDER BY i.id
+                    LIMIT ?
+                """
+                params.append(int(n))
+                rows = self._conn.execute(sql, params).fetchall()
+                for row in rows:
+                    row_dict = dict(row)
+                    row_id = row_dict["id"]
+                    if row_id in seen_ids:
+                        continue
+                    seen_ids.add(row_id)
+                    results.append(row_dict)
+                    if len(results) >= n:
+                        break
+        return results
 
 
 def _optional_int(value: Any) -> int | None:
