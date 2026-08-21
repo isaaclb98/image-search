@@ -41,7 +41,6 @@
   let mode = $state<'pos' | 'neg'>('pos');
   let filename = $state('');
   let diversityMode = $state('off');
-  let diversityStrength = $state(0);
   let diversityDepth = $state('auto');
   let filtersOpen = $state(false);
 
@@ -59,7 +58,6 @@
     negatives = q.getAll('negatives');
     filename = q.get('filename') ?? '';
     diversityMode = q.get('diversity') ?? 'off';
-    diversityStrength = Number(q.get('diversity_strength') ?? '0');
     diversityDepth = q.get('diversity_depth') ?? 'auto';
     filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto';
   }
@@ -71,7 +69,6 @@
     negatives.forEach((n) => qs.append('negatives', n));
     if (filename) qs.set('filename', filename);
     if (diversityMode !== 'off') qs.set('diversity', diversityMode);
-    if (diversityStrength > 0) qs.set('diversity_strength', String(diversityStrength));
     if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
     const next = qs.toString();
     if ($page.url.search.replace(/^\?/, '') !== next) {
@@ -115,7 +112,6 @@
           negatives,
           filename,
           diversityMode,
-          diversityStrength,
           diversityDepth,
           limit: PAGE,
           offset: 0
@@ -140,7 +136,7 @@
     try {
       const res = await search({
         positives, negatives, filename,
-        diversityMode, diversityStrength, diversityDepth,
+        diversityMode, diversityDepth,
         limit: PAGE, offset
       });
       const more = (res?.results ?? []) as Item[];
@@ -173,7 +169,10 @@
   async function onDislike(id: string) {
     try {
       await dislikePoint(id);
-      toast.show('Marked as not interested.', { kind: 'success' });
+      // No toast — silent. Visual feedback is on the button itself
+      // (it briefly dims / scales on click; see .action.neg:hover).
+      // The Like/Dislike bar already gives the user a sense of
+      // "this happened" without a popup.
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }
@@ -194,7 +193,7 @@
     void negatives;
     void filename;
     void diversityMode;
-    void diversityStrength;
+    void diversityDepth;
     void input;
     if (!browser) return;
     writeToUrl();
@@ -213,7 +212,6 @@
     {mode}
     {filename}
     {diversityMode}
-    {diversityStrength}
     {diversityDepth}
     {filtersOpen}
     onInput={(v) => (input = v)}
@@ -223,7 +221,6 @@
     onRemoveNegative={removeNegative}
     onFilename={(v) => (filename = v)}
     onDiversityMode={(v) => (diversityMode = v)}
-    onDiversityStrength={(v) => (diversityStrength = v)}
     onDiversityDepth={(v) => (diversityDepth = v)}
     onToggleFilters={() => (filtersOpen = !filtersOpen)}
     onSearch={reload}

@@ -16,7 +16,6 @@
   let mode = $state<'pos' | 'neg'>('pos');
   let filename = $state('');
   let diversityMode = $state('off');
-  let diversityStrength = $state(0);
   let diversityDepth = $state('auto');
   let filtersOpen = $state(false);
 
@@ -43,8 +42,6 @@
     // search/app.py:/api/search signature.
     if (diversityMode && diversityMode !== 'off')
       qs.set('diversity', diversityMode);
-    if (diversityStrength > 0)
-      qs.set('diversity_strength', String(diversityStrength));
     if (diversityDepth && diversityDepth !== 'auto')
       qs.set('diversity_depth', diversityDepth);
     goto(`/search?${qs.toString()}`, { keepFocus: true });
@@ -69,7 +66,6 @@
     {mode}
     {filename}
     {diversityMode}
-    {diversityStrength}
     {diversityDepth}
     {filtersOpen}
     onInput={(v) => (input = v)}
@@ -79,7 +75,6 @@
     onRemoveNegative={removeNegative}
     onFilename={(v) => (filename = v)}
     onDiversityMode={(v) => (diversityMode = v)}
-    onDiversityStrength={(v) => (diversityStrength = v)}
     onDiversityDepth={(v) => (diversityDepth = v)}
     onToggleFilters={() => (filtersOpen = !filtersOpen)}
     onSearch={runSearch}

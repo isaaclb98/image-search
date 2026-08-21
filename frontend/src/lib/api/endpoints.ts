@@ -102,9 +102,18 @@ export function similarPhotos(
   );
 }
 
-export function forYouFeed(limit = 20, signal?: AbortSignal) {
+export function forYouFeed(
+  limit = 20,
+  diversity = 'balanced',
+  diversityDepth = 'auto',
+  signal?: AbortSignal
+) {
+  const qs = new URLSearchParams();
+  qs.set('limit', String(limit));
+  if (diversity && diversity !== 'off') qs.set('diversity', diversity);
+  if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
   return apiGet<ForYouFeedResponse>(
-    `/api/for-you/feed?limit=${limit}`,
+    `/api/for-you/feed?${qs.toString()}`,
     {
       signal,
       schema: Z.ForYouFeedResponse,
@@ -214,6 +223,16 @@ export async function updateAlbum(
 
 export async function deleteAlbum(albumId: number) {
   await apiDelete(`/api/albums/${albumId}`);
+}
+
+/** Add a photo to an album. Idempotent — backend no-ops on duplicate. */
+export async function addPhotoToAlbum(albumId: number, pointId: string) {
+  await apiPost(`/api/albums/${albumId}/members/${encodeURIComponent(pointId)}`);
+}
+
+/** Remove a photo from an album. */
+export async function removePhotoFromAlbum(albumId: number, pointId: string) {
+  await apiDelete(`/api/albums/${albumId}/members/${encodeURIComponent(pointId)}`);
 }
 
 // ---------- Discover ----------

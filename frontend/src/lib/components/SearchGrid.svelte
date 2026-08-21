@@ -36,6 +36,9 @@
     onLoadMore?: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
+    /** User-created albums for the right-click "Add to album" submenu.
+     *  When omitted, the menu fetches them lazily on first hover. */
+    albums?: { id: number; name: string }[];
   };
   let {
     items,
@@ -43,7 +46,8 @@
     hasMore = false,
     onLoadMore,
     onToggleFavorite,
-    onDislike
+    onDislike,
+    albums
   }: Props = $props();
 
   $effect(() => {
@@ -83,11 +87,14 @@
   // the observer whenever the sentinel becomes available. Re-running
   // the effect is fine — each call disconnects the previous IO.
   //
-  // We also gate loadMore on window.scrollY > 50: without this, a
-  // short grid (items.length < viewport) triggers the IO on initial
-  // render and silently calls loadMore once before the user ever
-  // scrolls, which "cuts off weirdly" because the visible page ends
-  // up with PAGE + extra (e.g., 28 instead of 20 on /random).
+  // We gate loadMore on window.scrollY > 50 to avoid a one-shot
+  // fire on initial render where the IO sees the sentinel as
+  // intersecting right at mount (the prior round had this gate
+  // at the IO level but with a too-large rootMargin that left
+  // the sentinel "intersecting" for the whole page, so the gate
+  // alone didn't help). Now the rootMargin is small enough that
+  // the sentinel only intersects as the user scrolls near the
+  // bottom — and the scrollY gate is a belt-and-suspenders check.
   let io: IntersectionObserver | undefined;
   $effect(() => {
     // Touch the reactive deps so the effect re-runs on changes.
@@ -113,7 +120,12 @@
           }
         }
       },
-      { rootMargin: '0px 0px 600px 0px' }
+      // Sentinel must actually be near the bottom of the viewport
+      // for it to count as intersecting. With a larger margin the
+      // sentinel was always "intersecting" on a page taller than
+      // the viewport, so the IO never re-fired when the user
+      // actually scrolled.
+      { rootMargin: '0px 0px 200px 0px' }
     );
     io.observe(sentinel);
     return () => io?.disconnect();
@@ -168,6 +180,7 @@
     isFavorite={menuFor.isFavorite}
     x={menuFor.x}
     y={menuFor.y}
+    {albums}
     onClose={closeMenu}
     onToggleFavorite={(id) => { onToggleFavorite?.(id); closeMenu(); }}
   />

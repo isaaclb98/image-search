@@ -13,9 +13,7 @@
   import {
     listAlbums,
     createAlbum,
-    deleteAlbum,
-    listFavorites,
-    listDislikes
+    deleteAlbum
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
@@ -39,9 +37,11 @@
 
   async function refreshSystemCounts() {
     try {
+      // Fetch from the raw endpoints (no `as_results=1`) because
+      // the SearchResponse wrapper doesn't carry a count.
       const [favs, dis] = await Promise.all([
-        listFavorites(1) as Promise<unknown>,
-        listDislikes(1) as Promise<unknown>
+        fetch('/api/favorites?limit=1').then((r) => r.json()),
+        fetch('/api/dislikes?limit=1').then((r) => r.json())
       ]);
       likesCount = extractCount(favs);
       dislikesCount = extractCount(dis);
@@ -51,16 +51,22 @@
     }
   }
 
-  // /api/favorites and /api/dislikes both return either an array
-  // (light shape) or {favorites|dislikes: [...], total: N}. This
-  // extracts the count whichever shape came back.
+  // /api/favorites returns {favorites: [...], total: N}
+  // /api/dislikes returns {items: [...], count: N}
+  // Different shapes — handle both.
   function extractCount(body: unknown): number {
     if (Array.isArray(body)) return body.length;
     if (body && typeof body === 'object') {
       const o = body as Record<string, unknown>;
+      // /api/favorites uses `total`, /api/dislikes uses `count`.
       if (typeof o.total === 'number') return o.total;
+      if (typeof o.count === 'number') return o.count;
+      // Fallback: length of the array under any key.
       const list =
-        (o.favorites as unknown[]) ?? (o.dislikes as unknown[]) ?? [];
+        (o.favorites as unknown[]) ??
+        (o.dislikes as unknown[]) ??
+        (o.items as unknown[]) ??
+        [];
       if (Array.isArray(list)) return list.length;
     }
     return 0;

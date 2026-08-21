@@ -20,7 +20,21 @@
   let visible = $state(false);
 
   function onScroll() {
+    // Hide when the lightbox is open — otherwise the fixed button
+    // sits on top of the lightbox's bottom-right corner and gets
+    // in the way of the Like/Dislike/Most-similar bar.
+    if (document.body.classList.contains('lightbox-open')) {
+      visible = false;
+      return;
+    }
     visible = window.scrollY > threshold;
+  }
+
+  // Watch for lightbox open/close transitions too — the lightbox
+  // toggles `body.lightbox-open` on mount/cleanup, and scrollY
+  // doesn't necessarily change when that happens.
+  function onClassChange() {
+    onScroll();
   }
 
   function toTop() {
@@ -30,7 +44,12 @@
   onMount(() => {
     onScroll(); // initial state
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const obs = new MutationObserver(onClassChange);
+    obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      obs.disconnect();
+    };
   });
 </script>
 

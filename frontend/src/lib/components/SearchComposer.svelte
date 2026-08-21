@@ -19,7 +19,6 @@
     negatives: string[];
     filename: string;
     diversityMode: string;
-    diversityStrength: number;
     diversityDepth?: string;
   };
 
@@ -31,7 +30,6 @@
     mode: 'pos' | 'neg';
     filename: string;
     diversityMode: string;
-    diversityStrength: number;
     diversityDepth?: string;
     filtersOpen: boolean;
     // events
@@ -42,7 +40,6 @@
     onRemoveNegative: (i: number) => void;
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
-    onDiversityStrength: (v: number) => void;
     onDiversityDepth?: (v: string) => void;
     onToggleFilters: () => void;
     onSearch: () => void;
@@ -59,7 +56,6 @@
     mode,
     filename,
     diversityMode,
-    diversityStrength,
     diversityDepth = 'auto',
     filtersOpen,
     onInput,
@@ -69,7 +65,6 @@
     onRemoveNegative,
     onFilename,
     onDiversityMode,
-    onDiversityStrength,
     onDiversityDepth,
     onToggleFilters,
     onSearch,
@@ -97,12 +92,10 @@
       open={filtersOpen}
       {filename}
       {diversityMode}
-      {diversityStrength}
       {diversityDepth}
       onToggle={onToggleFilters}
       {onFilename}
       {onDiversityMode}
-      {onDiversityStrength}
       {onDiversityDepth}
     />
   {/if}

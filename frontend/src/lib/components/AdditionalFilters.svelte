@@ -7,35 +7,27 @@
    * Diversity API contract (see search/diversity.py):
    *   diversity_mode  ∈ {off, low, balanced, high}
    *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000}
-   *   diversity_strength ∈ [0, 1]
-   *
-   * Frontend used to send the legacy {off, auto, on} triplet which
-   * the backend rejected as invalid (ValueError on resolve_mode),
-   * so the slider/select were silently no-ops. The values below
-   * match the backend contract.
+   *   (diversity_strength was a 0–1 slider; removed in round-4
+   *    per king — the mode dropdown is enough.)
    */
   type Props = {
     open: boolean;
     filename: string;
     diversityMode: 'off' | 'low' | 'balanced' | 'high' | string;
-    diversityStrength: number;
     diversityDepth?: 'auto' | '500' | '1000' | '2000' | '5000' | string;
     onToggle: () => void;
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
-    onDiversityStrength: (v: number) => void;
     onDiversityDepth?: (v: string) => void;
   };
   let {
     open,
     filename,
     diversityMode,
-    diversityStrength,
     diversityDepth = 'auto',
     onToggle,
     onFilename,
     onDiversityMode,
-    onDiversityStrength,
     onDiversityDepth
   }: Props = $props();
 </script>
@@ -76,19 +68,6 @@
             <option value="balanced">Balanced</option>
             <option value="high">High</option>
           </select>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            value={Math.round(diversityStrength * 100)}
-            oninput={(e) =>
-              onDiversityStrength(
-                Number((e.target as HTMLInputElement).value) / 100
-              )}
-            aria-label="Diversity strength"
-            title="How aggressively to re-rank for diversity"
-          />
         </div>
       </div>
       {#if onDiversityDepth}

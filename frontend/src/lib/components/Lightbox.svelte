@@ -54,7 +54,17 @@
   let { items, index, onClose, onToggleFavorite, onDislike }: Props = $props();
 
   let idx = $state(index);
-  $effect(() => { idx = Math.max(0, Math.min(items.length - 1, index)); });
+  // Clamp `idx` to a valid range only when it's actually out of
+  // bounds (e.g., items shrunk). Don't reset it on every items
+  // update — earlier a `$effect(() => idx = clamp(index, ...))`
+  // would fire mid-render with a transient items array and send
+  // idx to 0, which made the Like click jump the user back to
+  // the first photo (issue round-4 #1).
+  $effect(() => {
+    if (items.length > 0 && idx >= items.length) {
+      idx = items.length - 1;
+    }
+  });
 
   let tint = $state<string | null>(null);
 
@@ -282,14 +292,24 @@
     background: var(--glass-1);
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
-    transition: background var(--t-fast);
+    transition:
+      background var(--t-fast),
+      border-color var(--t-fast),
+      color var(--t-fast),
+      transform var(--t-fast);
     text-decoration: none;
     font-size: var(--fs-sm);
+    font-weight: 500;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
   }
   .action:hover { background: var(--glass-2); }
+  /* Click feedback — visible scale-down on press. Works for both
+     Like and Dislike (no backend field needed for "this was
+     clicked"). */
+  .action:active { transform: scale(0.96); }
   .action.neg { color: var(--negative); }
   /* Pressed feedback: when the photo is liked, the button lights up
      pink and stays lit so users know their click registered. */

@@ -89,7 +89,10 @@
   async function onDislike(id: string) {
     try {
       await dislikePoint(id);
-      toast.show('Marked as not interested.', { kind: 'success' });
+      // No toast — silent. Visual feedback is on the button itself
+      // (it briefly dims / scales on click; see .action.neg:hover).
+      // The Like/Dislike bar already gives the user a sense of
+      // "this happened" without a popup.
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }
