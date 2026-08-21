@@ -95,8 +95,10 @@
   }
 
   onMount(() => {
-    refresh();
-    refreshSystemCounts();
+    // Both fetch from independent endpoints; run them in parallel
+    // so the page reaches a fully-populated state in max(t1, t2)
+    // instead of t1 + t2. (Tier 1.5.)
+    Promise.all([refresh(), refreshSystemCounts()]);
   });
 </script>
 

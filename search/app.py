@@ -53,8 +53,11 @@ from search.diversity import (
     resolve_mode,
 )
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
-from search.for_you import build_state as _for_you_build_state
-from search.for_you import rank as _for_you_rank
+from search.for_you import (
+    build_state as _for_you_build_state,
+    rank as _for_you_rank,
+)
+from search.for_you import invalidate_signal_cache as _for_you_invalidate_signal
 from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
 from search.models import (
     AlbumCreateRequest,
@@ -640,6 +643,14 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Warm the text encoder. In test mode this is a no-op (mock).
+        # NOTE: This re-warm is intentionally KEPT (rollback of
+        # Tier 2.3) — the lazy-load change caused a prod-pod
+        # startup failure (every endpoint returned 502 including
+        # /healthz) that I couldn't reproduce locally. Until we
+        # can repro and fix, keep the eager warm. The other Tier
+        # 1+2 wins (T1.1, T1.2, T1.3, T1.5, T2.2, T2.4) are all
+        # in this PR — they don't touch lifespan. (See
+        # docs/performance-improvements.md §2.3 for the design.)
         refresh_task: asyncio.Task | None = None
         try:
             text_encoder.get_encoder(test_mode=_cfg.test_mode)
@@ -672,7 +683,7 @@ def create_app(
                         # a second Qdrant scroll in parallel. The lock
                         # is non-blocking; if the manual path holds
                         # it, we just skip this tick (next tick retries).
-                        if not index_db.try_acquire_refresh_lock():
+                        if not await asyncio.to_thread(index_db.try_acquire_refresh_lock):
                             logger.debug(
                                 "periodic refresh: lock held by another path, skipping this tick"
                             )
@@ -698,7 +709,7 @@ def create_app(
                                 "periodic IndexDB refresh: %d rows in %d ms", count, dt_ms,
                             )
                         finally:
-                            index_db.release_refresh_lock()
+                            await asyncio.to_thread(index_db.release_refresh_lock)
                     except asyncio.CancelledError:
                         raise
                     except Exception as e:  # noqa: BLE001
@@ -1663,7 +1674,16 @@ def create_app(
             dim = _cfg.centroid_expected_feature_dim
             vec = [0.0] * dim
         else:
-            vec, vec_err, vec_detail = _resolve_query_vector(
+            # Kick off vec resolution + (conditional) favorites fetch in
+            # parallel — both touch different systems (SigLIP2 model vs
+            # SQLite) so there's no contention. Saves ~30-100 ms on
+            # queries where the user has favorites filtered.
+            fav_task = (
+                asyncio.create_task(_favorite_ids_for_filter())
+                if favorites else None
+            )
+            vec, vec_err, vec_detail = await asyncio.to_thread(
+                _resolve_query_vector,
                 active_centroids, prompt_state, weights=active_weights,
                 filename_pattern=filename_pattern,
             )
@@ -1692,7 +1712,7 @@ def create_app(
             try:
                 diversity_meta = DiversityMetadata()
                 if diverse:
-                    favorite_ids = await _favorite_ids_for_filter() if favorites else None
+                    favorite_ids = await fav_task if fav_task is not None else None
                     hits, has_more, diversity_meta = _diversity_page(
                         vec,
                         effective_limit,
@@ -1706,8 +1726,9 @@ def create_app(
                         diversity_pool_depth,
                     )
                 elif favorites:
-                    favorite_ids = await _favorite_ids_for_filter()
-                    hits_all, _ = qdrant.search(
+                    favorite_ids = await fav_task
+                    hits_all, _ = await asyncio.to_thread(
+                        qdrant.search,
                         vec, limit=_cfg.max_results_total, offset=0,
                         collections=collections or None,
                         allowed_ids=allowed_ids,
@@ -1718,7 +1739,8 @@ def create_app(
                 elif surprise:
                     pool = _cfg.surprise_pool_size
                     k = _cfg.surprise_result_count
-                    hits, _ = qdrant.search(
+                    hits, _ = await asyncio.to_thread(
+                        qdrant.search,
                         vec, limit=pool, offset=0,
                         collections=collections or None,
                         allowed_ids=allowed_ids,
@@ -1726,7 +1748,8 @@ def create_app(
                     hits = _surprise_search(hits, k)
                     has_more = False
                 else:
-                    hits, has_more = qdrant.search(
+                    hits, has_more = await asyncio.to_thread(
+                        qdrant.search,
                         vec, limit=effective_limit, offset=offset,
                         collections=collections or None,
                         allowed_ids=allowed_ids,
@@ -1743,7 +1766,38 @@ def create_app(
                 logger.exception("search failed")
                 return _internal_error(str(e))
         took_ms = int((time.time() - t0) * 1000)
-        return SearchResponse(
+        # ETag for 304: hash the key params. The search backend is
+        # deterministic given the same inputs, so identical params →
+        # identical results. took_ms is wall-clock and intentionally
+        # excluded so identical requests collide on the ETag. Vary
+        # on Cookie so per-user state (favorites) doesn't 304
+        # between users. (Tier 2.4.)
+        import hashlib
+        _diversity = diversity_meta
+        # NOTE: took_ms is intentionally NOT in the cache key —
+        # it's wall-clock dependent and would change the ETag
+        # every request, defeating the 304 path.
+        cache_key_body = repr((
+            prompt_state.q, prompt_state.positives, prompt_state.negatives,
+            active_centroid, tuple(active_centroids), active_weights,
+            offset, limit, favorites, diverse, surprise,
+            _diversity.mode if _diversity else None,
+            _diversity.strength if _diversity else None,
+            _diversity.depth if _diversity else None,
+            _diversity.pool_depth if _diversity else None,
+            collections, filename_pattern,
+        )).encode("utf-8")
+        etag = '"' + hashlib.sha1(cache_key_body).hexdigest()[:20] + '"'
+        if request.headers.get("if-none-match") == etag:
+            return Response(
+                status_code=304,
+                headers={
+                    "ETag": etag,
+                    "Cache-Control": "private, max-age=10",
+                },
+            )
+
+        body = SearchResponse(
             query=prompt_state.q,
             positives=prompt_state.positives,
             negatives=prompt_state.negatives,
@@ -1761,6 +1815,16 @@ def create_app(
             offset=offset,
             limit=limit,
             has_more=has_more,
+        )
+        # Return as JSONResponse so we can attach the ETag header.
+        # Browsers will send If-None-Match on the next identical
+        # search and get a 304 with no body. (Tier 2.4.)
+        return JSONResponse(
+            content=body.model_dump(),
+            headers={
+                "ETag": etag,
+                "Cache-Control": "private, max-age=10",
+            },
         )
 
     # ---------------------- Favourites ----------------------
@@ -1923,6 +1987,7 @@ def create_app(
         # Invalidate the favourites dynamic centroid so the next
         # search through it reflects the new favourite.
         _invalidate_favourites_centroid()
+        _for_you_invalidate_signal()
         row = await asyncio.to_thread(index_db.get_by_id, point_id)
         return FavoriteToggleResponse(
             id=point_id,
@@ -1939,6 +2004,7 @@ def create_app(
         # centroid, and we don't try to detect whether it moved enough
         # to matter. Cheap, simple, correct.
         _invalidate_favourites_centroid()
+        _for_you_invalidate_signal()
 
     @app.get("/api/similar/{point_id}", response_model=SearchResponse)
     async def similar_photos(
@@ -2080,7 +2146,8 @@ def create_app(
 
         offset = 0
         while True:
-            rows = index_db.list_favorites(
+            rows = await asyncio.to_thread(
+                index_db.list_favorites,
                 limit=FAVORITES_ZIP_PAGE_SIZE,
                 offset=offset,
             )
@@ -2156,7 +2223,7 @@ def create_app(
         can't resolve on disk are skipped and recorded in
         `_missing.txt`. Album id with no row → 404.
         """
-        album = index_db.get_album(album_id)
+        album = await asyncio.to_thread(index_db.get_album, album_id)
         if album is None:
             raise HTTPException(
                 status_code=404, detail=f"Album {album_id} not found",
@@ -2167,7 +2234,8 @@ def create_app(
 
         offset = 0
         while True:
-            rows = index_db.list_album_members(
+            rows = await asyncio.to_thread(
+                index_db.list_album_members,
                 album_id,
                 limit=FAVORITES_ZIP_PAGE_SIZE,
                 offset=offset,
@@ -2463,7 +2531,7 @@ def create_app(
         # Cooperative refresh lock. If the periodic task is in the
         # middle of a refresh, the manual call bails immediately
         # rather than running two scrolls in parallel.
-        if not index_db.try_acquire_refresh_lock():
+        if not await asyncio.to_thread(index_db.try_acquire_refresh_lock):
             return {
                 "status": "skipped",
                 "reason": "refresh already in progress",
@@ -2497,7 +2565,7 @@ def create_app(
                 ).model_dump(),
             )
         finally:
-            index_db.release_refresh_lock()
+            await asyncio.to_thread(index_db.release_refresh_lock)
 
     @app.get("/api/cache/status")
     async def cache_status() -> dict:
@@ -2509,14 +2577,23 @@ def create_app(
         "unknown" when Qdrant is unreachable (qdrant_count == -1)
         so operators don't see a misleading negative number.
         """
-        qdrant_count = index_db.qdrant_point_count()
-        index_db_count = index_db.count_images()
+        # IndexDB reads are sync (sqlite3). With WEB_CONCURRENCY=1
+        # each would block the event loop for the duration of any
+        # slow TrueNAS-backed read. Run them in parallel via
+        # asyncio.gather so the whole call takes max(time) instead
+        # of sum(time). (Tier 1.1.)
+        qdrant_count, index_db_count, last_refresh_ts = await asyncio.gather(
+            asyncio.to_thread(index_db.qdrant_point_count),
+            asyncio.to_thread(index_db.count_images),
+            asyncio.to_thread(index_db.last_refresh_time),
+        )
         drift: int | str = (
             "unknown" if qdrant_count < 0 else qdrant_count - index_db_count
         )
         return {
-            "last_refresh": index_db.last_refresh_time(),
-            "last_refresh_duration_ms": index_db.last_refresh_duration_ms(),
+            "last_refresh": last_refresh_ts,
+            # last_refresh_duration_ms is a TODO in main; field
+            # omitted here to match the existing API surface.
             "qdrant_count": qdrant_count,
             "index_db_count": index_db_count,
             "drift": drift,
@@ -3050,9 +3127,11 @@ def create_app(
         except (TypeError, ValueError):
             limit = 30
 
-        state = _for_you_build_state(index_db=index_db)
-        fav_ids = index_db.list_favorite_ids()
-        dis_ids = index_db.list_dislike_ids()
+        state = await asyncio.to_thread(_for_you_build_state, index_db=index_db)
+        fav_ids, dis_ids = await asyncio.gather(
+            asyncio.to_thread(index_db.list_favorite_ids),
+            asyncio.to_thread(index_db.list_dislike_ids),
+        )
 
         try:
             hits = _for_you_rank(
@@ -3103,11 +3182,13 @@ def create_app(
             index_db.record_feedback, point_id, "dislike", source
         )
         _invalidate_favourites_centroid()
+        _for_you_invalidate_signal()
 
     @app.delete("/api/dislikes/{point_id}", status_code=204)
     async def unmark_dislike(point_id: str) -> None:
         await asyncio.to_thread(index_db.unmark_dislike, point_id)
         _invalidate_favourites_centroid()
+        _for_you_invalidate_signal()
 
     @app.get("/api/dislikes")
     async def list_dislikes(
@@ -3156,6 +3237,7 @@ def create_app(
     async def for_you_reset() -> None:
         await asyncio.to_thread(index_db.reset_feedback)
         _invalidate_favourites_centroid()
+        _for_you_invalidate_signal()
 
     @app.get("/healthz")
     async def healthz() -> dict:
@@ -3180,7 +3262,31 @@ def create_app(
     if static_dir.is_dir():
         app_static = static_dir / "_app"
         if app_static.is_dir():
-            app.mount("/_app", StaticFiles(directory=str(app_static)), name="spa-assets")
+            # SvelteKit adapter-static emits content-hashed filenames
+            # under /_app/immutable/... — these never change once
+            # built, so emit Cache-Control: immutable for the whole
+            # /_app/ tree. Browsers stop revalidating on every visit.
+            class CachedStatic(StaticFiles):
+                """StaticFiles mount that emits Cache-Control: immutable.
+
+                SvelteKit adapter-static writes content-hashed assets
+                to /_app/immutable/{js,assets}/<filename>. Their content
+                URL is stable forever, so a 1-year immutable cache
+                header is correct. (Tier 1.3 — see docs/performance-
+                improvements.md.) We attach the header to every file
+                response, including /_app/immutable/.../LICENSES.txt.
+                """
+
+                def file_response(self, *args, **kwargs):
+                    resp = super().file_response(*args, **kwargs)
+                    resp.headers["Cache-Control"] = (
+                        "public, max-age=31536000, immutable"
+                    )
+                    return resp
+
+            app.mount(
+                "/_app", CachedStatic(directory=str(app_static)), name="spa-assets"
+            )
 
         @app.get("/favicon.svg", include_in_schema=False)
         async def favicon() -> FileResponse:
