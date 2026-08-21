@@ -642,29 +642,62 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        # Warm the text encoder. In test mode this is a no-op (mock).
-        # NOTE: This re-warm is intentionally KEPT (rollback of
-        # Tier 2.3) — the lazy-load change caused a prod-pod
-        # startup failure (every endpoint returned 502 including
-        # /healthz) that I couldn't reproduce locally. Until we
-        # can repro and fix, keep the eager warm. The other Tier
-        # 1+2 wins (T1.1, T1.2, T1.3, T1.5, T2.2, T2.4) are all
-        # in this PR — they don't touch lifespan. (See
-        # docs/performance-improvements.md §2.3 for the design.)
+        # Tier 2.3 (defensive) — startup work as background tasks.
+        #
+        # The previous version ran two heavy startup operations inline:
+        #
+        #   1. text_encoder.get_encoder()    (~3 GB / ~30 s on cold cache)
+        #   2. index_db.init_from_qdrant()   (full Qdrant scroll — minutes
+        #                                     on a 50k-photo collection)
+        #
+        # Both are wrapped in to_thread, but they still BLOCK the lifespan
+        # completion signal. With gunicorn --workers 1 and a startupProbe
+        # budget of 5 min (30 × 10s), an init_from_qdrant that takes
+        # longer than 5 min makes the pod fail to become Ready, ArgoCD
+        # kills it, the user sees 502 on every endpoint. That was the
+        # prod failure in commit 542a553.
+        #
+        # Fix: kick both off as background tasks and let lifespan return
+        # immediately. The /healthz probe returns 200 while these are
+        # still running; /api/search will lazy-load the encoder on the
+        # first text query, and the search results will be a no-op
+        # (with a clear warning logged) until init_from_qdrant finishes.
+        async def _bg_text_encoder_warmup() -> None:
+            try:
+                # get_encoder is a module-level lazy singleton — first
+                # call does the actual ~30 s load. Off-thread because
+                # it's sync and would otherwise monopolise the loop.
+                await asyncio.to_thread(
+                    text_encoder.get_encoder,
+                    test_mode=_cfg.test_mode,
+                )
+                logger.info("text encoder warmed in background")
+            except Exception as e:  # noqa: BLE001
+                logger.warning("text encoder background warm-up failed: %s", e)
+
+        async def _bg_init_from_qdrant() -> None:
+            try:
+                count = await asyncio.to_thread(index_db.init_from_qdrant)
+                logger.info("index cache built from Qdrant: %d points", count)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("index cache background warm-up failed: %s", e)
+
         refresh_task: asyncio.Task | None = None
-        try:
-            text_encoder.get_encoder(test_mode=_cfg.test_mode)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("text encoder warm-up failed: %s", e)
+        # Log a warning immediately if Qdrant is unreachable so the
+        # issue is visible in pod logs even before init_from_qdrant
+        # completes. healthz() is sync but cheap (<10 ms typical) so
+        # keeping it inline is fine.
         if not qdrant.healthz():
             logger.warning(
                 "Qdrant unreachable at startup (%s) — search will fail until it recovers",
                 _cfg.qdrant_url,
             )
-        try:
-            await asyncio.to_thread(index_db.init_from_qdrant)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("index cache warm-up failed: %s", e)
+
+        # Fire-and-forget; tasks survive past this `await` because they
+        # hold references via the closure. asyncio.create_task schedules
+        # them on the running loop without blocking lifespan return.
+        encoder_warmup_task = asyncio.create_task(_bg_text_encoder_warmup())
+        index_init_task = asyncio.create_task(_bg_init_from_qdrant())
 
         # Periodic IndexDB refresh. Picks up bulk indexer runs without
         # the operator having to hit POST /api/cache/refresh manually.
@@ -726,6 +759,29 @@ def create_app(
                     pass
                 except Exception as e:  # noqa: BLE001
                     logger.warning("refresh task shutdown: %s", e)
+            # Cancel and wait for the background startup tasks. If
+            # init_from_qdrant is mid-write to SQLite, give it a
+            # short grace period then cancel — we'd rather lose
+            # unflushed rows than block shutdown.
+            for _bg_task in (
+                locals().get("encoder_warmup_task"),
+                locals().get("index_init_task"),
+            ):
+                if _bg_task is None:
+                    continue
+                if not _bg_task.done():
+                    try:
+                        await asyncio.wait_for(_bg_task, timeout=2.0)
+                    except asyncio.TimeoutError:
+                        _bg_task.cancel()
+                        try:
+                            await _bg_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("background startup task shutdown: %s", e)
             await asyncio.to_thread(index_db.close)
 
     app = FastAPI(
