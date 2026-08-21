@@ -2775,17 +2775,17 @@ def create_app(
                 seen.add(c)
                 clean_collections.append(c)
         try:
-            # pick_random_rows over-fetches by ~10x and dedupes across
-            # 3 attempts, but the rows it returns may still get filtered
-            # down by the lazy-liveness check in _random_rows_to_results
-            # (rows whose on-disk file is gone). When the underlying
-            # collection has any dead-file rate, the surviving count is
-            # often < limit. Keep fetching until we have `limit` alive
-            # rows, capped at 5 attempts so the loop terminates if the
-            # collection is genuinely exhausted. (Round-6 follow-up.)
+            # pick_random_rows over-fetches by ~10x (LIMIT n*10) and the
+            # SQL rowid-pick has a 3-attempt internal retry loop. But the
+            # liveness filter in _random_rows_to_results may still drop
+            # rows whose NAS path is misclassified as dead by the
+            # 60-second lazy-liveness cache. Keep accumulating picks
+            # across calls until we have `limit` rows, capped at 10
+            # attempts so the loop terminates if the collection is
+            # genuinely exhausted.
             rows: list[dict] = []
             seen_ids: set[str] = set()
-            for _ in range(5):
+            for _ in range(10):
                 more = await asyncio.to_thread(
                     index_db.pick_random_rows, limit, clean_collections or None
                 )

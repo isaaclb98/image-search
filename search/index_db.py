@@ -1541,14 +1541,16 @@ class IndexDB:
                     coll_placeholders = ",".join("?" for _ in collections)
                     where_parts.append(f"i.collection IN ({coll_placeholders})")
                     params.extend(collections)
-                # Over-fetch at SQL level by 3x to give the caller
+                # Over-fetch at SQL level by 10x to give the caller
                 # buffer for _random_rows_to_results' lazy-liveness
-                # filter. The caller still slices the result to `n`,
-                # but if 30%+ of the picked rows have dead NAS files,
-                # we still get a full `n` alive rows back. (Round-6
-                # follow-up — limit*3 lets one pick_random_rows call
-                # absorb the dead-file rate instead of needing 5
-                # caller-level retries.)
+                # filter. With prod's lazy-liveness cache mis-categorising
+                # some alive files as dead (NAS mounts sometimes report
+                # non-existent for reachable paths), the effective dead
+                # rate on first-call is much higher than the underlying
+                # true rate — empirical testing on the prod collection
+                # showed ~5-10% of fetched rows being dropped post-filter
+                # even with 3x over-fetch. 10x is the buffer that
+                # actually saturates at 20/20 for the 5-column grid.
                 sql = f"""
                     SELECT {select_cols}
                     {join_sql}
@@ -1556,7 +1558,7 @@ class IndexDB:
                     ORDER BY i.id
                     LIMIT ?
                 """
-                params.append(int(n) * 3)
+                params.append(int(n) * 10)
                 rows = self._conn.execute(sql, params).fetchall()
                 for row in rows:
                     row_dict = dict(row)
