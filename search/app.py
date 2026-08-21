@@ -2775,13 +2775,34 @@ def create_app(
                 seen.add(c)
                 clean_collections.append(c)
         try:
-            rows = await asyncio.to_thread(
-                index_db.pick_random_rows, limit, clean_collections or None
-            )
+            # pick_random_rows over-fetches by ~10x and dedupes across
+            # 3 attempts, but the rows it returns may still get filtered
+            # down by the lazy-liveness check in _random_rows_to_results
+            # (rows whose on-disk file is gone). When the underlying
+            # collection has any dead-file rate, the surviving count is
+            # often < limit. Keep fetching until we have `limit` alive
+            # rows, capped at 5 attempts so the loop terminates if the
+            # collection is genuinely exhausted. (Round-6 follow-up.)
+            rows: list[dict] = []
+            seen_ids: set[str] = set()
+            for _ in range(5):
+                more = await asyncio.to_thread(
+                    index_db.pick_random_rows, limit, clean_collections or None
+                )
+                for r in more:
+                    rid = str(r.get("id"))
+                    if rid in seen_ids:
+                        continue
+                    seen_ids.add(rid)
+                    rows.append(r)
+                    if len(rows) >= limit:
+                        break
+                if len(rows) >= limit:
+                    break
         except Exception as e:
             logger.exception("random sample failed")
             return _internal_error(str(e))
-        results = _random_rows_to_results(rows)
+        results = _random_rows_to_results(rows[:limit])
         # has_more = True when we filled the page (might be more) or
         # when the caller asked for more than the collection holds
         # (everything fits, nothing more). The /random UI uses an
