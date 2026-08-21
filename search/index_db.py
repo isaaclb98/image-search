@@ -854,6 +854,23 @@ class IndexDB:
             ).fetchall()
         return [row["id"] for row in rows]
 
+    def dislike_id_set(self, ids: list[str]) -> set[str]:
+        """Subset of `ids` that are currently in the dislikes table.
+
+        Used by /api/search to mark is_disliked on each result without
+        paying the O(N dislikes) cost of list_dislike_ids() when the
+        caller only cares about a 20-tile page.
+        """
+        if not ids:
+            return set()
+        placeholders = ",".join("?" for _ in ids)
+        with self._lock:
+            rows = self._conn.execute(
+                f"SELECT id FROM dislikes WHERE id IN ({placeholders})",  # noqa: S608
+                list(ids),
+            ).fetchall()
+        return {row["id"] for row in rows}
+
     def list_dislikes(self, limit: int = 200, offset: int = 0) -> list[dict]:
         """Same JOIN shape as `list_favorites` so the dislike gallery
         page can reuse the result-grid partial without changes."""
@@ -1470,9 +1487,14 @@ class IndexDB:
         select_cols = (
             "i.id, i.path, i.shard, i.collection, i.mtime, i.size, "
             "i.indexed_at, i.width, i.height, i.blurhash, "
-            "(f.id IS NOT NULL) AS is_favorite, f.favorited_at"
+            "(f.id IS NOT NULL) AS is_favorite, f.favorited_at, "
+            "(d.id IS NOT NULL) AS is_disliked"
         )
-        join_sql = "FROM images i LEFT JOIN favorites f ON i.id = f.id"
+        join_sql = (
+            "FROM images i "
+            "LEFT JOIN favorites f ON i.id = f.id "
+            "LEFT JOIN dislikes d ON i.id = d.id"
+        )
         with self._lock:
             # Get the rowid range for the filtered set. With no filter
             # this is the whole table.

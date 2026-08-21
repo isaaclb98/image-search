@@ -30,6 +30,7 @@
     blurhash?: string | null;
     score_str?: string;
     is_favorite?: boolean;
+    is_disliked?: boolean;
   };
 
   let items = $state<Tile[]>([]);
@@ -51,7 +52,8 @@
         blurhash: it.blurhash ?? null,
         score_str:
           typeof it.score === 'number' ? it.score.toFixed(3) : '',
-        is_favorite: !!it.is_favorite
+        is_favorite: !!it.is_favorite,
+        is_disliked: !!it.is_disliked
       }));
     } catch {
       items = [];
@@ -122,6 +124,7 @@
             scoreStr={it.score_str}
             blurhash={it.blurhash ?? null}
             isFavorite={!!it.is_favorite}
+            isDisliked={!!it.is_disliked}
             onOpen={() => (lightboxIndex = i)}
           />
         </div>
@@ -132,7 +135,7 @@
 
 {#if lightboxIndex !== null && items.length}
   <Lightbox
-    items={items.map((i) => ({ id: i.id, blurhash: i.blurhash ?? null, isFavorite: !!i.is_favorite }))}
+    items={items.map((i) => ({ id: i.id, blurhash: i.blurhash ?? null, isFavorite: !!i.is_favorite, isDisliked: !!i.is_disliked }))}
     index={lightboxIndex}
     onClose={() => (lightboxIndex = null)}
     {onToggleFavorite}

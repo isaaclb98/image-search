@@ -1290,9 +1290,25 @@ def create_app(
     async def _favorite_id_set(point_ids: list[str]) -> set[str]:
         return await asyncio.to_thread(_favorite_id_set_sync, point_ids)
 
-    async def _results_from_hits(hits: list, favorite_ids: set[str] | None = None) -> list[SearchResult]:
-        if favorite_ids is None:
-            favorite_ids = await _favorite_id_set([h.id for h in hits])
+    async def _results_from_hits(
+        hits: list,
+        favorite_ids: set[str] | None = None,
+        dislike_ids: set[str] | None = None,
+    ) -> list[SearchResult]:
+        # Parallel-fetch favorite + dislike sets when either is missing.
+        # When both are pre-resolved (the hot /api/search path), skip
+        # the DB hit entirely. (Round-6 — dislike state now returned
+        # in results so per-tile .is-neg class works on every page.)
+        if favorite_ids is None or dislike_ids is None:
+            ids = [h.id for h in hits]
+            fav_set, dis_set = await asyncio.gather(
+                _favorite_id_set(ids),
+                asyncio.to_thread(index_db.dislike_id_set, ids),
+            )
+            if favorite_ids is None:
+                favorite_ids = fav_set
+            if dislike_ids is None:
+                dislike_ids = dis_set
         return [
             SearchResult(
                 id=h.id,
@@ -1301,6 +1317,7 @@ def create_app(
                 score_str=f"{h.score:.3f}",
                 url=resolve_url(h.id, _cfg.web_ui_url),
                 is_favorite=h.id in favorite_ids,
+                is_disliked=h.id in dislike_ids,
                 # LQIP from the Qdrant payload (set at index time, T9).
                 # None when the point was indexed before blurhash landed.
                 blurhash=(h.payload or {}).get("blurhash"),
@@ -1310,7 +1327,6 @@ def create_app(
             )
             for h in hits
         ]
-
     async def _favorite_ids_for_filter() -> set[str]:
         rows = await asyncio.to_thread(index_db.list_favorites, _cfg.max_results_total, 0)
         return {str(row["id"]) for row in rows}
@@ -2027,6 +2043,7 @@ def create_app(
                     score_str="",
                     url=resolve_url(str(row["id"]), _cfg.web_ui_url),
                     is_favorite=is_fav,
+                    is_disliked=bool(int(row.get("is_disliked") or 0)),
                     width=_maybe_int(row.get("width")),
                     height=_maybe_int(row.get("height")),
                     blurhash=_bh,
@@ -3212,6 +3229,11 @@ def create_app(
                 raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
             raise
 
+        # fav_ids/dis_ids are already in hand from the gather above
+        # — use them to mark each result so the for-you row can show
+        # coloured tiles for liked/disliked photos. (Round-6 issue #3.)
+        fav_set = set(fav_ids)
+        dis_set = set(dis_ids)
         return {
             "n_likes": state.n_likes,
             "n_dislikes": state.n_dislikes,
@@ -3222,6 +3244,8 @@ def create_app(
                     "score": float(getattr(h, "score", 0.0)),
                     "url": f"/photo/{h.id}/raw",
                     "blurhash": (h.payload or {}).get("blurhash"),
+                    "is_favorite": h.id in fav_set,
+                    "is_disliked": h.id in dis_set,
                 }
                 for h in hits
             ],

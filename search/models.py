@@ -17,6 +17,7 @@ class SearchResult(BaseModel):
     )
     url: str = Field("", description="Public URL for the /photo/{id}/raw endpoint")
     is_favorite: bool = Field(False, description="True when the image is marked as a favourite")
+    is_disliked: bool = Field(False, description="True when the image is marked as a dislike (hides it from future recommendations)")
     blurhash: str | None = Field(
         None,
         description=(

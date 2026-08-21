@@ -146,6 +146,7 @@
         blurhash={it.blurhash ?? null}
         scoreStr={it.score_str ?? ''}
         isFavorite={it.is_favorite ?? false}
+        isDisliked={it.is_disliked ?? false}
         contextMenuOpen={menuFor?.id === it.id}
         onOpen={() => openAt(i)}
         onContextMenu={openContext}
