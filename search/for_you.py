@@ -49,13 +49,51 @@ class ForYouState:
     excluded_ids: frozenset[str]
 
 
+_signal_cache: tuple[float, list[str], list[str]] | None = None
+"""In-memory TTL cache for the (fav_ids, dis_ids) pair.
+
+`for_you_feed` runs on every page view of `/for-you` and on every
+Home-page render. Each call hit SQLite for two list_*_ids queries
+(~60 ms combined on the TrueNAS-backed DB). The signal changes
+slowly — the user has to actively Like/Dislike to mutate it — so
+a 30-second TTL is more than fresh enough. Tier 2.2.
+
+Keyed by timestamp; cleared when the Like/Dislike handlers call
+`invalidate_signal_cache()`. This isn't a re-entrant lock — if a
+caller is mid-fetch when invalidation fires they'll get the stale
+value until their next call, which is fine for a 30-s window.
+"""
+
+import time as _time  # local alias to avoid shadowing the module
+
+
+def invalidate_signal_cache() -> None:
+    """Drop the cached fav/dis ids. Call after every Like/Dislike
+    write so the next /for-you request sees the new state.
+    """
+    global _signal_cache
+    _signal_cache = None
+
+
 def build_state(*, index_db) -> ForYouState:
     """Snapshot the signal from the persistent tables.
 
     No Qdrant calls — cheap. Use `rank()` for the heavy path.
     """
-    fav_ids = index_db.list_favorite_ids()
-    dis_ids = index_db.list_dislike_ids()
+    global _signal_cache
+    now = _time.monotonic()
+    if _signal_cache is not None:
+        cached_at, cached_fav, cached_dis = _signal_cache
+        if now - cached_at < 30.0:
+            fav_ids, dis_ids = cached_fav, cached_dis
+        else:
+            fav_ids = index_db.list_favorite_ids()
+            dis_ids = index_db.list_dislike_ids()
+            _signal_cache = (now, fav_ids, dis_ids)
+    else:
+        fav_ids = index_db.list_favorite_ids()
+        dis_ids = index_db.list_dislike_ids()
+        _signal_cache = (now, fav_ids, dis_ids)
     return ForYouState(
         n_likes=len(fav_ids),
         n_dislikes=len(dis_ids),
