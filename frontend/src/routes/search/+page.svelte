@@ -18,8 +18,7 @@
     search,
     likePoint,
     unlikePoint,
-    dislikePoint,
-    similarPhotos
+    dislikePoint
   } from '$lib/api/endpoints';
   import type { SavedSearch } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
@@ -180,20 +179,6 @@
     }
   }
 
-  /** Replace the grid with the source photo's nearest neighbours. */
-  async function onSimilar(id: string) {
-    try {
-      const res = await similarPhotos(id, 30);
-      items = (res?.results ?? []) as Item[];
-      offset = items.length;
-      hasMore = false;
-    } catch (e: any) {
-      toast.show(`Couldn't load similar photos: ${e?.message ?? e}`, {
-        kind: 'error',
-      });
-    }
-  }
-
   onMount(async () => {
     readFromUrl();
     await tick();
@@ -260,7 +245,6 @@
       onLoadMore={loadMore}
       {onToggleFavorite}
       {onDislike}
-      {onSimilar}
     />
   {/if}
 </section>

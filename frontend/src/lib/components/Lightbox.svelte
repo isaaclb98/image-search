@@ -4,14 +4,21 @@
    *   - ←/→ or A/D navigates prev/next
    *   - Esc or click outside closes
    *   - background blurs + tints from the current photo
+   *   - "Most similar" navigates to /similar/{id} (closes itself)
    *
    * Caller provides the items array (with point IDs) and the
    * index of the currently shown item, plus a way to toggle
    * favourite.
    */
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { photoUrl } from '$lib/api/endpoints';
   import { blurhashToDataUrl } from './blurhash-bg';
+
+  function goSimilar(id: string) {
+    onClose();
+    goto(`/similar/${encodeURIComponent(id)}`);
+  }
 
   type Item = {
     id: string;
@@ -25,15 +32,8 @@
     onClose: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
-    /**
-     * "Most similar photos" button click. Caller is expected to
-     * run a similarity search for the current photo and replace
-     * the page's items. We only signal — no fetching inside the
-     * lightbox.
-     */
-    onSimilar?: (id: string) => void;
   };
-  let { items, index, onClose, onToggleFavorite, onDislike, onSimilar }: Props = $props();
+  let { items, index, onClose, onToggleFavorite, onDislike }: Props = $props();
 
   let idx = $state(index);
   $effect(() => { idx = Math.max(0, Math.min(items.length - 1, index)); });
@@ -135,8 +135,8 @@
       <button
         type="button"
         class="action similar"
-        onclick={() => current() && onSimilar?.(current()!.id)}
-        title="Find photos that look most like this one"
+        onclick={() => current() && goSimilar(current()!.id)}
+        title="Open the dedicated most-similar page for this photo"
       >
         ⟳ Most similar
       </button>
@@ -185,12 +185,13 @@
   }
   .content {
     position: relative;
-    /* Fit the photo in the viewport (with a small margin so it
-       doesn't kiss the edges). Photos SCALE DOWN to fit — never
-       up — so users never have to scroll inside the lightbox to
-       see the whole photo. */
-    max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 32px);
+    /* Explicit width/height (not just max-*) so the .photo inside
+       has a hard container to fit into. Without an explicit size,
+       grid + place-items: center lets the container shrink to the
+       photo's intrinsic size — defeating object-fit: contain for
+       photos that are bigger than the viewport. */
+    width: calc(100vw - 32px);
+    height: calc(100vh - 32px);
     display: grid;
     place-items: center;
     border-radius: var(--r-3);
@@ -200,11 +201,12 @@
   }
   .photo {
     display: block;
-    /* object-fit: contain + max-* constraints scale the photo to
-       fit the viewport while preserving the natural aspect ratio.
-       No cropping, no scrolling required to see the full image. */
-    max-width: 100%;
-    max-height: 100%;
+    /* Hard-constrain to the viewport. object-fit: contain means a
+       photo at any aspect ratio lands inside this box — landscape
+       fits the width, portrait fits the height — without cropping
+       or scrolling. */
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
     width: auto;
     height: auto;
     object-fit: contain;

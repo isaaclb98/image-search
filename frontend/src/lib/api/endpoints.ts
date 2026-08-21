@@ -87,12 +87,13 @@ export function random(limit = 30, signal?: AbortSignal) {
 
 /**
  * Most-similar photos for a given point ID — nearest neighbours in
- * the SigLIP2 embedding space. Used by the Lightbox "Most similar"
- * button to drill into a photo the user clicked.
+ * the SigLIP2 embedding space. Reached by clicking "Most similar"
+ * in the Lightbox; navigates to /similar/{id} which renders up to
+ * MAX (100) results in a dedicated page.
  */
 export function similarPhotos(
   pointId: string,
-  limit = 30,
+  limit = 100,
   signal?: AbortSignal
 ) {
   return apiGet<SearchResponse>(

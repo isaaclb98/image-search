@@ -11,8 +11,7 @@
   import { onMount } from 'svelte';
   import {
     listDislikes,
-    undislikePoint,
-    similarPhotos
+    undislikePoint
   } from '$lib/api/endpoints';
   import SearchGrid from '$lib/components/SearchGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
@@ -50,17 +49,6 @@
     }
   }
 
-  async function onSimilar(id: string) {
-    try {
-      const res = await similarPhotos(id, 30);
-      items = (res?.results ?? []) as Item[];
-    } catch (e: any) {
-      toast.show(`Couldn't load similar photos: ${e?.message ?? e}`, {
-        kind: 'error',
-      });
-    }
-  }
-
   onMount(refresh);
 </script>
 
@@ -88,7 +76,7 @@
   </div>
 {:else}
   <section>
-    <SearchGrid {items} loading={false} hasMore={false} {onDislike} {onSimilar} />
+    <SearchGrid {items} loading={false} hasMore={false} {onDislike} />
   </section>
 {/if}
 

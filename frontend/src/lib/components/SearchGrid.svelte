@@ -36,8 +36,6 @@
     onLoadMore?: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
-    /** "Most similar photos" handler. */
-    onSimilar?: (id: string) => void;
   };
   let {
     items,
@@ -45,8 +43,7 @@
     hasMore = false,
     onLoadMore,
     onToggleFavorite,
-    onDislike,
-    onSimilar
+    onDislike
   }: Props = $props();
 
   $effect(() => {
@@ -85,6 +82,12 @@
   // while items are being fetched), so we use `$effect` to set up
   // the observer whenever the sentinel becomes available. Re-running
   // the effect is fine — each call disconnects the previous IO.
+  //
+  // We also gate loadMore on window.scrollY > 50: without this, a
+  // short grid (items.length < viewport) triggers the IO on initial
+  // render and silently calls loadMore once before the user ever
+  // scrolls, which "cuts off weirdly" because the visible page ends
+  // up with PAGE + extra (e.g., 28 instead of 20 on /random).
   let io: IntersectionObserver | undefined;
   $effect(() => {
     // Touch the reactive deps so the effect re-runs on changes.
@@ -100,12 +103,17 @@
     io = new IntersectionObserver(
       (entries) => {
         for (const ent of entries) {
-          if (ent.isIntersecting && hasMore && !loading) {
+          if (
+            ent.isIntersecting &&
+            hasMore &&
+            !loading &&
+            window.scrollY > 50
+          ) {
             onLoadMore();
           }
         }
       },
-      { rootMargin: '600px 0px' }
+      { rootMargin: '0px 0px 600px 0px' }
     );
     io.observe(sentinel);
     return () => io?.disconnect();
@@ -150,7 +158,6 @@
     onClose={() => (lightboxIndex = null)}
     onToggleFavorite={(id) => onToggleFavorite?.(id)}
     onDislike={(id) => onDislike?.(id)}
-    onSimilar={(id) => onSimilar?.(id)}
   />
 {/if}
 
