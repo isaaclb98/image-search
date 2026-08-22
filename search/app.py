@@ -838,6 +838,7 @@ def create_app(
     from search.routers.for_you import build_for_you_router
     from search.routers.random import build_random_router
     from search.routers.saved_searches import build_saved_searches_router
+    from search.routers.search import build_search_router
     from search.routers.similar import build_similar_router
     from search.routers.system import build_system_router
     app.include_router(build_collections_router(qdrant=qdrant))
@@ -1202,6 +1203,18 @@ def create_app(
     async def _favorite_ids_for_filter() -> set[str]:
         rows = await asyncio.to_thread(index_db.list_favorites, _cfg.max_results_total, 0)
         return {str(row["id"]) for row in rows}
+
+    # /api/search is wired via search/routers/search.py (§B2 step 40).
+    # Placed here (not at the top with the other routers) because it
+    # needs the two closure-bound helpers above to be defined first.
+    app.include_router(build_search_router(
+        qdrant=qdrant,
+        cfg=_cfg,
+        index_db=index_db,
+        diversity_cache=diversity_cache,
+        resolve_query_vector=_resolve_query_vector,
+        favorite_ids_for_filter=_favorite_ids_for_filter,
+    ))
 
     def _diversity_metadata(stats: DiversityStats) -> DiversityMetadata:
         return DiversityMetadata(
