@@ -2114,82 +2114,13 @@ def create_app(
             )
         return out
 
-    @app.post("/api/favorites/{point_id}", response_model=FavoriteToggleResponse)
-    async def mark_favorite(point_id: str) -> FavoriteToggleResponse:
-        try:
-            await asyncio.to_thread(index_db.mark_favorite, point_id)
-        except ImageNotInCacheError as err:
-            raise HTTPException(status_code=404, detail="Photo not found in index cache") from err
-        # Invalidate the favourites dynamic centroid so the next
-        # search through it reflects the new favourite.
-        _invalidate_favourites_centroid()
-        _for_you_invalidate_signal()
-        row = await asyncio.to_thread(index_db.get_by_id, point_id)
-        return FavoriteToggleResponse(
-            id=point_id,
-            favorited_at=str((row or {}).get("favorited_at") or ""),
-        )
+    # /api/favorites/{id} POST/DELETE is wired via search/routers/favorites.py (§B2 step 19).
 
-    @app.delete("/api/favorites/{point_id}", status_code=204)
-    async def unmark_favorite(point_id: str) -> None:
-        row = await asyncio.to_thread(index_db.get_by_id, point_id)
-        if row is None or int(row.get("is_favorite") or 0) != 1:
-            raise HTTPException(status_code=404, detail="Favourite not found")
-        await asyncio.to_thread(index_db.unmark_favorite, point_id)
-        # Same invalidation as mark_favorite — every unmark moves the
-        # centroid, and we don't try to detect whether it moved enough
-        # to matter. Cheap, simple, correct.
-        _invalidate_favourites_centroid()
-        _for_you_invalidate_signal()
 
     # /api/similar/{id} is wired via search/routers/similar.py (§B2 step 18).
 
-    @app.get("/api/favorites")
-    async def api_favorites(
-        limit: int = Query(_cfg.top_k_default, description="max favourites"),
-        offset: int = Query(0, description="offset into favourites"),
-        as_results: bool = Query(False, description="return SearchResponse-compatible shape"),
-    ):
-        try:
-            limit = int(limit)
-        except (TypeError, ValueError):
-            return _bad_request("limit must be an integer")
-        if not (1 <= limit <= 1000):
-            return _bad_request("limit must be in [1, 1000]")
-        try:
-            offset = int(offset)
-        except (TypeError, ValueError):
-            return _bad_request("offset must be an integer")
-        if offset < 0:
-            return _bad_request("offset must be >= 0")
-        rows = await asyncio.to_thread(index_db.list_favorites, limit, offset)
-        total = await asyncio.to_thread(index_db.count_favorites)
-        if as_results:
-            return SearchResponse(
-                query="",
-                positives=[],
-                negatives=[],
-                view=_cfg.default_view,
-                centroid=None,
-                results=_favorite_rows_to_results(rows),
-                took_ms=0,
-                offset=offset,
-                limit=limit,
-                has_more=offset + len(rows) < total,
-            )
-        return FavoritesListResponse(
-            favorites=[
-                {
-                    "id": str(row["id"]),
-                    "path": str(row["path"]),
-                    "favorited_at": str(row["favorited_at"] or ""),
-                }
-                for row in rows
-            ],
-            total=total,
-            limit=limit,
-            offset=offset,
-        )
+    # /api/favorites (list) is wired via search/routers/favorites.py (§B2 step 19).
+
 
     # ---------------------- Favourites ZIP download ----------------------
     #
