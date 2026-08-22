@@ -3004,18 +3004,7 @@ def create_app(
         )
 
     # /api/for-you/* is wired via search/routers/for_you.py (§B2 step 19).
-
-
-    @app.get("/healthz")
-    async def healthz() -> dict:
-        # qdrant.healthz() is a sync HTTP call. Running it directly
-        # inside this async handler blocks the event loop for the
-        # duration of any slow Qdrant response — with
-        # WEB_CONCURRENCY=1 that means a single slow healthz call
-        # hangs the entire worker. Wrap in asyncio.to_thread so the
-        # loop stays free.
-        ok = await asyncio.to_thread(qdrant.healthz)
-        return {"qdrant": ok, "test_mode": _cfg.test_mode}
+    # /healthz is wired via search/routers/system.py (§B2 step 20).
 
     # ------------------------------------------------------------------
     # Static SPA fallback
