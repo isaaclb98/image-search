@@ -3180,65 +3180,7 @@ def create_app(
             ],
         }
 
-    # Dislike endpoints (mirror of favourites, persistent).
-    # Source defaults to the page the request originated from, set by
-    # the client via a query param or a header so we can attribute the
-    # feedback event later (Phase 2 analytics).
-    @app.post("/api/dislikes/{point_id}", status_code=204)
-    async def mark_dislike(point_id: str, source: str = "manual") -> None:
-        await asyncio.to_thread(index_db.mark_dislike, point_id, source)
-        await asyncio.to_thread(
-            index_db.record_feedback, point_id, "dislike", source
-        )
-        _invalidate_favourites_centroid()
-        _for_you_invalidate_signal()
-
-    @app.delete("/api/dislikes/{point_id}", status_code=204)
-    async def unmark_dislike(point_id: str) -> None:
-        await asyncio.to_thread(index_db.unmark_dislike, point_id)
-        _invalidate_favourites_centroid()
-        _for_you_invalidate_signal()
-
-    @app.get("/api/dislikes")
-    async def list_dislikes(
-        limit: int = Query(_cfg.top_k_default, description="max dislikes"),
-        offset: int = Query(0, description="offset into dislikes"),
-        as_results: bool = Query(False, description="return SearchResponse-compatible shape"),
-    ):
-        try:
-            limit = int(limit)
-        except (TypeError, ValueError):
-            return _bad_request("limit must be an integer")
-        if not (1 <= limit <= 1000):
-            return _bad_request("limit must be in [1, 1000]")
-        try:
-            offset = int(offset)
-        except (TypeError, ValueError):
-            return _bad_request("offset must be an integer")
-        if offset < 0:
-            return _bad_request("offset must be >= 0")
-        rows = await asyncio.to_thread(index_db.list_dislikes, limit, offset)
-        total = await asyncio.to_thread(index_db.count_dislikes)
-        if as_results:
-            return SearchResponse(
-                query="",
-                positives=[],
-                negatives=[],
-                view=_cfg.default_view,
-                centroid=None,
-                results=_dislike_rows_to_results(rows),
-                took_ms=0,
-                offset=offset,
-                limit=limit,
-                has_more=offset + len(rows) < total,
-            )
-        return {
-            "items": rows,
-            "count": total,
-            "limit": limit,
-            "offset": offset,
-            "has_more": offset + len(rows) < total,
-        }
+    # /api/dislikes/* is wired via search/routers/dislikes.py (§B2 step 19).
 
     # Reset wipes dislikes + feedback_events only. Favourites stay so
     # the next page load still has a "warm start" via favourites.
