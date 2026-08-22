@@ -814,6 +814,10 @@ def create_app(
     # extraction is incremental — this commit wires the smallest
     # self-contained one first). Inline duplicates will be removed
     # in follow-up commits as each router is verified.
+    from search.routers.albums import build_albums_router
+    from search.routers.centroids import build_centroids_reload_router
+    from search.routers.centroids_list import build_centroids_list_router
+    from search.routers.centroids_search import build_centroids_search_router
     from search.routers.collections import build_collections_router
     from search.routers.discover import build_discover_router
     from search.routers.dislikes import build_dislikes_router
@@ -822,6 +826,7 @@ def create_app(
     from search.routers.random import build_random_router
     from search.routers.saved_searches import build_saved_searches_router
     from search.routers.similar import build_similar_router
+    from search.routers.system import build_system_router
     app.include_router(build_collections_router(qdrant=qdrant))
     app.include_router(build_saved_searches_router(index_db=index_db))
     app.include_router(build_discover_router(
@@ -852,6 +857,34 @@ def create_app(
         cfg=_cfg,
         invalidate_favourites_centroid=_invalidate_favourites_centroid,
         invalidate_for_you_signal=_for_you_invalidate_signal,
+    ))
+    app.include_router(build_albums_router(
+        index_db=index_db,
+        cfg=_cfg,
+        register_album_centroid=_register_album_centroid,
+        unregister_album_centroid=_unregister_album_centroid,
+        invalidate_album_centroid=_invalidate_album_centroid,
+    ))
+    app.include_router(build_centroids_reload_router(
+        centroid_store=_centroid_store,
+    ))
+    app.include_router(build_centroids_list_router(
+        centroid_store=_centroid_store,
+        dynamic_centroids=_dynamic_centroids,
+    ))
+    app.include_router(build_centroids_search_router(
+        qdrant=qdrant,
+        cfg=_cfg,
+        index_db=index_db,
+        centroid_store=_centroid_store,
+        dynamic_centroids=_dynamic_centroids,
+    ))
+    app.include_router(build_system_router(
+        qdrant=qdrant,
+        cfg=_cfg,
+        index_db=index_db,
+        path_liveness_cache=_path_liveness_cache,
+        path_liveness_cache_max=_PATH_LIVENESS_CACHE_MAX,
     ))
 
     def _parse_collections(request: Request) -> list[str]:
