@@ -212,3 +212,52 @@ def test_surprise_search_handles_k_larger_than_input():
 def test_surprise_search_handles_empty_input():
     from search._indexed_helpers import surprise_search
     assert surprise_search([], k=5) == []
+
+
+def test_search_query_string_includes_q_positives_negatives():
+    from search._indexed_helpers import search_query_string
+    out = search_query_string(
+        q="kittens",
+        positives=["cute", "playful"],
+        negatives=["blur"],
+        collections=[],
+    )
+    assert "q=kittens" in out
+    assert "positives=cute" in out
+    assert "positives=playful" in out
+    assert "negatives=blur" in out
+
+
+def test_search_query_string_omits_default_view():
+    """When view is the default, it's omitted from canonical URLs."""
+    from search._indexed_helpers import search_query_string
+    out = search_query_string(q="x", positives=[], negatives=[], collections=[])
+    assert "view=" not in out
+
+
+def test_search_query_string_includes_non_default_view():
+    from search._indexed_helpers import search_query_string
+    out = search_query_string(
+        q="x", positives=[], negatives=[], collections=[], view="feed",
+    )
+    assert "view=feed" in out
+
+
+def test_search_query_string_centroids_list_precedence():
+    """When centroids= is supplied, single centroid= is ignored."""
+    from search._indexed_helpers import search_query_string
+    out = search_query_string(
+        q="x", positives=[], negatives=[], collections=[],
+        centroid="legacy", centroids=["a", "b"],
+    )
+    assert "centroid=a" in out
+    assert "centroid=b" in out
+    assert "centroid=legacy" not in out
+
+
+def test_search_query_string_favorites_flag():
+    from search._indexed_helpers import search_query_string
+    out = search_query_string(
+        q="x", positives=[], negatives=[], collections=[], favorites=True,
+    )
+    assert "favorites=true" in out

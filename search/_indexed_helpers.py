@@ -19,6 +19,7 @@ import asyncio
 import logging
 import random
 from typing import Any
+from urllib.parse import urlencode
 
 from search.image_resolver import resolve_url
 from search.models import SearchResult
@@ -185,3 +186,70 @@ def surprise_search(hits: list[SearchHit], k: int) -> list[SearchHit]:
     shuffled = list(hits)
     random.shuffle(shuffled)
     return shuffled[:k]
+
+
+def search_query_string(
+    q: str,
+    positives: list[str],
+    negatives: list[str],
+    collections: list[str],
+    view: str = "grid",
+    centroid: str | None = None,
+    favorites: bool = False,
+    centroids: list[str] | None = None,
+    weights: list[float] | None = None,
+    diverse: bool = False,
+    diversity_mode: str = "off",
+    diversity_depth: str = "auto",
+    filename: str = "",
+) -> str:
+    """
+    Build a multi-value search-state query string for photo back links.
+
+    `view` is included so the user lands back on the same view they
+    came from. We omit it when it's the default ('grid') to keep
+    canonical URLs clean. Centroid state round-trips via repeated
+    `?centroid=` params (with `?weights=` when not all-equal) so the
+    "view tile → back" path lands on the same centroid search the
+    user came from, not a bare `/`.
+
+    `centroids` is the canonical input — a list of centroid names
+    in blend order. The legacy `centroid` param is kept for
+    single-centroid call sites and emits one `?centroid=` param.
+    When `centroids` is supplied (even length 1), it takes
+    precedence — the function never emits the same centroid twice
+    from both inputs.
+
+    `filename` round-trips the path-substring filter so the
+    "view tile → back" link returns to the same narrowed search
+    the user came from. Empty / whitespace-only is omitted so
+    canonical URLs stay clean. The filter is single-valued, so a
+    plain `?filename=` param (no list).
+    """
+    params: list[tuple[str, str]] = []
+    if q:
+        params.append(("q", q))
+    params.extend(("positives", p) for p in positives)
+    params.extend(("negatives", n) for n in negatives)
+    params.extend(("collection", c) for c in collections)
+    if centroids is not None:
+        params.extend(("centroid", c) for c in centroids)
+    elif centroid:
+        params.append(("centroid", centroid))
+    if weights is not None and any(w != 1.0 for w in weights):
+        params.append(("weights", ",".join(str(w) for w in weights)))
+    if favorites:
+        params.append(("favorites", "true"))
+    if filename.strip():
+        params.append(("filename", filename.strip()))
+    if view and view != "grid":
+        params.append(("view", view))
+    if diversity_mode and diversity_mode != "off":
+        params.append(("diversity", diversity_mode))
+        if diversity_depth and diversity_depth != "auto":
+            params.append(("diversity_depth", diversity_depth))
+    elif diverse:
+        # Legacy callers that only know the boolean retain the old
+        # URL shape; current search pages emit the explicit mode.
+        params.append(("diverse", "true"))
+    return urlencode(params)
