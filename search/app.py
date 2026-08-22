@@ -816,6 +816,10 @@ def create_app(
     # in follow-up commits as each router is verified.
     from search.routers.collections import build_collections_router
     from search.routers.discover import build_discover_router
+    from search.routers.dislikes import build_dislikes_router
+    from search.routers.favorites import build_favorites_router
+    from search.routers.for_you import build_for_you_router
+    from search.routers.random import build_random_router
     from search.routers.saved_searches import build_saved_searches_router
     from search.routers.similar import build_similar_router
     app.include_router(build_collections_router(qdrant=qdrant))
@@ -829,6 +833,25 @@ def create_app(
         qdrant=qdrant,
         cfg=_cfg,
         index_db=index_db,
+    ))
+    app.include_router(build_random_router(index_db=index_db, cfg=_cfg))
+    app.include_router(build_for_you_router(
+        index_db=index_db,
+        qdrant=qdrant,
+        invalidate_favourites_centroid=_invalidate_favourites_centroid,
+        invalidate_for_you_signal=_for_you_invalidate_signal,
+    ))
+    app.include_router(build_favorites_router(
+        index_db=index_db,
+        cfg=_cfg,
+        invalidate_favourites_centroid=_invalidate_favourites_centroid,
+        invalidate_for_you_signal=_for_you_invalidate_signal,
+    ))
+    app.include_router(build_dislikes_router(
+        index_db=index_db,
+        cfg=_cfg,
+        invalidate_favourites_centroid=_invalidate_favourites_centroid,
+        invalidate_for_you_signal=_for_you_invalidate_signal,
     ))
 
     def _parse_collections(request: Request) -> list[str]:
