@@ -2665,22 +2665,7 @@ def create_app(
     # /api/centroids (list) + /api/centroids/{name}/search are wired via
     # search/routers/centroids_list.py + search/routers/centroids_search.py (§B2 step 20).
 
-    @app.post("/api/centroids/reload")
-    async def reload_centroids() -> dict:
-        """
-        Rescan CENTROIDS_DIR and rebuild the in-memory store.
-
-        Manual on purpose — the search side has no filesystem watcher.
-        The response includes the new count and the directory that
-        was scanned, so the caller can confirm what was reloaded.
-        """
-        if _centroid_store is None:
-            raise HTTPException(status_code=503, detail="centroid store not initialized")
-        count = _centroid_store.load()
-        return {
-            "count": count,
-            "centroids_dir": str(_centroid_store.centroids_dir) if _centroid_store.centroids_dir else None,
-        }
+    # /api/centroids/reload is wired via search/routers/centroids.py (§B2 step 20).
 
     @app.post("/api/discover/start", response_model=DiscoveryStartResponse)
     async def discover_start() -> DiscoveryStartResponse:
