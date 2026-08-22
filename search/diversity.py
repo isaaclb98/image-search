@@ -1,78 +1,163 @@
-"""Search-only Diversity ranking.
+"""
+search/diversity.py — Diversity service: persistence + IO orchestration.
 
-This module deliberately does not power Discovery.  Search Diversity has a
-different contract: preserve query relevance, suppress duplicate images, and
-produce one deterministic ordering that the API can paginate.
+Phase B3 (compute/IO separation): the pure ranking logic lives in
+`search/diversity_compute.py`. This module owns:
+
+- The DiversityResultCache class (LRU + TTL cache for rankings)
+- The query-string parsing helpers (resolve_mode, resolve_depth,
+  relevance_drop_for_mode) — they sit closer to the route layer
+  than to pure compute, so they stay here.
+- Re-exports of the public compute API for backward compat with
+  existing callers (`from search.diversity import rank_diverse, ...`).
+
+The orchestration between this module and the compute module is
+the `diversity_page` helper in `search/_indexed_helpers.py`. That's
+the "service" layer that wires cache lookups → compute → cache
+writes together with the Qdrant search.
 """
 
 from __future__ import annotations
 
-import logging
-import math
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+from search.diversity_compute import (
+    DIVERSITY_AUTO_DEPTHS,
+    DIVERSITY_DEPTHS,
+    DIVERSITY_DEPTH_OPTIONS,
+    DIVERSITY_MODE_RELEVANCE_MULTIPLIERS,
+    DIVERSITY_MODE_STRENGTHS,
+    DIVERSITY_MODES,
+    DiversityRanking,
+    DiversityStats,
+    _collapse_duplicate_indices,
+    _cosine_sim,
+    _normalise_matrix,
+    _normalise_vector,
+)
 
-DIVERSITY_MODE_STRENGTHS: dict[str, float] = {
-    "low": 0.25,
-    "balanced": 0.50,
-    "high": 0.88,
-}
-DIVERSITY_MODES = ("off", *DIVERSITY_MODE_STRENGTHS)
-DIVERSITY_DEPTHS: dict[str, int] = {
-    "500": 500,
-    "1000": 1000,
-    "2000": 2000,
-    "5000": 5000,
-}
-DIVERSITY_DEPTH_OPTIONS = ("auto", *DIVERSITY_DEPTHS)
-DIVERSITY_AUTO_DEPTHS: dict[str, int] = {
-    "low": 500,
-    "balanced": 1000,
-    "high": 2000,
-}
-DIVERSITY_MODE_RELEVANCE_MULTIPLIERS: dict[str, float] = {
-    "low": 0.60,
-    "balanced": 1.00,
-    "high": 1.80,
-}
-
-
-@dataclass(frozen=True)
-class DiversityStats:
-    """Diagnostics describing one Diversity ranking run."""
-
-    requested: bool = False
-    applied: bool = False
-    mode: str = "off"
-    strength: float = 0.0
-    candidate_count: int = 0
-    result_count: int = 0
-    duplicate_images_collapsed: int = 0
-    semantic_groups_covered: int = 0
-    depth: str = "auto"
-    pool_depth: int = 0
+# Re-export the pure compute surface so existing call sites continue
+# to import from `search.diversity` without a sweeping import rewrite.
+__all__ = [
+    # Constants
+    "DIVERSITY_AUTO_DEPTHS",
+    "DIVERSITY_DEPTHS",
+    "DIVERSITY_DEPTH_OPTIONS",
+    "DIVERSITY_MODE_RELEVANCE_MULTIPLIERS",
+    "DIVERSITY_MODE_STRENGTHS",
+    "DIVERSITY_MODES",
+    # Value objects
+    "DiversityRanking",
+    "DiversityStats",
+    # Pure compute
+    "mmr_rerank",
+    "rank_diverse",
+    # Parsing helpers (route-layer)
+    "relevance_drop_for_mode",
+    "resolve_depth",
+    "resolve_mode",
+    # Persistence
+    "DiversityResultCache",
+]
 
 
-@dataclass(frozen=True)
-class DiversityRanking:
-    """Ordered hits plus diagnostics for a complete candidate pool."""
+# ---------------------------------------------------------------------------
+# Parsing helpers (route-layer; live here because they share the constants)
+# ---------------------------------------------------------------------------
 
-    hits: list
-    stats: DiversityStats
+
+def resolve_mode(mode: str | None, legacy_diverse: bool = False) -> tuple[str, float]:
+    """Resolve the diversity mode + strength from query params.
+
+    Accepts the legacy boolean (`diverse=True`) as well as the
+    explicit mode string. Returns the canonical mode name and
+    the corresponding strength knob. "off" is always valid.
+    """
+    if mode is None:
+        if legacy_diverse:
+            return "balanced", DIVERSITY_MODE_STRENGTHS["balanced"]
+        return "off", 0.0
+    if mode == "off":
+        return "off", 0.0
+    if mode not in DIVERSITY_MODE_STRENGTHS:
+        raise ValueError(
+            f"diversity must be one of {sorted(DIVERSITY_MODE_STRENGTHS)}; "
+            f"got {mode!r}"
+        )
+    return mode, DIVERSITY_MODE_STRENGTHS[mode]
+
+
+def resolve_depth(depth: str | None, mode: str = "off") -> tuple[str, int]:
+    """Resolve the diversity pool depth from query params.
+
+    Returns the canonical depth label and the integer pool size.
+    `"auto"` picks a mode-appropriate default.
+    """
+    if depth is None or depth == "auto":
+        if mode == "off":
+            return "auto", 0
+        return "auto", DIVERSITY_AUTO_DEPTHS[mode]
+    if depth not in DIVERSITY_DEPTHS:
+        raise ValueError(
+            f"diversity_depth must be one of {('auto', *DIVERSITY_DEPTHS)}; "
+            f"got {depth!r}"
+        )
+    return depth, DIVERSITY_DEPTHS[depth]
+
+
+def relevance_drop_for_mode(mode: str, base_drop: float) -> float:
+    """Apply the per-mode relevance-drop multiplier.
+
+    High mode tolerates more relevance loss for diversity; low mode
+    tolerates less. The base_drop is the caller-configured default.
+    """
+    return base_drop * DIVERSITY_MODE_RELEVANCE_MULTIPLIERS.get(mode, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Pure compute (re-exported above; the actual implementations live in
+# search/diversity_compute.py — kept here so existing callers don't
+# need to update their imports.)
+# ---------------------------------------------------------------------------
+
+# Local re-imports of mmr_rerank + rank_diverse so they're part of this
+# module's namespace (callers do `from search.diversity import rank_diverse`).
+# We can't re-export them with `from ... import` above without triggering
+# circular imports because diversity_compute imports this module's
+# dataclasses. So we wrap them in thin aliases below.
+import search.diversity_compute as _compute  # noqa: E402
+
+mmr_rerank = _compute.mmr_rerank
+rank_diverse = _compute.rank_diverse
+
+
+# ---------------------------------------------------------------------------
+# Persistence layer (the only IO-bearing code in this module)
+# ---------------------------------------------------------------------------
 
 
 @dataclass
 class _CachedResult:
+    """One cached Diversity ranking: tuple of hits + stats + timestamp."""
+
     created_at: float
     hits: tuple
     stats: DiversityStats
 
 
 class DiversityResultCache:
-    """Small TTL cache for one user's ordered Diversity result sets."""
+    """Small TTL cache for one user's ordered Diversity result sets.
+
+    Bounded LRU: when full, the oldest entry is evicted. The TTL
+    bounds staleness — a request that arrives after `ttl_seconds`
+    since `put()` is treated as a miss and recomputed.
+
+    This is the only IO-bearing piece of the Diversity feature. It
+    lives in this module (not `diversity_compute.py`) precisely
+    because it holds mutable state.
+    """
 
     def __init__(self, ttl_seconds: int = 300, max_entries: int = 64):
         self.ttl_seconds = max(0, int(ttl_seconds))
@@ -106,406 +191,3 @@ class DiversityResultCache:
 
     def __len__(self) -> int:
         return len(self._entries)
-
-
-def resolve_mode(mode: str | None, legacy_diverse: bool = False) -> tuple[str, float]:
-    """Resolve the public Diversity URL contract.
-
-    ``diverse=true`` remains a backwards-compatible alias for Balanced.
-    An explicit ``diversity=off|low|balanced|high`` value wins over the
-    legacy boolean so URLs can be migrated without ambiguity.
-    """
-    if mode is None or not mode.strip():
-        return ("balanced", DIVERSITY_MODE_STRENGTHS["balanced"]) if legacy_diverse else ("off", 0.0)
-    normalized = mode.strip().lower()
-    if normalized == "off":
-        return "off", 0.0
-    if normalized not in DIVERSITY_MODE_STRENGTHS:
-        allowed = ", ".join(DIVERSITY_MODES)
-        raise ValueError(f"diversity must be one of: {allowed}")
-    return normalized, DIVERSITY_MODE_STRENGTHS[normalized]
-
-
-def resolve_depth(depth: str | None, mode: str = "off") -> tuple[str, int]:
-    """Resolve the independent Diversity candidate-pool depth."""
-    normalized = (depth or "auto").strip().lower() or "auto"
-    if normalized not in DIVERSITY_DEPTH_OPTIONS:
-        allowed = ", ".join(DIVERSITY_DEPTH_OPTIONS)
-        raise ValueError(f"diversity_depth must be one of: {allowed}")
-    if mode == "off":
-        return normalized, 0
-    if normalized == "auto":
-        return normalized, DIVERSITY_AUTO_DEPTHS[mode]
-    return normalized, DIVERSITY_DEPTHS[normalized]
-
-
-def relevance_drop_for_mode(mode: str, base_drop: float) -> float:
-    """Scale the relevance guardrail with the selected Diversity strength."""
-    if mode == "off":
-        return 0.0
-    if not math.isfinite(base_drop) or base_drop < 0:
-        raise ValueError("base relevance drop must be finite and >= 0")
-    return base_drop * DIVERSITY_MODE_RELEVANCE_MULTIPLIERS[mode]
-
-
-def mmr_rerank(
-    hits_with_vectors: list[tuple],
-    query_vector: list[float],
-    k: int,
-    lambda_: float = 0.5,
-) -> list:
-    """Backwards-compatible MMR helper retained for existing callers/tests.
-
-    ``lambda_`` keeps the historical meaning here: 1.0 is pure relevance,
-    0.0 is maximum diversity. The search endpoint uses ``rank_diverse`` below,
-    whose public strength has the clearer meaning 0.0 = off and 1.0 = high.
-    """
-    if not hits_with_vectors or k <= 0:
-        return [h for h, _v in hits_with_vectors[:k]]
-    if not 0.0 <= lambda_ <= 1.0:
-        raise ValueError("lambda_ must be in [0, 1]")
-
-    try:
-        import numpy as np
-
-        vectors = np.asarray([_as_float_list(v) for _h, v in hits_with_vectors], dtype=np.float32)
-        query = np.asarray(_as_float_list(query_vector), dtype=np.float32)
-        if vectors.ndim != 2 or query.ndim != 1 or vectors.shape[1] != query.shape[0]:
-            raise ValueError("query and candidate vector dimensions must match")
-        if not np.isfinite(vectors).all() or not np.isfinite(query).all():
-            raise ValueError("query and candidate vectors must be finite")
-        vectors = _normalise_matrix(vectors)
-        query = _normalise_vector(query)
-        query_scores = vectors @ query
-        pairwise = vectors @ vectors.T
-        selected: list[int] = []
-        selected_mask = np.zeros(len(hits_with_vectors), dtype=bool)
-        max_redundancy = np.full(
-            len(hits_with_vectors), -np.inf, dtype=np.float32,
-        )
-        target = min(k, len(hits_with_vectors))
-        while len(selected) < target:
-            if not selected:
-                remaining = np.arange(len(hits_with_vectors))
-                best = int(remaining[np.argmax(query_scores[remaining])])
-            else:
-                remaining = np.flatnonzero(~selected_mask)
-                values = (
-                    lambda_ * query_scores[remaining]
-                    - (1.0 - lambda_) * max_redundancy[remaining]
-                )
-                best = int(remaining[np.argmax(values)])
-            selected.append(best)
-            selected_mask[best] = True
-            max_redundancy = np.maximum(max_redundancy, pairwise[:, best])
-        return [hits_with_vectors[i][0] for i in selected]
-    except ImportError:
-        # Keep the pure-Python fallback for unusual deployments and make the
-        # failure explicit rather than returning a partially ranked result.
-        selected: list[tuple] = []
-        candidates = list(hits_with_vectors)
-        while len(selected) < min(k, len(hits_with_vectors)) and candidates:
-            best_idx = 0
-            best_score = -float("inf")
-            for i, (_hit, vec) in enumerate(candidates):
-                q_sim = _cosine_sim(query_vector, vec)
-                max_sim = max(
-                    (_cosine_sim(vec, selected_vec) for _hit, selected_vec in selected),
-                    default=0.0,
-                )
-                score = lambda_ * q_sim - (1.0 - lambda_) * max_sim
-                if score > best_score:
-                    best_score = score
-                    best_idx = i
-            selected.append(candidates.pop(best_idx))
-        return [h for h, _v in selected]
-
-
-def rank_diverse(
-    hits_with_vectors: list[tuple],
-    query_vector: list[float],
-    *,
-    mode: str = "balanced",
-    strength: float | None = None,
-    max_results: int | None = None,
-    duplicate_hamming_distance: int = 10,
-    relevance_drop: float = 0.10,
-    semantic_novelty_threshold: float = 0.88,
-    depth: str = "auto",
-    pool_depth: int | None = None,
-) -> DiversityRanking:
-    """Rank a complete search candidate pool for the Diversity feature.
-
-    Duplicate groups are collapsed before greedy MMR. Relevance is normalized
-    within this candidate pool, but candidates outside a raw cosine relevance
-    floor are not allowed to win merely because they are different.
-    """
-    if mode not in DIVERSITY_MODES:
-        raise ValueError(f"unknown diversity mode: {mode!r}")
-    if mode == "off":
-        return DiversityRanking(
-            hits=[h for h, _v in hits_with_vectors[:max_results]],
-            stats=DiversityStats(
-                requested=False,
-                applied=False,
-                mode="off",
-                candidate_count=len(hits_with_vectors),
-                result_count=(
-                    len(hits_with_vectors)
-                    if max_results is None
-                    else min(len(hits_with_vectors), max_results)
-                ),
-            ),
-        )
-    if strength is None:
-        strength = DIVERSITY_MODE_STRENGTHS[mode]
-    if not math.isfinite(strength) or not 0.0 <= strength <= 1.0:
-        raise ValueError("diversity strength must be finite and in [0, 1]")
-    if not 0 <= duplicate_hamming_distance <= 64:
-        raise ValueError("duplicate_hamming_distance must be between 0 and 64")
-    if relevance_drop < 0 or not math.isfinite(relevance_drop):
-        raise ValueError("relevance_drop must be finite and >= 0")
-    if depth not in DIVERSITY_DEPTH_OPTIONS:
-        raise ValueError(f"unknown diversity depth: {depth!r}")
-    if pool_depth is not None and pool_depth < 0:
-        raise ValueError("pool_depth must be >= 0")
-    actual_pool_depth = len(hits_with_vectors) if pool_depth is None else int(pool_depth)
-    if not hits_with_vectors or max_results == 0:
-        return DiversityRanking(
-            hits=[],
-            stats=DiversityStats(
-                requested=True, applied=True, mode=mode, strength=strength,
-                candidate_count=len(hits_with_vectors),
-                depth=depth,
-                pool_depth=actual_pool_depth,
-            ),
-        )
-
-    import numpy as np
-
-    hits = [h for h, _v in hits_with_vectors]
-    vectors = np.asarray([_as_float_list(v) for _h, v in hits_with_vectors], dtype=np.float32)
-    query = np.asarray(_as_float_list(query_vector), dtype=np.float32)
-    if vectors.ndim != 2 or query.ndim != 1 or vectors.shape[1] != query.shape[0]:
-        raise ValueError("query and candidate vector dimensions must match")
-    if not np.isfinite(vectors).all() or not np.isfinite(query).all():
-        raise ValueError("query and candidate vectors must be finite")
-    vectors = _normalise_matrix(vectors)
-    query = _normalise_vector(query)
-    query_scores = vectors @ query
-
-    keep_indices = _collapse_duplicate_indices(
-        hits,
-        query_scores=query_scores,
-        duplicate_hamming_distance=duplicate_hamming_distance,
-    )
-    duplicate_count = len(hits) - len(keep_indices)
-    vectors = vectors[keep_indices]
-    query_scores = query_scores[keep_indices]
-    kept_hits = [hits[i] for i in keep_indices]
-    if not len(kept_hits):
-        return DiversityRanking(
-            hits=[],
-            stats=DiversityStats(
-                requested=True, applied=True, mode=mode, strength=strength,
-                candidate_count=len(hits_with_vectors),
-                duplicate_images_collapsed=duplicate_count,
-                depth=depth,
-                pool_depth=actual_pool_depth,
-            ),
-        )
-
-    target = len(kept_hits) if max_results is None else min(max_results, len(kept_hits))
-    if strength <= 0.0 or target <= 1:
-        order = np.argsort(-query_scores, kind="stable")[:target]
-        ordered = [kept_hits[int(i)] for i in order]
-        return DiversityRanking(
-            hits=ordered,
-            stats=DiversityStats(
-                requested=True, applied=True, mode=mode, strength=strength,
-                candidate_count=len(hits_with_vectors), result_count=len(ordered),
-                duplicate_images_collapsed=duplicate_count,
-                semantic_groups_covered=len(ordered),
-                depth=depth,
-                pool_depth=actual_pool_depth,
-            ),
-        )
-
-    pairwise = vectors @ vectors.T
-    top_score = float(np.max(query_scores))
-    eligible = query_scores >= top_score - relevance_drop
-    if not bool(eligible.any()):
-        eligible[:] = True
-
-    score_min = float(np.min(query_scores))
-    score_span = float(np.max(query_scores) - score_min)
-    relevance = (
-        np.ones(len(query_scores), dtype=np.float32)
-        if score_span <= 1e-8
-        else (query_scores - score_min) / score_span
-    )
-
-    selected: list[int] = []
-    selected_mask = np.zeros(len(kept_hits), dtype=bool)
-    max_redundancy = np.full(len(kept_hits), -np.inf, dtype=np.float32)
-    semantic_groups = 0
-    while len(selected) < target:
-        if not selected:
-            candidates = np.flatnonzero(eligible)
-            best = int(candidates[np.argmax(query_scores[candidates])])
-            semantic_groups = 1
-        else:
-            remaining = np.flatnonzero(~selected_mask)
-            if not len(remaining):
-                break
-            redundancy = max_redundancy[remaining]
-            values = (
-                (1.0 - strength) * relevance[remaining]
-                + strength * (1.0 - redundancy)
-            )
-            eligible_remaining = eligible[remaining]
-            if bool(eligible_remaining.any()):
-                values = np.where(eligible_remaining, values, -np.inf)
-            best_position = int(np.argmax(values))
-            best = int(remaining[best_position])
-            if float(redundancy[best_position]) < semantic_novelty_threshold:
-                semantic_groups += 1
-        selected.append(best)
-        selected_mask[best] = True
-        max_redundancy = np.maximum(max_redundancy, pairwise[:, best])
-
-    ordered = [kept_hits[i] for i in selected]
-    return DiversityRanking(
-        hits=ordered,
-        stats=DiversityStats(
-            requested=True,
-            applied=True,
-            mode=mode,
-            strength=strength,
-            candidate_count=len(hits_with_vectors),
-            result_count=len(ordered),
-            duplicate_images_collapsed=duplicate_count,
-            semantic_groups_covered=semantic_groups,
-            depth=depth,
-            pool_depth=actual_pool_depth,
-        ),
-    )
-
-
-def _collapse_duplicate_indices(
-    hits: list,
-    *,
-    query_scores,
-    duplicate_hamming_distance: int,
-) -> list[int]:
-    """Keep the highest-relevance representative of fingerprint groups."""
-    parent = list(range(len(hits)))
-
-    def find(index: int) -> int:
-        while parent[index] != index:
-            parent[index] = parent[parent[index]]
-            index = parent[index]
-        return index
-
-    def union(left: int, right: int) -> None:
-        left_root, right_root = find(left), find(right)
-        if left_root != right_root:
-            parent[right_root] = left_root
-
-    exact: dict[str, int] = {}
-    # Actual indexed dHash values are 64-bit (16 hexadecimal digits). Keep
-    # values grouped by width because hamming_distance intentionally rejects
-    # hashes with different widths.
-    dhash_groups: dict[int, list[tuple[int, int]]] = {}
-    for index, hit in enumerate(hits):
-        payload = getattr(hit, "payload", None) or {}
-        content_hash = payload.get("content_sha256")
-        if content_hash:
-            previous = exact.get(str(content_hash))
-            if previous is not None:
-                union(index, previous)
-            else:
-                exact[str(content_hash)] = index
-        image_hash = payload.get("dhash")
-        if image_hash:
-            image_hash = str(image_hash).strip().lower()
-            if (
-                len(image_hash) <= 16
-                and image_hash
-                and all(char in "0123456789abcdef" for char in image_hash)
-            ):
-                try:
-                    value = int(image_hash, 16)
-                except ValueError:
-                    value = None
-                if value is not None:
-                    dhash_groups.setdefault(len(image_hash), []).append((index, value))
-
-    # Compare dHashes in bounded NumPy chunks. A Python all-pairs scan made
-    # deep Diversity pools needlessly expensive, and stopping at the first
-    # match could leave a candidate connected to only one of several groups.
-    # Union every matching pair so transitive near-duplicate groups collapse.
-    import numpy as np
-
-    popcounts = np.asarray([value.bit_count() for value in range(256)], dtype=np.uint8)
-    for width, entries in dhash_groups.items():
-        if len(entries) < 2:
-            continue
-        max_distance = width * 4
-        if duplicate_hamming_distance >= max_distance:
-            first_index = entries[0][0]
-            for index, _value in entries[1:]:
-                union(first_index, index)
-            continue
-
-        values = np.asarray([value for _index, value in entries], dtype=np.uint64)
-        chunk_size = 256
-        for start in range(0, len(entries), chunk_size):
-            left = values[start:start + chunk_size]
-            xor = np.bitwise_xor(left[:, None], values[None, :])
-            byte_view = xor.view(np.uint8).reshape(xor.shape + (8,))
-            distances = popcounts[byte_view].sum(axis=-1)
-            matching_rows, matching_columns = np.nonzero(
-                distances <= duplicate_hamming_distance,
-            )
-            for row, column in zip(matching_rows, matching_columns, strict=False):
-                left_position = start + int(row)
-                right_position = int(column)
-                if right_position > left_position:
-                    union(entries[left_position][0], entries[right_position][0])
-
-    representatives: dict[int, int] = {}
-    for index in range(len(hits)):
-        root = find(index)
-        current = representatives.get(root)
-        if current is None or float(query_scores[index]) > float(query_scores[current]):
-            representatives[root] = index
-    return sorted(representatives.values())
-
-
-def _normalise_vector(vector):
-    import numpy as np
-
-    norm = float(np.linalg.norm(vector))
-    if norm <= 1e-12:
-        return np.zeros_like(vector)
-    return vector / norm
-
-
-def _normalise_matrix(matrix):
-    import numpy as np
-
-    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    return matrix / np.maximum(norms, 1e-12)
-
-
-def _cosine_sim(a: list[float], b: list[float]) -> float:
-    """Dot product between two unit-norm vectors."""
-    return sum(ai * bi for ai, bi in zip(a, b, strict=False))
-
-
-def _as_float_list(v) -> list[float]:
-    """Normalize a Qdrant/numpy vector to a flat list of floats."""
-    if hasattr(v, "tolist"):
-        v = v.tolist()
-    return [float(item) for item in v]

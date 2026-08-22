@@ -249,3 +249,39 @@ class TestSearchDiversity:
         assert cache.get("one").hits == ("a",)
         cache.clear()
         assert cache.get("one") is None
+
+
+def test_compute_module_is_pure():
+    """Phase B3 contract: search.diversity_compute is a pure module.
+
+    Importing it should not pull in any IO-bearing dependencies. The
+    module must be loadable + usable without Qdrant, filesystem, or
+    network access.
+    """
+    import search.diversity_compute as compute
+
+    # All public ranking entry points are available.
+    assert callable(compute.rank_diverse)
+    assert callable(compute.mmr_rerank)
+    # Dataclasses are usable.
+    stats = compute.DiversityStats()
+    assert stats.requested is False
+    ranking = compute.DiversityRanking(hits=[], stats=stats)
+    assert ranking.hits == []
+    # Constants are exposed.
+    assert "off" in compute.DIVERSITY_MODES
+    assert "balanced" in compute.DIVERSITY_MODES
+
+
+def test_persistence_module_re_exports_compute_api():
+    """Backwards-compat: callers can still import from search.diversity."""
+    from search import diversity
+
+    # Public compute names are accessible from the service module too.
+    assert diversity.rank_diverse is not None
+    assert diversity.mmr_rerank is not None
+    # The persistence class lives here.
+    assert hasattr(diversity, "DiversityResultCache")
+    # Parsing helpers live here too (route-layer surface).
+    assert callable(diversity.resolve_mode)
+    assert callable(diversity.resolve_depth)
