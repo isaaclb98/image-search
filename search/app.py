@@ -2886,25 +2886,7 @@ def create_app(
             has_more=has_more,
         )
 
-    @app.get("/api/collections")
-    async def list_collections():
-        """
-        Return a list of distinct library (`collection` payload field)
-        values with point counts. Drives the chip-style filter UI on
-        the frontend; one call per page load.
-        """
-        try:
-            return {"collections": qdrant.list_collections_with_counts()}
-        except (ConnectionError, OSError) as e:
-            logger.warning("Qdrant unreachable for /api/collections: %s", e)
-            return JSONResponse(
-                status_code=502,
-                content=ErrorResponse(
-                    error="qdrant_unreachable",
-                    detail=str(e),
-                    code="qdrant_unreachable",
-                ).model_dump(),
-            )
+    # /api/collections is wired via search/routers/collections.py (§B2 step 16).
 
     # ---------------------- Centroids ----------------------
     #
