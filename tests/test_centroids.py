@@ -250,3 +250,29 @@ def test_load_drops_deleted_files(tmp_path: Path) -> None:
     s.load()
     assert s.count() == 1
     assert s.get("noir") is None
+
+
+def test_centroids_compute_module_is_pure():
+    """Phase B3 contract: search.centroids_compute is pure."""
+    import search.centroids_compute as compute
+
+    # All public compute entry points are available.
+    assert callable(compute.blend_centroids)
+    assert callable(compute.composite_centroid_name)
+    assert callable(compute.calibrate_near_dup_threshold)
+    assert callable(compute.filter_near_duplicates)
+
+
+def test_centroids_service_re_exports_compute_api():
+    """Backwards-compat: callers can still import from search.centroids."""
+    from search import centroids
+
+    # Pure compute names accessible from the service module too.
+    assert centroids.blend_centroids is not None
+    assert centroids.calibrate_near_dup_threshold is not None
+    assert centroids.composite_centroid_name is not None
+    assert centroids.filter_near_duplicates is not None
+    # The persistence + state classes live here.
+    assert hasattr(centroids, "CentroidStore")
+    assert hasattr(centroids, "DynamicCentroidRegistry")
+    assert hasattr(centroids, "CentroidSpec")
