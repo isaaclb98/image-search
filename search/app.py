@@ -2667,51 +2667,7 @@ def create_app(
 
     # /api/centroids/reload is wired via search/routers/centroids.py (§B2 step 20).
 
-    @app.post("/api/discover/start", response_model=DiscoveryStartResponse)
-    async def discover_start() -> DiscoveryStartResponse:
-        """Create a new discovery session and return the first pair."""
-        try:
-            session_id, pair = discover.start_session(
-                qdrant, discover.DiscoverOptions.from_config(_cfg), index_db,
-            )
-        except (ConnectionError, OSError) as e:
-            logger.warning("Qdrant unreachable for /api/discover/start: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-        return DiscoveryStartResponse(
-            session_id=session_id,
-            pair=_hydrate_pair_urls(pair),  # type: ignore[arg-type]
-        )
-
-    @app.post("/api/discover/pick", response_model=DiscoveryPickResponse)
-    async def discover_pick(
-        session_id: str = Query(..., description="discovery session id"),
-        image_id: str = Query(..., description="the image id the user picked"),
-    ) -> DiscoveryPickResponse:
-        """Record a pick and return the next pair.
-
-        Returns pair=None if the session is gone (expired TTL,
-        server restart, fake id). The frontend treats that as
-        "session ended, start over" and redirects to /discover.
-        """
-        try:
-            next_pair = discover.submit_pick(
-                qdrant, session_id, image_id,
-                discover.DiscoverOptions.from_config(_cfg), index_db,
-            )
-        except (ConnectionError, OSError) as e:
-            logger.warning("Qdrant unreachable for /api/discover/pick: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-        session = discover.get_session(session_id)
-        liked_count = len(session.liked) if session else 0
-        round_completed = session.round if session else 0
-        return DiscoveryPickResponse(
-            pair=_hydrate_pair_urls(next_pair),
-            round=round_completed,
-            liked_count=liked_count,
-        )
-
-    # /api/for-you/* is wired via search/routers/for_you.py (§B2 step 19).
-    # /healthz is wired via search/routers/system.py (§B2 step 20).
+    # /api/discover/* is wired via search/routers/discover.py (§B2 step 18).
 
     # ------------------------------------------------------------------
     # Static SPA fallback
