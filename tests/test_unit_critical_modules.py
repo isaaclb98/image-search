@@ -206,10 +206,16 @@ class TestIndexerCache:
         assert entry.id == "id-a"
 
     def test_atomic_write_no_partial_state(self, tmp_path: Path):
-        """Atomic write leaves the file readable even if interrupted."""
-        from indexer.cache import IndexerCache
+        """Atomic write leaves the cache readable even if interrupted.
 
-        cache_path = tmp_path / "cache.json"
+        For SQLite: the WAL mode means a mid-write crash leaves
+        the DB on the last committed transaction. The on-disk
+        file is always a valid SQLite database.
+        """
+        from indexer.cache import IndexerCache
+        import sqlite3
+
+        cache_path = tmp_path / "cache.db"
         a_path = tmp_path / "a.jpg"
         a_path.write_bytes(b"a")
         stat = a_path.stat()
@@ -220,9 +226,12 @@ class TestIndexerCache:
         )
         c.save()
         assert cache_path.exists()
-        import json as _json
-        data = _json.loads(cache_path.read_text())
-        assert "entries" in data
+        # Open the on-disk file as a fresh SQLite connection and
+        # confirm the row is there — proves the write was atomic.
+        conn = sqlite3.connect(str(cache_path))
+        rows = conn.execute("SELECT id, mtime, size FROM entries").fetchall()
+        assert rows == [("id-a", int(stat.st_mtime), int(stat.st_size))]
+        conn.close()
 
     def test_stale_cache_version_refused(self, tmp_path: Path):
         """Cache written with a future CACHE_VERSION is rejected on load."""
