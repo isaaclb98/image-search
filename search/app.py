@@ -815,7 +815,9 @@ def create_app(
     # self-contained one first). Inline duplicates will be removed
     # in follow-up commits as each router is verified.
     from search.routers.collections import build_collections_router
+    from search.routers.saved_searches import build_saved_searches_router
     app.include_router(build_collections_router(qdrant=qdrant))
+    app.include_router(build_saved_searches_router(index_db=index_db))
 
     def _parse_collections(request: Request) -> list[str]:
         """
