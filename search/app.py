@@ -37,8 +37,10 @@ from search._result_helpers import (
     coerce_view as _coerce_view,
     diversity_metadata as _diversity_metadata,
     internal_error as _internal_error,
+    parse_centroids as _parse_centroids,
     parse_collections as _parse_collections,
     parse_filename as _parse_filename,
+    parse_weights as _parse_weights,
     qdrant_timeout as _qdrant_timeout,
     qdrant_unreachable as _qdrant_unreachable,
 )
@@ -954,91 +956,6 @@ def create_app(
             value = raw.strip()
             if value:
                 return value
-        return None
-
-    def _parse_centroids(request: Request) -> list[str]:
-        """
-        Read every `?centroid=...` value, preserving URL order.
-
-        Empty / whitespace-only values are dropped. Repeated names
-        are NOT deduped — the user might want a centroid to count
-        twice via weights, and deduping would silently change the
-        arithmetic. (E.g. `?centroid=a&centroid=a&weights=1,2`
-        legitimately gives weight 3 to a — deduping would shrink
-        it to 1.) `blend_centroids` sums weights so a repeated
-        name just contributes more to the mean.
-
-        Single `?centroid=a` returns `["a"]` — the call site
-        doesn't need a special-case branch.
-        """
-        return [
-            raw.strip()
-            for raw in request.query_params.getlist("centroid")
-            if raw.strip()
-        ]
-
-    def _parse_weights(request: Request, n: int) -> list[float] | None:
-        """
-        Parse `?weights=` from the request, returning a list of
-        length `n` or None to mean "use defaults (all 1.0)".
-
-        Accepted forms (all result in weights for n=2):
-          ?weights=1,2          — comma-separated (preferred)
-          ?weights=1&weights=2  — repeated params
-          ?weights=1.0          — single value broadcast to all n
-          (omitted)             — None → defaults
-
-        Negative, zero, and non-numeric values are rejected with
-        HTTPException(400) so the user gets immediate feedback
-        instead of a silent zero-vector blend downstream.
-        """
-        if n == 0:
-            return []
-        raw_values = request.query_params.getlist("weights")
-        if not raw_values:
-            return None
-        # Flatten: each param may itself be comma-separated.
-        flat: list[str] = []
-        for raw in raw_values:
-            flat.extend(p.strip() for p in raw.split(",") if p.strip())
-        if not flat:
-            return None
-        if len(flat) == 1:
-            try:
-                w = float(flat[0])
-            except ValueError as err:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"weight {flat[0]!r} is not a number",
-                ) from err
-            if w <= 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"weights must be positive (got {w})",
-                )
-            return [w] * n
-        if len(flat) != n:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"got {len(flat)} weights for {n} centroids; "
-                    f"counts must match (or pass a single weight "
-                    f"to broadcast)"
-                ),
-            )
-        try:
-            out = [float(x) for x in flat]
-        except ValueError as err:
-            raise HTTPException(
-                status_code=400,
-                detail=f"weights must be numbers (got {flat!r})",
-            ) from err
-        if any(w <= 0 for w in out):
-            raise HTTPException(
-                status_code=400,
-                detail=f"weights must be positive (got {out})",
-            )
-        return out
 
     def _resolve_query_vector(
         centroid_names: list[str] | None,

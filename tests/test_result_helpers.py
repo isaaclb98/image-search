@@ -92,3 +92,60 @@ def test_qdrant_unreachable_returns_502_with_documented_envelope():
     body = json.loads(bytes(resp.body).decode("utf-8"))
     assert body["error"] == "qdrant_unreachable"
     assert body["code"] == "qdrant_unreachable"
+
+
+def test_parse_centroids_strips_and_filters_empty():
+    """parse_centroids drops empty/whitespace values, preserves order."""
+    from starlette.requests import Request as StarletteRequest
+    from search._result_helpers import parse_centroids
+
+    # starlette QueryParams accepts a list of tuples.
+    scope = {
+        "type": "http",
+        "query_string": b"centroid=a&centroid=&centroid=b&centroid=%20",
+    }
+    request = StarletteRequest(scope)
+    assert parse_centroids(request) == ["a", "b"]
+
+
+def test_parse_centroids_does_not_dedupe():
+    """parse_centroids preserves repeated names (multi-weight blend)."""
+    from starlette.requests import Request as StarletteRequest
+    from search._result_helpers import parse_centroids
+
+    scope = {
+        "type": "http",
+        "query_string": b"centroid=a&centroid=a&centroid=b",
+    }
+    request = StarletteRequest(scope)
+    assert parse_centroids(request) == ["a", "a", "b"]
+
+
+def test_parse_weights_broadcasts_single_value():
+    """A single weight broadcasts to all n centroids."""
+    from starlette.requests import Request as StarletteRequest
+    from search._result_helpers import parse_weights
+
+    scope = {"type": "http", "query_string": b"weights=2.5"}
+    request = StarletteRequest(scope)
+    assert parse_weights(request, n=3) == [2.5, 2.5, 2.5]
+
+
+def test_parse_weights_comma_separated():
+    """Comma-separated form is preferred."""
+    from starlette.requests import Request as StarletteRequest
+    from search._result_helpers import parse_weights
+
+    scope = {"type": "http", "query_string": b"weights=1,2,3"}
+    request = StarletteRequest(scope)
+    assert parse_weights(request, n=3) == [1.0, 2.0, 3.0]
+
+
+def test_parse_weights_returns_none_when_omitted():
+    """No weights= param → None (use defaults)."""
+    from starlette.requests import Request as StarletteRequest
+    from search._result_helpers import parse_weights
+
+    scope = {"type": "http", "query_string": b""}
+    request = StarletteRequest(scope)
+    assert parse_weights(request, n=3) is None
