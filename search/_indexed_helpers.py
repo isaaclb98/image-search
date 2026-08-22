@@ -253,3 +253,73 @@ def search_query_string(
         # URL shape; current search pages emit the explicit mode.
         params.append(("diverse", "true"))
     return urlencode(params)
+
+
+def normalize_prompt_state(
+    cfg: Any,
+    q: str,
+    positives_raw: list[str],
+    negatives_raw: list[str],
+):
+    """
+    Normalize q/positive/negative prompt inputs for search.
+
+    Display text is preserved for response/template echo. Dedupe is
+    case-insensitive per side, overlong prompts are dropped, and q is
+    appended to positives if it is a usable non-duplicate prompt.
+    """
+    from search.models import PromptState  # local import to avoid circular dep at module load
+
+    max_prompt_chars = cfg.max_prompt_chars
+    max_prompts_total = cfg.max_prompts_total
+
+    effective_q = (q or "").strip()
+    positive_keys: set[str] = set()
+    negative_keys: set[str] = set()
+    positive_entries: list[tuple[str, bool]] = []
+    negative_entries: list[tuple[str, bool]] = []
+
+    def add_positive(text: str) -> None:
+        prompt = text.strip()
+        key = prompt.lower()
+        if not prompt or len(prompt) > max_prompt_chars or key in positive_keys:
+            return
+        positive_keys.add(key)
+        positive_entries.append((prompt, True))
+
+    def add_negative(text: str) -> None:
+        prompt = text.strip()
+        key = prompt.lower()
+        if not prompt or len(prompt) > max_prompt_chars or key in negative_keys:
+            return
+        negative_keys.add(key)
+        negative_entries.append((prompt, True))
+
+    for prompt in positives_raw:
+        add_positive(prompt)
+    if effective_q:
+        prompt = effective_q
+        key = prompt.lower()
+        if len(prompt) <= max_prompt_chars and key not in positive_keys:
+            positive_keys.add(key)
+            positive_entries.append((prompt, False))
+    for prompt in negatives_raw:
+        add_negative(prompt)
+
+    remaining = max_prompts_total
+    capped_positive_entries = positive_entries[:remaining]
+    remaining -= len(capped_positive_entries)
+    capped_negative_entries = negative_entries[:remaining]
+    positives = [prompt for prompt, _explicit in capped_positive_entries]
+    negatives = [prompt for prompt, _explicit in capped_negative_entries]
+    return PromptState(
+        q=effective_q,
+        positives=positives,
+        negatives=negatives,
+        positive_chips=[
+            prompt for prompt, explicit in capped_positive_entries if explicit
+        ],
+        negative_chips=[
+            prompt for prompt, explicit in capped_negative_entries if explicit
+        ],
+    )

@@ -24,6 +24,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 
 from search._indexed_helpers import (
     favorite_id_set as _favorite_id_set,
+    normalize_prompt_state as _normalize_prompt_state,
     resolve_filename_filter as _resolve_filename_filter,
     results_from_hits as _results_from_hits,
     search_query_string as _search_query_string,
@@ -511,16 +512,6 @@ HERE = Path(__file__).parent
 # ruff B008 forbids. Use `None` as the default and resolve to a fresh
 # list inside the handler.
 _EMPTY_COLLECTIONS: list[str] = []
-
-
-@dataclass(frozen=True)
-class PromptState:
-    q: str
-    positives: list[str]
-    negatives: list[str]
-    positive_chips: list[str]
-    negative_chips: list[str]
-
 
 # ---------------------- Qdrant client wiring ----------------------
 
@@ -1237,75 +1228,9 @@ def create_app(
                 )
                 return None, None
         return ids, None
+    # _normalize_prompt_state lives in search/_indexed_helpers.py (§B2 step 37).
 
-    def _normalize_prompt_state(
-        q: str,
-        positives_raw: list[str],
-        negatives_raw: list[str],
-    ) -> PromptState:
-        """
-        Normalize q/positive/negative prompt inputs for search.
-
-        Display text is preserved for response/template echo. Dedupe is
-        case-insensitive per side, overlong prompts are dropped, and q is
-        appended to positives if it is a usable non-duplicate prompt.
-        """
-        effective_q = (q or "").strip()
-        positive_keys: set[str] = set()
-        negative_keys: set[str] = set()
-        positive_entries: list[tuple[str, bool]] = []
-        negative_entries: list[tuple[str, bool]] = []
-
-        def add_positive(text: str) -> None:
-            prompt = text.strip()
-            key = prompt.lower()
-            if not prompt or len(prompt) > _cfg.max_prompt_chars or key in positive_keys:
-                return
-            positive_keys.add(key)
-            positive_entries.append((prompt, True))
-
-        def add_negative(text: str) -> None:
-            prompt = text.strip()
-            key = prompt.lower()
-            if not prompt or len(prompt) > _cfg.max_prompt_chars or key in negative_keys:
-                return
-            negative_keys.add(key)
-            negative_entries.append((prompt, True))
-
-        for prompt in positives_raw:
-            add_positive(prompt)
-        if effective_q:
-            prompt = effective_q
-            key = prompt.lower()
-            if len(prompt) <= _cfg.max_prompt_chars and key not in positive_keys:
-                positive_keys.add(key)
-                positive_entries.append((prompt, False))
-        for prompt in negatives_raw:
-            add_negative(prompt)
-
-        remaining = _cfg.max_prompts_total
-        capped_positive_entries = positive_entries[:remaining]
-        remaining -= len(capped_positive_entries)
-        capped_negative_entries = negative_entries[:remaining]
-        positives = [prompt for prompt, _explicit in capped_positive_entries]
-        negatives = [prompt for prompt, _explicit in capped_negative_entries]
-        return PromptState(
-            q=effective_q,
-            positives=positives,
-            negatives=negatives,
-            positive_chips=[
-                prompt for prompt, explicit in capped_positive_entries if explicit
-            ],
-            negative_chips=[
-                prompt for prompt, explicit in capped_negative_entries if explicit
-            ],
-        )
     # _search_query_string lives in search/_indexed_helpers.py (§B2 step 36).
-
-        return urlencode(params)
-
-    # _surprise_search lives in search/_indexed_helpers.py (§B2 step 35).
-
 
     def _favorite_id_set_sync(point_ids: list[str]) -> set[str]:
         favorites: set[str] = set()
@@ -1705,6 +1630,7 @@ def create_app(
                 "Diversity cannot be combined with Surprise Me. Choose one search mode."
             )
         prompt_state = _normalize_prompt_state(
+            _cfg,
             q,
             _parse_prompts(request, "positives"),
             _parse_prompts(request, "negatives"),

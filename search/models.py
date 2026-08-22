@@ -4,6 +4,8 @@ search/models.py — Pydantic response models for /api/search.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from pydantic import BaseModel, Field
 
 
@@ -318,3 +320,34 @@ class SavedSearchListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PromptState:
+    """Normalized q/positive/negative prompt state for search.
+
+    Plain dataclass (not a Pydantic BaseModel) because it's an
+    internal value object — it's only ever passed around between
+    the prompt-normalisation helper and the search route, never
+    serialised to JSON.
+    """
+    q: str
+    positives: list[str]
+    negatives: list[str]
+    positive_chips: list[str]
+    negative_chips: list[str]
+
+
+@dataclass(frozen=True)
+class PromptState:
+    """Normalized q/positive/negative prompt state for search.
+
+    Plain dataclass (not a Pydantic BaseModel) because it's an
+    internal value object — it's only ever passed around between
+    the prompt-normalisation helper and the search route, never
+    serialised to JSON.
+    """
+    q: str
+    positives: list[str]
+    negatives: list[str]
+    positive_chips: list[str]
+    negative_chips: list[str]

@@ -261,3 +261,54 @@ def test_search_query_string_favorites_flag():
         q="x", positives=[], negatives=[], collections=[], favorites=True,
     )
     assert "favorites=true" in out
+
+
+def _fake_cfg(max_prompt_chars: int = 80, max_prompts_total: int = 20):
+    from unittest.mock import MagicMock
+    cfg = MagicMock()
+    cfg.max_prompt_chars = max_prompt_chars
+    cfg.max_prompts_total = max_prompts_total
+    return cfg
+
+
+def test_normalize_prompt_state_trims_and_dedupes_positives():
+    from search._indexed_helpers import normalize_prompt_state
+    cfg = _fake_cfg()
+    out = normalize_prompt_state(
+        cfg, q="", positives_raw=["kittens", "  kittens  ", "puppies"],
+        negatives_raw=[],
+    )
+    # Dedup is case-insensitive and post-strip.
+    assert out.positives == ["kittens", "puppies"]
+
+
+def test_normalize_prompt_state_drops_overlong_prompts():
+    from search._indexed_helpers import normalize_prompt_state
+    cfg = _fake_cfg(max_prompt_chars=10)
+    out = normalize_prompt_state(
+        cfg, q="", positives_raw=["short", "this prompt is way too long"],
+        negatives_raw=[],
+    )
+    assert out.positives == ["short"]
+
+
+def test_normalize_prompt_state_appends_q_to_positives():
+    """q is appended to positives if usable and non-duplicate."""
+    from search._indexed_helpers import normalize_prompt_state
+    cfg = _fake_cfg()
+    out = normalize_prompt_state(
+        cfg, q="ducks", positives_raw=["kittens"], negatives_raw=[],
+    )
+    assert "ducks" in out.positives
+    assert out.q == "ducks"
+
+
+def test_normalize_prompt_state_q_not_duplicated():
+    """q must not be added if it's already in positives (case-insensitive)."""
+    from search._indexed_helpers import normalize_prompt_state
+    cfg = _fake_cfg()
+    out = normalize_prompt_state(
+        cfg, q="kittens", positives_raw=["kittens"], negatives_raw=[],
+    )
+    # q should still be set (echo), but positives shouldn't double up.
+    assert out.positives.count("kittens") == 1
