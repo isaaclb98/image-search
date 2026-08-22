@@ -312,3 +312,69 @@ def test_normalize_prompt_state_q_not_duplicated():
     )
     # q should still be set (echo), but positives shouldn't double up.
     assert out.positives.count("kittens") == 1
+
+
+def test_diversity_page_returns_empty_when_no_favorites_match():
+    """When favorites= is set but no candidates match, return empty page."""
+    from unittest.mock import MagicMock
+    from search._indexed_helpers import diversity_page
+
+    cfg = MagicMock()
+    cfg.qdrant_collection = "test_collection"
+    cfg.max_results_total = 1000
+    cfg.diversity_duplicate_hamming_distance = 8
+    cfg.diversity_relevance_drop = 0.1
+    cfg.diversity_pool_depths = {}
+    qdrant = MagicMock()
+    cache = MagicMock()
+    cache.get.return_value = None  # miss
+    # search_with_vectors returns pairs
+    qdrant.search_with_vectors.return_value = ([], 0)
+
+    # favorite_ids set but no overlap with allowed_ids
+    hits, has_more, meta = diversity_page(
+        cfg, qdrant, cache,
+        vector=[0.1] * 4,
+        effective_limit=20, offset=0,
+        collections=[],
+        allowed_ids=["a", "b"],
+        favorite_ids={"x", "y"},  # none of a/b
+        mode="balanced", strength=0.5,
+        depth="auto", pool_depth=0,
+    )
+    # Favorites filter reduces to empty list (no matches in allowed_ids).
+    # The route returns empty + applied metadata without hitting qdrant.
+    assert hits == []
+
+
+def test_diversity_page_uses_cache_hit():
+    """Cached entries skip Qdrant and return the cached page."""
+    from unittest.mock import MagicMock
+    from search._indexed_helpers import diversity_page
+    from search.models import DiversityMetadata
+
+    cfg = MagicMock()
+    cfg.qdrant_collection = "test_collection"
+    qdrant = MagicMock()
+    cache = MagicMock()
+    cached_meta = DiversityMetadata(
+        requested=True, applied=True, mode="balanced",
+        strength=0.5, depth="auto", pool_depth=100,
+        candidate_count=100, result_count=100,
+        duplicate_images_collapsed=0,
+    )
+    cached_hits = [MagicMock(id=f"id_{i}") for i in range(20)]
+    cache.get.return_value = MagicMock(
+        hits=cached_hits, stats=cached_meta,
+    )
+
+    hits, has_more, meta = diversity_page(
+        cfg, qdrant, cache,
+        vector=[0.1] * 4,
+        effective_limit=5, offset=10,
+        collections=[], allowed_ids=None, favorite_ids=None,
+        mode="balanced", strength=0.5, depth="auto", pool_depth=100,
+    )
+    # Cache hit returns the cached page, qdrant not called.
+    assert len(hits) == 5
+    assert qdrant.search_with_vectors.call_count == 0

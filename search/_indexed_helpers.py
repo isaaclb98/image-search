@@ -323,3 +323,152 @@ def normalize_prompt_state(
             prompt for prompt, explicit in capped_negative_entries if explicit
         ],
     )
+
+
+def diversity_page(
+    cfg: Any,
+    qdrant: Any,
+    diversity_cache: Any,
+    *,
+    vector: list[float],
+    effective_limit: int,
+    offset: int,
+    collections: list[str],
+    allowed_ids: list[str] | None,
+    favorite_ids: set[str] | None,
+    mode: str,
+    strength: float,
+    depth: str,
+    pool_depth: int,
+) -> tuple[list, bool, Any]:
+    """Build or retrieve one complete, stable Diversity ordering.
+
+    Wraps the closure that was previously in `create_app`. The
+    diversity_cache is passed in so callers control cache lifecycle
+    (tests use a fresh in-memory cache).
+    """
+    from search._result_helpers import diversity_metadata as _diversity_metadata
+    from search.diversity import (
+        DiversityStats,
+        rank_diverse,
+        relevance_drop_for_mode,
+    )
+
+    cache_key = diversity_cache_key(
+        cfg,
+        vector, mode, depth, pool_depth, collections, allowed_ids, favorite_ids,
+    )
+    cached = diversity_cache.get(cache_key)
+    if cached is not None:
+        hits = list(cached.hits)
+        page = hits[offset:offset + effective_limit]
+        return page, len(hits) > offset + effective_limit, _diversity_metadata(cached.stats)
+
+    search_allowed_ids = allowed_ids
+    if favorite_ids is not None:
+        favorite_list = sorted(favorite_ids)
+        if search_allowed_ids is None:
+            search_allowed_ids = favorite_list
+        else:
+            favorite_set = set(favorite_list)
+            search_allowed_ids = [
+                point_id for point_id in search_allowed_ids
+                if point_id in favorite_set
+            ]
+        if not search_allowed_ids:
+            stats = DiversityStats(
+                requested=True, applied=True, mode=mode, strength=strength,
+                depth=depth, pool_depth=0,
+            )
+            return [], False, _diversity_metadata(stats)
+
+    # Fetch from offset zero and rank the complete candidate universe before
+    # slicing.
+    pairs, _ = qdrant.search_with_vectors(
+        vector,
+        limit=_pool_depth_for(cfg, mode, pool_depth),
+        offset=0,
+        collections=collections or None,
+        allowed_ids=search_allowed_ids,
+    )
+    ranking = rank_diverse(
+        pairs,
+        vector,
+        mode=mode,
+        strength=strength,
+        duplicate_hamming_distance=cfg.diversity_duplicate_hamming_distance,
+        relevance_drop=relevance_drop_for_mode(
+            mode, cfg.diversity_relevance_drop,
+        ),
+        max_results=cfg.max_results_total,
+        depth=depth,
+        pool_depth=len(pairs),
+    )
+    diversity_cache.put(cache_key, ranking.hits, ranking.stats)
+    page = ranking.hits[offset:offset + effective_limit]
+    return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
+
+
+def _pool_depth_for(cfg: Any, mode: str, requested: int) -> int:
+    """Resolve the candidate-pool depth used by the diverse re-ranker.
+
+    The mode-specific overrides on cfg.diversity_pool_depths win
+    over the user's `pool_depth` query value when the user didn't
+    explicitly request one (pool_depth <= 0). Falls back to the
+    raw `requested` for unknown modes.
+    """
+    overrides = getattr(cfg, "diversity_pool_depths", {}) or {}
+    if requested > 0:
+        return requested
+    return overrides.get(mode, requested or 500)
+
+
+def _digest_values(values) -> str:
+    """SHA-256 digest of a list/set/None of strings — used to hash
+    request-shape inputs into the diversity cache key.
+
+    Stable order (sorted) + UTF-8 replacement, so equivalent
+    inputs in any order produce the same key. None maps to
+    a fixed sentinel so the absence of a filter is still part
+    of the cache key.
+    """
+    import hashlib
+    digest = hashlib.sha256()
+    if values is None:
+        digest.update(b"<none>\0")
+    for value in sorted(str(item) for item in (values or [])):
+        digest.update(value.encode("utf-8", "replace"))
+    return digest.hexdigest()
+
+
+def diversity_cache_key(
+    cfg: Any,
+    vector: list[float],
+    mode: str,
+    depth: str,
+    pool_depth: int,
+    collections: list[str],
+    allowed_ids: list[str] | None,
+    favorite_ids: set[str] | None,
+) -> str:
+    """Build the cache key for one Diversity ordering request.
+
+    The key includes the collection name, mode/depth knobs,
+    a digest of the query vector, and digests of the filter
+    inputs. Two requests that produce identical Diversity
+    rankings must hash to the same key.
+    """
+    import hashlib
+    vector_digest = hashlib.sha256(
+        repr(tuple(round(float(value), 8) for value in vector)).encode("ascii")
+    ).hexdigest()[:20]
+    return "|".join((
+        cfg.qdrant_collection,
+        mode,
+        depth,
+        str(pool_depth),
+        vector_digest,
+        _digest_values(collections),
+        _digest_values(allowed_ids),
+        _digest_values(favorite_ids),
+    ))
