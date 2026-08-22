@@ -3038,88 +3038,8 @@ def create_app(
             liked_count=liked_count,
         )
 
-    @app.get("/api/for-you/state")
-    async def for_you_state() -> dict:
-        """Cheap signal snapshot for the header chip and empty-state."""
-        state = _for_you_build_state(index_db=index_db)
-        return {
-            "n_likes": state.n_likes,
-            "n_dislikes": state.n_dislikes,
-            "freshest_feedback_ts": state.freshest_feedback_ts,
-        }
+    # /api/for-you/* is wired via search/routers/for_you.py (§B2 step 19).
 
-    @app.get("/api/for-you/feed")
-    async def for_you_feed(
-        limit: int = 30,
-        diversity: str = "balanced",
-        diversity_depth: str = "auto",
-    ) -> dict:
-        """Heavy path: rebuild signal + Qdrant recommend + diversity."""
-        try:
-            limit = max(1, min(int(limit), 100))
-        except (TypeError, ValueError):
-            limit = 30
-
-        state = await asyncio.to_thread(_for_you_build_state, index_db=index_db)
-        fav_ids, dis_ids = await asyncio.gather(
-            asyncio.to_thread(index_db.list_favorite_ids),
-            asyncio.to_thread(index_db.list_dislike_ids),
-        )
-
-        try:
-            hits = _for_you_rank(
-                state=state,
-                fav_ids=fav_ids,
-                dis_ids=dis_ids,
-                qdrant=qdrant,
-                limit=limit,
-                diversity_mode=diversity,
-                diversity_depth=diversity_depth,
-            )
-        except (ConnectionError, OSError) as e:
-            logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-        except Exception as e:  # noqa: BLE001 — qdrant-client raises
-            # broad set of exception types; we 502 on anything that
-            # smells like a qdrant-side problem and let anything else
-            # fall through to the framework's 500 handler.
-            name = type(e).__name__
-            if "Qdrant" in name or "Connection" in name or "Timeout" in name:
-                logger.warning("Qdrant error for /api/for-you/feed: %s", e)
-                raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-            raise
-
-        # fav_ids/dis_ids are already in hand from the gather above
-        # — use them to mark each result so the for-you row can show
-        # coloured tiles for liked/disliked photos. (Round-6 issue #3.)
-        fav_set = set(fav_ids)
-        dis_set = set(dis_ids)
-        return {
-            "n_likes": state.n_likes,
-            "n_dislikes": state.n_dislikes,
-            "results": [
-                {
-                    "id": h.id,
-                    "path": h.path,
-                    "score": float(getattr(h, "score", 0.0)),
-                    "url": f"/photo/{h.id}/raw",
-                    "blurhash": (h.payload or {}).get("blurhash"),
-                    "is_favorite": h.id in fav_set,
-                    "is_disliked": h.id in dis_set,
-                }
-                for h in hits
-            ],
-        }
-
-    # /api/dislikes/* is wired via search/routers/dislikes.py (§B2 step 19).
-
-    # Reset wipes dislikes + feedback_events only. Favourites stay so
-    # the next page load still has a "warm start" via favourites.
-    @app.post("/api/for-you/reset", status_code=204)
-    async def for_you_reset() -> None:
-        await asyncio.to_thread(index_db.reset_feedback)
-        _invalidate_favourites_centroid()
-        _for_you_invalidate_signal()
 
     @app.get("/healthz")
     async def healthz() -> dict:
