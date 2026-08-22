@@ -6,17 +6,21 @@ No _pending queue. Tailscale-native.
 """
 
 from __future__ import annotations
-import argparse, logging, os, time
+
+import argparse
+import logging
+import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
+from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from indexer import scan as scan_mod
 from indexer import upsert
 from indexer.image_loader import letterbox_resize, load
 from indexer.vision_encoder import VisionEncoder
-from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
 
 load_dotenv()
 logger = logging.getLogger(__name__)

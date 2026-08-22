@@ -16,10 +16,17 @@ def clean_for_you_db(monkeypatch):
     We set INDEX_DB_PATH *before* the app is built (the env read
     happens once per Config construction). The fixture is autouse
     so it lands ahead of `app_with_qdrant` in the dependency graph.
+
+    Also clears the module-level `_signal_cache` in `search.for_you` —
+    it survives across tests because it's a module global, not tied
+    to any IndexDB instance. Without this, a dislike added in one
+    test leaks into the next via `build_state()`'s 30s cache.
     """
     import os
     db_path = f"/tmp/test_for_you_clean_{os.getpid()}_{id(monkeypatch)}.idx"
     monkeypatch.setenv("INDEX_DB_PATH", db_path)
+    from search import for_you as for_you_mod
+    for_you_mod.invalidate_signal_cache()
     yield db_path
     try:
         os.unlink(db_path)

@@ -43,6 +43,12 @@ def _run(monkeypatch, raw, source_dir: Path, extra_args=None) -> int:
         "--source", str(source_dir), "--source-name", "x",
         "--qdrant-collection", COLLECTION,
         "--device", "cpu",
+        # The real default model (ViT-gopt-16-SigLIP2-384) is multi-GB
+        # and slow on CPU; the conftest registers `mock-1536` in the
+        # registry, and local_sync looks it up by name via VisionEncoder.
+        # The change-detection invariant (point id + payload schema
+        # shape) is identical regardless of which embedder is used.
+        "--model", "mock-1536",
     ]
     if extra_args:
         args.extend(extra_args)

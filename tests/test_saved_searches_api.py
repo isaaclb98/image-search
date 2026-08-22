@@ -36,7 +36,7 @@ CAT_ID = "11111111-1111-1111-1111-111111111111"
 def app_with_qdrant(qdrant_in_memory, nas_base):
     from PIL import Image
 
-    from search.text_encoder import _mock_embed
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
     cfg = Config(
         qdrant_url="memory://",

@@ -40,8 +40,8 @@ from typing import Any
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
+from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from indexer import upsert
-from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
 
 load_dotenv()
 
@@ -111,7 +111,7 @@ def migrate(
                 with_payload=["path", "source"],
                 with_vectors=False,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.exception("scroll failed: %s", e)
             errors += 1
             break
@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
             quiet=args.quiet,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"migrate-source failed: {e}", file=sys.stderr)
         logger.exception("migrate-source failed")
         return 1

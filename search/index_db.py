@@ -1502,7 +1502,7 @@ class IndexDB:
                 placeholders = ",".join("?" for _ in collections)
                 bounds = self._conn.execute(
                     f"SELECT MIN(rowid), MAX(rowid) FROM images "
-                    f"WHERE collection IN ({placeholders})",  # noqa: S608
+                    f"WHERE collection IN ({placeholders})",
                     collections,
                 ).fetchone()
             else:

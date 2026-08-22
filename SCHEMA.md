@@ -2,16 +2,26 @@
 
 The canonical reference for every field stored on a Qdrant point by the
 `indexer/` writer. The single source of truth for field names lives in
-[`indexer/schema.py`](./indexer/schema.py) — this doc is the prose mirror
-and is updated alongside it.
+[`image_search_kernel/payload_schema.py`](./image_search_kernel/payload_schema.py) —
+this doc is the prose mirror and is updated alongside it.
 
-If you're adding a field, edit `indexer/schema.py` first, then update the
+If you're adding a field, edit the kernel module first, then update the
 table below. Both surfaces stay in lockstep.
+
+## Schema versioning
+
+Every point carries a `_schema_version` field. The current version is
+`1`. New versions are introduced by the kernel's
+`migrate_collection` helper (§A2 of `docs/backend-refactor-plan.md`),
+which copies vectors and applies registered field transforms to
+produce a new collection. Readers refuse unknown versions with a
+typed error (HTTP 503 + structured JSON body).
 
 ## Point identity
 
 | Field | Type | Source | Notes |
 |---|---|---|---|
+| `_schema_version` | int | `image_search_kernel/payload_schema.py:SCHEMA_VERSION` | Set to `1` for any point written by a versioned writer. Readers refuse unknown values. |
 | `id` | str (UUID) | `indexer/upsert.py:id_for` | Deterministic UUID5 over `f"{shard}::{path.as_posix()}"`; re-runs of the indexer produce the same id, so Qdrant upserts are idempotent. |
 
 ## File provenance
@@ -19,6 +29,7 @@ table below. Both surfaces stay in lockstep.
 | Field | Type | Source | Notes |
 |---|---|---|---|
 | `path` | str (absolute) | `Path.resolve()` | Absolute filesystem path on the host that ran the indexer. |
+| `folder` | str (absolute) | `Path.parent.resolve()` | Parent directory of the source image. Top-level files (image directly in the source root) get `folder == source_root`; symmetric with nested files, no special case. Powers folder-browsing in the desktop product and folder-grouped hydration in the search-side cache. |
 | `shard` | str | indexer arg | Empty string `""` for the default (un-sharded) indexer run. |
 | `collection` | str | indexer arg | Logical library (`kpop`, `portrait`, `general`, …); Qdrant payload-indexed as `keyword` and used as a `MatchAny` filter on the search side. |
 
@@ -53,6 +64,7 @@ search.
 |---|---|---|---|
 | `model_name` | str | indexer arg | The exact model identifier (e.g. `ViT-gopt-16-SigLIP2-384`). Points from different models are never compared. |
 | `model_revision` | str | indexer arg | Model revision string. Stored alongside `model_name` so a model upgrade can be detected and the collection re-indexed. |
+| `model_dim` | int | `image_search_kernel.registry.get(name).dim` | Vector dimension produced by the model that wrote this point. Self-describing — a backfilled migration can verify each point's vector length matches its recorded dim without consulting the registry. |
 
 ## Indexer timestamp
 

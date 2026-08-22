@@ -31,6 +31,31 @@ os.environ.setdefault("TOP_K_DEFAULT", "35")
 os.environ.setdefault("TOP_K_MAX", "200")
 
 
+# Register a deterministic "test" model entry so existing tests that
+# call `build_payload(..., model_name="test", ...)` continue to work
+# after the registry refactor (§A3). Real-model entries are registered
+# lazily by `image_search_kernel.registry._try_register_real_models` on
+# first call to `get_default_registry()`.
+@pytest.fixture(scope="session", autouse=True)
+def _register_test_model():
+    from image_search_kernel.registry import (
+        MockEmbedder,
+        ModelSpec,
+        get_default_registry,
+    )
+
+    registry = get_default_registry()
+    registry.register(ModelSpec(
+        name="test",
+        dim=1536,
+        resolution=384,
+        revision="test-r0",
+        text=MockEmbedder(dim=1536, resolution=384),
+        vision=MockEmbedder(dim=1536, resolution=384),
+    ))
+    yield
+
+
 @pytest.fixture
 def qdrant_in_memory():
     """A QdrantClient in :memory: mode, function-scoped (fresh per test)."""

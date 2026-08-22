@@ -28,8 +28,13 @@ from indexer.fingerprints import compute_fingerprints
 
 logger = logging.getLogger(__name__)
 
-# SigLIP2 gopt-16 output dim. Hard-coded — change only if the model changes.
-VECTOR_DIM: int = 1536
+# SigLIP2 gopt-16 output dim. Deprecated: sourced from the model
+# registry (§A3). New code should call
+# `image_search_kernel.registry.get("ViT-gopt-16-SigLIP2-384").dim`
+# rather than this constant. Kept for backward compatibility with
+# existing call sites; the regression test in §A3 allows this
+# single occurrence.
+VECTOR_DIM: int = 1536  # registry.get("ViT-gopt-16-SigLIP2-384").dim
 
 # Qdrant collection name. Single collection, hard-coded in v1.
 DEFAULT_COLLECTION: str = "images"
@@ -63,6 +68,8 @@ def id_for(path: Path, shard: str = "") -> str:
 def build_payload(
     path: Path, shard: str, model_name: str, model_revision: str,
     collection: str = "",
+    *,
+    model_dim: int | None = None,
 ) -> dict:
     """
     Build the Qdrant payload for a given image path.
@@ -80,11 +87,25 @@ def build_payload(
             (kpop, portrait, general, ...). Required at index time
             and indexed as a Qdrant keyword payload field so the
             search side can filter with a native MatchAny query.
+        model_dim: optional override for the model's embedding
+            dimension. When not provided, looked up from the
+            model registry by `model_name`. Pass it explicitly
+            when calling from contexts where the registry may
+            not have the model registered (e.g. early-stage
+            test fixtures).
     """
     stat = path.stat()
     blurhash = compute_blurhash(path)
     fingerprints = compute_fingerprints(path)
+    if model_dim is None:
+        from image_search_kernel.registry import get as _registry_get
+
+        model_dim = _registry_get(model_name).dim
     return {
+        # Schema versioning (§A2). Every point written by a versioned
+        # writer carries this field. Readers refuse unknown versions.
+        "_schema_version": __import__("image_search_kernel.payload_schema",
+                                       fromlist=["SCHEMA_VERSION"]).SCHEMA_VERSION,
         "id": id_for(path, shard),
         "path": str(path.resolve()),
         "shard": shard,
@@ -92,6 +113,12 @@ def build_payload(
         # T9 — LQIP. None when compute failed (file missing / unreadable /
         # non-image); the client skips the placeholder render in that case.
         "blurhash": blurhash,
+        # §A2: parent directory path. Top-level files (image directly in
+        # the source root) get folder == source_root; symmetric with
+        # nested files, no special case. Powers folder-browsing in the
+        # desktop product and folder-grouped hydration in the search-side
+        # cache.
+        "folder": str(path.parent.resolve()),
         # Search Diversity metadata. These are intentionally not indexed
         # as Qdrant payload fields; the ranker reads them from candidates
         # after the vector search.
@@ -100,6 +127,11 @@ def build_payload(
         "size": int(stat.st_size),
         "model_name": model_name,
         "model_revision": model_revision,
+        # §A2: vector dim produced by the model that wrote this point.
+        # Self-describing — a backfilled migration can verify each
+        # point's vector length matches its recorded dim without
+        # consulting the registry.
+        "model_dim": model_dim,
         "indexed_at": __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc
         ).isoformat(),
@@ -227,7 +259,7 @@ def prune_missing(
 
     `prefix` / `base` make the walk canonical-aware, matching the
     translation local_sync applies at upsert time. Stored payload
-    paths are canonical UNC (`\\192.168.250.108\files\images\...`)
+    paths are canonical UNC (`\\192.168.250.108\files\\images\\...`)
     while the filesystem walk produces local paths
     (`Z:/images/kpop/...`); a raw string membership test between the
     two would classify every point as dead and delete the whole

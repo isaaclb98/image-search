@@ -102,6 +102,14 @@ def build_state(*, index_db) -> ForYouState:
     )
 
 
+def _zero_vector() -> list[float]:
+    """Zero vector of the active model's dim. Used as a placeholder
+    for the cold-start / diversity-rerank query paths that don't
+    have a real query vector."""
+    from image_search_kernel.registry import get as _registry_get
+    return [0.0] * _registry_get("ViT-gopt-16-SigLIP2-384").dim
+
+
 def rank(
     *,
     state: ForYouState,
@@ -126,6 +134,7 @@ def rank(
     if pool_k is None:
         pool_k = max(limit * 4, 80)
 
+    _z = _zero_vector()
     if fav_ids:
         hits = qdrant.recommend(
             positive=fav_ids,
@@ -136,7 +145,7 @@ def rank(
         # Cold start. qdrant.recommend() requires non-empty positives,
         # so fall back to a zero-vector search then diversity-scatter.
         hits, _ = qdrant.search(
-            vector=[0.0] * 1536,
+            vector=_z,
             limit=pool_k,
             exclude_ids=list(state.excluded_ids),
         )
@@ -154,7 +163,7 @@ def rank(
         # uses HNSW order rather than the supplied vector for raw
         # search, so the value doesn't matter here.
         hits_with_vecs, _ = qdrant.search_with_vectors(
-            vector=[0.0] * 1536,
+            vector=_z,
             limit=len(hits),
             exclude_ids=None,
         )
@@ -170,7 +179,7 @@ def rank(
 
         ranking = rank_diverse(
             pool,
-            [0.0] * 1536,
+            _z,
             mode=diversity_mode,
             max_results=limit,
             depth=diversity_depth,

@@ -68,7 +68,14 @@ def _build_demo_app(count: int):
     os.environ["SEARCH_NO_MODEL"] = "1"
     os.environ["SEARCH_TEST_MODE"] = "1"
     os.environ["NAS_IMAGES_BASE"] = str(Path(tempfile.gettempdir()) / "image-search-demo")
-    os.environ["INDEX_DB_PATH"] = str(Path(tempfile.gettempdir()) / "image-search-demo.db")
+    # Use a unique IndexDB path per invocation so re-running tests
+    # (or _build_demo_app being called twice in one pytest session,
+    # e.g. from test_v2_smoke and dev_server.py simultaneously) does
+    # not collide on the albums/demodata UNIQUE constraints. The
+    # demo DB is short-lived by design — it lives in tempfile and
+    # is recreated every time someone runs `_build_demo_app`.
+    _demo_db_path = Path(tempfile.gettempdir()) / f"image-search-demo-{os.getpid()}-{id(object())}.db"
+    os.environ["INDEX_DB_PATH"] = str(_demo_db_path)
     os.environ["QDRANT_COLLECTION"] = "images_demo"
     # API result URLs must point at this local server, not the production
     # default (localhost:8000), otherwise Chromium shows empty cards.
@@ -78,13 +85,15 @@ def _build_demo_app(count: int):
     paths = _make_demo_images(demo_root, count)
     client = QdrantClient(location=":memory:")
     collection = "images_demo"
+    from image_search_kernel.registry import get as _registry_get
+    _dim = _registry_get("ViT-gopt-16-SigLIP2-384").dim
     client.create_collection(
         collection_name=collection,
-        vectors_config=qmodels.VectorParams(size=1536, distance=qmodels.Distance.COSINE),
+        vectors_config=qmodels.VectorParams(size=_dim, distance=qmodels.Distance.COSINE),
     )
     points = []
     for index, path in enumerate(paths):
-        vector = [0.0] * 1536
+        vector = [0.0] * _dim
         vector[index] = 1.0
         # Read image dimensions. Use a fixed valid blurhash per slot
         # so the frontend can still tint glass panels by photo without

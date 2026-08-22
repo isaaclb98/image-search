@@ -56,7 +56,7 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch):
     """
     from PIL import Image
 
-    from search.text_encoder import _mock_embed
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
     cfg = Config(
         qdrant_url="memory://",
@@ -813,7 +813,7 @@ def test_random_window_samples_uniformly(qdrant_in_memory, nas_base):
     """
     from indexer import upsert
     from indexer.upsert import VECTOR_DIM
-    from search.text_encoder import _mock_embed
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
     client = qdrant_in_memory.client
     upsert.ensure_collection(client, qdrant_in_memory.collection, dim=VECTOR_DIM)

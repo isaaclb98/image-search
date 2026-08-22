@@ -82,7 +82,7 @@ from search.models import (
     SearchResult,
 )
 from search.qdrant_client import QdrantSearch, SearchHit
-from search.qdrant_url import client_kwargs as _qdrant_client_kwargs
+from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search.random import RandomPicker
 
 logger = logging.getLogger(__name__)

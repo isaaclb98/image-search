@@ -19,7 +19,7 @@ DOG_ID = "22222222-2222-2222-2222-222222222222"
 def app_with_qdrant(qdrant_in_memory, nas_base):
     from PIL import Image
 
-    from search.text_encoder import _mock_embed
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
     cfg = Config(
         qdrant_url="memory://",

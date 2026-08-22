@@ -28,8 +28,7 @@ from datetime import datetime, timezone
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
-from indexer.upsert import VECTOR_DIM
-
+from image_search_kernel.registry import get as _registry_get
 
 # Qdrant collection names. Single source of truth so search/db code
 # and any future sync code agree on what the marker point is called.
@@ -62,7 +61,7 @@ def ensure_sync_collections(client: QdrantClient, images_collection: str = "imag
     alone (we never re-configure an existing collection).
     """
     targets = [
-        (images_collection, VECTOR_DIM),
+        (images_collection, _registry_get("ViT-gopt-16-SigLIP2-384").dim),
         (PENDING_COLLECTION, 1),
         (META_COLLECTION, 1),
     ]

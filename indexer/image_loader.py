@@ -1,14 +1,21 @@
 """
 indexer/image_loader.py
 
-Load + preprocess an image for SigLIP2 embedding.
+Load + preprocess an image for embedding.
 
 Pipeline:
   1. PIL.Image.open(path) — lazy decode
   2. ImageOps.exif_transpose() — apply EXIF orientation
   3. .convert("RGB") — drop alpha; SigLIP2 expects 3 channels
-  4. Letterbox resize to SIGLIP_RESOLUTION (384x384) — preserve aspect ratio
-  5. Normalize with SigLIP2 mean/std — produces a tensor ready for the model
+  4. Letterbox resize to the registered model's resolution (e.g.
+     384x384 for ViT-gopt-16-SigLIP2-384, 256x256 for
+     ViT-L-16-SigLIP2-256) — preserve aspect ratio
+  5. Normalize with the model's mean/std — produces a tensor
+     ready for the embedder
+
+The model's resolution, mean, and std are pulled from the
+kernel's model registry by `model_name`. No constants live in
+this module.
 """
 
 from __future__ import annotations
@@ -25,10 +32,9 @@ from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
-# SigLIP2 ViT-gopt-16-384 native input size. 384 only — no 224 variant.
-SIGLIP_RESOLUTION: int = 384
-
-# SigLIP2 normalization (from the model's processor config).
+# SigLIP2 normalization (from the model's processor config). Mean/std
+# are model-family properties; the resolution is per-model and
+# resolved at `letterbox_resize` call time from the registry.
 SIGLIP_MEAN: tuple[float, float, float] = (0.5, 0.5, 0.5)
 SIGLIP_STD: tuple[float, float, float] = (0.5, 0.5, 0.5)
 
@@ -78,17 +84,38 @@ def load_image_pil(path: Path) -> Image.Image:
         raise LoaderError(path, f"open failed: {type(e).__name__}: {e}") from e
 
 
-def letterbox_resize(img: Image.Image, size: int = SIGLIP_RESOLUTION) -> Image.Image:
+def _default_resolution() -> int:
+    """Resolution to use when no model is specified.
+
+    Looks up the web backend's registered model and returns its
+    resolution. Falls back to 384 (the SigLIP2 family default) if
+    the registry hasn't been initialized — for example, when this
+    module is imported by a tool that runs before any registry call.
+    """
+    try:
+        from image_search_kernel.registry import get as _registry_get
+        return _registry_get("ViT-gopt-16-SigLIP2-384").resolution
+    except Exception:
+        return 384
+
+
+def letterbox_resize(img: Image.Image, size: int | None = None) -> Image.Image:
     """
     Resize `img` to fit in a `size`x`size` box, preserving aspect ratio,
     then pad to exactly `size`x`size` with black.
 
     Why letterbox (vs. naive resize): naive resize distorts the image.
-    SigLIP2 was trained on square inputs but real photos aren't square.
-    Letterbox + pad keeps the aspect ratio intact.
+    SigLIP2-style models are trained on square inputs but real photos
+    aren't square. Letterbox + pad keeps the aspect ratio intact.
 
     Uses LANCZOS resampling to match isaac-image-scoring exactly.
+
+    If `size` is None, the active model's resolution is read from the
+    registry. Callers should pass the registered model's resolution
+    explicitly when known.
     """
+    if size is None:
+        size = _default_resolution()
     img.thumbnail((size, size), Image.Resampling.LANCZOS)
     # Pad to exactly size x size, centered.
     canvas = Image.new("RGB", (size, size), (0, 0, 0))
@@ -98,11 +125,15 @@ def letterbox_resize(img: Image.Image, size: int = SIGLIP_RESOLUTION) -> Image.I
     return canvas
 
 
-def load(path: Path) -> Image.Image:
+def load(path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384") -> Image.Image:
     """
     Load + EXIF-correct + RGB-convert + letterbox. Returns a PIL.Image
-    of exactly SIGLIP_RESOLUTION x SIGLIP_RESOLUTION, ready for the
-    SigLIP2 processor.
+    of `resolution`x`resolution`, ready for the embedder registered as
+    `model_name`.
+
+    `model_name` defaults to the web backend's current model
+    (`ViT-gopt-16-SigLIP2-384`). The resolution is read from the model
+    registry, not from a constant in this module.
 
     Wraps `load_image_pil` in a thread with a `_LOAD_TIMEOUT_S` cap
     so a slow/stalled read on a network share doesn't hang the
@@ -121,7 +152,10 @@ def load(path: Path) -> Image.Image:
                 f"slow/stalled network share; raise INDEXER_LOAD_TIMEOUT_S "
                 f"if your network is just consistently slow)",
             ) from err
-    return letterbox_resize(img)
+    # Resize to the registered model's resolution.
+    from image_search_kernel.registry import get as _registry_get
+    size = _registry_get(model_name).resolution
+    return letterbox_resize(img, size=size)
 
 
 # Heuristic mapping from PIL size to torchvision's expected CHW float tensor.

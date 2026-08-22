@@ -17,7 +17,7 @@ from search.centroids import (
     DynamicCentroidRegistry,
     DynamicCentroidSpec,
 )
-from search.text_encoder import _mock_embed
+from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
 
 def _vec(seed: str) -> list[float]:
@@ -218,8 +218,34 @@ def fav_app(tmp_path):
         "b": str(uuid.uuid4()),
         "c": str(uuid.uuid4()),
     }
+    # The near-dup filter (Layer 2 in `search_by_centroid`) calibrates
+    # its threshold from the seed set's OWN intra-cluster pairwise
+    # distance — "drop candidates tighter than the tightest typical
+    # seed-seed pair." That calibration assumes the favourites form a
+    # tight cluster (real users favourite similar photos); with the
+    # raw `_mock_embed` output the three keys "a"/"b"/"c" hash to
+    # near-orthogonal vectors and the threshold overshoots, dropping
+    # the only candidate left after Layer-1's id-exclude. Build
+    # vectors explicitly: a and b are tight neighbours (the
+    # favourites — same vibe), c sits clearly outside the cluster so
+    # the calibrated threshold correctly keeps it. The point ids
+    # themselves are still drawn from `_mock_embed` so unrelated
+    # assertions stay stable.
+    import numpy as np
+    base = np.asarray(_mock_embed("seed"), dtype=np.float32)
+    base /= float(np.linalg.norm(base))
+    def _close_to(base, jitter: float) -> list[float]:
+        noise = np.random.RandomState(0).normal(scale=jitter, size=base.shape).astype(np.float32)
+        v = base + noise
+        v /= float(np.linalg.norm(v))
+        return v.tolist()
+    vecs = {
+        "a": _close_to(base, jitter=0.05),
+        "b": _close_to(base, jitter=0.05),
+        "c": _close_to(-base, jitter=0.05),
+    }
     items = [
-        (seed_ids[k], _mock_embed(k),
+        (seed_ids[k], vecs[k],
          {"id": seed_ids[k], "path": f"/photos/{k}.jpg",
           "collection": "kpop", "indexed_at": "2026-01-01T00:00:00Z"})
         for k in seed_ids

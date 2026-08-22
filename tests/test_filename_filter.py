@@ -39,7 +39,7 @@ from indexer import upsert
 from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search.config import Config
-from search.text_encoder import _mock_embed
+from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
 # ---------------- Shared test data ----------------
 
@@ -498,7 +498,7 @@ def test_api_search_filename_cardinality_guard_skips_filter(caplog):
     from indexer.upsert import VECTOR_DIM
     from search import app as app_mod
     from search.config import Config
-    from search.text_encoder import _mock_embed
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
     # Build a fresh in-memory Qdrant with 10 points, all with paths
     # matching the same single token. This triggers the guard

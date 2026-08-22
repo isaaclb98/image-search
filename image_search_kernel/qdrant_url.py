@@ -1,7 +1,9 @@
 """
-search/qdrant_url.py
+image_search_kernel.qdrant_url
 
-Tiny helper for building QdrantClient kwargs from a URL.
+URL → QdrantClient kwargs helper. Moved verbatim from
+`search/qdrant_url.py` so that both `search/` and `indexer/` can build
+QdrantClient instances without depending on each other.
 
 qdrant-client 1.18 has a footgun: when given a URL like
 `https://host` with no explicit port, it falls back to its
@@ -24,6 +26,8 @@ from __future__ import annotations
 
 from typing import Any
 from urllib.parse import urlparse
+
+__all__ = ["client_kwargs"]
 
 
 def client_kwargs(url: str, api_key: str | None = None, timeout: float | None = None) -> dict[str, Any]:

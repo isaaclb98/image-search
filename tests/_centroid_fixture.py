@@ -38,7 +38,7 @@ from indexer import upsert
 from indexer.upsert import VECTOR_DIM
 from search import app as app_mod
 from search.config import Config
-from search.text_encoder import _mock_embed
+from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
 
 # Stable test ids (also used as Qdrant point ids — must be valid UUIDs).
 CENTROID_CAT_ID = "11111111-1111-1111-1111-111111111111"

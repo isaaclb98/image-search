@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,18 +24,21 @@ DEFAULT_MODEL: str = "ViT-gopt-16-SigLIP2-384"
 DEFAULT_COLLECTION: str = "images"
 DEFAULT_RESULT_LIMIT: int = 20
 
-# Mapping from open_clip arch tag → (centroid-file `model` string,
-# expected feature dim). The centroid's `model` field is a short
-# lowercase tag written by `isaac-image-scoring`; the search side's
-# MODEL_NAME is the open_clip arch tag. We map between them so the
-# store can refuse to load a centroid that lives in a different
-# embedding space than the indexed images.
+# Mapping from open_clip arch tag → (centroid-file `model` string).
+# The expected feature dim is read from the model registry at lookup
+# time, not stored here — the registry is the single source of truth.
+# The centroid's `model` field is a short lowercase tag written by
+# `isaac-image-scoring`; the search side's MODEL_NAME is the open_clip
+# arch tag. We map between them so the store can refuse to load a
+# centroid that lives in a different embedding space than the indexed
+# images.
 #
-# Add new entries here when the model changes. The unknown-model
-# branch raises at config load time — fail fast rather than serve
-# garbage cosine results.
+# Add new entries here only when introducing a new model family.
+# The unknown-model branch raises at config load time — fail fast
+# rather than serve garbage cosine results.
 _CENTROID_MODEL_COMPAT = {
-    "ViT-gopt-16-SigLIP2-384": ("siglip2", 1536),
+    "ViT-gopt-16-SigLIP2-384": "siglip2",
+    "ViT-L-16-SigLIP2-256": "siglip2",
 }
 
 
@@ -45,6 +48,10 @@ def centroid_compat_for(model_name: str) -> tuple[str, int]:
     given open_clip arch tag. Raises ValueError on unknown models
     so the search container fails to start with a clear error
     rather than silently loading mismatched centroids.
+
+    `expected_feature_dim` is sourced from the model registry by
+    `model_name`; the registry is the only place model dimensions
+    are referenced.
 
     open_clip tags carry an "hf-hub:<vendor>/" prefix (e.g.
     ``hf-hub:timm/ViT-gopt-16-SigLIP2-384``); the map is keyed by
@@ -59,7 +66,8 @@ def centroid_compat_for(model_name: str) -> tuple[str, int]:
             f"Add one in search/config.py _CENTROID_MODEL_COMPAT. "
             f"Known models: {sorted(_CENTROID_MODEL_COMPAT)}"
         )
-    return _CENTROID_MODEL_COMPAT[bare]
+    from image_search_kernel.registry import get as _registry_get
+    return _CENTROID_MODEL_COMPAT[bare], _registry_get(bare).dim
 
 
 @dataclass(frozen=True)
@@ -112,7 +120,15 @@ class Config:
     # so the centroid-compat guard is meaningful out of the box;
     # production always sets these via config.load().
     centroid_expected_model: str = "siglip2"
-    centroid_expected_feature_dim: int = 1536
+    # Sourced from the model registry by `config.load()`. Default
+    # pulls from the registry so tests that construct `Config()`
+    # directly (without going through `config.load()`) still see a
+    # real dim. Production always overrides via `centroid_compat_for()`.
+    centroid_expected_feature_dim: int = field(
+        default_factory=lambda: __import__(
+            "image_search_kernel.registry", fromlist=["get"],
+        ).get("ViT-gopt-16-SigLIP2-384").dim,
+    )
     index_db_path: str = "./data/images.db"
     # ----- Operational constants (formerly module-level in app.py / discover.py) -----
     # All env-driven so an operator can tune the running service without

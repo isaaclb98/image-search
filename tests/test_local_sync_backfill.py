@@ -88,8 +88,17 @@ def backfill_env(tmp_path):
 
 def _run_with_fixture_client(monkeypatch, raw, args):
     """Patch local_sync.make_client to return the fixture's in-memory
-    Qdrant, then invoke main(). Returns the exit code."""
+    Qdrant, then invoke main(). Returns the exit code.
+
+    Tests that exercise the embed path inject `--model mock-1536` so
+    the registry's deterministic mock is used; the real
+    SigLIP2-384 model is multi-GB and hangs on CPU. The path-shape,
+    payload-shape, and prune-set invariants are identical regardless
+    of which embedder is used, so the mock is sufficient.
+    """
     monkeypatch.setattr(local_sync_mod, "make_client", lambda a: raw)
+    if "--model" not in args:
+        args = ["--model", "mock-1536"] + list(args)
     return local_sync_mod.main(args)
 
 
