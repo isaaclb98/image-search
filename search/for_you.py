@@ -105,9 +105,14 @@ def build_state(*, index_db) -> ForYouState:
 def _zero_vector() -> list[float]:
     """Zero vector of the active model's dim. Used as a placeholder
     for the cold-start / diversity-rerank query paths that don't
-    have a real query vector."""
+    have a real query vector.
+
+    Thin wrapper that pulls the dim from the registry; the
+    pure computation lives in search/for_you_compute.py.
+    """
     from image_search_kernel.registry import get as _registry_get
-    return [0.0] * _registry_get("ViT-gopt-16-SigLIP2-384").dim
+    from search.for_you_compute import zero_vector
+    return zero_vector(_registry_get("ViT-gopt-16-SigLIP2-384").dim)
 
 
 def rank(
@@ -132,7 +137,8 @@ def rank(
     carries a deduplicated exclude set.
     """
     if pool_k is None:
-        pool_k = max(limit * 4, 80)
+        from search.for_you_compute import pool_k_default
+        pool_k = pool_k_default(limit)
 
     _z = _zero_vector()
     if fav_ids:

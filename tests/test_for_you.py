@@ -118,3 +118,40 @@ def test_for_you_dislike_endpoint_smoke(app_with_qdrant):
     assert r.status_code in (204, 404)
     r = app_with_qdrant.delete(f"/api/dislikes/{fake_id}")
     assert r.status_code in (204, 404)
+
+
+def test_for_you_compute_module_is_pure():
+    """Phase B3 contract: search.for_you_compute is pure."""
+    import search.for_you_compute as compute
+
+    assert callable(compute.zero_vector)
+    assert callable(compute.pool_k_default)
+
+
+def test_for_you_compute_zero_vector_returns_correct_length():
+    """zero_vector returns a list of zeros with the requested dim."""
+    from search.for_you_compute import zero_vector
+
+    vec = zero_vector(768)
+    assert len(vec) == 768
+    assert all(v == 0.0 for v in vec)
+
+
+def test_for_you_compute_zero_vector_rejects_non_positive_dim():
+    """zero_vector rejects 0 and negative dims."""
+    import pytest
+    from search.for_you_compute import zero_vector
+
+    with pytest.raises(ValueError):
+        zero_vector(0)
+    with pytest.raises(ValueError):
+        zero_vector(-1)
+
+
+def test_for_you_compute_pool_k_default():
+    """pool_k_default = max(limit * 4, 80)."""
+    from search.for_you_compute import pool_k_default
+
+    assert pool_k_default(20) == 80  # 20*4=80, max(80,80)=80
+    assert pool_k_default(30) == 120  # 30*4=120 > 80
+    assert pool_k_default(100) == 400  # 100*4=400
