@@ -186,3 +186,29 @@ async def test_resolve_filename_filter_none_ids_from_db_returns_none_none():
     # Empty pattern short-circuits before path_token_ids is called.
     assert allowed is None
     assert err is None
+
+
+def test_surprise_search_returns_shuffled_subset():
+    """surprise_search shuffles input order and returns up to k items."""
+    from unittest.mock import MagicMock
+    from search._indexed_helpers import surprise_search
+
+    hits = [MagicMock(id=f"id_{i}") for i in range(20)]
+    result = surprise_search(hits, k=5)
+    assert len(result) == 5
+    # All returned hits were in the input.
+    assert all(h in hits for h in result)
+
+
+def test_surprise_search_handles_k_larger_than_input():
+    from unittest.mock import MagicMock
+    from search._indexed_helpers import surprise_search
+
+    hits = [MagicMock(id="a"), MagicMock(id="b")]
+    result = surprise_search(hits, k=10)
+    assert len(result) == 2
+
+
+def test_surprise_search_handles_empty_input():
+    from search._indexed_helpers import surprise_search
+    assert surprise_search([], k=5) == []

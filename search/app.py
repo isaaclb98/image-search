@@ -22,6 +22,23 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qsl, urlencode, urlparse
 
+from search._indexed_helpers import (
+    favorite_id_set as _favorite_id_set,
+    resolve_filename_filter as _resolve_filename_filter,
+    results_from_hits as _results_from_hits,
+    surprise_search as _surprise_search,
+)
+from search._result_helpers import (
+    bad_request as _bad_request,
+    coerce_view as _coerce_view,
+    diversity_metadata as _diversity_metadata,
+    internal_error as _internal_error,
+    parse_collections as _parse_collections,
+    parse_filename as _parse_filename,
+    qdrant_timeout as _qdrant_timeout,
+    qdrant_unreachable as _qdrant_unreachable,
+)
+
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
@@ -1349,14 +1366,8 @@ def create_app(
             params.append(("diverse", "true"))
         return urlencode(params)
 
-    def _surprise_search(
-        hits: list[SearchHit],
-        k: int,
-    ) -> list[SearchHit]:
-        """Shuffle hits and return up to k. Non-deterministic."""
-        shuffled = list(hits)
-        random.shuffle(shuffled)
-        return shuffled[:k]
+    # _surprise_search lives in search/_indexed_helpers.py (§B2 step 35).
+
 
     def _favorite_id_set_sync(point_ids: list[str]) -> set[str]:
         favorites: set[str] = set()

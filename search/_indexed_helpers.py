@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from typing import Any
 
 from search.image_resolver import resolve_url
 from search.models import SearchResult
+from search.qdrant_client import SearchHit
 
 logger = logging.getLogger(__name__)
 
@@ -170,3 +172,16 @@ async def resolve_filename_filter(
             )
             return None, None
     return ids, None
+
+
+def surprise_search(hits: list[SearchHit], k: int) -> list[SearchHit]:
+    """Shuffle hits and return up to k. Non-deterministic.
+
+    Used by /api/search's Surprise Me mode — the user gets a
+    random sample from the top-N candidates rather than the
+    strict ranking. Without this the "Surprise Me" UI is
+    indistinguishable from the standard top-K view.
+    """
+    shuffled = list(hits)
+    random.shuffle(shuffled)
+    return shuffled[:k]
