@@ -65,6 +65,10 @@ from typing import TYPE_CHECKING
 
 from search.models import DiscoveryImage, DiscoveryPair
 
+# Re-export the pure compute surface so existing call sites continue
+# to import from `search.discover` without an import rewrite.
+from search.discover_compute import mmr_select as _mmr_select  # noqa: E402, F401
+
 if TYPE_CHECKING:
     from search.index_db import IndexDB
     from search.qdrant_client import QdrantSearch
@@ -513,65 +517,11 @@ def _next_pair(
         if chosen[1]:
             session.seen.add(chosen[1])
         session.current_pair = (chosen[0], chosen[1])  # type: ignore[assignment]
-        return _build_pair(qdrant, session.round + 1, chosen[0], chosen[1], source="random")
+        return _build_pair(
+            qdrant, session.round + 1, chosen[0], chosen[1], source="random",
+        )
 
-
-def _mmr_select(
-    candidates: list[tuple[str, float, list[float]]],
-    k: int,
-    lambda_: float,
-) -> list[str]:
-    """Greedy Maximal Marginal Relevance.
-
-    WHAT this is: a re-ranking that picks k items maximising
-        relevance_to_query - LAMBDA * max_similarity_to_already_picked
-    The first term keeps the burst pool on-topic (close to what the
-    user has liked); the second term pushes each new pick away from
-    ones we've already chosen, so the cached burst pool spans more
-    of the liked neighbourhood instead of being 20 near-duplicates.
-
-    `candidates` is a list of (id, relevance_score, vector) sorted
-    by relevance desc. `relevance_score` is already cosine
-    similarity to the liked-mean (the recommend() call returns it).
-    Vectors are assumed unit-length (SigLIP2 embeddings in Qdrant
-    are stored normalised, so dot product == cosine similarity).
-    Falls back to the top-k by score if k >= len(candidates).
-    """
-    if k >= len(candidates):
-        return [c[0] for c in candidates]
-
-    # Lazy numpy import: keeps discover.py from forcing a numpy
-    # import on every test that touches the module, even when no
-    # burst ever fires.
-    import numpy as np
-
-    ids = [c[0] for c in candidates]
-    scores = np.asarray([c[1] for c in candidates], dtype=np.float32)
-    vecs = np.asarray([c[2] for c in candidates], dtype=np.float32)
-
-    selected: list[int] = []
-    # Pre-compute the full pairwise sim matrix once — k is small
-    # (≤ session.opts.mmr_pool_size) but candidates can be up to
-    # session.opts.recommend_overfetch (200). One matmul vs O(k*n) per pick.
-    sim = vecs @ vecs.T  # (n, n) cosine similarities
-
-    while len(selected) < k:
-        if not selected:
-            # First pick: highest relevance.
-            best = int(np.argmax(scores))
-        else:
-            # For each remaining candidate, MMR value = its
-            # relevance - LAMBDA * (max similarity to any already-
-            # selected candidate). The -inf mask drops already-
-            # picked ones.
-            sel = np.asarray(selected, dtype=np.int32)
-            max_sim_to_sel = sim[:, sel].max(axis=1)
-            mmr_value = scores - lambda_ * max_sim_to_sel
-            mmr_value[selected] = -np.inf
-            best = int(np.argmax(mmr_value))
-        selected.append(best)
-
-    return [ids[i] for i in selected]
+    # _mmr_select lives in search/discover_compute.py (§B3 step 45).
 
 
 def _build_pair(

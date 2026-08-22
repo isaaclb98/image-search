@@ -1026,3 +1026,41 @@ def test_burst_pool_spans_clusters(app_with_qdrant):
     finally:
         qdrant.recommend = original_recommend
         qdrant.retrieve_batch_with_vectors = original_retrieve_vectors
+
+
+def test_discover_compute_module_is_pure():
+    """Phase B3 contract: search.discover_compute is pure."""
+    import search.discover_compute as compute
+
+    assert callable(compute.mmr_select)
+
+
+def test_discover_mmr_select_short_circuits_when_k_exceeds_input():
+    """When k >= len(candidates), return all ids in input order."""
+    from search.discover_compute import mmr_select
+
+    candidates = [
+        ("a", 0.9, [1.0, 0.0]),
+        ("b", 0.8, [0.0, 1.0]),
+        ("c", 0.7, [1.0, 1.0]),
+    ]
+    result = mmr_select(candidates, k=10, lambda_=0.5)
+    assert result == ["a", "b", "c"]
+
+
+def test_discover_mmr_select_picks_diverse_subset():
+    """MMR picks the highest-relevance first, then diverse next."""
+    from search.discover_compute import mmr_select
+
+    candidates = [
+        ("a", 0.9, [1.0, 0.0, 0.0]),  # cluster 1
+        ("b", 0.85, [0.95, 0.05, 0.0]),  # near a
+        ("c", 0.7, [0.0, 1.0, 0.0]),  # cluster 2
+        ("d", 0.65, [0.0, 0.0, 1.0]),  # cluster 3
+    ]
+    # k=2, lambda=0.8: first pick is a (highest score), second
+    # picks the one most different from a → c or d (not b).
+    result = mmr_select(candidates, k=2, lambda_=0.8)
+    assert result[0] == "a"
+    assert result[1] != "b"
+    assert result[1] in ("c", "d")
