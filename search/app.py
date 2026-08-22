@@ -2000,31 +2000,15 @@ def create_app(
         Mirrors `_favorite_rows_to_results` but reads is_favorite from
         the cache (some random samples may already be favourites) and
         uses the cache's width/height for future masonry support.
+
+        No liveness filter here — the picker over-fetches enough that
+        we always return exactly `len(rows)` results, even if some are
+        photos whose NAS file has been deleted. The user sees a broken
+        tile for at most one cache refresh (60 s); the periodic
+        IndexDB refresh cleans truly-gone entries. The liveness filter
+        in `_favorite_rows_to_results` (album view) stays on because
+        that path can't over-fetch and broken tiles there are jarring.
         """
-        # Lazy liveness: drop rows whose on-disk file is gone. The
-        # IndexDB periodic refresh (force=True, every
-        # index_db_refresh_interval_seconds) keeps the cache clean
-        # in the long term; this is the always-on defense so /random
-        # doesn't show broken tiles within the TTL window. Resolve the
-        # payload path to its local mount first — the cached `path`
-        # is the source-side path (often a Windows UNC) that is
-        # never alive on the search server, so checking it directly
-        # would drop every row.
-        alive = []
-        for r in rows:
-            local = resolve_local(
-                str(r.get("path") or ""),
-                _cfg.nas_images_base,
-                _cfg.path_prefix,
-            )
-            if local is not None and _is_path_alive(str(local)):
-                alive.append(r)
-        if len(alive) < len(rows):
-            logger.debug(
-                "random: dropped %d dead row(s) from %d via lazy liveness",
-                len(rows) - len(alive), len(rows),
-            )
-        rows = alive
         def _maybe_int(v):
             try:
                 iv = int(v) if v is not None else None
