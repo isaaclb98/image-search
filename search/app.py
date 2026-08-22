@@ -808,6 +808,15 @@ def create_app(
     if is_enabled(auth_cfg):
         app.add_middleware(AuthGateMiddleware, auth=auth_cfg, enabled=True)
 
+    # ---------------------- Router includes (§B2) ----------------------
+    # Each resource group is one APIRouter in search/routers/. The
+    # inline @app.* route handlers below are still present (the
+    # extraction is incremental — this commit wires the smallest
+    # self-contained one first). Inline duplicates will be removed
+    # in follow-up commits as each router is verified.
+    from search.routers.collections import build_collections_router
+    app.include_router(build_collections_router(qdrant=qdrant))
+
     def _parse_collections(request: Request) -> list[str]:
         """
         Read all `?collection=` query params from the request, in
