@@ -42,8 +42,11 @@ from pathlib import Path
 import torch
 
 # Re-export the pure compute surface so existing call sites continue
-# to import from `search.centroids` without an import rewrite.
-from search.centroids_compute import (  # noqa: E402, F401
+# to import from `search.centroids` without an import rewrite. These
+# helpers live in the dedicated compute module (B3 step 43) and are
+# surfaced here for backward compat with internal callers that import
+# them from `search.centroids` directly.
+from search.centroids_compute import (  # noqa: F401
     blend_centroids,
     calibrate_near_dup_threshold,
     composite_centroid_name,
@@ -180,6 +183,10 @@ class CentroidStore:
         try:
             blob = torch.load(path, map_location="cpu", weights_only=False)
         except Exception as e:  # noqa: BLE001
+            # torch.load can fail with a variety of errors depending on the
+            # file's provenance (corrupt blob, version mismatch, security
+            # restriction). All are treated as "skip this file" by the
+            # caller; the warning carries the reason for diagnostics.
             logger.warning("CentroidStore: failed to load %s: %s", path, e)
             return None
         if not isinstance(blob, dict):
