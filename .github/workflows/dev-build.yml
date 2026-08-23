@@ -1,13 +1,35 @@
 # .github/workflows/dev-build.yml
 #
-# Lightweight CI for the polished-UI branches:
-#   1. Install deps
-#   2. Run `tw:build` so stale app.css commits get caught
-#   3. Run the full test suite
+# CI for the search + indexer + frontend split (post single-container
+# refactor in 1b897206). Runs on every branch push and PR against main.
 #
-# Triggers on push to any feature/* branch and on PRs against main.
-# Branch-only; no deploy step (deploy is GitOps via ArgoCD + the
-# k8s gitops repo, not GitHub Actions).
+# What it covers:
+#   Backend (Python 3.12)
+#     - pip install -e ".[dev]"      (deps + ruff + pytest)
+#     - ruff check .                  (lint)
+#     - pytest tests/ -q              (719 tests, in-memory Qdrant
+#                                      injected via the qdrant_in_memory
+#                                      fixture — see tests/conftest.py)
+#
+#   Frontend (Node 22)
+#     - npm ci                        (deterministic install from
+#                                      package-lock.json)
+#     - npm run check                 (svelte-kit sync + svelte-check)
+#     - npm run test:unit             (27 vitest tests across 3 files)
+#
+# What it deliberately does NOT do:
+#   - Build the search container image. That's image-build.yml, gated
+#     to main with a path allowlist (avoids redundant builds for
+#     doc-only or test-only commits).
+#   - Run Playwright e2e. Those need a live search backend on :8000
+#     and a Qdrant collection; both are out of scope for the branch
+#     feedback loop. Run them locally with
+#     `cd frontend && npm run test:e2e` against
+#     `python -m search.dev_server --demo-data`.
+#   - Download SigLIP2 weights. Tests use the in-process MockEmbedder
+#     registered in tests/conftest.py:_register_test_model, so the
+#     ~3 GB HuggingFace cache download is skipped.
+
 name: dev-build
 
 on:
@@ -15,61 +37,40 @@ on:
     branches:
       - "feature/**"
       - "fix/**"
+      - "fixes/**"
+      - "perf/**"
   pull_request:
     branches:
       - main
 
+# Cancel any in-flight run on the same ref so superseded pushes don't
+# waste runners.
+concurrency:
+  group: dev-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
+      # ------------------------------------------------------------------
+      # Backend (Python)
+      # ------------------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install -U pip
           pip install -e ".[dev]"
-
-      - name: Install tailwindcss standalone CLI
-        # The local dev workflow shells out to ./bin/tailwindcss.
-        # The vendored binary lives in the repo so developers don't
-        # need to download it, but vendoring 111 MB of compiled
-        # binary into git history is wasteful — CI downloads the
-        # pinned upstream release instead. Version is pinned to
-        # the same v4.3.3 the dev binary is built from so both
-        # paths produce byte-identical CSS.
-        run: |
-          mkdir -p bin
-          curl -fsSL --retry 3 -o bin/tailwindcss \
-            https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.3/tailwindcss-linux-x64
-          chmod +x bin/tailwindcss
-          ./bin/tailwindcss --help > /dev/null
-
-      - name: Build the design-system bundle (tw:build)
-        # Catches the silent build-skipped failure mode where someone
-        # commits a tailwind/input.css edit but forgets to rebuild
-        # app.css — the cluster then serves a stale 404 page until
-        # the next local rebuild.
-        run: |
-          . .venv/bin/activate
-          ./bin/tailwindcss -i search/static/css/input.css -o search/static/css/app.css
-
-      - name: Verify the bundle changed (or was already current)
-        # A real edit usually grows the bundle by ~1-5KB; we don't
-        # assert the size, just confirm the build produced a
-        # non-empty CSS file at the expected path.
-        run: |
-          test -s search/static/css/app.css
-          echo "app.css size: $(wc -c < search/static/css/app.css) bytes"
 
       - name: Lint (ruff)
         # Catches unused imports, dead code, security smells, and
@@ -81,12 +82,38 @@ jobs:
           . .venv/bin/activate
           ruff check .
 
-      - name: Run tests
+      - name: Run pytest
+        # Tests inject an in-memory Qdrant via the qdrant_in_memory
+        # fixture, so QDRANT_URL is irrelevant to the search path —
+        # but config.load() still parses it, so set it to something
+        # qdrant_url.client_kwargs() accepts (http or https only;
+        # it rejects `memory://` with ValueError). The default
+        # conftest value matches.
         run: |
           . .venv/bin/activate
-          pytest tests/ -q --tb=short
-        env:
-          # In-memory Qdrant + mock text encoder keep the CI run
-          # under a minute and GPU-free.
-          QDRANT_URL: "memory://"
-          LOG_LEVEL: "WARNING"
+          QDRANT_URL="http://localhost:6333" \
+          SEARCH_TEST_MODE=1 \
+          LOG_LEVEL="WARNING" \
+            pytest tests/ -q --tb=short
+
+      # ------------------------------------------------------------------
+      # Frontend (Node)
+      # ------------------------------------------------------------------
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: svelte-check (type + a11y)
+        working-directory: frontend
+        run: npm run check
+
+      - name: Vitest (unit + contract)
+        working-directory: frontend
+        run: npm run test:unit
