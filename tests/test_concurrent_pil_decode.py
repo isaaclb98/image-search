@@ -145,7 +145,7 @@ def test_concurrent_pil_decode_faster_than_serial():
     # also patch `load` to simulate a 50ms network read per file.
     paths = []
     for i in range(16):
-        p = Path(f"/tmp/c2_test_{i}.jpg")
+        p = Path(f"/tmp/c2_test_{i}.jpg")  # noqa: S108
         if not p.exists():
             # Write a tiny 1x1 JPEG.
             from PIL import Image

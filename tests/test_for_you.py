@@ -24,7 +24,7 @@ def clean_for_you_db(monkeypatch):
     test leaks into the next via `build_state()`'s 30s cache.
     """
     import os
-    db_path = f"/tmp/test_for_you_clean_{os.getpid()}_{id(monkeypatch)}.idx"
+    db_path = f"/tmp/test_for_you_clean_{os.getpid()}_{id(monkeypatch)}.idx"  # noqa: S108
     monkeypatch.setenv("INDEX_DB_PATH", db_path)
     from search import for_you as for_you_mod
     for_you_mod.invalidate_signal_cache()
@@ -86,13 +86,13 @@ def test_for_you_state_increments_after_favorite(app_with_qdrant):
     """End-to-end: insert a fake image row, mark it as favourite,
     state should reflect the new favourite."""
     real_id = "abcdef00-1111-2222-3333-444455556666"
-    db_path = os.environ.get("INDEX_DB_PATH", "/tmp/test_for_you_api.idx")
+    db_path = os.environ.get("INDEX_DB_PATH", "/tmp/test_for_you_api.idx")  # noqa: S108
     # Seed the image row via IndexDB directly.
     import sqlite3
     conn = sqlite3.connect(db_path)
     conn.execute(
         "INSERT OR IGNORE INTO images (id, path, indexed_at) VALUES (?, ?, ?)",
-        (real_id, "/tmp/fake_for_you.jpg", "2024-01-01T00:00:00Z"),
+        (real_id, "/tmp/fake_for_you.jpg", "2024-01-01T00:00:00Z"),  # noqa: S108
     )
     conn.commit()
     conn.close()

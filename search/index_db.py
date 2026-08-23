@@ -462,7 +462,7 @@ class IndexDB:
                 return
             fts_count = int(
                 self._conn.execute(
-                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"
+                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"  # noqa: S608
                 ).fetchone()["n"]
             )
             images_count = int(
@@ -499,9 +499,9 @@ class IndexDB:
             # this direct INSERT into images_fts is the one-time
             # migration path. The leading DELETE clears any
             # partial state from a previous failed migration.
-            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")
+            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")  # noqa: S608
             self._conn.execute(
-                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "
+                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "  # noqa: S608
                 f"SELECT rowid, path FROM images"
             )
             self._conn.execute(
@@ -609,7 +609,7 @@ class IndexDB:
                     SELECT images.id FROM {self.FTS_TABLE}
                     INNER JOIN images ON images.rowid = {self.FTS_TABLE}.rowid
                     WHERE {self.FTS_TABLE} MATCH ?
-                    """,
+                    """,  # noqa: S608
                     (fts_query,),
                 ).fetchall()
             except sqlite3.OperationalError as e:
@@ -711,7 +711,7 @@ class IndexDB:
                     WHERE id NOT IN ({placeholders})
                     ORDER BY RANDOM()
                     LIMIT ?
-                    """,
+                    """,  # noqa: S608
                     params,
                 ).fetchall()
         return [str(row["id"]) for row in rows]
@@ -729,7 +729,7 @@ class IndexDB:
         placeholders = ",".join("?" for _ in point_ids)
         with self._lock:
             rows = self._conn.execute(
-                f"SELECT id FROM favorites WHERE id IN ({placeholders})",
+                f"SELECT id FROM favorites WHERE id IN ({placeholders})",  # noqa: S608
                 list(point_ids),
             ).fetchall()
         return {row["id"] for row in rows}
@@ -884,7 +884,7 @@ class IndexDB:
         placeholders = ",".join("?" for _ in ids)
         with self._lock:
             rows = self._conn.execute(
-                f"SELECT id FROM dislikes WHERE id IN ({placeholders})",
+                f"SELECT id FROM dislikes WHERE id IN ({placeholders})",  # noqa: S608
                 list(ids),
             ).fetchall()
         return {row["id"] for row in rows}
@@ -1519,7 +1519,7 @@ class IndexDB:
             if collections:
                 placeholders = ",".join("?" for _ in collections)
                 bounds = self._conn.execute(
-                    f"SELECT MIN(rowid), MAX(rowid) FROM images "
+                    f"SELECT MIN(rowid), MAX(rowid) FROM images "  # noqa: S608
                     f"WHERE collection IN ({placeholders})",
                     collections,
                 ).fetchone()
