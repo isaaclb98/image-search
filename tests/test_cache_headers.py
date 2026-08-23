@@ -15,7 +15,6 @@ the regression before users do.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -37,7 +36,6 @@ def static_assets_dir(tmp_path):
 
 def test_app_immutable_assets_carry_immutable_cache_header(static_assets_dir, monkeypatch):
     """`GET /_app/immutable/*` sets `Cache-Control: ...immutable`."""
-    import os
 
     from fastapi.testclient import TestClient
     from qdrant_client import QdrantClient
@@ -67,7 +65,6 @@ def test_app_immutable_assets_carry_immutable_cache_header(static_assets_dir, mo
 
 def test_app_immutable_js_carry_immutable_cache_header(static_assets_dir, monkeypatch):
     """`/_app/immutable/entry/start.js` also gets immutable (per plan §C5)."""
-    import os
 
     from fastapi.testclient import TestClient
     from qdrant_client import QdrantClient
@@ -110,7 +107,6 @@ def test_photo_raw_response_has_must_revalidate_cache_control(
     on every reload — photos can change (file replaced on disk,
     re-indexed), and a stale cache would show the wrong image.
     """
-    import os
 
     from fastapi.testclient import TestClient
     from qdrant_client import QdrantClient

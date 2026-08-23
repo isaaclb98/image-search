@@ -10,12 +10,9 @@ shapes that implementations must satisfy.
 
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Iterator
 from pathlib import Path
 
-import pytest
 
 # ---------------------------------------------------------------------------
 # Protocol shape tests — verify the public surface area
@@ -55,7 +52,7 @@ def test_scan_phase_protocol_shape():
 def test_load_phase_protocol_shape():
     """`LoadPhase.__call__` takes a Path iterator + on_failure callback,
     returns Iterator[tuple[Path, Any]]."""
-    from indexer.pipeline import LoaderErrorLike, LoadPhase
+    from indexer.pipeline import LoadPhase
 
     seen_failures: list[tuple[Path, Exception]] = []
 
@@ -76,7 +73,7 @@ def test_load_phase_protocol_shape():
 def test_embed_phase_protocol_shape():
     """`EmbedPhase.__call__` takes a (Path, Tensor) iterator + embedder,
     returns Iterator[(Path, Tensor, Vector)]."""
-    from image_search_kernel.registry import MockEmbedder, ModelSpec, get_default_registry
+    from image_search_kernel.registry import MockEmbedder
     from indexer.pipeline import EmbedPhase
 
     embedder = MockEmbedder(dim=4, resolution=16)
@@ -113,13 +110,8 @@ def test_upsert_phase_protocol_shape():
 
 def _make_pipelines() -> tuple:
     """Build a 4-phase pipeline that processes a single in-memory path."""
-    from image_search_kernel.registry import MockEmbedder
     from indexer.pipeline import (
-        EmbedPhase,
         IndexerPipeline,
-        LoadPhase,
-        ScanPhase,
-        UpsertPhase,
         WriteResult,
     )
 
@@ -247,7 +239,6 @@ def test_pipeline_aggregates_failures():
     """A failure in the load phase is recorded in the report."""
     from indexer.pipeline import (
         IndexerPipeline,
-        LoaderErrorLike,
         PipelineConfig,
     )
 

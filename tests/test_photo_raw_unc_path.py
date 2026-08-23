@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels

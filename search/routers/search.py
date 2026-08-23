@@ -39,9 +39,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from search._indexed_helpers import (
-    diversity_cache_key,
     diversity_page,
-    favorite_id_set,
     normalize_prompt_state,
     resolve_filename_filter,
     results_from_hits,
@@ -50,7 +48,6 @@ from search._indexed_helpers import (
 from search._result_helpers import (
     bad_request,
     coerce_view,
-    diversity_metadata,
     internal_error,
     parse_centroids,
     parse_collections,

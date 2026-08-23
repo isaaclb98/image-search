@@ -14,7 +14,6 @@ ships.
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 from typing import Iterator
 
@@ -71,20 +70,13 @@ def _upsert_adapter(items, *, client, collection, dry_run, batch_size, on_failur
     from qdrant_client.http import models as qmodels
 
     from image_search_kernel.payload_schema import (
-        FIELD_FOLDER,
-        FIELD_MODEL_DIM,
-        FIELD_MODEL_NAME,
-        FIELD_MODEL_REVISION,
         FIELD_PATH,
-        FIELD_SCHEMA_VERSION,
-        SCHEMA_VERSION,
     )
     from image_search_kernel.registry import get as _registry_get
     from indexer.pipeline import WriteResult
     from indexer.upsert import (
         build_payload,
         id_for,
-        upsert_batch,
     )
 
     def _registry_model_dim_for(model_name: str) -> int:
@@ -127,7 +119,6 @@ def _upsert_adapter(items, *, client, collection, dry_run, batch_size, on_failur
 
 @pytest.fixture
 def qdrant_in_memory():
-    from search.qdrant_client import QdrantSearch
     return QdrantClient(location=":memory:")
 
 

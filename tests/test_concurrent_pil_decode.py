@@ -139,8 +139,6 @@ def test_concurrent_pil_decode_faster_than_serial():
     """
     from concurrent.futures import ThreadPoolExecutor
 
-    from indexer.image_loader import load
-    from indexer.run_pipeline import _load as pipeline_load
 
     # 16 synthetic "images" — represented as 1x1 JPEGs on disk.
     # PIL's Image.open + .load() is fast in absolute terms, so we
