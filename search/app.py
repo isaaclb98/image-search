@@ -1392,14 +1392,17 @@ def create_app(
         # Per-spec If-None-Match: respond 304 with no body if the
         # client's cached ETag matches. Saves bandwidth on every
         # cache hit (back/forward, grid re-render, etc.).
+        # Per plan §5.C5: photos can change on disk (file replaced,
+        # re-indexed), so the cache MUST revalidate every time. We pair
+        # this with an ETag above so repeat fetches hit 304 — no body
+        # transfer, just a cheap round trip to confirm the bytes are
+        # still the same.
+        cache_headers = {
+            "ETag": etag,
+            "Cache-Control": "public, max-age=0, must-revalidate",
+        }
         if request.headers.get("if-none-match") == etag:
-            return Response(
-                status_code=304,
-                headers={
-                    "ETag": etag,
-                    "Cache-Control": "public, max-age=31536000, immutable",
-                },
-            )
+            return Response(status_code=304, headers=cache_headers)
 
         filename = local.name
         return FileResponse(
@@ -1407,13 +1410,7 @@ def create_app(
             media_type=guess_content_type(local),
             filename=filename,
             content_disposition_type="inline",
-            headers={
-                "ETag": etag,
-                # immutable: same photo id never produces different
-                # bytes while its on-disk mtime+size match. A new
-                # ETag is issued on any byte change.
-                "Cache-Control": "public, max-age=31536000, immutable",
-            },
+            headers=cache_headers,
         )
 
     # /api/search is wired via search/routers/search.py (§B2 step 40).
