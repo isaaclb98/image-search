@@ -63,11 +63,10 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from search.models import DiscoveryImage, DiscoveryPair
-
 # Re-export the pure compute surface so existing call sites continue
 # to import from `search.discover` without an import rewrite.
 from search.discover_compute import mmr_select as _mmr_select  # noqa: E402, F401
+from search.models import DiscoveryImage, DiscoveryPair
 
 if TYPE_CHECKING:
     from search.index_db import IndexDB

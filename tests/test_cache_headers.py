@@ -20,7 +20,6 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-
 # ---------------------------------------------------------------------------
 # /_app/* — content-hashed SvelteKit assets, 1-year immutable
 # ---------------------------------------------------------------------------
@@ -41,10 +40,10 @@ def test_app_immutable_assets_carry_immutable_cache_header(static_assets_dir, mo
     import os
 
     from fastapi.testclient import TestClient
+    from qdrant_client import QdrantClient
 
     from search.app import create_app, reset_for_tests
     from search.qdrant_client import QdrantSearch
-    from qdrant_client import QdrantClient
 
     # The static dir is read from the FRONTEND_DIR env var in create_app.
     monkeypatch.setenv("FRONTEND_DIR", str(static_assets_dir))
@@ -71,10 +70,10 @@ def test_app_immutable_js_carry_immutable_cache_header(static_assets_dir, monkey
     import os
 
     from fastapi.testclient import TestClient
+    from qdrant_client import QdrantClient
 
     from search.app import create_app, reset_for_tests
     from search.qdrant_client import QdrantSearch
-    from qdrant_client import QdrantClient
 
     monkeypatch.setenv("FRONTEND_DIR", str(static_assets_dir))
     reset_for_tests()
@@ -114,13 +113,14 @@ def test_photo_raw_response_has_must_revalidate_cache_control(
     import os
 
     from fastapi.testclient import TestClient
-
-    from search.app import create_app, reset_for_tests
-    from search.config import Config, load as load_config
-    from search.qdrant_client import QdrantSearch
-    from indexer.upsert import ensure_collection, build_payload, id_for, upsert_batch
     from qdrant_client import QdrantClient
     from qdrant_client.http import models as qmodels
+
+    from indexer.upsert import build_payload, ensure_collection, id_for, upsert_batch
+    from search.app import create_app, reset_for_tests
+    from search.config import Config
+    from search.config import load as load_config
+    from search.qdrant_client import QdrantSearch
 
     corpus, photo_path = photo_in_corpus
     reset_for_tests()

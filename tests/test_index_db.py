@@ -443,6 +443,7 @@ def test_favorite_id_set_returns_only_listed_favourites(index_db):
 
 def test_favorite_id_set_empty_input_returns_empty_set(tmp_path):
     from unittest.mock import MagicMock
+
     from search.index_db import IndexDB
 
     qdrant = MagicMock()

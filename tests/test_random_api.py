@@ -48,6 +48,7 @@ def random_app(tmp_path, monkeypatch):
     # drop every row. Mock it to a no-op identity so the seeded paths
     # round-trip through the filter.
     from pathlib import Path as _Path
+
     from search import app as _app_mod
     monkeypatch.setattr(
         _app_mod,

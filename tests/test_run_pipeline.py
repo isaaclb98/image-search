@@ -44,7 +44,6 @@ def synth_corpus(tmp_path):
 
 def test_run_pipeline_source_end_to_end(synth_corpus, qdrant_in_memory):
     """10 synthetic JPEGs index via the wrapper with v1 schema fields."""
-    from indexer.upsert import ensure_collection
     from image_search_kernel.payload_schema import (
         FIELD_FOLDER,
         FIELD_MODEL_DIM,
@@ -54,6 +53,7 @@ def test_run_pipeline_source_end_to_end(synth_corpus, qdrant_in_memory):
         FIELD_SCHEMA_VERSION,
         SCHEMA_VERSION,
     )
+    from indexer.upsert import ensure_collection
 
     set_active_model("mock-1536", "test-r0")
     ensure_collection(qdrant_in_memory, "images_run_pipe", dim=1536)
@@ -126,8 +126,8 @@ def test_run_pipeline_source_handles_corrupt_files(synth_corpus, qdrant_in_memor
 
 def test_run_pipeline_source_emits_progress(synth_corpus, qdrant_in_memory):
     """`on_progress` is invoked when supplied."""
-    from indexer.upsert import ensure_collection
     from indexer.pipeline import ProgressEvent
+    from indexer.upsert import ensure_collection
 
     set_active_model("mock-1536", "test-r0")
     ensure_collection(qdrant_in_memory, "images_progress", dim=1536)
@@ -171,6 +171,7 @@ def test_run_pipeline_source_cancellation(synth_corpus, qdrant_in_memory):
 def test_run_pipeline_source_empty_source(qdrant_in_memory):
     """An empty source directory produces a zero-count report, not an error."""
     import tempfile
+
     from indexer.upsert import ensure_collection
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -190,8 +191,8 @@ def test_run_pipeline_source_empty_source(qdrant_in_memory):
 
 def test_set_active_model_persists_across_calls(synth_corpus, qdrant_in_memory):
     """`set_active_model` once is enough; subsequent runs use the pinned values."""
-    from indexer.upsert import ensure_collection
     from image_search_kernel.payload_schema import FIELD_MODEL_NAME, FIELD_MODEL_REVISION
+    from indexer.upsert import ensure_collection
 
     ensure_collection(qdrant_in_memory, "images_pinned", dim=1536)
 
@@ -259,6 +260,7 @@ def test_concurrent_load_preserves_failure_aggregation(synth_corpus, qdrant_in_m
 def test_concurrent_load_pool_size_configurable(monkeypatch):
     """`IMAGE_LOAD_POOL_SIZE` env var overrides the default pool size."""
     import importlib
+
     import indexer.run_pipeline as rp_module
 
     # Reload to pick up the env var at module import time.

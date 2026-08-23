@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from indexer import local_sync as local_sync_mod
-from indexer.upsert import build_payload, VECTOR_DIM
+from indexer.upsert import VECTOR_DIM, build_payload
 
 
 def _make_png(tmp_path: Path, name: str = "a.png", size: tuple[int, int] = (16, 16)) -> Path:

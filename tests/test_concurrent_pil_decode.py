@@ -25,14 +25,14 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-
 # -- Unit: env-driven configuration --------------------------------------
 
 
 def test_load_pool_size_defaults_to_min_cpu_8():
     """Default pool size: min(cpu_count, 8)."""
-    import indexer.run_pipeline as run_pipeline
     import importlib
+
+    import indexer.run_pipeline as run_pipeline
 
     # Clear the env var by setting it to an invalid (unparseable)
     # value triggers the same default-fallback path. Use a value
@@ -56,8 +56,9 @@ def test_load_pool_size_defaults_to_min_cpu_8():
 
 def test_load_pool_size_clamps_to_min_1():
     """Clamp to [1, 32]: a value below 1 rounds up to 1."""
-    import indexer.run_pipeline as run_pipeline
     import importlib
+
+    import indexer.run_pipeline as run_pipeline
 
     with patch.dict(os.environ, {"IMAGE_LOAD_POOL_SIZE": "0"}):
         importlib.reload(run_pipeline)
@@ -69,8 +70,9 @@ def test_load_pool_size_clamps_to_min_1():
 
 def test_load_pool_size_clamps_to_max_32():
     """Clamp to [1, 32]: a value above 32 rounds down to 32."""
-    import indexer.run_pipeline as run_pipeline
     import importlib
+
+    import indexer.run_pipeline as run_pipeline
 
     with patch.dict(os.environ, {"IMAGE_LOAD_POOL_SIZE": "100"}):
         importlib.reload(run_pipeline)
@@ -82,8 +84,9 @@ def test_load_pool_size_clamps_to_max_32():
 
 def test_load_pool_size_respects_explicit_env():
     """An explicit env value in [1, 32] is honoured as-is."""
-    import indexer.run_pipeline as run_pipeline
     import importlib
+
+    import indexer.run_pipeline as run_pipeline
 
     with patch.dict(os.environ, {"IMAGE_LOAD_POOL_SIZE": "5"}):
         importlib.reload(run_pipeline)
@@ -117,6 +120,7 @@ def test_image_loader_load_uses_thread_pool_executor():
     (it's not the per-batch parallelism), but the C2 throughput
     win comes from `run_pipeline._load`'s executor."""
     import inspect
+
     from indexer import image_loader
 
     source = inspect.getsource(image_loader.load)
@@ -134,6 +138,7 @@ def test_concurrent_pil_decode_faster_than_serial():
     and the synthetic test sleeps in `load` to simulate NAS latency.
     """
     from concurrent.futures import ThreadPoolExecutor
+
     from indexer.image_loader import load
     from indexer.run_pipeline import _load as pipeline_load
 
@@ -190,6 +195,7 @@ def test_pipeline_load_helper_uses_thread_pool_executor():
     (not bare for-loops, not asyncio.run_until_complete). This is
     the core C2 implementation."""
     import inspect
+
     from indexer.run_pipeline import _load
 
     source = inspect.getsource(_load)

@@ -23,7 +23,6 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-
 # ---------------------------------------------------------------------------
 # upsert — id stability + payload assembly
 # ---------------------------------------------------------------------------
@@ -79,7 +78,8 @@ class TestUpsertPayloadAssembly:
         self, tmp_path: Path,
     ):
         from image_search_kernel.payload_schema import (
-            FIELD_SCHEMA_VERSION, SCHEMA_VERSION,
+            FIELD_SCHEMA_VERSION,
+            SCHEMA_VERSION,
         )
         from indexer.upsert import build_payload
 
@@ -212,8 +212,9 @@ class TestIndexerCache:
         the DB on the last committed transaction. The on-disk
         file is always a valid SQLite database.
         """
-        from indexer.cache import IndexerCache
         import sqlite3
+
+        from indexer.cache import IndexerCache
 
         cache_path = tmp_path / "cache.db"
         a_path = tmp_path / "a.jpg"

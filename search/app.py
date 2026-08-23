@@ -22,34 +22,67 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qsl, urlencode, urlparse
 
-from search._indexed_helpers import (
-    diversity_cache_key as _diversity_cache_key,
-    diversity_page as _diversity_page,
-    favorite_id_set as _favorite_id_set,
-    normalize_prompt_state as _normalize_prompt_state,
-    resolve_filename_filter as _resolve_filename_filter,
-    results_from_hits as _results_from_hits,
-    search_query_string as _search_query_string,
-    surprise_search as _surprise_search,
-)
-from search._result_helpers import (
-    bad_request as _bad_request,
-    coerce_view as _coerce_view,
-    diversity_metadata as _diversity_metadata,
-    internal_error as _internal_error,
-    parse_centroids as _parse_centroids,
-    parse_collections as _parse_collections,
-    parse_filename as _parse_filename,
-    parse_weights as _parse_weights,
-    qdrant_timeout as _qdrant_timeout,
-    qdrant_unreachable as _qdrant_unreachable,
-)
-
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+
+from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search import config, discover, text_encoder
+from search._indexed_helpers import (
+    diversity_cache_key as _diversity_cache_key,
+)
+from search._indexed_helpers import (
+    diversity_page as _diversity_page,
+)
+from search._indexed_helpers import (
+    favorite_id_set as _favorite_id_set,
+)
+from search._indexed_helpers import (
+    normalize_prompt_state as _normalize_prompt_state,
+)
+from search._indexed_helpers import (
+    resolve_filename_filter as _resolve_filename_filter,
+)
+from search._indexed_helpers import (
+    results_from_hits as _results_from_hits,
+)
+from search._indexed_helpers import (
+    search_query_string as _search_query_string,
+)
+from search._indexed_helpers import (
+    surprise_search as _surprise_search,
+)
+from search._result_helpers import (
+    bad_request as _bad_request,
+)
+from search._result_helpers import (
+    coerce_view as _coerce_view,
+)
+from search._result_helpers import (
+    diversity_metadata as _diversity_metadata,
+)
+from search._result_helpers import (
+    internal_error as _internal_error,
+)
+from search._result_helpers import (
+    parse_centroids as _parse_centroids,
+)
+from search._result_helpers import (
+    parse_collections as _parse_collections,
+)
+from search._result_helpers import (
+    parse_filename as _parse_filename,
+)
+from search._result_helpers import (
+    parse_weights as _parse_weights,
+)
+from search._result_helpers import (
+    qdrant_timeout as _qdrant_timeout,
+)
+from search._result_helpers import (
+    qdrant_unreachable as _qdrant_unreachable,
+)
 from search.auth import (
     AuthGateMiddleware,
     auth_config_from,
@@ -75,12 +108,14 @@ from search.diversity import (
     resolve_depth,
     resolve_mode,
 )
-from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.for_you import (
     build_state as _for_you_build_state,
-    rank as _for_you_rank,
 )
 from search.for_you import invalidate_signal_cache as _for_you_invalidate_signal
+from search.for_you import (
+    rank as _for_you_rank,
+)
+from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
 from search.models import (
     AlbumCreateRequest,
@@ -105,7 +140,6 @@ from search.models import (
     SearchResult,
 )
 from search.qdrant_client import QdrantSearch, SearchHit
-from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search.random import RandomPicker
 
 logger = logging.getLogger(__name__)

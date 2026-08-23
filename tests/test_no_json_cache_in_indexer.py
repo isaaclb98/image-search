@@ -16,7 +16,6 @@ import json as _json
 import re
 from pathlib import Path
 
-
 INDEXER_DIR = Path("indexer")
 
 

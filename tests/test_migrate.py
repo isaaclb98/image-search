@@ -77,8 +77,8 @@ def test_migrate_v0_to_v1_produces_folder_and_model_dim(qdrant_in_memory_pair):
     """End-to-end: v0 → v1 migration populates `folder` and `model_dim`."""
     from image_search_kernel.migrate import (
         ModelMeta,
-        migrate_collection,
         make_v0_to_v1_transforms,
+        migrate_collection,
     )
     from image_search_kernel.payload_schema import (
         FIELD_FOLDER,
@@ -149,8 +149,8 @@ def test_migrate_copies_vectors_unchanged(qdrant_in_memory_pair):
     """vector_strategy='copy' preserves the original vectors verbatim."""
     from image_search_kernel.migrate import (
         ModelMeta,
-        migrate_collection,
         make_v0_to_v1_transforms,
+        migrate_collection,
     )
     from image_search_kernel.payload_schema import FIELD_PATH, SCHEMA_VERSION
 
@@ -187,8 +187,8 @@ def test_migrate_unknown_version_raises(qdrant_in_memory_pair):
     """Refusal: target_version outside the known-good set is rejected."""
     from image_search_kernel.migrate import (
         ModelMeta,
-        migrate_collection,
         make_v0_to_v1_transforms,
+        migrate_collection,
     )
     from image_search_kernel.payload_schema import require_fields
 
@@ -264,10 +264,10 @@ def test_migrate_reports_failures_does_not_raise(qdrant_in_memory_pair):
 def test_migrate_progress_callback(qdrant_in_memory_pair):
     """The `on_progress` callback is invoked at least once."""
     from image_search_kernel.migrate import (
-        ModelMeta,
         MigrationProgress,
-        migrate_collection,
+        ModelMeta,
         make_v0_to_v1_transforms,
+        migrate_collection,
     )
     from image_search_kernel.payload_schema import SCHEMA_VERSION
 
@@ -291,8 +291,8 @@ def test_migrate_elapsed_seconds_is_positive(qdrant_in_memory_pair):
     """The report's `elapsed_seconds` field is a non-negative float."""
     from image_search_kernel.migrate import (
         ModelMeta,
-        migrate_collection,
         make_v0_to_v1_transforms,
+        migrate_collection,
     )
     from image_search_kernel.payload_schema import SCHEMA_VERSION
 

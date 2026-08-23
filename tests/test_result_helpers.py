@@ -97,6 +97,7 @@ def test_qdrant_unreachable_returns_502_with_documented_envelope():
 def test_parse_centroids_strips_and_filters_empty():
     """parse_centroids drops empty/whitespace values, preserves order."""
     from starlette.requests import Request as StarletteRequest
+
     from search._result_helpers import parse_centroids
 
     # starlette QueryParams accepts a list of tuples.
@@ -111,6 +112,7 @@ def test_parse_centroids_strips_and_filters_empty():
 def test_parse_centroids_does_not_dedupe():
     """parse_centroids preserves repeated names (multi-weight blend)."""
     from starlette.requests import Request as StarletteRequest
+
     from search._result_helpers import parse_centroids
 
     scope = {
@@ -124,6 +126,7 @@ def test_parse_centroids_does_not_dedupe():
 def test_parse_weights_broadcasts_single_value():
     """A single weight broadcasts to all n centroids."""
     from starlette.requests import Request as StarletteRequest
+
     from search._result_helpers import parse_weights
 
     scope = {"type": "http", "query_string": b"weights=2.5"}
@@ -134,6 +137,7 @@ def test_parse_weights_broadcasts_single_value():
 def test_parse_weights_comma_separated():
     """Comma-separated form is preferred."""
     from starlette.requests import Request as StarletteRequest
+
     from search._result_helpers import parse_weights
 
     scope = {"type": "http", "query_string": b"weights=1,2,3"}
@@ -144,6 +148,7 @@ def test_parse_weights_comma_separated():
 def test_parse_weights_returns_none_when_omitted():
     """No weights= param → None (use defaults)."""
     from starlette.requests import Request as StarletteRequest
+
     from search._result_helpers import parse_weights
 
     scope = {"type": "http", "query_string": b""}

@@ -61,6 +61,7 @@ from search._result_helpers import (
 )
 from search.diversity import resolve_depth, resolve_mode
 from search.models import DiversityMetadata, SearchResponse
+
 logger = logging.getLogger(__name__)
 
 

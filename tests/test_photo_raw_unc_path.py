@@ -25,7 +25,6 @@ from search import app as app_mod
 from search.config import Config
 from search.qdrant_client import QdrantSearch
 
-
 # Production-shape constants: payload path is a UNC, path_prefix is
 # the same UNC, NAS_IMAGES_BASE is the local Linux mount.
 PREFIX = "\\\\nas\\share\\images"

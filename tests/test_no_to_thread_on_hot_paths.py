@@ -19,9 +19,8 @@ bigger violation.
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROUTERS_DIR = Path("search/routers")
 
@@ -120,8 +119,9 @@ def test_favorite_id_set_uses_batch_query():
     individual get_by_id calls. The C1 win is a ~10× reduction
     in SQLite round trips for /api/search's per-result fav lookup.
     """
-    from search._indexed_helpers import favorite_id_set_sync
     import inspect
+
+    from search._indexed_helpers import favorite_id_set_sync
 
     # The body of favorite_id_set_sync should NOT call get_by_id in
     # a loop. Source-level check: no `for pid` / `while pid` over

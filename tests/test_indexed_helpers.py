@@ -197,6 +197,7 @@ async def test_resolve_filename_filter_none_ids_from_db_returns_none_none():
 def test_surprise_search_returns_shuffled_subset():
     """surprise_search shuffles input order and returns up to k items."""
     from unittest.mock import MagicMock
+
     from search._indexed_helpers import surprise_search
 
     hits = [MagicMock(id=f"id_{i}") for i in range(20)]
@@ -208,6 +209,7 @@ def test_surprise_search_returns_shuffled_subset():
 
 def test_surprise_search_handles_k_larger_than_input():
     from unittest.mock import MagicMock
+
     from search._indexed_helpers import surprise_search
 
     hits = [MagicMock(id="a"), MagicMock(id="b")]
@@ -323,6 +325,7 @@ def test_normalize_prompt_state_q_not_duplicated():
 def test_diversity_page_returns_empty_when_no_favorites_match():
     """When favorites= is set but no candidates match, return empty page."""
     from unittest.mock import MagicMock
+
     from search._indexed_helpers import diversity_page
 
     cfg = MagicMock()
@@ -356,6 +359,7 @@ def test_diversity_page_returns_empty_when_no_favorites_match():
 def test_diversity_page_uses_cache_hit():
     """Cached entries skip Qdrant and return the cached page."""
     from unittest.mock import MagicMock
+
     from search._indexed_helpers import diversity_page
     from search.models import DiversityMetadata
 

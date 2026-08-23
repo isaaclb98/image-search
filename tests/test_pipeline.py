@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Protocol shape tests — verify the public surface area
 # ---------------------------------------------------------------------------
@@ -26,7 +25,10 @@ def test_protocols_are_runtime_checkable():
     """The four phase Protocols are runtime_checkable so test code can
     verify concrete implementations satisfy the contract."""
     from indexer.pipeline import (
-        ScanPhase, LoadPhase, EmbedPhase, UpsertPhase,
+        EmbedPhase,
+        LoadPhase,
+        ScanPhase,
+        UpsertPhase,
     )
     for proto in (ScanPhase, LoadPhase, EmbedPhase, UpsertPhase):
         assert getattr(proto, "_is_protocol", False) or hasattr(proto, "__call__"), (
@@ -53,7 +55,7 @@ def test_scan_phase_protocol_shape():
 def test_load_phase_protocol_shape():
     """`LoadPhase.__call__` takes a Path iterator + on_failure callback,
     returns Iterator[tuple[Path, Any]]."""
-    from indexer.pipeline import LoadPhase, LoaderErrorLike
+    from indexer.pipeline import LoaderErrorLike, LoadPhase
 
     seen_failures: list[tuple[Path, Exception]] = []
 
@@ -74,8 +76,8 @@ def test_load_phase_protocol_shape():
 def test_embed_phase_protocol_shape():
     """`EmbedPhase.__call__` takes a (Path, Tensor) iterator + embedder,
     returns Iterator[(Path, Tensor, Vector)]."""
-    from indexer.pipeline import EmbedPhase
     from image_search_kernel.registry import MockEmbedder, ModelSpec, get_default_registry
+    from indexer.pipeline import EmbedPhase
 
     embedder = MockEmbedder(dim=4, resolution=16)
 
@@ -111,11 +113,15 @@ def test_upsert_phase_protocol_shape():
 
 def _make_pipelines() -> tuple:
     """Build a 4-phase pipeline that processes a single in-memory path."""
+    from image_search_kernel.registry import MockEmbedder
     from indexer.pipeline import (
-        IndexerPipeline, LoadPhase, ScanPhase, EmbedPhase, UpsertPhase,
+        EmbedPhase,
+        IndexerPipeline,
+        LoadPhase,
+        ScanPhase,
+        UpsertPhase,
         WriteResult,
     )
-    from image_search_kernel.registry import MockEmbedder
 
     def fake_scan(source: Path) -> Iterator[Path]:
         # Emit two synthetic paths; the caller is responsible for
@@ -240,7 +246,9 @@ def test_pipeline_default_cancel_event_is_per_instance():
 def test_pipeline_aggregates_failures():
     """A failure in the load phase is recorded in the report."""
     from indexer.pipeline import (
-        IndexerPipeline, LoaderErrorLike, PipelineConfig,
+        IndexerPipeline,
+        LoaderErrorLike,
+        PipelineConfig,
     )
 
     def scan_failing(source: Path) -> Iterator[Path]:

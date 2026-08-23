@@ -1,6 +1,7 @@
 """Tests for the /for-you persistent recommendation feed."""
 
 import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -140,6 +141,7 @@ def test_for_you_compute_zero_vector_returns_correct_length():
 def test_for_you_compute_zero_vector_rejects_non_positive_dim():
     """zero_vector rejects 0 and negative dims."""
     import pytest
+
     from search.for_you_compute import zero_vector
 
     with pytest.raises(ValueError):

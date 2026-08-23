@@ -45,7 +45,9 @@ def test_save_then_load_round_trip(tmp_path: Path):
 def test_stale_version_raises_typed_error_in_strict_mode(tmp_path: Path):
     """Phase B4: stale CACHE_VERSION raises CacheVersionError (strict)."""
     from indexer.cache import (
-        CACHE_VERSION, CacheVersionError, IndexerCache,
+        CACHE_VERSION,
+        CacheVersionError,
+        IndexerCache,
     )
 
     cache_path = tmp_path / "cache.db"
@@ -82,7 +84,8 @@ def test_stale_version_raises_typed_error_in_strict_mode(tmp_path: Path):
 def test_collection_mismatch_raises_typed_error(tmp_path: Path):
     """Phase B4: collection mismatch raises typed error in strict mode."""
     from indexer.cache import (
-        CacheCollectionMismatchError, IndexerCache,
+        CacheCollectionMismatchError,
+        IndexerCache,
     )
 
     cache_path = tmp_path / "cache.db"

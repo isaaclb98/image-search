@@ -30,7 +30,6 @@ os.environ.setdefault("MODEL_NAME", "hf-hub:timm/ViT-gopt-16-SigLIP2-384")
 
 from search.app import create_app  # noqa: E402
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_OPENAPI = REPO_ROOT / "frontend" / "openapi.json"
 

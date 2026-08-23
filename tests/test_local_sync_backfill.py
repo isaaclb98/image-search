@@ -32,7 +32,6 @@ from indexer import local_sync as local_sync_mod
 from indexer.blurhash import compute_blurhash, is_valid_blurhash
 from indexer.upsert import VECTOR_DIM
 
-
 COLLECTION = "images_test_backfill"
 
 

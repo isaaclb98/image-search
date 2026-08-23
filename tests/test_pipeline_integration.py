@@ -22,7 +22,6 @@ import pytest
 from PIL import Image
 from qdrant_client import QdrantClient
 
-
 # ---------------------------------------------------------------------------
 # Adapter phases: wrap real indexer modules to satisfy the Protocols.
 # ---------------------------------------------------------------------------
@@ -69,11 +68,8 @@ def _embed_adapter(
 def _upsert_adapter(items, *, client, collection, dry_run, batch_size, on_failure):
     """Wrap `indexer.upsert.upsert_batch` so the pipeline contract
     (per-item failure reporting) is honored at the qdrant boundary."""
-    from indexer.upsert import (
-        build_payload,
-        id_for,
-        upsert_batch,
-    )
+    from qdrant_client.http import models as qmodels
+
     from image_search_kernel.payload_schema import (
         FIELD_FOLDER,
         FIELD_MODEL_DIM,
@@ -84,8 +80,12 @@ def _upsert_adapter(items, *, client, collection, dry_run, batch_size, on_failur
         SCHEMA_VERSION,
     )
     from image_search_kernel.registry import get as _registry_get
-    from qdrant_client.http import models as qmodels
     from indexer.pipeline import WriteResult
+    from indexer.upsert import (
+        build_payload,
+        id_for,
+        upsert_batch,
+    )
 
     def _registry_model_dim_for(model_name: str) -> int:
         return _registry_get(model_name).dim
@@ -149,8 +149,8 @@ def synth_corpus(tmp_path):
 def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memory):
     """Real indexer modules + mock embedder + in-memory Qdrant:
     10 synthetic images index end-to-end with v1 schema fields."""
-    from indexer.upsert import ensure_collection
     from indexer.pipeline import IndexerPipeline, PipelineConfig
+    from indexer.upsert import ensure_collection
 
     pipeline = IndexerPipeline(
         scan=_scan_adapter,      # type: ignore[arg-type]
@@ -214,8 +214,8 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
 
 def test_pipeline_handles_corrupt_files(synth_corpus, qdrant_in_memory):
     """Corrupt files are reported via `on_failure`, not raised."""
-    from indexer.upsert import ensure_collection
     from indexer.pipeline import IndexerPipeline, PipelineConfig
+    from indexer.upsert import ensure_collection
 
     # Inject a corrupt file alongside the synth corpus.
     (synth_corpus / "corrupt.jpg").write_bytes(b"\xff\xff not a real jpeg")

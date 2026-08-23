@@ -25,8 +25,8 @@ from dataclasses import dataclass
 
 from search.diversity_compute import (
     DIVERSITY_AUTO_DEPTHS,
-    DIVERSITY_DEPTHS,
     DIVERSITY_DEPTH_OPTIONS,
+    DIVERSITY_DEPTHS,
     DIVERSITY_MODE_RELEVANCE_MULTIPLIERS,
     DIVERSITY_MODE_STRENGTHS,
     DIVERSITY_MODES,
