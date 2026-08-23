@@ -52,11 +52,28 @@ from indexer.upsert import build_payload, id_for
 
 logger = logging.getLogger(__name__)
 
-# Concurrent PIL decode (§C2). 4 workers by default — the embed
-# phase is the bottleneck on CPU and adding more workers just
-# queues at the embed stage. Override via `IMAGE_LOAD_POOL_SIZE`
-# env var for hosts with more cores.
-_LOAD_POOL_SIZE = int(os.environ.get("IMAGE_LOAD_POOL_SIZE", "4"))
+# Concurrent PIL decode (§C2). The plan's spec:
+#   - default = min(cpu_count, 8)
+#   - clamped to [1, 32]
+#   - override via IMAGE_LOAD_POOL_SIZE env var for hosts with
+#     more (or fewer) cores
+_DEFAULT_LOAD_POOL_SIZE = min(os.cpu_count() or 1, 8)
+try:
+    _LOAD_POOL_SIZE = int(
+        os.environ.get(
+            "IMAGE_LOAD_POOL_SIZE",
+            str(_DEFAULT_LOAD_POOL_SIZE),
+        )
+    )
+except ValueError:
+    # Non-numeric env value — fall back to the default.
+    _LOAD_POOL_SIZE = _DEFAULT_LOAD_POOL_SIZE
+# Clamp to [1, 32]. A pool of 0 would silently serialise; a pool
+# of 100 on a 4-core box would just thrash the GIL.
+if _LOAD_POOL_SIZE < 1:
+    _LOAD_POOL_SIZE = 1
+elif _LOAD_POOL_SIZE > 32:
+    _LOAD_POOL_SIZE = 32
 
 __all__ = ["run_pipeline_source"]
 
