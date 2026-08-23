@@ -42,11 +42,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package layout FIRST so `pip install .` can find the search
-# and indexer packages declared in pyproject.toml. The layer above
-# (pyproject.toml + README.md) ensures the dep install is cached as
-# long as deps don't change.
+# Copy package layout FIRST so `pip install .` can find the search,
+# indexer, and image_search_kernel packages declared in pyproject.toml.
+# Each package is a separate COPY so its layer is only invalidated by
+# its own contents — touching search/ doesn't bust the image_search_kernel
+# layer or the dep install layer above.
+#
+# `image_search_kernel` is the shared kernel package introduced in
+# commit 7f39438 (backend refactor phase A+B); both search/ and
+# indexer/ import from it, so it MUST be in the build context or
+# `pip install .` fails with "package directory 'image_search_kernel'
+# does not exist".
 COPY pyproject.toml README.md ./
+COPY image_search_kernel/ ./image_search_kernel/
 COPY search/ ./search/
 COPY indexer/ ./indexer/
 

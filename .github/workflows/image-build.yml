@@ -35,6 +35,11 @@
 name: image-build
 
 on:
+  # Manual trigger — useful for verifying a Dockerfile / workflow change
+  # on a feature branch without merging to main first. ArgoCD only
+  # watches the :latest tag on main, so a dispatch build on any other
+  # branch produces a :sha-* image that nothing rolls to automatically.
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -46,6 +51,7 @@ on:
       - indexer/**
       - scripts/**
       - frontend/**
+      - image_search_kernel/**
       - .dockerignore
       - .github/workflows/image-build.yml
 
