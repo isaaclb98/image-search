@@ -61,7 +61,7 @@ class VisionEncoder:
         if test_mode:
             try:
                 self._embedder = _registry_get(MOCK_MODEL_NAME).vision
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Mock not registered (shouldn't happen with the
                 # default-registry fixture). Fall back to looking up
                 # the requested arch — the embedder may itself be a

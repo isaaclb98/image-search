@@ -160,7 +160,7 @@ class LazyIndexCache:
         try:
             count = await self.refresh()
             logger.info("lazy index cache hydrated: %d points", count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # The cache stays empty; reads will continue to
             # return None until the next successful refresh.
             # Logged but not raised — the background task

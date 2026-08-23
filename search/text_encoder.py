@@ -73,7 +73,7 @@ class TextEncoder:
         if test_mode:
             try:
                 self._embedder = _registry_get(MOCK_MODEL_NAME).text
-            except Exception:
+            except Exception:  # noqa: BLE001
                 self._embedder = _registry_get(arch).text
         else:
             self._embedder = _registry_get(arch).text
@@ -90,7 +90,7 @@ class TextEncoder:
 
         try:
             return _registry_get(self._requested_arch).resolution
-        except Exception:
+        except Exception:  # noqa: BLE001
             return 384
 
     def embed(self, text: str) -> list[float]:

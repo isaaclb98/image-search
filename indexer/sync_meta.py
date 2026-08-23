@@ -68,7 +68,7 @@ def ensure_sync_collections(client: QdrantClient, images_collection: str = "imag
     for name, dim in targets:
         try:
             client.get_collection(collection_name=name)
-        except Exception:
+        except Exception:  # noqa: BLE001
             client.create_collection(
                 collection_name=name,
                 vectors_config=qmodels.VectorParams(size=dim, distance=qmodels.Distance.COSINE),
@@ -107,5 +107,5 @@ def pending_count(client: QdrantClient) -> int:
     try:
         result = client.count(collection_name=PENDING_COLLECTION)
         return int(result.count)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return 0

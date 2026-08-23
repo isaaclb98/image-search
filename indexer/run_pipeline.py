@@ -127,7 +127,7 @@ def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
                 yield (p, img)
             except LoaderError as exc:
                 on_failure(p, exc)
-            except Exception as exc:  # defensive: PIL's zoo
+            except Exception as exc:  # defensive: PIL's zoo  # noqa: BLE001
                 on_failure(p, exc)
             submit_next()
 
@@ -170,13 +170,13 @@ def _upsert(
                 path=path, point_id=point_id, dry_run=dry_run,
                 vector_dim=len(vec),
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             on_failure(path, exc)
 
     if batch and not dry_run:
         try:
             client.upsert(collection_name=collection, points=batch, wait=False)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             for pt in batch:
                 # Best-effort: report the failure against the source path.
                 on_failure(Path(pt.payload.get(FIELD_PATH, "<unknown>")), exc)

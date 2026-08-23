@@ -630,14 +630,14 @@ def create_app(
                     test_mode=_cfg.test_mode,
                 )
                 logger.info("text encoder warmed in background")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("text encoder background warm-up failed: %s", e)
 
         async def _bg_init_from_qdrant() -> None:
             try:
                 count = await asyncio.to_thread(index_db.init_from_qdrant)
                 logger.info("index cache built from Qdrant: %d points", count)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("index cache background warm-up failed: %s", e)
 
         refresh_task: asyncio.Task | None = None
@@ -703,7 +703,7 @@ def create_app(
                             await asyncio.to_thread(index_db.release_refresh_lock)
                     except asyncio.CancelledError:
                         raise
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         logger.warning("periodic IndexDB refresh failed: %s", e)
             refresh_task = asyncio.create_task(_periodic_refresh_loop())
         try:
@@ -715,7 +715,7 @@ def create_app(
                     await refresh_task
                 except asyncio.CancelledError:
                     pass
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning("refresh task shutdown: %s", e)
             # Cancel and wait for the background startup tasks. If
             # init_from_qdrant is mid-write to SQLite, give it a
@@ -734,11 +734,11 @@ def create_app(
                         _bg_task.cancel()
                         try:
                             await _bg_task
-                        except (asyncio.CancelledError, Exception):
+                        except (asyncio.CancelledError, Exception):  # noqa: BLE001
                             pass
                     except asyncio.CancelledError:
                         pass
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         logger.warning("background startup task shutdown: %s", e)
             await asyncio.to_thread(index_db.close)
 

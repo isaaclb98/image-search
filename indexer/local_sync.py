@@ -114,7 +114,7 @@ def _await_points_visible(client, name, ids, timeout_s=30.0, poll_s=0.2):
     while True:
         try:
             found = upsert.existing_ids(client, name, list(want))
-        except Exception:
+        except Exception:  # noqa: BLE001
             found = set()
         if want <= found:
             return True
@@ -228,7 +228,7 @@ def main(argv=None):
                     exact_count=False,
                 )
                 expected_total = int(cnt.count)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.debug("count for %s failed: %s", src_name, exc)
         snap = scan_mod.snapshot(src_path, expected_total=expected_total)
         if args.limit:
@@ -331,7 +331,7 @@ def main(argv=None):
                 try:
                     img = load(p)
                     loaded.append((p, img))
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     logger.warning("load error %s: %s", p, exc)
                     total_errors += 1
 
@@ -531,7 +531,7 @@ def _backfill_payload_field(
                     new_value = computed  # str | None
                 else:
                     new_value = {k: v for k, v in computed.items() if v}
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("backfill: failed to compute %s for %s: %s", field, path_str, exc)
                 total_failed += 1
                 continue
@@ -555,7 +555,7 @@ def _backfill_payload_field(
                     points=[p.id],
                 )
                 total_updated += 1
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("backfill: set_payload failed for %s: %s", p.id, exc)
                 total_failed += 1
 

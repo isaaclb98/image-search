@@ -191,6 +191,6 @@ def rank(
             depth=diversity_depth,
         )
         return list(ranking.hits)
-    except Exception as exc:  # pragma: no cover — defensive
+    except Exception as exc:  # pragma: no cover — defensive  # noqa: BLE001
         logger.warning("diversity rerank failed; using raw order: %s", exc)
         return hits[:limit]

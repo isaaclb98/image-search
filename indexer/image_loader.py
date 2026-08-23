@@ -95,7 +95,7 @@ def _default_resolution() -> int:
     try:
         from image_search_kernel.registry import get as _registry_get
         return _registry_get("ViT-gopt-16-SigLIP2-384").resolution
-    except Exception:
+    except Exception:  # noqa: BLE001
         return 384
 
 
