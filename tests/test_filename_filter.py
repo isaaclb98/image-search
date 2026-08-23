@@ -311,7 +311,7 @@ def test_path_token_ids_legacy_db_backfill(tmp_path):
         );
         INSERT INTO images VALUES ('a', '{CHAEWON_PATH}', '', 100, 200, '2026-01-01');
         INSERT INTO images VALUES ('b', '{KAZUHA_PATH}', '', 100, 200, '2026-01-01');
-        """  # noqa: S608 - test fixture, static module constants only
+        """
     legacy.executescript(legacy_ddl)
     legacy.commit()
     legacy.close()

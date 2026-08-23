@@ -32,7 +32,7 @@ def test_load_pool_size_defaults_to_min_cpu_8():
     """Default pool size: min(cpu_count, 8)."""
     import importlib
 
-    import indexer.run_pipeline as run_pipeline
+    from indexer import run_pipeline
 
     # Clear the env var by setting it to an invalid (unparseable)
     # value triggers the same default-fallback path. Use a value
@@ -58,7 +58,7 @@ def test_load_pool_size_clamps_to_min_1():
     """Clamp to [1, 32]: a value below 1 rounds up to 1."""
     import importlib
 
-    import indexer.run_pipeline as run_pipeline
+    from indexer import run_pipeline
 
     with patch.dict(os.environ, {"IMAGE_LOAD_POOL_SIZE": "0"}):
         importlib.reload(run_pipeline)
@@ -72,7 +72,7 @@ def test_load_pool_size_clamps_to_max_32():
     """Clamp to [1, 32]: a value above 32 rounds down to 32."""
     import importlib
 
-    import indexer.run_pipeline as run_pipeline
+    from indexer import run_pipeline
 
     with patch.dict(os.environ, {"IMAGE_LOAD_POOL_SIZE": "100"}):
         importlib.reload(run_pipeline)
@@ -86,7 +86,7 @@ def test_load_pool_size_respects_explicit_env():
     """An explicit env value in [1, 32] is honoured as-is."""
     import importlib
 
-    import indexer.run_pipeline as run_pipeline
+    from indexer import run_pipeline
 
     with patch.dict(os.environ, {"IMAGE_LOAD_POOL_SIZE": "5"}):
         importlib.reload(run_pipeline)
@@ -105,7 +105,7 @@ def test_indexer_load_phase_is_not_single_threaded_by_default():
     _LOAD_POOL_SIZE to 1 in pursuit of "deterministic ordering" —
     that would tank throughput on every host.
     """
-    import indexer.run_pipeline as run_pipeline
+    from indexer import run_pipeline
     # Default value (env unset) should be at least 2.
     assert run_pipeline._LOAD_POOL_SIZE >= 2, (
         "C2 regression: default _LOAD_POOL_SIZE is too small. "

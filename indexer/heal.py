@@ -287,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             deleted = 0
         print(render_report(report, apply=bool(args.apply and deleted), verbose=args.verbose))
         return 0
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"Qdrant heal failed: {exc}", file=sys.stderr)
         return 1
 

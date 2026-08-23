@@ -225,7 +225,7 @@ class QdrantSearch:
                 # heavier recommend path on a real collection.
                 timeout=self.recommend_timeout_ms // 1000,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Graceful fallback: if the recommend call times out
             # (or any other transient Qdrant error fires), return
             # an empty result set instead of propagating. The
@@ -272,7 +272,7 @@ class QdrantSearch:
                 with_vectors=False,
                 timeout=self.timeout_ms // 1000,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("retrieve_batch(%d ids) failed: %s", len(point_ids), e)
             return []
         return [
@@ -387,7 +387,7 @@ class QdrantSearch:
                 with_vectors=True,
                 timeout=self.timeout_ms // 1000,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(
                 "retrieve_batch_with_vectors(%d ids) failed: %s",
                 len(point_ids), e,
@@ -466,7 +466,7 @@ class QdrantSearch:
         try:
             count_resp = self.client.get_collection(self.collection)
             count = count_resp.points_count
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("get_collection for random_window failed: %s", e)
             return []
         if not count:
@@ -486,7 +486,7 @@ class QdrantSearch:
                     with_vectors=False,
                     timeout=self.timeout_ms // 1000,
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning("random_window id-scroll failed: %s", e)
                 break
             all_ids.extend(str(p.id) for p in page)
@@ -506,7 +506,7 @@ class QdrantSearch:
                 with_vectors=False,
                 timeout=self.timeout_ms // 1000,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("random_window batch retrieve failed: %s", e)
             return []
         return [
@@ -531,7 +531,7 @@ class QdrantSearch:
                 with_vectors=False,
                 timeout=self.timeout_ms // 1000,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("retrieve(%s) failed: %s", point_id, e)
             return None
         if not points:
@@ -567,7 +567,7 @@ class QdrantSearch:
                 with_vectors=True,
                 timeout=self.timeout_ms // 1000,
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning(
                 "retrieve_with_vector(%s) failed: %s", point_id, e
             )
@@ -641,6 +641,6 @@ class QdrantSearch:
         try:
             self.client.get_collections()
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Qdrant healthz failed: %s", e)
             return False

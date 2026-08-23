@@ -65,7 +65,7 @@ from typing import TYPE_CHECKING
 
 # Re-export the pure compute surface so existing call sites continue
 # to import from `search.discover` without an import rewrite.
-from search.discover_compute import mmr_select as _mmr_select  # noqa: E402, F401
+from search.discover_compute import mmr_select as _mmr_select
 from search.models import DiscoveryImage, DiscoveryPair
 
 if TYPE_CHECKING:
@@ -465,8 +465,8 @@ def _next_pair(
             n = len(available)
             third = n // 3
             if third >= 1 and 2 * third < n:
-                img_a = random.choice(available[:third])  # noqa: S311 - UI sampling, not crypto
-                img_b = random.choice(available[2 * third:])  # noqa: S311 - UI sampling, not crypto
+                img_a = random.choice(available[:third])
+                img_b = random.choice(available[2 * third:])
             else:
                 sampled = random.sample(available, k=2)
                 img_a, img_b = sampled[0], sampled[1]

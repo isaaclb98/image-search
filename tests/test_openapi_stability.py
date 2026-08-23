@@ -28,7 +28,7 @@ os.environ.setdefault("SEARCH_TEST_MODE", "1")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 os.environ.setdefault("MODEL_NAME", "hf-hub:timm/ViT-gopt-16-SigLIP2-384")
 
-from search.app import create_app  # noqa: E402
+from search.app import create_app
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_OPENAPI = REPO_ROOT / "frontend" / "openapi.json"

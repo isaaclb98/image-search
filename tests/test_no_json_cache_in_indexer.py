@@ -39,11 +39,7 @@ def test_no_json_cache_writes_in_indexer():
             continue  # this test mentions the old name on purpose
         text = path.read_text(encoding="utf-8")
         for n, line in enumerate(text.splitlines(), start=1):
-            if write_open_re.search(line):
-                offenders.append((path.name, n, line.strip()))
-            elif json_dump_json_re.search(line):
-                offenders.append((path.name, n, line.strip()))
-            elif old_default_re.search(line):
+            if write_open_re.search(line) or json_dump_json_re.search(line) or old_default_re.search(line):
                 offenders.append((path.name, n, line.strip()))
     assert not offenders, (
         "JSON cache writes are no longer supported in indexer/ "

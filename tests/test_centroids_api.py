@@ -73,7 +73,7 @@ def test_api_centroids_empty_when_dir_unset():
         qdrant_api_key=None,
         model_name="mock", model_revision="", device="cpu",
         top_k_default=35, top_k_max=200, query_timeout_ms=2000,
-        nas_images_base="/tmp", path_prefix="", web_ui_url="http://localhost:8000",  # noqa: S108 - test fixture
+        nas_images_base="/tmp", path_prefix="", web_ui_url="http://localhost:8000",
         log_level="WARNING", test_mode=True,
         centroids_dir=None,
     )

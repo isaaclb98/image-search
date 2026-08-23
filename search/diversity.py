@@ -23,7 +23,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from search.diversity_compute import (
+from search.diversity_compute import (  # noqa: F401
     DIVERSITY_AUTO_DEPTHS,
     DIVERSITY_DEPTHS,
     DIVERSITY_DEPTH_OPTIONS,
@@ -36,10 +36,10 @@ from search.diversity_compute import (
     # that exercises the ranking helpers directly. These are private
     # names in `diversity_compute` but the diversity service exposes
     # them as part of its public surface; see §B3 step 42.
-    _collapse_duplicate_indices,  # noqa: F401
-    _cosine_sim,  # noqa: F401
-    _normalise_matrix,  # noqa: F401
-    _normalise_vector,  # noqa: F401
+    _collapse_duplicate_indices,
+    _cosine_sim,
+    _normalise_matrix,
+    _normalise_vector,
 )
 
 # Re-export the pure compute surface so existing call sites continue
@@ -131,7 +131,7 @@ def relevance_drop_for_mode(mode: str, base_drop: float) -> float:
 # We can't re-export them with `from ... import` above without triggering
 # circular imports because diversity_compute imports this module's
 # dataclasses. So we wrap them in thin aliases below.
-import search.diversity_compute as _compute  # noqa: E402
+import search.diversity_compute as _compute
 
 mmr_rerank = _compute.mmr_rerank
 rank_diverse = _compute.rank_diverse

@@ -630,14 +630,14 @@ def create_app(
                     test_mode=_cfg.test_mode,
                 )
                 logger.info("text encoder warmed in background")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning("text encoder background warm-up failed: %s", e)
 
         async def _bg_init_from_qdrant() -> None:
             try:
                 count = await asyncio.to_thread(index_db.init_from_qdrant)
                 logger.info("index cache built from Qdrant: %d points", count)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.warning("index cache background warm-up failed: %s", e)
 
         refresh_task: asyncio.Task | None = None
@@ -703,7 +703,7 @@ def create_app(
                             await asyncio.to_thread(index_db.release_refresh_lock)
                     except asyncio.CancelledError:
                         raise
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         logger.warning("periodic IndexDB refresh failed: %s", e)
             refresh_task = asyncio.create_task(_periodic_refresh_loop())
         try:
@@ -715,7 +715,7 @@ def create_app(
                     await refresh_task
                 except asyncio.CancelledError:
                     pass
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.warning("refresh task shutdown: %s", e)
             # Cancel and wait for the background startup tasks. If
             # init_from_qdrant is mid-write to SQLite, give it a
@@ -738,7 +738,7 @@ def create_app(
                             pass
                     except asyncio.CancelledError:
                         pass
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:
                         logger.warning("background startup task shutdown: %s", e)
             await asyncio.to_thread(index_db.close)
 
@@ -1827,4 +1827,4 @@ app: FastAPI = create_app()
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run("search.app:app", host="0.0.0.0", port=8000)  # noqa: S104
+    uvicorn.run("search.app:app", host="0.0.0.0", port=8000)

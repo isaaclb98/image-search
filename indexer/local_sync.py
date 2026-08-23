@@ -228,7 +228,7 @@ def main(argv=None):
                     exact_count=False,
                 )
                 expected_total = int(cnt.count)
-            except Exception as exc:  # noqa: BLE001 — best-effort estimate
+            except Exception as exc:
                 logger.debug("count for %s failed: %s", src_name, exc)
         snap = scan_mod.snapshot(src_path, expected_total=expected_total)
         if args.limit:

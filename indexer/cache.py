@@ -143,7 +143,7 @@ class IndexerCache:
             self._conn.close()
             self._conn = None
 
-    def __enter__(self) -> "IndexerCache":
+    def __enter__(self) -> IndexerCache:
         self._open()
         return self
 
@@ -302,7 +302,7 @@ class IndexerCache:
     def __len__(self) -> int:
         return len(self._entries)
 
-    def rebuild_from_qdrant(self, client: "QdrantClient", name: str) -> None:
+    def rebuild_from_qdrant(self, client: QdrantClient, name: str) -> None:
         """Replace contents with a fresh scroll of `name` in Qdrant.
 
         Each scroll point becomes a CacheEntry with a sentinel

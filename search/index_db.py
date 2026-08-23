@@ -462,7 +462,7 @@ class IndexDB:
                 return
             fts_count = int(
                 self._conn.execute(
-                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"  # noqa: S608 - FTS_TABLE is a static class constant
+                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"
                 ).fetchone()["n"]
             )
             images_count = int(
@@ -499,9 +499,9 @@ class IndexDB:
             # this direct INSERT into images_fts is the one-time
             # migration path. The leading DELETE clears any
             # partial state from a previous failed migration.
-            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")  # noqa: S608 - FTS_TABLE is a static class constant
+            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")
             self._conn.execute(
-                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "  # noqa: S608 - FTS_TABLE is a static class constant
+                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "
                 f"SELECT rowid, path FROM images"
             )
             self._conn.execute(
@@ -609,7 +609,7 @@ class IndexDB:
                     SELECT images.id FROM {self.FTS_TABLE}
                     INNER JOIN images ON images.rowid = {self.FTS_TABLE}.rowid
                     WHERE {self.FTS_TABLE} MATCH ?
-                    """,  # noqa: S608 - FTS_TABLE is static, fts_query is parameterized
+                    """,
                     (fts_query,),
                 ).fetchall()
             except sqlite3.OperationalError as e:
@@ -711,7 +711,7 @@ class IndexDB:
                     WHERE id NOT IN ({placeholders})
                     ORDER BY RANDOM()
                     LIMIT ?
-                    """,  # noqa: S608 - placeholders are parameterized, values bound separately
+                    """,
                     params,
                 ).fetchall()
         return [str(row["id"]) for row in rows]
@@ -729,7 +729,7 @@ class IndexDB:
         placeholders = ",".join("?" for _ in point_ids)
         with self._lock:
             rows = self._conn.execute(
-                f"SELECT id FROM favorites WHERE id IN ({placeholders})",  # noqa: S608
+                f"SELECT id FROM favorites WHERE id IN ({placeholders})",
                 list(point_ids),
             ).fetchall()
         return {row["id"] for row in rows}
@@ -884,7 +884,7 @@ class IndexDB:
         placeholders = ",".join("?" for _ in ids)
         with self._lock:
             rows = self._conn.execute(
-                f"SELECT id FROM dislikes WHERE id IN ({placeholders})",  # noqa: S608
+                f"SELECT id FROM dislikes WHERE id IN ({placeholders})",
                 list(ids),
             ).fetchall()
         return {row["id"] for row in rows}
@@ -1449,7 +1449,7 @@ class IndexDB:
         try:
             info = self.qdrant_client.client.get_collection(self.qdrant_client.collection)
             return int(info.points_count)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("qdrant_point_count failed: %s", e)
             return -1
 
