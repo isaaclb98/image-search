@@ -12,81 +12,45 @@ import hashlib
 import json
 import logging
 import os
-import random
 import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
-from urllib.parse import parse_qsl, urlencode, urlparse
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
-from fastapi import FastAPI, Form, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
-from search import config, discover, text_encoder
+from search import config, text_encoder
 
 from search.auth import (
     AuthGateMiddleware,
     auth_config_from,
-    clear_session_cookie,
     is_enabled,
-    set_session_cookie,
-    verify_password,
 )
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
     DynamicCentroidSpec,
     blend_centroids,
-    calibrate_near_dup_threshold,
-    composite_centroid_name,
-    filter_near_duplicates,
 )
 from search.diversity import (
     DiversityResultCache,
     DiversityStats,
-    rank_diverse,
-    relevance_drop_for_mode,
-    resolve_depth,
-    resolve_mode,
-)
-from search.for_you import (
-    build_state as _for_you_build_state,
 )
 from search.for_you import invalidate_signal_cache as _for_you_invalidate_signal
-from search.for_you import (
-    rank as _for_you_rank,
-)
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
-from search.index_db import DEFAULT_INDEX_DB_PATH, ImageNotInCacheError, IndexDB
+from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
-    AlbumCreateRequest,
-    AlbumDetailResponse,
-    AlbumMemberItem,
-    AlbumMemberResponse,
-    AlbumMembershipsResponse,
-    AlbumsListResponse,
-    AlbumSummary,
-    AlbumUpdateRequest,
     DiscoveryPair,
-    DiscoveryPickResponse,
-    DiscoveryStartResponse,
     DiversityMetadata,
     ErrorResponse,
-    FavoritesListResponse,
-    FavoriteToggleResponse,
-    SavedSearch,
-    SavedSearchCreateRequest,
-    SavedSearchListResponse,
-    SearchResponse,
     SearchResult,
 )
-from search.qdrant_client import QdrantSearch, SearchHit
+from search.qdrant_client import QdrantSearch
 from search.random import RandomPicker
 
 logger = logging.getLogger(__name__)
