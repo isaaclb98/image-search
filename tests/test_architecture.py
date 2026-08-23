@@ -30,7 +30,6 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KERNEL_DIR = REPO_ROOT / "image_search_kernel"

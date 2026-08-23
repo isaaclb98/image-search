@@ -10,7 +10,6 @@ verified to satisfy the v1 contract.
 
 from __future__ import annotations
 
-import time
 import uuid
 from pathlib import PurePosixPath
 

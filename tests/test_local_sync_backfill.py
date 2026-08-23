@@ -21,7 +21,6 @@ Qdrant instance the CLI is reading from.
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 import pytest

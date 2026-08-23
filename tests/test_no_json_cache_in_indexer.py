@@ -12,7 +12,6 @@ or references the old default cache path
 
 from __future__ import annotations
 
-import json as _json
 import re
 from pathlib import Path
 
