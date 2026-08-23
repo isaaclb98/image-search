@@ -423,3 +423,28 @@ def test_favorite_migration_from_legacy_images_columns(tmp_path):
         ]
     finally:
         db.close()
+
+
+def test_favorite_id_set_returns_only_listed_favourites(index_db):
+    """favorite_id_set(ids) returns the subset of ids that are favourited.
+
+    Single IN-clause query (Phase C1): 1 SQLite round trip instead
+    of N individual get_by_id calls.
+    """
+    db, _ = index_db
+    db.init_from_qdrant()
+    # Mark 2 ids as favourites (a and b are the seeded points).
+    db.mark_favorite("a")
+    db.mark_favorite("b")
+    # Ask for the 2 known ids + a missing one; expect a + b back.
+    out = db.favorite_id_set(["a", "b", "missing"])
+    assert out == {"a", "b"}
+
+
+def test_favorite_id_set_empty_input_returns_empty_set(tmp_path):
+    from unittest.mock import MagicMock
+    from search.index_db import IndexDB
+
+    qdrant = MagicMock()
+    db = IndexDB(str(tmp_path / "images.db"), qdrant, refresh_interval_seconds=3600)
+    assert db.favorite_id_set([]) == set()

@@ -716,6 +716,24 @@ class IndexDB:
                 ).fetchall()
         return [str(row["id"]) for row in rows]
 
+    def favorite_id_set(self, point_ids: list[str]) -> set[str]:
+        """Subset of `point_ids` that are currently in the favourites table.
+
+        Used by /api/search to mark `is_favorite` on each result
+        without paying the O(N favourites) cost of list_favorite_ids()
+        when the caller only cares about a 20-tile page. Single
+        IN-clause query — 1 SQLite round trip instead of N.
+        """
+        if not point_ids:
+            return set()
+        placeholders = ",".join("?" for _ in point_ids)
+        with self._lock:
+            rows = self._conn.execute(
+                f"SELECT id FROM favorites WHERE id IN ({placeholders})",  # noqa: S608
+                list(point_ids),
+            ).fetchall()
+        return {row["id"] for row in rows}
+
     def is_indexed(self, point_id: str) -> bool:
         return self.get_by_id(point_id) is not None
 

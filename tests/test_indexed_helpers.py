@@ -27,18 +27,20 @@ def _fake_cfg():
 # --- favorite_id_set_sync ---
 
 def test_favorite_id_set_sync_returns_ids_with_is_favorite_set():
+    """Phase C1: single IN-clause query returns the favourited subset."""
     from search._indexed_helpers import favorite_id_set_sync
     db = MagicMock()
-    db.get_by_id.side_effect = lambda pid: (
-        {"id": pid, "is_favorite": 1} if pid in {"a", "c"} else {"id": pid, "is_favorite": 0}
-    )
+    db.favorite_id_set.return_value = {"a", "c"}
     assert favorite_id_set_sync(db, ["a", "b", "c"]) == {"a", "c"}
+    db.favorite_id_set.assert_called_once_with(["a", "b", "c"])
 
 
 def test_favorite_id_set_sync_skips_missing_rows():
+    """Phase C1: the IN-clause query naturally filters out ids
+    that aren't in the favourites table."""
     from search._indexed_helpers import favorite_id_set_sync
     db = MagicMock()
-    db.get_by_id.side_effect = lambda pid: {"id": pid, "is_favorite": 1} if pid == "a" else None
+    db.favorite_id_set.return_value = {"a"}
     assert favorite_id_set_sync(db, ["a", "missing"]) == {"a"}
 
 
@@ -46,11 +48,17 @@ def test_favorite_id_set_sync_skips_missing_rows():
 
 @pytest.mark.asyncio
 async def test_favorite_id_set_runs_in_thread():
+    """Async wrapper: SQLite read off the event loop.
+
+    After the C1 refactor, the sync impl is a single IN-clause
+    query (index_db.favorite_id_set), not a per-id loop.
+    """
     from search._indexed_helpers import favorite_id_set
     db = MagicMock()
-    db.get_by_id.return_value = {"id": "a", "is_favorite": 1}
+    db.favorite_id_set.return_value = {"a"}
     result = await favorite_id_set(db, ["a"])
     assert result == {"a"}
+    db.favorite_id_set.assert_called_once_with(["a"])
 
 
 # --- results_from_hits ---
@@ -88,10 +96,8 @@ async def test_results_from_hits_resolves_sets_when_missing():
 
     cfg = _fake_cfg()
     db = MagicMock()
-    # favorite_id_set's sync impl walks get_by_id.
-    db.get_by_id.side_effect = lambda pid: (
-        {"id": pid, "is_favorite": 1} if pid == "a" else {"id": pid, "is_favorite": 0}
-    )
+    # favorite_id_set's sync impl is now a single IN-clause query.
+    db.favorite_id_set.return_value = {"a"}
     db.dislike_id_set.return_value = {"b"}
 
     h1 = MagicMock(id="a", path="/a.jpg", score=0.9, payload={})
