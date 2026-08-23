@@ -29,60 +29,7 @@ from fastapi.staticfiles import StaticFiles
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search import config, discover, text_encoder
-from search._indexed_helpers import (
-    diversity_cache_key as _diversity_cache_key,
-)
-from search._indexed_helpers import (
-    diversity_page as _diversity_page,
-)
-from search._indexed_helpers import (
-    favorite_id_set as _favorite_id_set,
-)
-from search._indexed_helpers import (
-    normalize_prompt_state as _normalize_prompt_state,
-)
-from search._indexed_helpers import (
-    resolve_filename_filter as _resolve_filename_filter,
-)
-from search._indexed_helpers import (
-    results_from_hits as _results_from_hits,
-)
-from search._indexed_helpers import (
-    search_query_string as _search_query_string,
-)
-from search._indexed_helpers import (
-    surprise_search as _surprise_search,
-)
-from search._result_helpers import (
-    bad_request as _bad_request,
-)
-from search._result_helpers import (
-    coerce_view as _coerce_view,
-)
-from search._result_helpers import (
-    diversity_metadata as _diversity_metadata,
-)
-from search._result_helpers import (
-    internal_error as _internal_error,
-)
-from search._result_helpers import (
-    parse_centroids as _parse_centroids,
-)
-from search._result_helpers import (
-    parse_collections as _parse_collections,
-)
-from search._result_helpers import (
-    parse_filename as _parse_filename,
-)
-from search._result_helpers import (
-    parse_weights as _parse_weights,
-)
-from search._result_helpers import (
-    qdrant_timeout as _qdrant_timeout,
-)
-from search._result_helpers import (
-    qdrant_unreachable as _qdrant_unreachable,
-)
+
 from search.auth import (
     AuthGateMiddleware,
     auth_config_from,
