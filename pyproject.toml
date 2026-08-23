@@ -86,6 +86,12 @@ extend-select = ["I", "S", "C4", "SIM", "B", "UP"]
     # Cheap-to-fix style nits we don't want blocking CI for tests.
     "C408",
     "RUF059",
+    # Inline imports inside test fixtures (semicolon-separated
+    # multi-statements, conditional imports, fixture-local helpers)
+    # are inherently hard to order in a way ruff's isort agrees with.
+    # Suppress I001 for tests/ rather than restructuring dozens of
+    # working fixture bodies. See lint step 13 in the commit log.
+    "I001",
 ]
 "bin/*" = ["T201", "S"]  # CLI helpers may print freely
 # Don't touch vendored / generated artifacts.
