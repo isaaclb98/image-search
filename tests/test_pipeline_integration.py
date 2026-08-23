@@ -83,7 +83,7 @@ def _upsert_adapter(items, *, client, collection, dry_run, batch_size, on_failur
         return _registry_get(model_name).dim
 
     batch: list = []
-    for path, image, vec in items:
+    for path, image, vec in items:  # noqa: B007
         try:
             model_name = "mock-1536"  # tests register this in conftest
             model_revision = "test-r0"

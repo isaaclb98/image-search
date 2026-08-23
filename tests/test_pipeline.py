@@ -27,7 +27,7 @@ def test_protocols_are_runtime_checkable():
         UpsertPhase,
     )
     for proto in (ScanPhase, LoadPhase, EmbedPhase, UpsertPhase):
-        assert getattr(proto, "_is_protocol", False) or hasattr(proto, "__call__"), (
+        assert getattr(proto, "_is_protocol", False) or hasattr(proto, "__call__"), (  # noqa: B004
             f"{proto.__name__} must be a Protocol"
         )
         # Runtime-checkable Protocols have an _is_runtime_protocol marker
@@ -53,7 +53,7 @@ def test_load_phase_protocol_shape():
     returns Iterator[tuple[Path, Any]]."""
     from indexer.pipeline import LoadPhase
 
-    seen_failures: list[tuple[Path, Exception]] = []
+    seen_failures: list[tuple[Path, Exception]] = []  # noqa: F841
 
     def fake_load(
         paths: Iterator[Path], *, on_failure,
@@ -75,7 +75,7 @@ def test_embed_phase_protocol_shape():
     from image_search_kernel.registry import MockEmbedder
     from indexer.pipeline import EmbedPhase
 
-    embedder = MockEmbedder(dim=4, resolution=16)
+    embedder = MockEmbedder(dim=4, resolution=16)  # noqa: F841
 
     def fake_embed(
         items: Iterator[tuple[Path, object]], *, embedder,
@@ -94,7 +94,7 @@ def test_upsert_phase_protocol_shape():
     def fake_upsert(
         items, *, client, collection, dry_run, batch_size, on_failure,
     ):
-        for path, tensor, vec in items:
+        for path, tensor, vec in items:  # noqa: B007
             yield WriteResult(
                 path=path, point_id=f"id-{path.name}",
                 dry_run=dry_run, vector_dim=len(vec),
@@ -128,7 +128,7 @@ def _make_pipelines() -> tuple:
             yield (path, tensor, [0.0, 0.0, 1.0, 0.0])
 
     def fake_upsert(items, *, client, collection, dry_run, batch_size, on_failure):
-        for path, tensor, vec in items:
+        for path, tensor, vec in items:  # noqa: B007
             yield WriteResult(
                 path=path, point_id=f"id-{path.name}",
                 dry_run=dry_run, vector_dim=len(vec),
@@ -259,7 +259,7 @@ def test_pipeline_aggregates_failures():
     from indexer.pipeline import WriteResult
 
     def upsert_ok(items, *, client, collection, dry_run, batch_size, on_failure):
-        for path, tensor, vec in items:
+        for path, tensor, vec in items:  # noqa: B007
             yield WriteResult(
                 path=path, point_id="id", dry_run=dry_run, vector_dim=len(vec),
             )

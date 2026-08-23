@@ -179,7 +179,7 @@ def test_concurrent_pil_decode_faster_than_serial():
         )
     finally:
         for p in paths:
-            try:
+            try:  # noqa: SIM105
                 p.unlink()
             except OSError:
                 pass

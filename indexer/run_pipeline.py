@@ -186,7 +186,7 @@ _ACTIVE_MODEL: tuple[str, str] | None = None
 
 
 def _resolve_active_model_name() -> str:
-    global _ACTIVE_MODEL
+    global _ACTIVE_MODEL  # noqa: PLW0602
     if _ACTIVE_MODEL is not None:
         return _ACTIVE_MODEL[0]
     # Fallback: the web backend's current model.
@@ -194,7 +194,7 @@ def _resolve_active_model_name() -> str:
 
 
 def _resolve_active_model_revision() -> str:
-    global _ACTIVE_MODEL
+    global _ACTIVE_MODEL  # noqa: PLW0602
     if _ACTIVE_MODEL is not None:
         return _ACTIVE_MODEL[1]
     return "webli"
@@ -229,7 +229,7 @@ def run_pipeline_source(
     Cancelling via `cancel_event` between phases returns a partial
     report.
     """
-    embedder = _registry_get(model_name).vision
+    embedder = _registry_get(model_name).vision  # noqa: F841
 
     pipeline = IndexerPipeline(
         scan=_scan,        # type: ignore[arg-type]

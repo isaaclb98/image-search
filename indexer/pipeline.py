@@ -255,7 +255,7 @@ class IndexerPipeline:
                 return
             elapsed = max(time.perf_counter() - t_start, 1e-9)
             rate = count / elapsed
-            eta = 0.0 if rate == 0 else 0.0  # ETA requires total; omitted for now
+            eta = 0.0 if rate == 0 else 0.0  # ETA requires total; omitted for now  # noqa: RUF034
             config.on_progress(ProgressEvent(
                 phase=phase, count=count, rate_per_sec=rate, eta_seconds=eta,
             ))

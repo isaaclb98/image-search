@@ -163,7 +163,7 @@ def _collapse_duplicate_indices(
                 if value is not None:
                     dhash_groups.setdefault(len(image_hash) * 4, []).append((value, index))
     # Collapse near-duplicate dHash groups when within distance.
-    for width, group in dhash_groups.items():
+    for width, group in dhash_groups.items():  # noqa: B007, PERF102
         if duplicate_hamming_distance <= 0 or len(group) < 2:
             continue
         ordered = sorted(group, key=lambda pair: pair[1])

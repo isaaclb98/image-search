@@ -143,7 +143,7 @@ class IndexerCache:
             self._conn.close()
             self._conn = None
 
-    def __enter__(self) -> IndexerCache:
+    def __enter__(self) -> IndexerCache:  # noqa: PYI034
         self._open()
         return self
 

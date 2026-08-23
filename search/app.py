@@ -731,9 +731,9 @@ def create_app(
                         await asyncio.wait_for(_bg_task, timeout=2.0)
                     except asyncio.TimeoutError:
                         _bg_task.cancel()
-                        try:
+                        try:  # noqa: SIM105
                             await _bg_task
-                        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                        except (asyncio.CancelledError, Exception):  # noqa: BLE001, S110
                             pass
                     except asyncio.CancelledError:
                         pass
@@ -904,7 +904,7 @@ def create_app(
 
     def _resolve_query_vector(
         centroid_names: list[str] | None,
-        prompt_state: PromptState,
+        prompt_state: PromptState,  # noqa: F821
         weights: list[float] | None = None,
         filename_pattern: str = "",
         centroid_specs: list[DynamicCentroidSpec] | None = None,

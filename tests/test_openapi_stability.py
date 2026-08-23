@@ -164,7 +164,7 @@ def test_live_spec_paths_match_pinned_snapshot(openapi_spec, live_spec):
     expected_paths = set(openapi_spec["paths"].keys())
     actual_paths = set(live_spec["paths"].keys())
     missing = expected_paths - actual_paths
-    extra = actual_paths - expected_paths
+    extra = actual_paths - expected_paths  # noqa: F841
     assert not missing, f"These paths are pinned but no longer exist: {missing}"
     # extras are tolerated — they may be internal endpoints the
     # frontend never binds to.

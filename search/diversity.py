@@ -44,7 +44,7 @@ from search.diversity_compute import (  # noqa: F401
 
 # Re-export the pure compute surface so existing call sites continue
 # to import from `search.diversity` without a sweeping import rewrite.
-__all__ = [
+__all__ = [  # noqa: RUF022
     # Constants
     "DIVERSITY_AUTO_DEPTHS",
     "DIVERSITY_DEPTHS",

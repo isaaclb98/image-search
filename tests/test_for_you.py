@@ -29,7 +29,7 @@ def clean_for_you_db(monkeypatch):
     from search import for_you as for_you_mod
     for_you_mod.invalidate_signal_cache()
     yield db_path
-    try:
+    try:  # noqa: SIM105
         os.unlink(db_path)
     except FileNotFoundError:
         pass

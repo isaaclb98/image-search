@@ -338,7 +338,7 @@ class PromptState:
 
 
 @dataclass(frozen=True)
-class PromptState:
+class PromptState:  # noqa: F811
     """Normalized q/positive/negative prompt state for search.
 
     Plain dataclass (not a Pydantic BaseModel) because it's an

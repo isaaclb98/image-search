@@ -224,7 +224,7 @@ def test_migrate_reports_failures_does_not_raise(qdrant_in_memory_pair):
     )
 
     src, tgt = qdrant_in_memory_pair
-    ids = _seed_v0_collection(src, "v0_fail")
+    ids = _seed_v0_collection(src, "v0_fail")  # noqa: F841
 
     def explode_on_bad_payload(old_payload: dict, _meta: ModelMeta) -> str:
         # Fail on a recognizable sentinel payload (real dict, but
