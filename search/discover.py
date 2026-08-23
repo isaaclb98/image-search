@@ -465,8 +465,8 @@ def _next_pair(
             n = len(available)
             third = n // 3
             if third >= 1 and 2 * third < n:
-                img_a = random.choice(available[:third])
-                img_b = random.choice(available[2 * third:])
+                img_a = random.choice(available[:third])  # noqa: S311
+                img_b = random.choice(available[2 * third:])  # noqa: S311
             else:
                 sampled = random.sample(available, k=2)
                 img_a, img_b = sampled[0], sampled[1]

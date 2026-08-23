@@ -1305,7 +1305,7 @@ def create_app(
                 logger.warning("Resize failed for %s @ w=%d: %s", point_id, w, e)
             else:
                 stat = await asyncio.to_thread(cached.stat)
-                etag = hashlib.md5(
+                etag = hashlib.md5(  # noqa: S324
                     f"{stat.st_mtime_ns}-{stat.st_size}-w{w}".encode()
                 ).hexdigest()
                 if request.headers.get("if-none-match") == etag:
@@ -1331,7 +1331,7 @@ def create_app(
                 )
 
         stat = await asyncio.to_thread(local.stat)
-        etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()
+        etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()  # noqa: S324
 
         # Per-spec If-None-Match: respond 304 with no body if the
         # client's cached ETag matches. Saves bandwidth on every
@@ -1826,4 +1826,4 @@ app: FastAPI = create_app()
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run("search.app:app", host="0.0.0.0", port=8000)
+    uvicorn.run("search.app:app", host="0.0.0.0", port=8000)  # noqa: S104

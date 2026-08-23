@@ -927,7 +927,7 @@ class IndexDB:
         state) each emit one event so the timestamp reflects the most
         recent feedback on the photo.
         """
-        assert kind in ("like", "dislike"), kind
+        assert kind in ("like", "dislike"), kind  # noqa: S101
         with self._lock:
             self._conn.execute(
                 """
@@ -1548,7 +1548,7 @@ class IndexDB:
                 attempts += 1
                 target_count = max(n * 10, n + 50) if attempts == 1 else n * 5
                 picked = {
-                    random.randint(min_rid, max_rid) for _ in range(target_count)
+                    random.randint(min_rid, max_rid) for _ in range(target_count)  # noqa: S311
                 }
                 if not picked:
                     continue

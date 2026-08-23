@@ -112,7 +112,7 @@ def migrate(
                 with_vectors=False,
             )
         except Exception as e:
-            logger.exception("scroll failed: %s", e)
+            logger.exception("scroll failed: %s", e)  # noqa: TRY401
             errors += 1
             break
         if not batch:

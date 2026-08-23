@@ -3,7 +3,7 @@
 local_sync.py — Windows-friendly single-command sync+embed.
 Unified: walk source(s) -> diff vs Qdrant -> embed on local GPU -> upsert.
 No _pending queue. Tailscale-native.
-"""
+"""  # noqa: EXE001
 
 from __future__ import annotations
 

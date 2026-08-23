@@ -858,7 +858,7 @@ def _orthonormal_vecs(n: int, dim: int = 32) -> list[list[float]]:
     maximally diverse from every other candidate.
     """
     import random
-    rng = random.Random(0xC0FFEE)
+    rng = random.Random(0xC0FFEE)  # noqa: S311
     assert dim >= n
     vecs = [[rng.gauss(0, 1) for _ in range(dim)] for _ in range(n)]
     out: list[list[float]] = []
@@ -978,7 +978,7 @@ def test_burst_pool_spans_clusters(app_with_qdrant):
 
     def _vec(cluster: int, idx: int) -> list[float]:
         import random
-        rng = random.Random(cluster * 1000 + idx)
+        rng = random.Random(cluster * 1000 + idx)  # noqa: S311
         # Three orthogonal-ish directions; jitter within a
         # cluster is small, jitter between clusters is large.
         base = [0.0] * VECTOR_DIM
