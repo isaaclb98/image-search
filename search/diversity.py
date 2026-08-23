@@ -25,17 +25,21 @@ from dataclasses import dataclass
 
 from search.diversity_compute import (
     DIVERSITY_AUTO_DEPTHS,
-    DIVERSITY_DEPTH_OPTIONS,
     DIVERSITY_DEPTHS,
+    DIVERSITY_DEPTH_OPTIONS,
     DIVERSITY_MODE_RELEVANCE_MULTIPLIERS,
     DIVERSITY_MODE_STRENGTHS,
     DIVERSITY_MODES,
     DiversityRanking,
     DiversityStats,
-    _collapse_duplicate_indices,
-    _cosine_sim,
-    _normalise_matrix,
-    _normalise_vector,
+    # Re-exported for tests/test_diversity.py and any external consumer
+    # that exercises the ranking helpers directly. These are private
+    # names in `diversity_compute` but the diversity service exposes
+    # them as part of its public surface; see §B3 step 42.
+    _collapse_duplicate_indices,  # noqa: F401
+    _cosine_sim,  # noqa: F401
+    _normalise_matrix,  # noqa: F401
+    _normalise_vector,  # noqa: F401
 )
 
 # Re-export the pure compute surface so existing call sites continue
