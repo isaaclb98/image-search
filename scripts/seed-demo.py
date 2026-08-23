@@ -28,7 +28,6 @@ import json
 import sys
 from urllib import error, request
 
-
 SUBJECTS_USED_FOR_FAVORITES = 5  # demo_01..demo_05
 SUBJECTS_USED_FOR_DISLIKES = 2   # demo_06..demo_07
 

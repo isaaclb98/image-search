@@ -45,7 +45,7 @@ def main() -> int:
     os.environ["NAS_IMAGES_BASE"] = str(fake_nas)
 
     sys.path.insert(0, str(REPO_ROOT))
-    from search.app import create_app  # noqa: E402
+    from search.app import create_app
 
     app = create_app()
     spec = app.openapi()

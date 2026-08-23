@@ -546,7 +546,7 @@ def test_api_search_filename_cardinality_guard_skips_filter(caplog):
 
     app_mod.reset_for_tests()
     app = app_mod.create_app(cfg=cfg, qdrant=qdrant)
-    with TestClient(app) as tc, caplog.at_level(logging.INFO, logger="search.app"):
+    with TestClient(app) as tc, caplog.at_level(logging.INFO):
         # `chaewon` matches ALL 10 images (100% > 50%). The
         # guard should kick in and log the skip.
         resp = tc.get("/api/search?q=query0&filename=chaewon")

@@ -100,7 +100,6 @@ def test_indexing_throughput_baseline(synth_corpus, qdrant_in_memory, capsys):
     embed_p50 = _percentile(sorted(embed_ms_list), 0.50)
 
     # Verify the upserts landed.
-    from indexer.upsert import id_for as _id_for
 
     point_count = qdrant_in_memory.client.count(
         collection_name=qdrant_in_memory.collection, exact=True

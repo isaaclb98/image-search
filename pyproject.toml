@@ -94,6 +94,25 @@ extend-select = ["I", "S", "C4", "SIM", "B", "UP"]
     "I001",
 ]
 "bin/*" = ["T201", "S"]  # CLI helpers may print freely
+# scripts/ and benchmarks/ are dev tools invoked manually from the
+# repo root, not part of the package or its tests. They're allowed
+# the same leeway as bin/: print freely, use simple random
+# (image-synth), open user-supplied URLs, write to /tmp, use asserts
+# in micro-benchmarks. None of this code ships in the package or runs
+# under CI's test path.
+"scripts/*" = [
+    "T201",   # print()
+    "S",      # security audits (URL schemes, /tmp, etc.) — dev tool
+    "EXE001", # shebangs without +x — invoked via `python scripts/foo.py`
+    "B007",   # unused loop vars
+    "PERF102",# use .values() — micro-perf, not relevant for one-shot scripts
+]
+"benchmarks/*" = [
+    "S101",   # asserts are the point of micro-benchmarks
+    "S311",   # deterministic-but-not-cryptographic random is fine for synth
+    "S",      # dev tool, same leeway as scripts/
+    "B007",
+]
 # Don't touch vendored / generated artifacts.
 "**/__pycache__" = ["F401", "F403"]
 ".venv/**" = ["F401", "F403", "E402"]

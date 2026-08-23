@@ -21,14 +21,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 from PIL import Image, ImageDraw, ImageFilter
-
 
 # ---------- subjects ----------
 # Each subject is a list of render params. We vary colour palettes,
@@ -473,7 +471,6 @@ def generate(
     index: list[dict] = []
 
     n_subjects = len(SUBJECTS)
-    n_ratios = len(ASPECT_RATIOS)
 
     for i in range(count):
         subject = SUBJECTS[i % n_subjects]
