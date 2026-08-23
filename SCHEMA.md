@@ -82,12 +82,16 @@ structure of nested objects.
 
 ## Adding a field (checklist)
 
-1. Add a `FIELD_*` constant to `indexer/schema.py`.
-2. Extend the `Payload` TypedDict in the same file.
+1. Add a `FIELD_*` constant to `image_search_kernel/payload_schema.py`
+   (and to its `__all__`, grouped by category).
+2. Extend the `Payload` TypedDict in the same file with the matching
+   key/type.
 3. Update `indexer/upsert.py:build_payload` to populate it.
 4. Update this doc's table.
-5. If the search side needs it, add a `from indexer.schema import FIELD_*`
-   to the consumer module. **Do not** hard-code the string in the reader.
+5. If the search side needs it, add `from image_search_kernel.payload_schema import FIELD_*`
+   to the consumer module. **Do not** hard-code the string in the reader —
+   `search/` and `indexer/` must agree on field names because they share
+   the kernel.
 
 ## Renaming / removing a field
 
