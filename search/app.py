@@ -25,7 +25,6 @@ from fastapi.staticfiles import StaticFiles
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search import config, text_encoder
-
 from search.auth import (
     AuthGateMiddleware,
     auth_config_from,

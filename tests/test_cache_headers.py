@@ -15,7 +15,6 @@ the regression before users do.
 
 from __future__ import annotations
 
-
 import pytest
 from PIL import Image
 

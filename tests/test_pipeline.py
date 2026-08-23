@@ -13,7 +13,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Protocol shape tests — verify the public surface area
 # ---------------------------------------------------------------------------
