@@ -9,6 +9,33 @@ Self-hosted semantic image search over a local photo library.
 - **Auth:** Single-user app login (bcrypt + itsdangerous-signed session cookie). See `.env.example` for `AUTH_*` knobs.
 - **Side store:** SQLite `index.db` for folder metadata, favorites, dislikes, saved searches, album membership. Background-refreshed from Qdrant after indexer runs.
 
+## Production deployment (one-command setup)
+
+For a complete stack with Qdrant bundled as a sidecar:
+
+```bash
+# 1. Set your photo library path
+export NAS_IMAGES_PATH=/path/to/your/photos
+
+# 2. Start everything
+docker compose up -d
+
+# 3. Open http://localhost:8000
+```
+
+This brings up:
+- **Qdrant** (vector database) with persistent storage
+- **Search API + SPA** (single container)
+
+Data is persisted in a named Docker volume (`qdrant_data`), so your embeddings survive container restarts.
+
+To stop: `docker compose down`. Data is preserved.
+To wipe and reindex: `docker compose down -v` (removes the volume).
+
+---
+
+## Architecture
+
 Two runnable halves:
 
 - **`search/`** — FastAPI app, the only thing the frontend talks to.

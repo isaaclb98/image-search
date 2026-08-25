@@ -1,0 +1,89 @@
+# Production deployment: one-command setup.
+#
+# Run:    docker compose up -d
+# Open:   http://localhost:8000
+#
+# This brings up:
+#   - Qdrant (vector database) as a sidecar service
+#   - Search API + SPA (single container serving both)
+#
+# Data persistence:
+#   - qdrant_data: vector embeddings and metadata (named volume)
+#   - ${NAS_IMAGES_PATH}: your photo library (read-only bind mount)
+#
+# To customize, copy to .env and edit:
+#   NAS_IMAGES_PATH=/path/to/your/photos
+#   QDRANT_API_KEY=your-secret-key  (if you want Qdrant auth)
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: image-search-qdrant
+    restart: unless-stopped
+    ports:
+      # Expose Qdrant for debugging / direct access.
+      # In production, you may want to remove this or firewall it.
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Resource limits (adjust based on your library size)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+  search:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.search
+    container_name: image-search
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      # Qdrant sidecar — defaults to the compose service name
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: images
+      # QDRANT_API_KEY: ${QDRANT_API_KEY:-}  # Uncomment if you enabled Qdrant auth
+      
+      # Photo library path — REQUIRED
+      # Mount your NAS / image folder read-only at /nas
+      NAS_IMAGES_BASE: /nas
+      
+      # Frontend URL (for CORS and links)
+      WEB_UI_URL: http://localhost:8000
+      
+      # Logging
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      # Your photo library — READ-ONLY
+      # Set NAS_IMAGES_PATH in your .env or shell before running
+      - ${NAS_IMAGES_PATH:-./_fixtures}:/nas:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Resource limits (adjust based on your library size)
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+
+volumes:
+  qdrant_data:
+    driver: local
