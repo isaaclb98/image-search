@@ -52,6 +52,23 @@ def build_system_router(
         ok = await asyncio.to_thread(qdrant.healthz)
         return {"qdrant": ok, "test_mode": cfg.test_mode}
 
+    @router.get("/api/system/status")
+    async def system_status() -> dict:
+        """System status with cache stats for the frontend dashboard."""
+        from search import text_encoder
+        model_status = text_encoder.get_status()
+        qdrant_count, index_db_count, last_refresh_ts = await asyncio.gather(
+            asyncio.to_thread(index_db.qdrant_point_count),
+            asyncio.to_thread(index_db.count_images),
+            asyncio.to_thread(index_db.last_refresh_time),
+        )
+        return {
+            "model_status": model_status,
+            "qdrant_count": qdrant_count,
+            "index_db_count": index_db_count,
+            "last_refresh": last_refresh_ts,
+        }
+
     @router.get("/api/cache/status")
     async def cache_status() -> dict:
         """Operator visibility into the dual-store sync.

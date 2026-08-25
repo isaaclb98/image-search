@@ -1,19 +1,19 @@
 <script lang="ts">
   /**
-   * SearchGrid — the canonical 5-column grid of photo tiles,
-   * used by Search, Random, For-You, Home, Albums (and
-   * anywhere else with a list of points to display).
+   * SearchGrid — virtualized grid of photo tiles.
+   * Used by Search, Random, For-You, Home, Albums, Similar.
    *
    *   - Renders tiles via PhotoTile
    *   - Right-click on a tile opens the ImageContextMenu
    *   - Left-click opens the Lightbox
    *   - Infinite scroll: when the sentinel near the bottom
    *     intersects the viewport, calls onLoadMore
-   *   - Empty / loading / error states are explicit
+   *   - Virtual scrolling: only renders visible rows for perf
    */
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
   import { photoUrl } from '$lib/api/endpoints';
+  import { createVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
@@ -30,17 +30,14 @@
 
   type Props = {
     items: Item[];
-    /** True while more pages are being fetched. */
     loading?: boolean;
-    /** True when there are no more pages to load. */
     hasMore?: boolean;
     onLoadMore?: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
-    /** User-created albums for the right-click "Add to album" submenu.
-     *  When omitted, the menu fetches them lazily on first hover. */
     albums?: { id: number; name: string }[];
   };
+
   let {
     items,
     loading = false,
@@ -51,180 +48,211 @@
     albums
   }: Props = $props();
 
-  $effect(() => {
-    if (items.length > 0 && items[0].blurhash) {
-      // Push the first photo's URL to drive the full-viewport backdrop.
-      // Heavily blurred + saturated in CSS, so the room tint comes from
-      // the actual photo, not a tiny blurhash data URL.
-      const first = items[0];
-      if (first?.id) pageTint.set(photoUrl(first.id));
-    }
-  });
+  // Grid config
+  const COLUMNS = 5;
+  const GAP = 12; // px, matches --s-2
+  const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
 
-  let sentinel: HTMLDivElement | undefined = $state();
+  // State
   let lightboxIndex = $state<number | null>(null);
-  let menuFor = $state<{ id: string; x: number; y: number; path?: string; isFavorite?: boolean } | null>(null);
+  let contextMenu = $state<{ x: number; y: number; item: Item } | null>(null);
+  let scrollParent: HTMLDivElement | undefined = $state();
+  let containerWidth = $state(0);
 
-  function openAt(i: number) {
-    lightboxIndex = i;
-  }
-  function openContext(id: string, e: MouseEvent) {
-    const it = items.find((x) => x.id === id);
-    menuFor = {
-      id,
-      x: e.clientX,
-      y: e.clientY,
-      path: it?.path,
-      isFavorite: it?.is_favorite
-    };
-  }
-  function closeMenu() {
-    menuFor = null;
-  }
+  // Calculate tile size based on container width
+  let tileSize = $derived(
+    containerWidth > 0
+      ? (containerWidth - (COLUMNS - 1) * GAP) / COLUMNS
+      : ESTIMATED_ROW_HEIGHT
+  );
+  let rowHeight = $derived(tileSize + GAP);
 
-  // IntersectionObserver for infinite scroll. The sentinel div
-  // may not exist at onMount time (the grid is initially empty
-  // while items are being fetched), so we use `$effect` to set up
-  // the observer whenever the sentinel becomes available. Re-running
-  // the effect is fine — each call disconnects the previous IO.
-  //
-  // We gate loadMore on window.scrollY > 50 to avoid a one-shot
-  // fire on initial render where the IO sees the sentinel as
-  // intersecting right at mount (the prior round had this gate
-  // at the IO level but with a too-large rootMargin that left
-  // the sentinel "intersecting" for the whole page, so the gate
-  // alone didn't help). Now the rootMargin is small enough that
-  // the sentinel only intersects as the user scrolls near the
-  // bottom — and the scrollY gate is a belt-and-suspenders check.
-  let io: IntersectionObserver | undefined;
-  $effect(() => {
-    // Touch the reactive deps so the effect re-runs on changes.
-    void sentinel;
-    void hasMore;
-    void loading;
-    if (!sentinel || !onLoadMore) return;
-    if (!hasMore) {
-      io?.disconnect();
-      return;
-    }
-    io?.disconnect();
-    io = new IntersectionObserver(
-      (entries) => {
-        for (const ent of entries) {
-          if (
-            ent.isIntersecting &&
-            hasMore &&
-            !loading &&
-            window.scrollY > 50
-          ) {
-            onLoadMore();
-          }
+  // Group items into rows
+  let rows = $derived(
+    Array.from({ length: Math.ceil(items.length / COLUMNS) }, (_, i) =>
+      items.slice(i * COLUMNS, (i + 1) * COLUMNS)
+    )
+  );
+
+  // Virtualizer
+  let virtualizer = $derived(
+    scrollParent
+      ? createVirtualizer({
+          count: rows.length,
+          getScrollElement: () => scrollParent ?? null,
+          estimateSize: () => rowHeight,
+          overscan: 5
+        })
+      : null
+  );
+
+  let virtualItems = $derived($virtualizer?.getVirtualItems() ?? []);
+  let totalSize = $derived($virtualizer?.getTotalSize() ?? 0);
+
+  // ResizeObserver for container width
+  let resizeObserver: ResizeObserver | null = null;
+
+  onMount(() => {
+    if (scrollParent) {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          containerWidth = entry.contentRect.width;
         }
-      },
-      // Sentinel must actually be near the bottom of the viewport
-      // for it to count as intersecting. With a larger margin the
-      // sentinel was always "intersecting" on a page taller than
-      // the viewport, so the IO never re-fired when the user
-      // actually scrolled.
-      { rootMargin: '0px 0px 200px 0px' }
-    );
-    io.observe(sentinel);
-    return () => io?.disconnect();
+      });
+      resizeObserver.observe(scrollParent);
+    }
   });
+
+  onDestroy(() => {
+    resizeObserver?.disconnect();
+  });
+
+  // Infinite scroll: sentinel
+  let sentinel: HTMLDivElement | undefined = $state();
+  let observer: IntersectionObserver | null = null;
+
+  $effect(() => {
+    if (sentinel && hasMore && onLoadMore && !loading) {
+      observer?.disconnect();
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            onLoadMore?.();
+          }
+        },
+        { root: scrollParent, threshold: 0.1 }
+      );
+      observer.observe(sentinel);
+    }
+    return () => observer?.disconnect();
+  });
+
+  // Tile interactions
+  function openLightbox(itemIndex: number) {
+    lightboxIndex = itemIndex;
+  }
+
+  function closeLightbox() {
+    lightboxIndex = null;
+  }
+
+  function openContextMenu(item: Item, e: MouseEvent) {
+    e.preventDefault();
+    contextMenu = { x: e.clientX, y: e.clientY, item };
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
+  }
 </script>
 
 {#if items.length === 0 && !loading}
-  <div class="empty">
-    <div class="empty-mark" aria-hidden="true"></div>
-    <p>No photos yet. Try a search or browse Random.</p>
-  </div>
+  <div class="empty">No results</div>
 {:else}
-  <div class="grid" role="list">
-    {#each items as it, i (it.id + ':' + i)}
-      <PhotoTile
-        pointId={it.id}
-        blurhash={it.blurhash ?? null}
-        scoreStr={it.score_str ?? ''}
-        isFavorite={it.is_favorite ?? false}
-        isDisliked={it.is_disliked ?? false}
-        contextMenuOpen={menuFor?.id === it.id}
-        onOpen={() => openAt(i)}
-        onContextMenu={openContext}
-      />
-    {/each}
-  </div>
-  {#if hasMore}
-    <div bind:this={sentinel} class="sentinel" aria-hidden="true"></div>
-    {#if loading}
-      <div class="loading">Loading more…</div>
+  <div class="grid-wrapper" bind:this={scrollParent}>
+    <div
+      class="grid-virtual"
+      style="height: {totalSize}px; position: relative;"
+    >
+      {#each virtualItems as virtualRow (virtualRow.key)}
+        <div
+          class="grid-row"
+          style="position: absolute; top: 0; left: 0; width: 100%; height: {virtualRow.size}px; transform: translateY({virtualRow.start}px);"
+        >
+          {#each rows[virtualRow.index] as item, colIndex}
+            {@const itemIndex = virtualRow.index * COLUMNS + colIndex}
+            <div class="grid-tile">
+              <PhotoTile
+                pointId={item.id}
+                blurhash={item.blurhash}
+                scoreStr={item.score_str}
+                isFavorite={item.is_favorite}
+                isDisliked={item.is_disliked}
+                onOpen={() => openLightbox(itemIndex)}
+                onContextMenu={(id, e) => openContextMenu(item, e)}
+              />
+            </div>
+          {/each}
+        </div>
+      {/each}
+    </div>
+
+    {#if hasMore}
+      <div class="sentinel" bind:this={sentinel}>
+        {#if loading}
+          <div class="loading">Loading...</div>
+        {/if}
+      </div>
     {/if}
-  {/if}
+  </div>
 {/if}
 
-{#if lightboxIndex !== null && items.length}
+{#if lightboxIndex !== null && lightboxIndex < items.length}
   <Lightbox
-    items={items.map((i) => ({
-      id: i.id,
-      blurhash: i.blurhash ?? null,
-      isFavorite: i.is_favorite ?? false,
-      isDisliked: i.is_disliked ?? false
+    items={items.map((it) => ({
+      id: it.id,
+      blurhash: it.blurhash,
+      isFavorite: it.is_favorite,
+      isDisliked: it.is_disliked
     }))}
     index={lightboxIndex}
-    onClose={() => (lightboxIndex = null)}
-    onToggleFavorite={(id) => onToggleFavorite?.(id)}
-    onDislike={(id) => onDislike?.(id)}
-    {albums}
+    onClose={closeLightbox}
+    onToggleFavorite={onToggleFavorite}
+    onDislike={onDislike}
+    albums={albums}
   />
 {/if}
 
-{#if menuFor}
+{#if contextMenu}
   <ImageContextMenu
-    pointId={menuFor.id}
-    path={menuFor.path}
-    isFavorite={menuFor.isFavorite}
-    x={menuFor.x}
-    y={menuFor.y}
-    {albums}
-    onClose={closeMenu}
-    onToggleFavorite={(id) => { onToggleFavorite?.(id); closeMenu(); }}
+    x={contextMenu.x}
+    y={contextMenu.y}
+    pointId={contextMenu.item.id}
+    path={contextMenu.item.path}
+    isFavorite={contextMenu.item.is_favorite}
+    albums={albums}
+    onClose={closeContextMenu}
+    onToggleFavorite={onToggleFavorite}
   />
 {/if}
 
 <style>
-  .grid {
+  .grid-wrapper {
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: calc(100vh - var(--topbar-height, 64px));
+  }
+
+  .grid-virtual {
+    width: 100%;
+  }
+
+  .grid-row {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: var(--grid-gutter);
+    gap: var(--s-2, 12px);
+    padding: 0 var(--s-4, 24px);
+    box-sizing: border-box;
   }
-  @media (max-width: 1400px) {
-    .grid { grid-template-columns: repeat(4, 1fr); }
+
+  .grid-tile {
+    aspect-ratio: 1;
+    min-width: 0;
   }
-  @media (max-width: 1000px) {
-    .grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (max-width: 720px)  {
-    .grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  .sentinel { height: 1px; }
-  .loading {
-    color: var(--fg-3);
-    text-align: center;
-    padding: 32px 0;
-    font-size: var(--fs-sm);
-  }
+
   .empty {
-    text-align: center;
-    padding: 80px 24px;
-    color: var(--fg-2);
+    padding: var(--s-6, 48px) var(--s-4, 24px);
+    color: var(--fg-3, #7e8290);
+    font-size: 0.95rem;
   }
-  .empty-mark {
-    width: 64px; height: 64px;
-    margin: 0 auto 16px;
-    border-radius: 50%;
-    background:
-      radial-gradient(circle at 30% 30%, var(--accent-soft), transparent 60%),
-      radial-gradient(circle at 70% 70%, rgba(255,122,138,0.18), transparent 60%),
-      var(--glass-1);
-    border: 1px solid var(--glass-edge);
+
+  .sentinel {
+    padding: var(--s-4, 24px);
+    text-align: center;
+  }
+
+  .loading {
+    color: var(--fg-3, #7e8290);
+    font-size: 0.9rem;
   }
 </style>

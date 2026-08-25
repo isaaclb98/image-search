@@ -22,6 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Real-world photo corpus used by tests that need actual JPEG/PNG/WebP/JFIF
+# bitstreams (vs. the synthesized `fixture_images` above). Skips if the dir
+# isn't present — e.g. on a CI runner without the dev box's NAS mirror.
+REAL_PHOTOS_DIR = Path("/home/ubuntu/tmp/pics")
+
 
 # Set env vars BEFORE any search.* import so config.load() sees them.
 os.environ.setdefault("SEARCH_TEST_MODE", "1")
