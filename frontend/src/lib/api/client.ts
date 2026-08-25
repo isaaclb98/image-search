@@ -152,3 +152,8 @@ export function photoUrl(pointId: string, width?: number): string {
   }
   return base;
 }
+
+/** Build a thumbnail URL. Returns /thumb/{pointId} for pre-generated WebP thumbnails. */
+export function thumbUrl(pointId: string): string {
+  return `/thumb/${encodeURIComponent(pointId)}`;
+}

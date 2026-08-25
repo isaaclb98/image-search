@@ -56,6 +56,10 @@ def get_vector_dim() -> int:
     return get_vector_dim_for_variant(get_siglip_variant())
 
 
+# Thumbnail storage path (inside container)
+THUMBNAIL_DIR = os.environ.get("THUMBNAIL_DIR", "/app/data/thumbnails")
+
+
 # Variant storage: JSON file in the data directory
 VARIANT_CONFIG_FILE = "siglip_variant.json"
 

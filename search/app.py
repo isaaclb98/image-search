@@ -785,6 +785,7 @@ def create_app(
     from search.routers.search import build_search_router
     from search.routers.similar import build_similar_router
     from search.routers.system import build_system_router
+    from search.routers.thumbnails import build_thumbnails_router
     app.include_router(build_collections_router(qdrant=qdrant))
     app.include_router(build_saved_searches_router(index_db=index_db))
     app.include_router(build_discover_router(
@@ -844,6 +845,7 @@ def create_app(
         path_liveness_cache=_path_liveness_cache,
         path_liveness_cache_max=_PATH_LIVENESS_CACHE_MAX,
     ))
+    app.include_router(build_thumbnails_router())
 
     def _parse_collections(request: Request) -> list[str]:
         """

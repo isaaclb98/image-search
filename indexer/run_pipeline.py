@@ -133,8 +133,23 @@ def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
 
 
 def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator[tuple[Path, Any, list[float]]]:
+    from indexer.thumbnails import generate_thumbnail_for_path
+    import logging
+    logger = logging.getLogger(__name__)
+    
     for path, image in items:
         vec = embedder.embed_image(image)
+        
+        # Generate thumbnail as a side effect
+        # The image is already in memory, so this is cheap (~25ms)
+        try:
+            thumb_path = generate_thumbnail_for_path(image, path, shard="")
+            if thumb_path:
+                logger.debug(f"Generated thumbnail: {thumb_path}")
+        except Exception as e:
+            # Thumbnail generation is best-effort, don't fail the pipeline
+            logger.warning(f"Failed to generate thumbnail for {path}: {e}")
+        
         yield (path, image, vec)
 
 
