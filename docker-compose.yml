@@ -70,6 +70,9 @@ services:
       # Your photo library — READ-ONLY
       # Set NAS_IMAGES_PATH in your .env or shell before running
       - ${NAS_IMAGES_PATH:-./_fixtures}:/nas:ro
+      # Persistent data volume — holds SQLite index.db AND HuggingFace model cache.
+      # The Dockerfile sets HF_HOME=/app/data/hf-cache so both live under one volume.
+      - search_data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 30s
@@ -86,4 +89,6 @@ services:
 
 volumes:
   qdrant_data:
+    driver: local
+  search_data:
     driver: local

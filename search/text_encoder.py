@@ -24,10 +24,24 @@ from __future__ import annotations
 
 import functools
 import logging
+from enum import Enum
 
 from image_search_kernel.vectors import l2_normalize, mean_vector
 
 logger = logging.getLogger(__name__)
+
+
+class ModelStatus(str, Enum):
+    """Model loading state for /api/system/status."""
+    NOT_STARTED = "not_started"
+    LOADING = "loading"
+    READY = "ready"
+    ERROR = "error"
+
+
+# Module-level state tracking
+_model_status: ModelStatus = ModelStatus.NOT_STARTED
+_model_error: str | None = None
 
 # Default model name registered with the kernel.
 DEFAULT_MODEL_NAME: str = "ViT-gopt-16-SigLIP2-384"
@@ -128,14 +142,23 @@ class TextEncoder:
 _encoder_singleton: TextEncoder | None = None
 
 
-def get_encoder(test_mode: bool | None = None) -> TextEncoder:
-    """Return the process-global TextEncoder, initializing on first call.
+def get_status() -> dict[str, str | None]:
+    """Return current model loading status for /api/system/status."""
+    return {
+        "model_status": _model_status.value,
+        "model_name": DEFAULT_MODEL_NAME,
+        "model_error": _model_error,
+    }
 
-    `test_mode` is consumed only on the first call; subsequent calls
-    return the cached instance. Pass `None` to use the environment
-    default (`SEARCH_TEST_MODE=1` enables mock mode).
+
+def get_encoder(test_mode: bool | None = None) -> TextEncoder:
     """
-    global _encoder_singleton
+    Return the module-level text encoder singleton. First call
+    triggers the model load (lazy-init, ~30 s on cold cache).
+
+    This is the default (`SEARCH_TEST_MODE=1` enables mock mode).
+    """
+    global _encoder_singleton, _model_status, _model_error
     if _encoder_singleton is None:
         import os
 
@@ -143,9 +166,20 @@ def get_encoder(test_mode: bool | None = None) -> TextEncoder:
             test_mode = os.environ.get("SEARCH_TEST_MODE") == "1"
         arch = os.environ.get("MODEL_NAME", DEFAULT_MODEL_NAME)
         device = os.environ.get("TEXT_ENCODER_DEVICE", "cpu")
-        _encoder_singleton = TextEncoder(
-            arch=arch, pretrained="webli", device=device, test_mode=test_mode,
-        )
+        
+        _model_status = ModelStatus.LOADING
+        _model_error = None
+        try:
+            _encoder_singleton = TextEncoder(
+                arch=arch, pretrained="webli", device=device, test_mode=test_mode,
+            )
+            _model_status = ModelStatus.READY
+            logger.info("Model loaded: %s", arch)
+        except Exception as e:
+            _model_status = ModelStatus.ERROR
+            _model_error = str(e)
+            logger.error("Model load failed: %s", e)
+            raise
     return _encoder_singleton
 
 
