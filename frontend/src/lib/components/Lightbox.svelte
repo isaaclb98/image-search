@@ -216,7 +216,7 @@
     >›</button>
   </div>
 
-  <div class="bar glass-strong">
+  <div class="bar glass-strong" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
       <span class="count">{idx + 1} / {items.length}</span>
       <ActionButton
         onclick={() => current() && onToggleFavorite?.(current()!.id)}
