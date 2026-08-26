@@ -137,10 +137,17 @@ export function forYouFeed(
   limit = 20,
   diversity = 'balanced',
   diversityDepth = 'auto',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * Zero‑based page index. The backend returns a sliced batch
+   * sized to `limit` and a `has_more` flag so the frontend can
+   * append on scroll without deduping.
+   */
+  page = 0
 ) {
   const qs = new URLSearchParams();
   qs.set('limit', String(limit));
+  qs.set('page', String(page));
   if (diversity && diversity !== 'off') qs.set('diversity', diversity);
   if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
   return apiGet<ForYouFeedResponse>(

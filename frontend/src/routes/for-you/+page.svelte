@@ -39,15 +39,31 @@
   let items = $state<Item[]>([]);
   let loading = $state(false);
   let hasMore = $state(true);
+  let currentPage = $state(0);
   let diversityMode = $state('balanced');
   let diversityDepth = $state('auto');
 
-  async function refresh() {
+  /**
+   * Reset the feed to page 0 and refetch with the current
+   * diversity settings. Wired to the "Apply" button.
+   */
+  async function apply() {
+    if (loading) return;
+    items = [];
+    currentPage = 0;
+    hasMore = true;
     loading = true;
     try {
-      const res = await forYouFeed(PAGE, diversityMode, diversityDepth);
+      const res = await forYouFeed(
+        PAGE,
+        diversityMode,
+        diversityDepth,
+        undefined,
+        0
+      );
       items = (res?.results ?? []) as Item[];
-      hasMore = items.length >= PAGE;
+      hasMore = !!res?.has_more && items.length >= PAGE;
+      currentPage = 1;
     } catch {
       items = [];
       hasMore = false;
@@ -60,25 +76,22 @@
     if (loading || !hasMore) return;
     loading = true;
     try {
-      // /api/for-you returns the same ranked set on every call
-      // (deterministic given the same likes + dislikes), so dedupe
-      // would kill the loop after the first batch. We append the
-      // full result. The user will see duplicates in the long run
-      // — fine for an infinite-feel feed. Stop when the library is
-      // exhausted AND the response is shorter than PAGE.
-      const res = await forYouFeed(PAGE, diversityMode, diversityDepth);
+      const res = await forYouFeed(
+        PAGE,
+        diversityMode,
+        diversityDepth,
+        undefined,
+        currentPage
+      );
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
-      hasMore = more.length >= PAGE;
+      hasMore = !!res?.has_more && more.length >= PAGE;
+      if (more.length > 0) currentPage += 1;
     } catch {
       hasMore = false;
     } finally {
       loading = false;
     }
-  }
-
-  function onDiversityChange() {
-    refresh();
   }
 
   async function onToggleFavorite(id: string) {
@@ -108,7 +121,7 @@
     }
   }
 
-  onMount(refresh);
+  onMount(apply);
 </script>
 
 <svelte:head>
@@ -127,9 +140,9 @@
       value={diversityMode}
       onchange={(e) => {
         diversityMode = (e.target as HTMLSelectElement).value;
-        onDiversityChange();
       }}
       aria-label="Diversity mode"
+      disabled={loading}
     >
       <option value="off">Off</option>
       <option value="low">Low</option>
@@ -143,9 +156,9 @@
       value={diversityDepth}
       onchange={(e) => {
         diversityDepth = (e.target as HTMLSelectElement).value;
-        onDiversityChange();
       }}
       aria-label="Diversity depth"
+      disabled={loading}
     >
       <option value="auto">Auto</option>
       <option value="500">500 photos</option>
@@ -154,6 +167,15 @@
       <option value="5000">5,000 photos</option>
     </select>
   </label>
+  <button
+    type="button"
+    class="apply"
+    onclick={apply}
+    disabled={loading}
+    aria-label="Apply diversity"
+  >
+    {loading ? 'Loading…' : 'Apply'}
+  </button>
 </section>
 
 <section>
@@ -200,6 +222,20 @@
   .field .lab {
     color: var(--fg-2);
     font-size: var(--fs-sm);
+  }
+  .apply {
+    background: var(--accent);
+    color: var(--bg-1);
+    border: 0;
+    border-radius: var(--r-pill);
+    padding: 6px 16px;
+    font-weight: 600;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .apply:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
   }
   .field select {
     background: rgba(14, 15, 20, 0.45);

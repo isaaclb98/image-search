@@ -162,6 +162,10 @@ class QdrantSearch:
         limit: int = 20,
         collections: list[str] | None = None,
         allowed_ids: list[str] | None = None,
+        exclude_ids: list[str] | None = None,
+        with_vector: bool = False,
+        score_threshold: float | None = None,
+        offset: int = 0,
     ) -> list[SearchHit]:
         """
         Qdrant Recommend API: return the points nearest to
@@ -202,10 +206,18 @@ class QdrantSearch:
             must_conditions.append(
                 qmodels.HasIdCondition(has_id=allowed_ids)
             )
-        query_filter = (
-            qmodels.Filter(must=must_conditions)
-            if must_conditions else None
-        )
+        must_not_conditions: list[Any] = []
+        if exclude_ids:
+            must_not_conditions.append(
+                qmodels.HasIdCondition(has_id=exclude_ids)
+            )
+        if must_conditions or must_not_conditions:
+            query_filter = qmodels.Filter(
+                must=must_conditions or None,
+                must_not=must_not_conditions or None,
+            )
+        else:
+            query_filter = None
 
         try:
             response = self.client.query_points(
@@ -217,9 +229,11 @@ class QdrantSearch:
                     ),
                 ),
                 limit=limit,
+                offset=offset,
+                score_threshold=score_threshold,
                 query_filter=query_filter,
                 with_payload=True,
-                with_vectors=False,
+                with_vectors=with_vector,
                 # Use the dedicated, more generous timeout — the
                 # default 2s (timeout_ms) is too tight for the
                 # heavier recommend path on a real collection.

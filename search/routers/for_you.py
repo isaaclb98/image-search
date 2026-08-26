@@ -54,6 +54,8 @@ def build_for_you_router(
     the router passes it straight through to `for_you.rank`.
     """
     from search.for_you import build_state, rank
+    import os
+    _MODEL_NAME = os.environ.get("MODEL_NAME", "ViT-L-16-SigLIP2-256")
 
     router = APIRouter()
 
@@ -69,16 +71,26 @@ def build_for_you_router(
 
     @router.get("/api/for-you/feed")
     async def for_you_feed(
-        limit: int = Query(30, description="max recommendations"),
+        limit: int = Query(30, description="max recommendations per page"),
+        page: int = Query(0, ge=0, description="zero-based page index"),
         diversity: str = Query("balanced", description="diversity mode"),
         diversity_depth: str = Query("auto", description="diversity depth"),
     ) -> dict:
-        """Heavy path: rebuild signal + Qdrant recommend + diversity."""
+        """
+        For-you feed endpoint.
+
+        - Same user signal ⇒ same ranked batch on every reload (round‑12).
+        - Diversity knob is the *only* thing that changes ordering.
+        - Pagination is server‑side: `?page=N` returns the next slice.
+        - Diversity=off short‑circuits the Python MMR rerank and asks
+          Qdrant directly for the slice, saving a round‑trip.
+        """
         # Manual validation so we return 400 (not 422) for bad input.
         try:
             limit = max(1, min(int(limit), 100))
         except (TypeError, ValueError):
             limit = 30
+        page = max(0, int(page))
 
         state = await asyncio.to_thread(build_state, index_db=index_db)
         fav_ids, dis_ids = await asyncio.gather(
@@ -86,40 +98,94 @@ def build_for_you_router(
             asyncio.to_thread(index_db.list_dislike_ids),
         )
 
-        try:
-            hits = await asyncio.to_thread(
-                rank,
-                state=state,
-                fav_ids=fav_ids,
-                dis_ids=dis_ids,
-                qdrant=qdrant,
-                limit=limit,
-                diversity_mode=diversity,
-                diversity_depth=diversity_depth,
-            )
-        except (ConnectionError, OSError) as e:
-            logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-        except Exception as e:
-            # broad set of exception types; we 502 on anything that
-            # smells like a qdrant-side problem so the client retries
-            # instead of treating it as a stable empty feed.
-            if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
-                raise HTTPException(status_code=504, detail="Qdrant timeout") from e
-            logger.warning("Qdrant error for /api/for-you/feed: %s", e)
-            raise HTTPException(status_code=502, detail="Qdrant error") from e
+        # The Python diversity rerank returns `limit` items after
+        # MMR. To paginate *after* reranking we have to fetch enough
+        # items to cover the requested page. We cap the pool at 200
+        # to keep the Python O(n²) cost bounded.
+        pool_target = max((page + 1) * limit, limit)
+        pool_size = min(max(pool_target * 4, 80), 200)
 
-        # Build the SearchResponse-shaped payload the frontend expects.
+        if diversity == "off":
+            # Short-circuit: skip the Python MMR entirely. Pull the
+            # ordered slice straight from Qdrant using server‑side
+            # offset + score_threshold.
+            if fav_ids:
+                try:
+                    hits = await asyncio.to_thread(
+                        qdrant.recommend,
+                        positive=fav_ids,
+                        negative=dis_ids,
+                        limit=pool_size,
+                        offset=page * limit,
+                        score_threshold=0.30,
+                        exclude_ids=list(state.excluded_ids),
+                    )
+                except (ConnectionError, OSError) as e:
+                    logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
+                    raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+                except Exception as e:  # noqa: BLE001
+                    if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
+                        raise HTTPException(status_code=504, detail="Qdrant timeout") from e
+                    logger.warning("Qdrant error for /api/for-you/feed: %s", e)
+                    raise HTTPException(status_code=502, detail="Qdrant error") from e
+            else:
+                # Cold start: no likes yet, recommend has no positive
+                # IDs to work with. Fall back to a zero‑vector search
+                # so the page is never empty for a fresh user.
+                from image_search_kernel.registry import get as _registry_get
+                from search.for_you_compute import zero_vector
+                _dim = _registry_get(_MODEL_NAME).dim
+
+                try:
+                    _hits, _ = await asyncio.to_thread(
+                        qdrant.search,
+                        vector=zero_vector(_dim),
+                        limit=pool_size,
+                        offset=page * limit,
+                        collections=None,
+                        allowed_ids=None,
+                        exclude_ids=list(state.excluded_ids),
+                    )
+                    hits = _hits
+                except (ConnectionError, OSError) as e:
+                    logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
+                    raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+                except Exception as e:  # noqa: BLE001
+                    if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
+                        raise HTTPException(status_code=504, detail="Qdrant timeout") from e
+                    logger.warning("Qdrant error for /api/for-you/feed: %s", e)
+                    raise HTTPException(status_code=502, detail="Qdrant error") from e
+        else:
+            try:
+                hits = await asyncio.to_thread(
+                    rank,
+                    state=state,
+                    fav_ids=fav_ids,
+                    dis_ids=dis_ids,
+                    qdrant=qdrant,
+                    limit=pool_size,
+                    diversity_mode=diversity,
+                    diversity_depth=diversity_depth,
+                )
+            except (ConnectionError, OSError) as e:
+                logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
+                raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
+            except Exception as e:  # noqa: BLE001
+                if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
+                    raise HTTPException(status_code=504, detail="Qdrant timeout") from e
+                logger.warning("Qdrant error for /api/for-you/feed: %s", e)
+                raise HTTPException(status_code=502, detail="Qdrant error") from e
+            # Slice the ordered list to the requested page.
+            start = page * limit
+            end = start + limit
+            hits = hits[start:end]
+
+        # If we got fewer than `limit` items we're at the end.
+        has_more = len(hits) >= limit
+
         fav_set = set(fav_ids)
         dis_set = set(dis_ids)
         return {
-            "query": "",
-            "positives": list(fav_ids),
-            "negatives": list(dis_ids),
-            "view": "for_you",
-            "centroid": None,
-            "n_likes": state.n_likes,
-            "n_dislikes": state.n_dislikes,
             "results": [
                 {
                     "id": h.id,
@@ -132,6 +198,8 @@ def build_for_you_router(
                 }
                 for h in hits
             ],
+            "has_more": has_more,
+            "page": page,
         }
 
     @router.post("/api/for-you/reset", status_code=204)

@@ -103,16 +103,19 @@ def build_state(*, index_db) -> ForYouState:
 
 
 def _zero_vector() -> list[float]:
-    """Zero vector of the active model's dim. Used as a placeholder
+    """
+    Zero vector of the active model's dim. Used as a placeholder
     for the cold-start / diversity-rerank query paths that don't
     have a real query vector.
 
     Thin wrapper that pulls the dim from the registry; the
     pure computation lives in search/for_you_compute.py.
     """
+    import os
     from image_search_kernel.registry import get as _registry_get
     from search.for_you_compute import zero_vector
-    return zero_vector(_registry_get("ViT-gopt-16-SigLIP2-384").dim)
+    model_name = os.environ.get("MODEL_NAME", "ViT-L-16-SigLIP2-256")
+    return zero_vector(_registry_get(model_name).dim)
 
 
 def rank(
