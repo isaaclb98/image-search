@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
+from image_search_kernel.registry import get as _registry_get
 from indexer import scan as scan_mod
 from indexer import upsert
 from indexer.image_loader import letterbox_resize, load
@@ -147,7 +148,12 @@ def main(argv=None):
 
     client = make_client(args)
     if not args.dry_run:
-        upsert.ensure_collection(client, args.qdrant_collection)
+        # Resolve the collection's vector dim from the chosen model so a
+        # non-default --model (e.g. ViT-L-16-SigLIP2-256) gets a
+        # 1024-dim collection instead of upsert.ensure_collection's
+        # hardcoded 1536 (the gopt default).
+        model_dim = _registry_get(args.model).dim
+        upsert.ensure_collection(client, args.qdrant_collection, dim=model_dim)
         upsert.ensure_payload_index(client, args.qdrant_collection, "collection", "keyword")
 
     if args.reblurhash and args.refingerprint:
