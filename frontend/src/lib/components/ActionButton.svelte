@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
 
   type Props = {
@@ -28,36 +27,31 @@
     rel
   }: Props = $props();
 
-  /* Brief visual confirmation that the button was just clicked.
-     Sets `pressed` for a few hundred ms after each activation,
-     which adds a flashing outline / background via the
-     `.action--pressed` rule. Re-firing on a disabled button is a
-     no-op; on a link, the click still opens the target so the
-     flash is rarely seen, but the same handler is shared for
-     consistency. */
-  let pressed = $state(false);
-  let pressTimer: ReturnType<typeof setTimeout> | undefined;
+  /* Once the user activates the button it stays darker — the
+     component is built for actions like Like/Dislike that are
+     only meant to be pressed once per photo. Pressed state is
+     derived from the parent-controlled `ariaPressed` prop when
+     it is provided; otherwise we latch a local `selected` flag
+     the first time the button is clicked. */
+  let selected = $state(false);
 
-  function flash() {
-    pressed = true;
-    if (pressTimer) clearTimeout(pressTimer);
-    pressTimer = setTimeout(() => (pressed = false), 220);
+  function effectivePressed(): boolean {
+    if (ariaPressed === true || ariaPressed === 'true') return true;
+    if (ariaPressed === false || ariaPressed === 'false') return false;
+    return selected;
   }
 
   function handleClick(event: MouseEvent) {
     if (disabled) return;
-    flash();
+    selected = true;
     if (onclick) onclick(event);
   }
-
-  onMount(() => () => {
-    if (pressTimer) clearTimeout(pressTimer);
-  });
 </script>
 
 {#if href}
   <a
-    class="action {pressed ? 'action--pressed' : ''}"
+    class="action"
+    aria-pressed={effectivePressed() ? 'true' : 'false'}
     {href}
     {target}
     {rel}
@@ -71,10 +65,10 @@
 {:else}
   <button
     type="button"
-    class="action {pressed ? 'action--pressed' : ''}"
+    class="action"
+    aria-pressed={effectivePressed() ? 'true' : 'false'}
     {disabled}
     {title}
-    aria-pressed={ariaPressed}
     aria-expanded={ariaExpanded}
     aria-haspopup={ariaHaspopup}
     onclick={handleClick}
@@ -94,9 +88,7 @@
     transition:
       background var(--t-fast),
       border-color var(--t-fast),
-      color var(--t-fast),
-      transform var(--t-fast),
-      box-shadow var(--t-fast);
+      color var(--t-fast);
     text-decoration: none;
     font-size: var(--fs-sm);
     font-weight: 500;
@@ -106,11 +98,9 @@
     justify-content: center;
   }
   .action:hover { background: var(--glass-2); }
-  .action:active { transform: scale(0.96); }
   .action:disabled { cursor: not-allowed; opacity: 0.5; }
-  /* Confirmation: tint the button darker so the click is clearly
-     visible. No halo, no scale — just a brief, obvious darken. */
-  .action--pressed {
+  /* Permanent darken for actions that have already been taken. */
+  .action[aria-pressed='true'] {
     background: rgba(0, 0, 0, 0.35);
     border-color: rgba(255, 255, 255, 0.18);
   }
