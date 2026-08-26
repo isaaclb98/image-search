@@ -201,6 +201,202 @@ def test_api_random_results_have_basic_fields(random_app):
         assert r["score_str"] == ""
 
 
+# ---------------------------------------------------------------------------
+# Session cursor behavior — the new /random shape that lets the client
+# walk through the entire library in random order without duplicates.
+# ---------------------------------------------------------------------------
+
+
+def test_session_first_call_returns_session_id_and_total(random_app):
+    """First call materializes a shuffled deck and returns its id."""
+    resp = random_app.get("/api/random?limit=2")
+    data = resp.json()
+    assert "session_id" in data
+    assert data["session_id"]
+    # token_urlsafe(16) produces ~22 chars of base64-ish text.
+    assert len(data["session_id"]) >= 16
+    # The fixture seeds 4 photos, so session_total is 4.
+    assert data["session_total"] == 4
+    assert data["offset"] == 0
+    assert data["has_more"] is True
+
+
+def test_session_walks_forward_no_duplicates(random_app):
+    """A session walks through the deck in order. Each offset returns
+    the next chunk; no photo appears twice within a session.
+
+    The whole point of the session-cursor shape: you can scroll
+    through 100% of the library without seeing duplicates.
+    """
+    r1 = random_app.get("/api/random?limit=2")
+    sid = r1.json()["session_id"]
+    seen = {r["id"] for r in r1.json()["results"]}
+
+    # Walk the rest of the deck in chunks of 2.
+    for offset in (2, 4):  # we have 4 photos total
+        r = random_app.get(
+            f"/api/random?session={sid}&offset={offset}&limit=2"
+        )
+        for photo in r.json()["results"]:
+            assert photo["id"] not in seen, (
+                f"Duplicate {photo['id']} at offset {offset}"
+            )
+            seen.add(photo["id"])
+
+    # We saw all 4 distinct photos.
+    assert seen == {"a", "b", "c", "d"}
+
+
+def test_session_full_walk_returns_everything_once(random_app):
+    """One session with a large limit covers the whole library,
+    no duplicates, has_more=False at the end.
+    """
+    r = random_app.get("/api/random?limit=10")  # fixture has 4
+    data = r.json()
+    ids = [photo["id"] for photo in data["results"]]
+    assert sorted(ids) == ["a", "b", "c", "d"]
+    assert len(ids) == len(set(ids))  # no dupes
+    assert data["has_more"] is False
+
+
+def test_session_has_more_false_when_page_fills_remaining(random_app):
+    """When the requested page exactly fills what's left of the
+    deck, has_more must be False."""
+    # Fixture has 4 photos. Ask for all 4 in one call.
+    r = random_app.get("/api/random?limit=4")
+    data = r.json()
+    assert len(data["results"]) == 4
+    assert data["has_more"] is False
+
+
+def test_session_has_more_true_when_more_remains(random_app):
+    """When more photos remain after this page, has_more=True."""
+    # 4 photos total; ask for 2 → 2 remain.
+    r1 = random_app.get("/api/random?limit=2")
+    assert r1.json()["has_more"] is True
+
+
+def test_session_offset_past_end_returns_empty(random_app):
+    """An offset >= session_total returns empty results with
+    has_more=False. The client can use this to detect end-of-session
+    without a separate 'end' signal."""
+    r1 = random_app.get("/api/random?limit=2")
+    sid = r1.json()["session_id"]
+    r = random_app.get(f"/api/random?session={sid}&offset=100&limit=5")
+    data = r.json()
+    assert data["results"] == []
+    assert data["has_more"] is False
+    assert data["offset"] == 4  # clamped to session_total
+
+
+def test_session_unknown_id_starts_fresh(random_app):
+    """An invalid session id is treated as 'no session' — the server
+    creates a new one and returns its id. This way clients that
+    restart (e.g. cleared cookies) don't crash on a stale id.
+    """
+    r = random_app.get("/api/random?session=bogus-id&limit=2")
+    data = r.json()
+    assert data["session_id"]
+    assert data["session_id"] != "bogus-id"
+    assert data["session_total"] == 4
+
+
+def test_two_sessions_dont_share_state(random_app):
+    """Two clients with separate sessions walk independently. Each
+    gets its own shuffled deck. The decks are independent — one
+    client's progress doesn't affect the other's.
+    """
+    r1 = random_app.get("/api/random?limit=2")
+    r2 = random_app.get("/api/random?limit=2")
+    sid1 = r1.json()["session_id"]
+    sid2 = r2.json()["session_id"]
+    assert sid1 != sid2
+
+    # Both got a full page (limit=2, total=4 → has_more True).
+    assert len(r1.json()["results"]) == 2
+    assert len(r2.json()["results"]) == 2
+
+    # Walking session 1 to the end doesn't affect session 2.
+    random_app.get(f"/api/random?session={sid1}&offset=2&limit=2")
+    # Session 2 still has photos left.
+    r2_again = random_app.get(
+        f"/api/random?session={sid2}&offset=2&limit=2"
+    )
+    assert r2_again.json()["has_more"] is False  # session 2 also done
+
+
+def test_session_with_collection_filter(random_app):
+    """A session restricted to one collections only walks that
+    collection's photos."""
+    r = random_app.get(
+        "/api/random?limit=10&collections=portrait"
+    )
+    data = r.json()
+    ids = {photo["id"] for photo in data["results"]}
+    # 'portrait' has c, d in the fixture.
+    assert ids == {"c", "d"}
+    assert data["session_total"] == 2
+    assert data["has_more"] is False
+
+
+def test_session_deterministic_within_session(random_app):
+    """The deck order is fixed for a session. Two reads at the same
+    offset return the same photo.
+    """
+    r1 = random_app.get("/api/random?limit=2")
+    sid = r1.json()["session_id"]
+    ids1 = [p["id"] for p in r1.json()["results"]]
+
+    r2 = random_app.get(f"/api/random?session={sid}&offset=0&limit=2")
+    ids2 = [p["id"] for p in r2.json()["results"]]
+    assert ids1 == ids2
+
+
+def test_offset_validation(random_app):
+    """Invalid offsets return an error. FastAPI returns 422 for
+    type-coercion failures (offset=abc); our manual range check
+    returns 400 (offset=-1). Both are valid error responses.
+    """
+    r1 = random_app.get("/api/random?limit=2")
+    sid = r1.json()["session_id"]
+    # Non-integer → FastAPI's built-in validation (422).
+    assert random_app.get(f"/api/random?session={sid}&offset=abc&limit=2").status_code == 422
+    # Negative → our manual check (400).
+    assert random_app.get(f"/api/random?session={sid}&offset=-1&limit=2").status_code == 400
+
+
+def test_session_expiry_yields_new_session(random_app):
+    """A session that has expired (TTL elapsed) is replaced with a
+    fresh one. The user gets a new shuffled deck rather than seeing
+    a 404 or stale data.
+
+    TTL expiry goes through the same code path as 'unknown session
+    id' (both fall into `store.get()` returning None), so the
+    'unknown id starts fresh' test above already pins the behavior
+    for the user-visible contract. This test documents the TTL
+    behavior at the unit level — it constructs a store directly
+    to avoid coupling to the router's internal state.
+    """
+    import time as _time
+    from search.routers.random import _RandomSession, _RandomSessionStore
+
+    store = _RandomSessionStore()
+    # Seed a session that's already past its TTL.
+    expired = _RandomSession(ids=["a", "b", "c", "d"], ttl_s=60.0)
+    expired.created_at = _time.monotonic() - 120.0  # 2 minutes ago, TTL is 60s
+    store._sessions["stale-id"] = expired
+
+    # get() should reject the expired session and return None.
+    assert store.get("stale-id") is None
+    # And the entry should have been cleaned up.
+    assert "stale-id" not in store._sessions
+
+    # put_new after expiry works as expected.
+    sid, sess = store.put_new(["a", "b", "c", "d"])
+    assert sid != "stale-id"
+    assert sess.is_alive()
+
+
 
 
 

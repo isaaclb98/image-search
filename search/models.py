@@ -112,6 +112,22 @@ class SearchResponse(BaseModel):
         False,
         description="True when more results likely exist on a subsequent page",
     )
+    session_id: str | None = Field(
+        None,
+        description=(
+            "Opaque session id. For /api/random this identifies the "
+            "shuffled deck; pass it back with an incremented `offset` "
+            "to walk forward. None for non-session endpoints (search, "
+            "similar, etc.) — those use offset/limit directly against Qdrant."
+        ),
+    )
+    session_total: int | None = Field(
+        None,
+        description=(
+            "Total photos in the session deck. Only set for /api/random. "
+            "Use this with `offset` to know when you've walked everything."
+        ),
+    )
 
 
 class ErrorResponse(BaseModel):

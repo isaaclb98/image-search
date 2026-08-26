@@ -48,6 +48,15 @@ dev = [
     "pytest-asyncio>=0.23",
     "anyio>=4",
     "ruff>=0.6",
+    # Parallel test execution. The backend CI job runs
+    # `pytest -n auto` so the runner's CPU count drives worker
+    # fan-out. Pinned >=3.6 for the modern `-n auto` semantics;
+    # see .github/workflows/dev-build.yml.
+    "pytest-xdist>=3.6",
+    # Strict static type-check on image_search_kernel/. CI runs
+    # `mypy image_search_kernel/` against mypy.ini; installed here
+    # so `uv sync --extra dev` is the only install command needed.
+    "mypy>=1.10",
 ]
 
 [build-system]

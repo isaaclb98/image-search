@@ -692,6 +692,68 @@ class IndexDB:
             ).fetchall()
         return [str(row["id"]) for row in rows]
 
+    def shuffled_id_deck(
+        self, collections: tuple[str, ...] | list[str] = ()
+    ) -> list[str]:
+        """Materialize a full shuffled permutation of all point ids.
+
+        This is what backs the /random session-cursor shape: one
+        full shuffle per session, then sequential reads via
+        `rows_by_ids`. At 182 photos this is microseconds; at 2M
+        it's a one-time ~5s query, then O(1) per request.
+
+        Returns ALL ids matching the collection filter (or all ids
+        if `collections` is empty), in a random order. The caller
+        uses this as the deck; offsets slice into it.
+        """
+        collections = tuple(c for c in (collections or ()) if c)
+        with self._lock:
+            if collections:
+                placeholders = ",".join("?" for _ in collections)
+                rows = self._conn.execute(
+                    f"""
+                    SELECT id FROM images
+                    WHERE collection IN ({placeholders})
+                    ORDER BY RANDOM()
+                    """,  # noqa: S608
+                    collections,
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT id FROM images ORDER BY RANDOM()"
+                ).fetchall()
+        return [str(row["id"]) for row in rows]
+
+    def rows_by_ids(self, ids: list[str]) -> list[dict]:
+        """Look up full row dicts for a list of point ids.
+
+        Returns one row per id that exists in the cache. Order of
+        the returned rows is arbitrary — callers that need a
+        specific order (e.g. /random session-cursor) should reorder
+        themselves. Missing ids are silently dropped.
+        """
+        if not ids:
+            return []
+        ids = [str(i) for i in ids if i]
+        placeholders = ",".join("?" for _ in ids)
+        with self._lock:
+            rows = self._conn.execute(
+                f"""
+                SELECT i.id, i.path, i.shard, i.collection, i.mtime,
+                       i.size, i.indexed_at, i.width, i.height,
+                       i.blurhash,
+                       (f.id IS NOT NULL) AS is_favorite,
+                       f.favorited_at,
+                       (d.id IS NOT NULL) AS is_disliked
+                FROM images i
+                LEFT JOIN favorites f ON i.id = f.id
+                LEFT JOIN dislikes d ON i.id = d.id
+                WHERE i.id IN ({placeholders})
+                """,  # noqa: S608
+                ids,
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def pick_unseen(self, n: int, exclude: set[str]) -> list[str]:
         if n <= 0:
             return []
@@ -1569,11 +1631,21 @@ class IndexDB:
                 # showed ~5-10% of fetched rows being dropped post-filter
                 # even with 3x over-fetch. 10x is the buffer that
                 # actually saturates at 20/20 for the 5-column grid.
+                #
+                # NO ORDER BY: the random rowid selection already gives
+                # us randomness. ORDER BY i.id would sort the sample by
+                # ID, which means the lexicographically smallest IDs
+                # (which are tiny in number and thus always in any
+                # large random sample) always end up at the front of
+                # the result set. The frontend dedupes against what's
+                # on screen, so a stable prefix of IDs means the same
+                # photos keep getting filtered out, and the scroll
+                # stops after a few batches instead of exploring the
+                # full library.
                 sql = f"""
                     SELECT {select_cols}
                     {join_sql}
                     WHERE {' AND '.join(where_parts)}
-                    ORDER BY i.id
                     LIMIT ?
                 """
                 params.append(int(n) * 10)

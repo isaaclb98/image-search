@@ -37,12 +37,25 @@
   let loading = $state(false);
   let hasMore = $state(true);
 
+  // Server-side session cursor: the first call creates a shuffled
+  // deck and returns a session id; subsequent calls pass the same
+  // session id with an incremented offset to walk forward. The
+  // server guarantees no duplicates within a session, so the client
+  // doesn't need any dedupe logic — just append.
+  let sessionId = $state<string | null>(null);
+  let nextOffset = $state(0);
+
   async function refresh() {
     loading = true;
     try {
-      const res = await random(PAGE);
+      // New session, start from offset 0.
+      const res = await random({ limit: PAGE });
       items = (res?.results ?? []) as Item[];
-      hasMore = items.length > 0;
+      sessionId = res?.session_id ?? null;
+      nextOffset = items.length;
+      // session_total is the deck length. has_more from the server
+      // tells us whether there's anything left to fetch.
+      hasMore = !!res?.has_more && items.length > 0;
     } catch {
       items = [];
       hasMore = false;
@@ -52,20 +65,18 @@
   }
 
   async function loadMore() {
-    if (loading || !hasMore) return;
+    if (loading || !hasMore || !sessionId) return;
     loading = true;
     try {
-      const res = await random(PAGE);
+      const res = await random({
+        session: sessionId,
+        offset: nextOffset,
+        limit: PAGE,
+      });
       const more = (res?.results ?? []) as Item[];
-      // Dedupe against what's already on screen. With /api/random
-      // returning fresh samples per call, repeats are rare but
-      // possible (especially in the 60-photo demo dataset). If
-      // dedupe yields zero new rows, stop the loop — the library
-      // is exhausted and the sentinel stops firing.
-      const seen = new Set(items.map((i) => i.id));
-      const fresh = more.filter((m) => !seen.has(m.id));
-      items = [...items, ...fresh];
-      hasMore = fresh.length > 0;
+      items = [...items, ...more];
+      nextOffset += more.length;
+      hasMore = !!res?.has_more && more.length > 0;
     } catch {
       hasMore = false;
     } finally {

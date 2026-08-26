@@ -1,45 +1,48 @@
 """
 search/routers/random.py — /api/random (§B2 step 9).
 
-GET /api/random?limit=&collections=&view=:
-    Sample `limit` photos at random from the index, optionally
-    restricted to one or more collections. Backs the home-page
-    "Surprise Me" rail and the /random route in the SPA.
+GET /api/random?session=&offset=&limit=&collections=&view=:
+    Walk through the library in a per-session shuffled order. The
+    first call materializes a shuffled deck (random permutation of
+    all point ids matching the collection filter) and returns the
+    first `limit` photos. Subsequent calls pass the same `session`
+    id and an `offset` to walk forward through the deck.
 
-The route draws on `index_db.pick_random_rows` (SQL rowid sample
-in the search-side cache) and wraps it in the documented
-SearchResponse shape so the grid renders without a special-case
-client branch.
+    Why session + offset (not "give me 20 random, dedupe client-side"):
+    - Dedupe-on-client gets exponentially less productive as the
+      on-screen set grows. The right shape is a server-side cursor
+      that guarantees every photo is served exactly once per session.
+    - One shuffle per session, O(N) where N = collection size.
+      At 182 photos this is microseconds; at 2M it's a one-time
+      ~5s query, then O(1) per request.
 
 Two non-obvious things the route does:
 
-1. **Over-fetch loop** — the picker over-fetches by ~10x with a
-   3-attempt retry; combined with the lazy-liveness cache (60 s),
-   a small fraction of rows can still come back as "dead" before
-   the next periodic refresh. The route loops up to 10 attempts,
-   accumulating unique ids, until it has `limit` survivors or the
-   collection is genuinely exhausted. Cap is hard-coded to keep
-   the latency budget bounded.
+1. **Session TTL** — sessions live 30 minutes by default
+   (RANDOM_SESSION_TTL_S). After that the shuffled deck is
+   discarded and the next call gets a fresh shuffle. Configurable
+   for tests.
 
-2. **No liveness filter** — by the same logic, `_random_rows_to_results`
-   deliberately does NOT drop dead-NAS-file rows. The /random UX
-   tolerates a broken tile for one cache refresh (60 s); doing
-   the same drop-favourites/ do would require a second DB pass per
-   request. (Compare with `_favorite_rows_to_results` which DOES
-   filter — it can't over-fetch and broken tiles are jarring
-   there.)
+2. **No liveness filter** — the random route does NOT drop
+   dead-NAS-file rows. The /random UX tolerates a broken tile for
+   one cache refresh (60 s); filtering would require a second DB
+   pass per request.
 
 Tests pin:
 - The endpoint returns the documented SearchResponse shape.
-- Manual validation of `limit` returns 400 (not 422).
-- has_more is True when the page is filled (caller paginates
-  with IntersectionObserver).
+- Manual validation of `limit` and `offset` return 400 (not 422).
+- First call materializes a session and returns `session_id`.
+- Subsequent calls with the same session_id walk forward.
+- Session expires after TTL.
+- Two concurrent sessions don't see the same deck.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
+import time
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request
@@ -55,9 +58,9 @@ logger = logging.getLogger(__name__)
 # constant so callers / tests / docs can reference one source of truth.
 RANDOM_MAX_LIMIT = 200
 
-# Number of over-fetch attempts before giving up. Bound protects the
-# request latency budget; 10 was the previous in-app cap.
-RANDOM_MAX_ATTEMPTS = 10
+# Default session lifetime. After this many seconds the shuffled
+# deck is discarded and the next call gets a fresh shuffle.
+RANDOM_SESSION_TTL_S = 30 * 60
 
 
 def _random_rows_to_results(
@@ -99,39 +102,100 @@ def _random_rows_to_results(
 
 
 def _coerce_view(raw: str | None) -> str:
-    """Map the `view` query param to a known value.
-
-    Defaults to "grid" when the param is missing or unrecognised;
-    the SPA currently renders only the grid but this lets a future
-    feed view hook in without a contract change.
-    """
+    """Coerce view param to a known value. Defaults to 'grid'."""
     if raw in ("grid", "feed"):
         return raw
     return "grid"
 
 
-def _bad_request(detail: str) -> JSONResponse:
-    """Build a 400 JSONResponse with the documented error envelope."""
-    return JSONResponse(
-        status_code=400,
-        content=ErrorResponse(
-            error="bad_request", detail=detail, code="bad_request",
-        ).model_dump(),
-    )
+# ---------------------------------------------------------------------------
+# Session store — in-memory, per-process. One shuffled deck per session id.
+# ---------------------------------------------------------------------------
+
+
+class _RandomSession:
+    """One shuffled walk through the library."""
+
+    __slots__ = ("ids", "created_at", "ttl_s")
+
+    def __init__(self, ids: list[str], ttl_s: float):
+        self.ids = ids
+        self.created_at = time.monotonic()
+        self.ttl_s = ttl_s
+
+    def is_alive(self) -> bool:
+        return (time.monotonic() - self.created_at) < self.ttl_s
+
+
+class _RandomSessionStore:
+    """Process-local map of session_id → shuffled deck.
+
+    Deliberately NOT shared across processes — a shuffle is cheap to
+    rebuild, and cross-process state would mean sticky sessions on a
+    load balancer, which is the opposite of what /random wants.
+    """
+
+    def __init__(self, ttl_s: float = RANDOM_SESSION_TTL_S):
+        self._sessions: dict[str, _RandomSession] = {}
+        self._ttl_s = ttl_s
+
+    def get(
+        self,
+        session_id: str | None,
+    ) -> tuple[str, _RandomSession] | None:
+        """Look up a live session by id. Returns None if the id is
+        missing, or if the session has expired (in which case the
+        entry is removed).
+
+        Splitting lookup from creation lets the caller run
+        materialize off the event loop (asyncio.to_thread) without
+        awkward sync/async interleaving in the store.
+        """
+        if not session_id:
+            return None
+        sess = self._sessions.get(session_id)
+        if sess is None:
+            return None
+        if not sess.is_alive():
+            del self._sessions[session_id]
+            return None
+        return session_id, sess
+
+    def put_new(self, ids: list[str]) -> tuple[str, _RandomSession]:
+        """Materialize a fresh session with a new id and the given
+        shuffled deck. The caller is responsible for having run the
+        materialize (possibly in a thread).
+        """
+        new_id = secrets.token_urlsafe(16)
+        sess = _RandomSession(ids, self._ttl_s)
+        self._sessions[new_id] = sess
+        return new_id, sess
+
+    def clear(self) -> None:
+        """Drop all sessions. Used by tests."""
+        self._sessions.clear()
+
+    def __len__(self) -> int:
+        return len(self._sessions)
 
 
 def build_random_router(
-    *,
     index_db: Any,
     cfg: Any,
 ) -> APIRouter:
     """Build the random router with the live dependencies."""
     router = APIRouter()
+    store = _RandomSessionStore()
 
     @router.get("/api/random", response_model=SearchResponse)
     async def api_random(
         request: Request,  # kept for parity with /api/search
         limit: int = Query(cfg.top_k_default, description="max results"),
+        offset: int = Query(0, description="position in the shuffled deck"),
+        session: Annotated[
+            str | None,
+            Query(description="session id from a previous /api/random response"),
+        ] = None,
         collections: Annotated[
             list[str] | None,
             Query(description="restrict to one or more collections; empty = whole set"),
@@ -145,6 +209,13 @@ def build_random_router(
             return _bad_request("limit must be an integer")  # type: ignore[return-value]
         if not (1 <= limit <= RANDOM_MAX_LIMIT):
             return _bad_request(f"limit must be in [1, {RANDOM_MAX_LIMIT}]")  # type: ignore[return-value]
+        try:
+            offset = int(offset)
+        except (TypeError, ValueError):
+            return _bad_request("offset must be an integer")  # type: ignore[return-value]
+        if offset < 0:
+            return _bad_request("offset must be >= 0")  # type: ignore[return-value]
+
         # Clean up the collection list (drop empties, dedupe while
         # preserving order so the response is stable for the client).
         seen: set[str] = set()
@@ -154,53 +225,92 @@ def build_random_router(
             if c and c not in seen:
                 seen.add(c)
                 clean_collections.append(c)
+
         try:
-            rows: list[dict] = []
-            seen_ids: set[str] = set()
-            for _ in range(RANDOM_MAX_ATTEMPTS):
-                more = await asyncio.to_thread(
-                    index_db.pick_random_rows,
-                    limit, clean_collections or None,
+            # Return existing live session, or None if we need to
+            # materialize a new one. The materialize runs in a thread
+            # so the SQL `ORDER BY RANDOM()` doesn't block the event
+            # loop. At 182 photos this is microseconds; at 2M it's
+            # ~5s but paid once per session, then cached.
+            existing = store.get(session)
+            if existing is None:
+                ids = await asyncio.to_thread(
+                    index_db.shuffled_id_deck, tuple(clean_collections)
                 )
-                for r in more:
-                    rid = str(r.get("id"))
-                    if rid in seen_ids:
-                        continue
-                    seen_ids.add(rid)
-                    rows.append(r)
-                    if len(rows) >= limit:
-                        break
-                if len(rows) >= limit:
-                    break
-        except Exception as e:
-            logger.exception("random sample failed")
+                session_id, sess = store.put_new(ids)
+            else:
+                session_id, sess = existing
+        except Exception:
+            logger.exception("random session materialize failed")
             return JSONResponse(  # type: ignore[return-value]
                 status_code=500,
                 content=ErrorResponse(
                     error="internal_error",
-                    detail=str(e),
+                    detail="session materialize failed",
                     code="internal_error",
                 ).model_dump(),
             )
-        results = _random_rows_to_results(rows[:limit], web_ui_url=cfg.web_ui_url)
-        # has_more = True when we filled the page (might be more) or
-        # when the caller asked for more than the collection holds
-        # (everything fits, nothing more). The /random UI uses an
-        # IntersectionObserver to append on scroll; the sentinel stays
-        # until a fetch returns fewer than `limit` rows, signalling
-        # "collection exhausted, stop scrolling".
-        has_more = len(results) >= limit
+
+        total = len(sess.ids)
+        # Clamp offset to the deck length. An offset past the end
+        # means the caller has walked the whole session; return
+        # empty results with has_more=False.
+        effective_offset = min(max(offset, 0), total)
+        batch_ids = sess.ids[effective_offset : effective_offset + limit]
+
+        # Materialize full SearchResults from the deck ids.
+        rows: list[dict] = []
+        if batch_ids:
+            try:
+                rows = index_db.rows_by_ids(batch_ids)
+            except Exception:
+                logger.exception("random deck lookup failed")
+                return JSONResponse(  # type: ignore[return-value]
+                    status_code=500,
+                    content=ErrorResponse(
+                        error="internal_error",
+                        detail="deck lookup failed",
+                        code="internal_error",
+                    ).model_dump(),
+                )
+            # The rows come back in arbitrary order from the IN(...)
+            # query. Re-order them to match the deck order — that's
+            # the order the user is walking through.
+            by_id = {str(r["id"]): r for r in rows}
+            rows = [by_id[i] for i in batch_ids if i in by_id]
+
+        results = _random_rows_to_results(rows, web_ui_url=cfg.web_ui_url)
+        has_more = (effective_offset + len(results)) < total
+
         return SearchResponse(
             query="",
             positives=[],
             negatives=[],
             view=view,
             centroid=None,
+            centroids=[],
+            weights=None,
             results=results,
             took_ms=0,
-            offset=0,
+            offset=effective_offset,
             limit=limit,
             has_more=has_more,
+            session_id=session_id,
+            session_total=total,
         )
 
+    # Expose the session store for tests via the router object.
+    # `router._random_session_store` is an implementation detail.
+    router._random_session_store = store  # type: ignore[attr-defined]
+
     return router
+
+
+def _bad_request(detail: str) -> JSONResponse:
+    """Build a 400 JSONResponse with the documented error envelope."""
+    return JSONResponse(
+        status_code=400,
+        content=ErrorResponse(
+            error="bad_request", detail=detail, code="bad_request",
+        ).model_dump(),
+    )

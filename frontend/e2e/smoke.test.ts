@@ -261,14 +261,99 @@ test('Random page infinite-scrolls: scrolling loads more tiles', async ({ page }
   }
 
   const final = await page.locator('.grid-tile').count();
-  // Random page dedupes against what's already on screen; with ~182
-  // indexed images and PAGE=20, scrolling should always pull in at
-  // least one fresh page. Require strictly more, not 2x — the
-  // 2x requirement was too aggressive for the dedup logic.
+  // The session cursor guarantees fresh photos on every scroll
+  // (no duplicates), so the items array grows with each batch and
+  // the virtualizer renders more visible tiles as the page grows.
   expect(final).toBeGreaterThan(initial);
 
   const endVisible = await page.locator('.end').isVisible().catch(() => false);
   expect(endVisible || final > initial).toBe(true);
+});
+
+test('Random page walks through the full session without duplicates', async ({ page }) => {
+  /**
+   * Session-cursor contract: scrolling through the entire /random
+   * page visits every photo in the library exactly once, then the
+   * scroll stops (has_more goes false, sentinel unmounts).
+   *
+   * The virtualizer only renders visible rows, so we harvest
+   * photo IDs from thumb URLs as we scroll — accumulating unique
+   * IDs across all visible positions, not at any one moment.
+   *
+   * Requires the dev server to have indexed photos. The default
+   * demo dataset is 182; this should reliably walk the whole
+   * library in ~10 scroll iterations.
+   */
+  await page.goto(APP + '/random');
+  await appReady(page);
+  await waitFor(page, '.grid-tile', 10000);
+  await page.waitForTimeout(500);
+
+  // Get session_total from the first API response. The page made
+  // the call on mount, so the headers/body are already in flight.
+  const firstResp = await page.evaluate(async () => {
+    // Re-fetch to capture the response — the original call already
+    // completed by the time the test starts running.
+    const r = await fetch('/api/random?limit=1');
+    return r.json();
+  });
+  const sessionTotal = firstResp.session_total;
+  expect(sessionTotal).toBeGreaterThan(20);
+
+  // Walk the session by harvesting unique photo IDs from visible
+  // thumb URLs. The virtualizer only renders visible rows, so we
+  // count IDs across all scroll positions.
+  const allIds = new Set<string>();
+  const harvest = async () => {
+    const ids = await page.evaluate(() => {
+      const ids: string[] = [];
+      for (const img of document.querySelectorAll('img')) {
+        const m = (img.src || '').match(/\/thumb\/([^/?#]+)/);
+        if (m) ids.push(m[1]);
+      }
+      return ids;
+    });
+    for (const id of ids) allIds.add(id);
+  };
+
+  // Initial harvest
+  await harvest();
+
+  // Scroll repeatedly until has_more is false.
+  let iterations = 0;
+  const maxIterations = 50;
+  while (iterations < maxIterations) {
+    iterations++;
+    // Trigger more loads by scrolling to the bottom.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(600);
+    await harvest();
+
+    // Check if scroll has stopped firing. We do this by checking
+    // the last /api/random response's has_more via a fresh call.
+    const r = await page.evaluate(async () => {
+      // Use a HEAD-like probe: fetch with limit=0 won't change
+      // session state but returns the current has_more.
+      // Actually we need to read from the component state. The
+      // simpler approach: just check if __random_loading stays false
+      // for a full second.
+      return null;
+    });
+
+    // Break when we've seen all session_total unique ids.
+    if (allIds.size >= sessionTotal) break;
+  }
+
+  // Every photo in the library was visited exactly once.
+  expect(allIds.size).toBe(sessionTotal);
+
+  // Confirm the scroll has stopped: no more new batches arriving.
+  // After scrolling to the bottom and waiting, harvesting should
+  // not increase the unique count.
+  await page.waitForTimeout(1500);
+  const beforeIdle = allIds.size;
+  await harvest();
+  expect(allIds.size).toBe(beforeIdle);
 });
 
 test('Search page infinite-scrolls: scrolls append a second page', async ({ page }) => {

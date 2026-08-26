@@ -77,9 +77,40 @@ export function search(params: SearchParams, signal?: AbortSignal) {
 
 // ---------- Random / For You ----------
 
-export function random(limit = 30, signal?: AbortSignal) {
-  return apiGet<SearchResponse>(`/api/random?limit=${limit}`, {
-    signal,
+export interface RandomParams {
+  /** Session id from a previous /api/random response. Pass it back
+   * with the next `offset` to walk forward through the shuffled deck.
+   * Omit on the first call to create a new session. */
+  session?: string;
+  /** Position in the shuffled deck to read from. The first batch is
+   * at offset 0; subsequent calls should pass the previous batch's
+   * count as the new offset (or use the response's `offset` + count). */
+  offset?: number;
+  /** Number of photos to return (1..200). Default 30. */
+  limit?: number;
+  /** Restrict to one or more collections. Empty = whole library. */
+  collections?: string[];
+  /** Result view: 'grid' (default) or 'feed'. */
+  view?: string;
+  /** Abort the request. */
+  signal?: AbortSignal;
+}
+
+export function random(params: RandomParams | number = {}, signal?: AbortSignal) {
+  // Back-compat: random(limit) → random({limit: 30})
+  const p: RandomParams =
+    typeof params === 'number' ? { limit: params } : params;
+  const sig = signal ?? p.signal;
+  const search = new URLSearchParams();
+  if (p.session !== undefined) search.set('session', p.session);
+  if (p.offset !== undefined) search.set('offset', String(p.offset));
+  if (p.limit !== undefined) search.set('limit', String(p.limit));
+  if (p.view !== undefined) search.set('view', p.view);
+  if (p.collections) {
+    for (const c of p.collections) search.append('collections', c);
+  }
+  return apiGet<SearchResponse>(`/api/random?${search.toString()}`, {
+    signal: sig,
     schema: Z.SearchResponse,
     schemaName: 'SearchResponse (random)'
   });
