@@ -186,7 +186,7 @@
   {:else if error}
     <div class="placeholder error">
       <p>{error}</p>
-      <Button variant="ghost" href="/">← Back to home</Button>
+      <Button variant="ghost" href="/">Back to home</Button>
     </div>
   {:else if photo}
     <div class="layout">
@@ -232,7 +232,7 @@
             disabled={actionInFlight}
             onclick={toggleFavorite}
           >
-            {photo.is_favorite ? '♥ Liked' : '♡ Like'}
+            {photo.is_favorite ? 'Liked' : 'Like'}
           </Button>
           <Button
             variant="ghost"
@@ -240,21 +240,21 @@
             disabled={actionInFlight}
             onclick={onDislike}
           >
-            − Dislike
+            Dislike
           </Button>
           <Button
             variant="ghost"
             size="md"
             href={`/similar/${encodeURIComponent(photo.id)}`}
           >
-            ⟳ Most similar
+            Most similar
           </Button>
           <Button
             variant="ghost"
             size="md"
             href={photoUrl(photo.id)}
           >
-            ↗ Open raw
+            Open raw
           </Button>
         </section>
 

@@ -160,6 +160,13 @@ test.describe('Direct photo URL navigation', () => {
     // raw photo URL.
     const photoImg = page.locator(`img[src*="/photo/${pointId}/raw"]`);
     await expect(photoImg).toBeVisible({ timeout: 10000 });
+
+    const photoActions = page.locator('.actions button, .actions a');
+    await expect(photoActions).toHaveCount(4);
+    const photoActionText = await photoActions.allTextContents();
+    expect(photoActionText[0]).toMatch(/^(Like|Liked)$/);
+    expect(photoActionText.slice(1)).toEqual(['Dislike', 'Most similar', 'Open raw']);
+    expect(photoActionText.every((text) => !/[♥♡−⟳↗←×‹›]/.test(text))).toBe(true);
   });
 });
 
