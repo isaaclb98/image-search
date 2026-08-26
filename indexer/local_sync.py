@@ -21,6 +21,7 @@ from image_search_kernel.registry import get as _registry_get
 from indexer import scan as scan_mod
 from indexer import upsert
 from indexer.image_loader import letterbox_resize, load
+from indexer.thumbnails import generate_thumbnail_for_path
 from indexer.vision_encoder import VisionEncoder
 
 load_dotenv()
@@ -356,7 +357,16 @@ def main(argv=None):
                 continue
 
             items = []
-            for (path, _), vec in zip(loaded, vecs, strict=False):
+            for (path, img), vec in zip(loaded, vecs, strict=False):
+                # Generate thumbnail (best-effort, non-fatal)
+                try:
+                    point_id = upsert.id_for(path, "")
+                    thumb_path = generate_thumbnail_for_path(img, path, "")
+                    if thumb_path:
+                        logger.debug(f"Generated thumbnail: {thumb_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to generate thumbnail for {path}: {e}")
+                
                 canon = canonical_payload_path(path, args.prefix, args.base)
                 payload = upsert.build_payload(path, "", args.model, "", src_name)
                 payload["path"] = canon

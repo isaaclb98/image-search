@@ -79,7 +79,7 @@ services:
       - search_data:/app/data
       # Thumbnail cache — generated at index time (~8KB per image, 16GB for 2M photos)
       # Separate volume for isolation (can be cleared/regenerated without affecting index)
-      - thumbnail_data:/app/data/thumbnails
+      - ${THUMBNAIL_DIR:-./_thumbnails}:/app/data/thumbnails
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 30s
@@ -98,6 +98,4 @@ volumes:
   qdrant_data:
     driver: local
   search_data:
-    driver: local
-  thumbnail_data:
     driver: local
