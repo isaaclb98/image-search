@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
 
   type Props = {
@@ -26,11 +27,37 @@
     target,
     rel
   }: Props = $props();
+
+  /* Brief visual confirmation that the button was just clicked.
+     Sets `pressed` for a few hundred ms after each activation,
+     which adds a flashing outline / background via the
+     `.action--pressed` rule. Re-firing on a disabled button is a
+     no-op; on a link, the click still opens the target so the
+     flash is rarely seen, but the same handler is shared for
+     consistency. */
+  let pressed = $state(false);
+  let pressTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function flash() {
+    pressed = true;
+    if (pressTimer) clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => (pressed = false), 220);
+  }
+
+  function handleClick(event: MouseEvent) {
+    if (disabled) return;
+    flash();
+    if (onclick) onclick(event);
+  }
+
+  onMount(() => () => {
+    if (pressTimer) clearTimeout(pressTimer);
+  });
 </script>
 
 {#if href}
   <a
-    class="action"
+    class="action {pressed ? 'action--pressed' : ''}"
     {href}
     {target}
     {rel}
@@ -44,13 +71,13 @@
 {:else}
   <button
     type="button"
-    class="action"
+    class="action {pressed ? 'action--pressed' : ''}"
     {disabled}
     {title}
     aria-pressed={ariaPressed}
     aria-expanded={ariaExpanded}
     aria-haspopup={ariaHaspopup}
-    {onclick}
+    onclick={handleClick}
   >
     {@render children()}
   </button>
@@ -68,7 +95,8 @@
       background var(--t-fast),
       border-color var(--t-fast),
       color var(--t-fast),
-      transform var(--t-fast);
+      transform var(--t-fast),
+      box-shadow var(--t-fast);
     text-decoration: none;
     font-size: var(--fs-sm);
     font-weight: 500;
@@ -80,4 +108,13 @@
   .action:hover { background: var(--glass-2); }
   .action:active { transform: scale(0.96); }
   .action:disabled { cursor: not-allowed; opacity: 0.5; }
+  /* Confirmation flash: a brighter background and a soft halo so the
+     user knows the action was registered. */
+  .action--pressed {
+    background: var(--accent);
+    color: var(--bg-1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.12);
+    transform: scale(0.96);
+  }
 </style>
