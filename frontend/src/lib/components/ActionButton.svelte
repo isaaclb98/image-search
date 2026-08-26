@@ -108,13 +108,10 @@
   .action:hover { background: var(--glass-2); }
   .action:active { transform: scale(0.96); }
   .action:disabled { cursor: not-allowed; opacity: 0.5; }
-  /* Confirmation flash: a brighter background and a soft halo so the
-     user knows the action was registered. */
+  /* Confirmation: tint the button darker so the click is clearly
+     visible. No halo, no scale — just a brief, obvious darken. */
   .action--pressed {
-    background: var(--accent);
-    color: var(--bg-1);
-    border-color: var(--accent);
-    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.12);
-    transform: scale(0.96);
+    background: rgba(0, 0, 0, 0.35);
+    border-color: rgba(255, 255, 255, 0.18);
   }
 </style>
