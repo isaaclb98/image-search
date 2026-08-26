@@ -231,3 +231,46 @@ test('photo page Most similar link goes to /similar/{id}', async ({ page }) => {
   // The similar page should load its grid.
   await waitFor(page, '.grid-tile, .empty', 10000);
 });
+
+test('middle-click on a grid tile opens the dedicated photo page in a new tab', async ({
+  page,
+  context
+}) => {
+  /**
+   * The tile's <a href="/photo/{id}"> uses browser-native navigation,
+   * so middle-click (and Cmd/Ctrl-click) automatically open the link
+   * in a new tab without any custom JS handling. This is the same
+   * affordance right-click → "Open in new tab" provides, just
+   * triggered differently.
+   */
+  await page.goto(APP + '/random');
+  await appReady(page);
+  await waitFor(page, '.grid-tile', 10000);
+
+  // Capture the id of the first tile (its visible thumb URL or its
+  // background image). We need a known id to assert against.
+  const tileId = await page.evaluate(() => {
+    const img = document.querySelector('.grid-tile img.full');
+    const src = img?.getAttribute('src') || '';
+    const m = src.match(/\/thumb\/([^/?#]+)/);
+    return m ? m[1] : null;
+  });
+  expect(tileId).toBeTruthy();
+
+  // Middle-click opens a new tab with the dedicated page URL.
+  const popupPromise = context.waitForEvent('page');
+  await page.locator('.grid-tile').first().click({ button: 'middle' });
+  const popup = await popupPromise;
+  await popup.waitForLoadState('domcontentloaded');
+
+  // The new tab is /photo/{id} (the dedicated page), not /photo/{id}/raw.
+  expect(popup.url()).toMatch(new RegExp(`/photo/${tileId}$`));
+  expect(popup.url()).not.toContain('/raw');
+
+  // The dedicated page renders its filename in the sidebar.
+  await popup.waitForSelector('.filename', { timeout: 5000 });
+  expect((await popup.locator('.filename').textContent())?.length ?? 0).toBeGreaterThan(0);
+
+  // The original tab is still on /random — middle-click doesn't navigate it.
+  expect(page.url()).toMatch(/\/random/);
+});

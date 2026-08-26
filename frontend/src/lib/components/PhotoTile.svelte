@@ -15,7 +15,7 @@
    * interactions. The grid above just lays them out.
    */
   import { onMount } from 'svelte';
-  import { thumbUrl, photoUrl } from '../api/endpoints';
+  import { thumbUrl } from '../api/endpoints';
   import { blurhashToDataUrl } from './blurhash-bg';
 
   type Props = {
@@ -74,7 +74,7 @@
   class:favorite={isFavorite}
   class:disliked={isDisliked}
   class:menu-open={contextMenuOpen}
-  href={photoUrl(pointId, 640)}
+  href={`/photo/${encodeURIComponent(pointId)}`}
   onclick={handleClick}
   oncontextmenu={handleContext}
   aria-label="Open photo"
