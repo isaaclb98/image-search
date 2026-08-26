@@ -81,11 +81,14 @@
   }
 
   onMount(refresh);
-  // Re-fetch if the route param changes (e.g., nav between two
-  // /similar/{id} pages without remount).
+  // Re-fetch whenever the route param changes. Without this, the
+  // page component is reused across navigations from /similar/A to
+  // /similar/B (same dynamic route) and the user would still see
+  // the previous photo's results — a manual reload was needed.
   $effect(() => {
-    void $page.params.id;
-    if (items.length === 0 && !loading) refresh();
+    const id = String($page.params.id);
+    if (!id) return;
+    refresh();
   });
 </script>
 
