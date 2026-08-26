@@ -48,6 +48,9 @@ models/
 # Local Qdrant data
 qdrant_data/
 
+# Local compose overrides (per-machine tweaks to docker-compose.yml)
+docker-compose.override.yml
+
 # Indexer cache (per-collection JSON of "what's already indexed").
 # Lives next to the indexer, rebuilt on demand via --refresh-cache.
 state/

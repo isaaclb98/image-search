@@ -6,7 +6,9 @@ Self-hosted semantic image search over a local photo library.
 - **Vector store:** Qdrant (local container in dev, HTTPS reverse proxy in prod).
 - **Backend:** FastAPI, single container, gunicorn + uvicorn workers.
 - **Frontend:** SvelteKit 2 + Svelte 5 + TypeScript SPA. Talks to the backend over an OpenAPI-typed client.
-- **Auth:** Single-user app login (bcrypt + itsdangerous-signed session cookie). See `.env.example` for `AUTH_*` knobs.
+- **Auth:** Single-user app login (bcrypt + itsdangerous-signed session cookie). Auth is
+  implicitly disabled in dev — when `AUTH_PASSWORD_HASH` and `AUTH_SECRET_KEY` are empty,
+  the middleware short-circuits. See `.env.example` for the real `AUTH_*` knobs.
 - **Side store:** SQLite `index.db` for folder metadata, favorites, dislikes, saved searches, album membership. Background-refreshed from Qdrant after indexer runs.
 
 ## Production deployment (one-command setup)
@@ -24,7 +26,7 @@ docker compose up -d
 ```
 
 This brings up:
-- **Qdrant** (vector database) with persistent storage
+- **Qdrant** (v1.12.4 vector database) with persistent storage
 - **Search API + SPA** (single container)
 
 Data is persisted in a named Docker volume (`qdrant_data`), so your embeddings survive container restarts.
@@ -59,7 +61,7 @@ One container, one port (8000).
 export NAS_IMAGES_PATH=/path/to/your/photos
 
 # 2. Bring up Qdrant + the search container (which also serves the SPA).
-docker compose -f docker/docker-compose.yml up --build
+docker compose up --build
 
 # 3. Open the UI.
 #    SPA + API:           http://localhost:8000
@@ -82,12 +84,22 @@ The frontend picks up new points within `INDEX_DB_REFRESH_INTERVAL_SECONDS`
 curl -X POST http://localhost:8000/api/cache/refresh
 ```
 
-> **Note:** the bundled `docker-compose.yml` also declares a `frontend`
-> service from before the single-container refactor (commit 1b897206,
-> which deleted `docker/Dockerfile.frontend`). That service references
-> a file that no longer exists and will fail to build; either remove the
-> `frontend:` block from the compose file or ignore it and use the
-> `search` service alone (which already serves the SPA on :8000).
+### Frontend-only dev with HMR
+
+For fast iteration on the UI without rebuilding the SPA:
+
+```bash
+docker compose -f docker/docker-compose.yml up --build
+```
+
+This brings up three services:
+- **qdrant** — vector database on `:6333`
+- **search** — FastAPI + bundled SPA on `:8000`
+- **frontend** — SvelteKit dev server with HMR on `:5173`
+
+The frontend proxies `/api/*`, `/photo/*`, `/albums/*.zip` to the search
+service inside the compose network. Open `http://localhost:5173` and
+changes to `frontend/src/` hot-reload instantly.
 
 ## Quick start (local dev, without Docker)
 
@@ -99,7 +111,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Qdrant
-docker run -p 6333:6333 qdrant/qdrant:v1.7.4
+docker run -p 6333:6333 qdrant/qdrant:v1.12.4
 
 # Backend (loads SigLIP2 the first time — ~3 GB download into HF cache)
 NAS_IMAGES_PATH=/path/to/your/photos \

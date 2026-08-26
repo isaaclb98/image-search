@@ -1,0 +1,33 @@
+# Dev-only Dockerfile for the SvelteKit frontend with HMR.
+#
+# Used by docker/docker-compose.yml. Runs `vite dev` inside the
+# container so changes to src/ hot-reload in the browser without a
+# rebuild. The search container already serves the bundled SPA on
+# :8000 in production; this is for frontend iteration only.
+#
+# NOTE: this file was missing from the repo (deleted in commit
+# 1b897206 during the single-container refactor). Re-added because
+# docker/docker-compose.yml still references the `frontend` service.
+
+ARG NODE_VERSION=20.19.0
+
+FROM node:${NODE_VERSION}-alpine
+WORKDIR /web
+
+# Install deps first for layer caching
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+# Copy source. Vite watches this in dev mode.
+COPY frontend/ ./
+
+# The vite dev server listens on 0.0.0.0 so compose can reach it.
+# API_PROXY_TARGET points at the search service inside the compose
+# network; vite proxies /api/*, /photo/*, /albums/*.zip etc to it.
+ENV HOST=0.0.0.0 \
+    PORT=5173 \
+    API_PROXY_TARGET=http://search:8000
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev"]
