@@ -38,8 +38,6 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-import random
-
 logger = logging.getLogger(__name__)
 
 
@@ -74,15 +72,6 @@ def build_for_you_router(
         limit: int = Query(30, description="max recommendations"),
         diversity: str = Query("balanced", description="diversity mode"),
         diversity_depth: str = Query("auto", description="diversity depth"),
-        seed: str | None = Query(
-            None,
-            description=(
-                "Optional deterministic shuffle seed. The frontend "
-                "passes a fresh random seed on every page load so the "
-                "user sees a different ordering instead of the same "
-                "ranked batch over and over."
-            ),
-        ),
     ) -> dict:
         """Heavy path: rebuild signal + Qdrant recommend + diversity."""
         # Manual validation so we return 400 (not 422) for bad input.
@@ -108,13 +97,6 @@ def build_for_you_router(
                 diversity_mode=diversity,
                 diversity_depth=diversity_depth,
             )
-            # Re‑shuffle with the caller‑supplied seed so each page
-            # load (frontend passes a fresh seed) gets a different
-            # order. Without this the ranked top‑k is stable and the
-            # "For you" page showed the same batch on every reload.
-            if seed:
-                rng = random.Random(seed)
-                rng.shuffle(hits)
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
             raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
