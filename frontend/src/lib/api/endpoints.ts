@@ -137,12 +137,21 @@ export function forYouFeed(
   limit = 20,
   diversity = 'balanced',
   diversityDepth = 'auto',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * Per‑load seed that ensures the request URL is unique. The
+   * backend samples photos randomly on each call; without a
+   * changing query string, every page load could return the same
+   * batch (round‑9 #X — “For you keeps showing the same results”).
+   */
+  seed: number | string = Math.floor(Math.random() * 1e12)
 ) {
   const qs = new URLSearchParams();
   qs.set('limit', String(limit));
   if (diversity && diversity !== 'off') qs.set('diversity', diversity);
   if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
+  qs.set('seed', String(seed));
+  qs.set('nocache', String(seed));
   return apiGet<ForYouFeedResponse>(
     `/api/for-you/feed?${qs.toString()}`,
     {
