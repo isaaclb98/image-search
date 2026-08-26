@@ -199,7 +199,11 @@ def test_build_payload_includes_blurhash(sample_png, monkeypatch):
     assert payload["blurhash"] is None or isinstance(payload["blurhash"], str)
     # We synthesized a valid PNG — blurhash must compute.
     assert payload["blurhash"] is not None
-    upsert.upsert_batch(client, "test_blurhash", [(payload["id"], [0.0] * 1536, payload)])
+    # Use the active model's dim — collection was just created with it.
+    # Hardcoding 1536 here would break when L/16-256 (1024) is active.
+    from image_search_kernel.registry import get_active_model_spec
+    active_dim = get_active_model_spec().dim
+    upsert.upsert_batch(client, "test_blurhash", [(payload["id"], [0.0] * active_dim, payload)])
     # Round-trip via Qdrant: the stored payload must include blurhash.
     recs, _ = client.scroll("test_blurhash", with_payload=True, limit=1)
     assert len(recs) == 1

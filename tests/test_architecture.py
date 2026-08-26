@@ -127,11 +127,15 @@ def test_search_does_not_import_indexer():
 # ---------------------------------------------------------------------------
 
 # Files where references are explicitly allowed (the registry and the
-# one deprecated constant in upsert.py).
+# one deprecated constant in upsert.py). `search/config.py` is the
+# app-level config that mirrors `image_search_kernel.registry`'s
+# VARIANT_TO_MODEL — it owns the app-facing `SIGLIP_VARIANT` env var
+# contract; the kernel owns the model spec resolution.
 DIM_ALLOWED_FILES: frozenset[Path] = frozenset({
     KERNEL_DIR / "registry.py",
     KERNEL_DIR / "_real_models.py",
     KERNEL_DIR / "payload_schema.py",
+    SEARCH_DIR / "config.py",
     INDEXER_DIR / "upsert.py",
     KERNEL_DIR / "__init__.py",
 })

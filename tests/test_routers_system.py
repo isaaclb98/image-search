@@ -156,7 +156,11 @@ def test_system_router_handles_drift_unknown(
 def test_system_router_does_not_register_other_endpoints(
     fake_qdrant, fake_cfg, fake_index_db,
 ):
-    """The system router owns exactly `/healthz` and `/api/cache/status`."""
+    """The system router owns exactly `/healthz`, `/api/system/status`,
+    and `/api/cache/status`. Adding endpoints here is the right way to
+    expand the system surface — but each new endpoint adds work to the
+    startup-time introspection. If you add a 4th endpoint, this test
+    is the place to update."""
     from search.routers.system import build_system_router
 
     router = build_system_router(
@@ -167,4 +171,4 @@ def test_system_router_does_not_register_other_endpoints(
         path_liveness_cache_max=128,
     )
     paths = {r.path for r in router.routes}
-    assert paths == {"/healthz", "/api/cache/status"}
+    assert paths == {"/healthz", "/api/system/status", "/api/cache/status"}

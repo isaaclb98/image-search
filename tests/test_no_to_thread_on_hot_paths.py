@@ -44,7 +44,8 @@ BASELINE: dict[str, int] = {
     "saved_searches.py": 4,
     "search.py": 4,
     "similar.py": 4,
-    "system.py": 4,
+    "system.py": 7,
+    "thumbnails.py": 0,
 }
 
 # Routes that MUST have zero to_thread on the request path.

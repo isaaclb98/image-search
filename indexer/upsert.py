@@ -25,7 +25,7 @@ from qdrant_client.http import models as qmodels
 
 from indexer.blurhash import compute_blurhash
 from indexer.fingerprints import compute_fingerprints
-from search import config as search_config
+from image_search_kernel.registry import get_active_model_spec
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,9 @@ def ensure_collection(
         dim: embedding dimension. If None, reads from SIGLIP_VARIANT env var.
     """
     if dim is None:
-        dim = search_config.get_vector_dim()
+        # Resolve dim from the active model registry entry (single
+        # source of truth — same registry the kernel and search use).
+        dim = get_active_model_spec().dim
 
     existing = {c.name for c in client.get_collections().collections}
     if name in existing:

@@ -174,6 +174,55 @@ def get(name: str) -> ModelSpec:
     return get_default_registry().get(name)
 
 
+# ---------------------------------------------------------------------------
+# Active-model resolution (variant name → model name → spec)
+#
+# This is the single source of truth for the SIGLIP_VARIANT env var.
+# Both `search/config.py` and `indexer/upsert.py` call this helper
+# instead of duplicating the variant → model name mapping.
+# ---------------------------------------------------------------------------
+
+# Variant name → registered model name. Adding a model means adding
+# it here AND in `_real_models.register_into` / `_MOCK_*_SPEC` above.
+VARIANT_TO_MODEL: dict[str, str] = {
+    "B/16-256": "ViT-B-16-SigLIP2-256",
+    "L/16-256": "ViT-L-16-SigLIP2-256",
+    "gopt/16-384": "ViT-gopt-16-SigLIP2-384",
+}
+
+DEFAULT_VARIANT = "L/16-256"
+
+
+def resolve_model_name(variant: str) -> str:
+    """Map a SIGLIP2 variant name to its registered model name.
+
+    Raises ValueError for unknown variants — same contract as
+    `search.config.get_siglip_variant` so callers get a clear
+    error message listing valid options.
+    """
+    if variant not in VARIANT_TO_MODEL:
+        raise ValueError(
+            f"Unknown SIGLIP variant {variant!r}. "
+            f"Known: {sorted(VARIANT_TO_MODEL.keys())}"
+        )
+    return VARIANT_TO_MODEL[variant]
+
+
+def get_active_model_spec() -> ModelSpec:
+    """Return the ModelSpec for the currently configured variant.
+
+    Reads SIGLIP_VARIANT from env (defaulting to DEFAULT_VARIANT),
+    resolves it to a registered model name, and looks up the spec.
+    Both the search app and the indexer use this so there's one
+    place to change the active model.
+    """
+    import os
+
+    variant = os.environ.get("SIGLIP_VARIANT", DEFAULT_VARIANT)
+    model_name = resolve_model_name(variant)
+    return get(model_name)
+
+
 # --- Mock embedder ------------------------------------------------------
 
 class MockEmbedder:
