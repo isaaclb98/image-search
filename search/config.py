@@ -118,8 +118,11 @@ def validate_variant_against_stored(env_variant: str, data_dir: str = "./data") 
             f"  Env:    {env_variant} ({env_model}, {env_dim}-dim)\n"
             f"\n"
             f"Changing the model variant requires re-indexing all photos.\n"
-            f"To proceed, run: python -m scripts.migrate_model --from {stored} --to {env_variant}\n"
-            f"Or remove the variant config: rm {get_variant_config_path(data_dir)}"
+            f"Either:\n"
+            f"  - Remove the variant config: rm {get_variant_config_path(data_dir)}\n"
+            f"    (then drop the Qdrant collection + reindex from scratch),\n"
+            f"  - Or revert SIGLIP_VARIANT to {stored!r} so it matches the\n"
+            f"    already-indexed embeddings.\n"
         )
     
     logger.info("Variant validated: %s", env_variant)
@@ -272,24 +275,8 @@ class Config:
     # path fresh. 60s means a freshly-deleted file shows up as dead
     # within a minute; tune higher if you're on a slow NAS.
     path_liveness_ttl_seconds: int = 60
-    # ----- Single-user app-level login (search/auth.py) -----
-    # When `auth_password_hash` is empty, the auth middleware is a
-    # no-op (dev / tests). When set, every request except /login,
-    # /logout, /static/* and /healthz is gated on a valid signed
-    # session cookie. `auth_secret_key` is the itsdangerous signing
-    # key — required when the hash is set; rotate to invalidate
-    # every outstanding session.
-    auth_username: str = ""
-    auth_password_hash: str = ""
-    auth_secret_key: str = ""
-    # `Secure` flag on the session cookie. Leave on (1) for
-    # production HTTPS; set to 0 for local HTTP dev so the cookie
-    # is actually delivered.
-    auth_cookie_secure: bool = True
-    # Cookie max-age in days when "remember me" is checked at login.
-    # Also enforced server-side as the verification max_age, so a
-    # long-lived cookie can't outlive this window.
-    auth_remember_days: int = 30
+    # (Single-user auth removed. Front the service with a reverse-proxy
+    # auth if access control is needed: caddy, oauth2-proxy, tailscale, etc.)
 
 
 def _int(name: str, default: int) -> int:
@@ -313,11 +300,7 @@ def _float(name: str, default: float) -> float:
 
 
 def _bool(name: str, default: bool) -> bool:
-    """Parse a boolean env var. Truthy: 1/true/yes/on (case-insensitive).
-
-    Used by AUTH_COOKIE_SECURE; kept here so the parse+validate pattern
-    matches _int / _float.
-    """
+    """Parse a boolean env var. Truthy: 1/true/yes/on (case-insensitive)."""
     raw = os.environ.get(name)
     if raw is None:
         return default
@@ -411,14 +394,7 @@ def load() -> Config:
         discover_session_ttl_seconds=_int("DISCOVER_SESSION_TTL_SECONDS", 1800),
         index_db_refresh_interval_seconds=_int("INDEX_DB_REFRESH_INTERVAL_SECONDS", 21600),
         path_liveness_ttl_seconds=_int("PATH_LIVENESS_TTL_SECONDS", 60),
-        # Auth is intentionally permissive-by-default: blank hash
-        # means "no auth" so dev / CI runs without env wiring. Set
-        # AUTH_PASSWORD_HASH + AUTH_SECRET_KEY in production.
-        auth_username=os.environ.get("AUTH_USERNAME", ""),
-        auth_password_hash=os.environ.get("AUTH_PASSWORD_HASH", ""),
-        auth_secret_key=os.environ.get("AUTH_SECRET_KEY", ""),
-        auth_cookie_secure=_bool("AUTH_COOKIE_SECURE", True),
-        auth_remember_days=_int("AUTH_REMEMBER_DAYS", 30),
+        # Auth removed — no env vars to read here.
     )
 
     if cfg.diversity_max_candidate_pool_size < cfg.top_k_default:

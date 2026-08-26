@@ -34,11 +34,8 @@ dependencies = [
     # Streaming ZIP archive for /favorites/download.zip — doesn't
     # buffer the whole archive in memory.
     "zipstream-ng>=1.1",
-    # Single-user app-level login (search/auth.py). bcrypt is the
-    # password KDF; itsdangerous signs the session cookie. See
-    # .env.example for the AUTH_* configuration knobs.
-    "bcrypt>=4.0",
-    "itsdangerous>=2.0",
+    # (bcrypt + itsdangerous removed with auth — use a reverse-proxy
+    # auth layer if you need access control.)
 ]
 
 [project.optional-dependencies]

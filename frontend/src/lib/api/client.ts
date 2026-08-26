@@ -2,13 +2,15 @@
  * Tiny typed fetch wrapper.
  *
  *  - Reads /api/* via the same origin (vite proxy or nginx in prod).
- *  - Sends/credentials: 'include' so the auth cookie carries.
  *  - Optional Zod schema validates the response body in dev mode
  *    and throws on drift. In prod we trust the contract.
  *
  * The exported `apiGet`, `apiPost`, `apiDelete` all return typed
  * bodies (Generic T). For endpoints that mutate, supply TResponse
  * as the body type and an optional Z schema for runtime guards.
+ *
+ * Auth removed: credentials default to 'omit'. The backend has no
+ * auth gate; access control is expected at the reverse-proxy layer.
  */
 
 import { browser, dev } from '$app/environment';
@@ -28,8 +30,6 @@ export class ApiError extends Error {
 }
 
 export type FetchOpts = {
-  /** Use 'omit' for endpoints that must NOT send cookies (login POST). */
-  credentials?: RequestCredentials;
   signal?: AbortSignal;
   /** Optional Zod schema for runtime validation in dev/test. */
   schema?: z.ZodTypeAny;
@@ -45,7 +45,7 @@ async function request<T>(
 ): Promise<T> {
   const init: RequestInit = {
     method,
-    credentials: opts.credentials ?? 'include',
+    credentials: 'omit',
     headers: body !== undefined
       ? { 'content-type': 'application/json' }
       : undefined,
@@ -56,104 +56,51 @@ async function request<T>(
   const url = path.startsWith('http') ? path : BASE + path;
   const res = await fetch(url, init);
 
-  // 204 has no body
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  const text = await res.text();
-  let data: unknown = null;
-  if (text) {
+  if (!res.ok) {
+    let parsed: unknown = null;
     try {
-      data = JSON.parse(text);
+      parsed = await res.json();
     } catch {
-      // non-JSON body — keep as text (e.g. image bytes misrouted)
-      data = text;
+      // not JSON; fall through
     }
+    throw new ApiError(res.status, parsed);
   }
 
-  if (!res.ok) {
-    throw new ApiError(res.status, data, `API ${res.status} on ${path}`);
-  }
+  // 204 No Content etc.
+  if (res.status === 204) return undefined as T;
 
-  if (opts.schema && dev) {
-    return assertSchema(opts.schemaName ?? path, opts.schema, data) as T;
-  }
-  return data as T;
-}
+  // Some endpoints (DELETE) legitimately have no body; tolerate an empty body.
+  const text = await res.text();
+  if (!text) return undefined as T;
 
-export const apiGet = <T>(path: string, opts: FetchOpts = {}) =>
-  request<T>('GET', path, undefined, opts);
-
-export const apiPost = <T>(path: string, body?: unknown, opts: FetchOpts = {}) =>
-  request<T>('POST', path, body, opts);
-
-export const apiPatch = <T>(path: string, body?: unknown, opts: FetchOpts = {}) =>
-  request<T>('PATCH', path, body, opts);
-
-export const apiDelete = <T>(path: string, opts: FetchOpts = {}) =>
-  request<T>('DELETE', path, undefined, opts);
-
-// Auth helpers — used by login form and layout guards.
-export type SessionState =
-  | { kind: 'loading' }
-  | { kind: 'anonymous' }
-  | { kind: 'authed'; user?: string };
-
-export async function checkSession(): Promise<SessionState> {
-  if (!browser) return { kind: 'loading' };
+  let parsed: unknown;
   try {
-    // The backend has a /healthz endpoint; use it as the auth probe.
-    // A 401 means auth is required; a 200 means we're in.
-    const res = await fetch('/healthz', {
-      credentials: 'include',
-      signal: AbortSignal.timeout(2000)
-    });
-    if (res.status === 200) return { kind: 'authed' };
-    if (res.status === 401 || res.status === 403)
-      return { kind: 'anonymous' };
-    return { kind: 'anonymous' };
+    parsed = JSON.parse(text);
   } catch {
-    return { kind: 'anonymous' };
+    throw new ApiError(res.status, text, 'Non-JSON response from server');
   }
-}
 
-export async function login(password: string): Promise<void> {
-  // Backend exposes /login (form) and /logout as plain FastAPI/Starlette
-  // endpoints outside the OpenAPI surface. POST { password } -> sets
-  // the signed session cookie via AuthGateMiddleware.
-  const res = await fetch('/login', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ password })
-  });
-  if (!res.ok) {
-    throw new ApiError(res.status, null, 'login failed');
+  if (dev && opts.schema) {
+    assertSchema(opts.schemaName ?? path, opts.schema, parsed);
   }
+  return parsed as T;
 }
 
-export async function logout(): Promise<void> {
-  await fetch('/logout', { method: 'POST', credentials: 'include' });
-}
+export const apiGet = <T>(
+  path: string,
+  schema?: z.ZodTypeAny,
+  opts: Omit<FetchOpts, 'schema' | 'schemaName'> = {}
+) => request<T>('GET', path, undefined, { ...opts, schema, schemaName: path });
 
-/** Build an absolute raw-image URL. Photos come from /photo/{id}/raw. */
-/**
- * URL for the raw photo bytes. Pass `width` to ask the server to
- * Lanczos-resize the source on the fly and serve a smaller file
- * (bandwidth saver + crisper pixels than letting the browser
- * downscale). Cached on disk by the server, so repeat requests
- * hit the cache.
- */
-export function photoUrl(pointId: string, width?: number): string {
-  const base = `/photo/${encodeURIComponent(pointId)}/raw`;
-  if (width && width > 0) {
-    return `${base}?w=${width}`;
-  }
-  return base;
-}
+export const apiPost = <T>(
+  path: string,
+  body: unknown,
+  schema?: z.ZodTypeAny,
+  opts: Omit<FetchOpts, 'schema' | 'schemaName'> = {}
+) => request<T>('POST', path, body, { ...opts, schema, schemaName: path });
 
-/** Build a thumbnail URL. Returns /thumb/{pointId} for pre-generated WebP thumbnails. */
-export function thumbUrl(pointId: string): string {
-  return `/thumb/${encodeURIComponent(pointId)}`;
-}
+export const apiDelete = <T>(
+  path: string,
+  schema?: z.ZodTypeAny,
+  opts: Omit<FetchOpts, 'schema' | 'schemaName'> = {}
+) => request<T>('DELETE', path, undefined, { ...opts, schema, schemaName: path });

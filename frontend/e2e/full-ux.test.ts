@@ -111,14 +111,8 @@ test.describe('Full User Experience E2E Tests', () => {
     await expect(page.getByRole('heading', { name: /Albums/i })).toBeVisible();
   });
 
-  test('Login page renders the form', async ({ page }) => {
-    await page.goto('/login');
-    await appReady(page);
-    await expect(page.getByLabel(/Password/i)).toBeVisible();
-  });
-
   test('Navigation: all main routes render without server error', async ({ page }) => {
-    const paths = ['/', '/search', '/random', '/for-you', '/albums', '/favorites', '/login'];
+    const paths = ['/', '/search', '/random', '/for-you', '/albums', '/favorites'];
     for (const p of paths) {
       const resp = await page.goto(p);
       expect(resp?.status() ?? 0).toBeLessThan(500);

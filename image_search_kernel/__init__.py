@@ -21,10 +21,9 @@ No I/O. No HTTP. No FastAPI. No QdrantClient construction. No
 filesystem reads. The kernel is pure utilities, registries, and types.
 """
 
-from image_search_kernel import migrate, payload_schema, qdrant_url, registry, vectors
+from image_search_kernel import payload_schema, qdrant_url, registry, vectors
 
 __all__ = [
-    "migrate",
     "payload_schema",
     "qdrant_url",
     "registry",

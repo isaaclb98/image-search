@@ -67,30 +67,35 @@ def test_build_payload_uses_every_schema_field(tmp_path, schema_module):
 
 
 def test_schema_doc_lists_every_payload_field(schema_module):
-    """Cross-check: SCHEMA.md must mention every payload field name.
-    Catches drift between the schema module and the prose doc.
+    """Cross-check: the archived schema doc mentions every payload field name.
+
+    Catches drift between the schema module and the prose doc. SCHEMA.md
+    was archived to docs/archive/ in commit 300eaa0; the cross-check
+    still runs against the archive as a sanity check on the prose
+    mirror, even though it is no longer the canonical source.
     """
     repo_root = Path(__file__).resolve().parent.parent
-    doc = (repo_root / "SCHEMA.md").read_text(encoding="utf-8")
+    doc = (repo_root / "docs" / "archive" / "SCHEMA.md").read_text(encoding="utf-8")
     for name in schema_module.payload_field_names():
         assert f"`{name}`" in doc, f"SCHEMA.md missing field `{name}`"
 
 
-def test_schema_version_is_positive_int(schema_module):
-    """Cross-check: SCHEMA_VERSION is a positive integer.
+def test_schema_field_set_non_empty(schema_module):
+    """Guard against accidentally dropping REQUIRED_FIELDS to empty.
 
-    Readers refuse unknown versions; the writer must set a value in
-    the known-good set, which starts at 1.
+    Removed: SCHEMA_VERSION machinery was retired with the migration
+    layer; this test now just guards that REQUIRED_FIELDS is still a
+    non-empty frozenset so callers don't accidentally drop a required
+    field.
     """
-    assert isinstance(schema_module.SCHEMA_VERSION, int)
-    assert schema_module.SCHEMA_VERSION >= 1
+    assert isinstance(schema_module.REQUIRED_FIELDS, frozenset)
+    assert len(schema_module.REQUIRED_FIELDS) >= 1
 
 
-def test_build_payload_sets_schema_version(tmp_path, schema_module):
-    """Cross-check: `build_payload` writes the current `SCHEMA_VERSION`."""
+def test_build_payload_sets_required_fields(tmp_path, schema_module):
+    """Cross-check: `build_payload` writes every REQUIRED_FIELDS entry."""
     from PIL import Image
 
-    from image_search_kernel.payload_schema import FIELD_SCHEMA_VERSION
     from indexer.upsert import build_payload
 
     img = Image.new("RGB", (16, 16), color=(10, 20, 30))
@@ -101,7 +106,8 @@ def test_build_payload_sets_schema_version(tmp_path, schema_module):
         p, shard="", model_name="test", model_revision="r0",
         collection="default",
     )
-    assert payload[FIELD_SCHEMA_VERSION] == schema_module.SCHEMA_VERSION
+    missing = schema_module.REQUIRED_FIELDS - payload.keys()
+    assert not missing, f"build_payload missing required fields: {missing}"
 
 
 def test_build_payload_sets_folder_field(tmp_path, schema_module):
@@ -146,16 +152,22 @@ def test_build_payload_sets_model_dim_from_registry(tmp_path, schema_module):
     assert payload[FIELD_MODEL_DIM] == registry_get("test").dim
 
 
-def test_require_fields_v0_accepts_legacy_payload(schema_module):
-    """Legacy pre-versioned points need only `id` and `path`."""
-    payload = {"id": "abc", "path": "/some/where.jpg"}
-    schema_module.require_fields(payload, version=0)  # does not raise
-
-
-def test_require_fields_v1_rejects_missing_folder(schema_module):
-    """Version-1 points must have `folder` and `model_dim`."""
+def test_require_fields_accepts_complete_payload(schema_module):
+    """A payload with every REQUIRED_FIELDS entry is accepted."""
     payload = {
-        "_schema_version": 1,
+        "id": "abc",
+        "path": "/some/where.jpg",
+        "folder": "/some",
+        "model_name": "test",
+        "model_revision": "r0",
+        "model_dim": 1536,
+    }
+    schema_module.require_fields(payload)  # does not raise
+
+
+def test_require_fields_rejects_missing_folder(schema_module):
+    """Required fields must all be present."""
+    payload = {
         "id": "abc",
         "path": "/some/where.jpg",
         "model_name": "test",
@@ -164,9 +176,4 @@ def test_require_fields_v1_rejects_missing_folder(schema_module):
         # folder missing
     }
     with pytest.raises(ValueError, match="missing required field"):
-        schema_module.require_fields(payload, version=1)
-
-
-def test_require_fields_unknown_version_raises(schema_module):
-    with pytest.raises(ValueError, match="unknown schema version"):
-        schema_module.require_fields({}, version=99)
+        schema_module.require_fields(payload)

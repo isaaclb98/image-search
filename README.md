@@ -6,7 +6,7 @@ Self-hosted semantic image search over a local photo library.
 - **Vector store:** Qdrant (local container in dev, HTTPS reverse proxy in prod).
 - **Backend:** FastAPI, single container, gunicorn + uvicorn workers.
 - **Frontend:** SvelteKit 2 + Svelte 5 + TypeScript SPA. Speaks to the backend over an OpenAPI-typed client.
-- **Auth:** Single-user app login (bcrypt + itsdangerous-signed session cookie). Auto-disabled in dev when `AUTH_PASSWORD_HASH` is empty.
+- **Auth:** None. Deploy behind a reverse proxy (caddy auth, oauth2-proxy, tailscale, etc.) if access control is needed.
 - **Side store:** SQLite `index.db` for folder metadata, favorites, dislikes, saved searches, album membership. Background-refreshed from Qdrant.
 
 ## Set up

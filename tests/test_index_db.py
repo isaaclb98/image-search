@@ -374,57 +374,6 @@ def test_favorite_survives_photo_removal_from_qdrant(tmp_path):
         assert bool(db.get_by_id("real")["is_favorite"])
     finally:
         db.close()
-
-
-def test_favorite_migration_from_legacy_images_columns(tmp_path):
-    """A pre-refactor DB with is_favorite/favorited_at on `images`
-    gets migrated: rows with is_favorite=1 are copied into the new
-    `favorites` table, then the columns are dropped from `images`.
-    """
-    import sqlite3
-
-    db_path = str(tmp_path / "legacy.db")
-    legacy = sqlite3.connect(db_path)
-    legacy.executescript(
-        """
-        CREATE TABLE images (
-          id            TEXT PRIMARY KEY,
-          path          TEXT NOT NULL,
-          shard         TEXT DEFAULT '',
-          mtime         INTEGER,
-          size          INTEGER,
-          indexed_at    TEXT,
-          is_favorite   INTEGER DEFAULT 0,
-          favorited_at  TEXT
-        );
-        INSERT INTO images (id, path, is_favorite, favorited_at) VALUES
-          ('fav1', '/photos/fav1.jpg', 1, '2026-05-01T00:00:00+00:00'),
-          ('fav2', '/photos/fav2.jpg', 1, '2026-05-02T00:00:00+00:00'),
-          ('plain', '/photos/plain.jpg', 0, NULL);
-        """
-    )
-    legacy.commit()
-    legacy.close()
-
-    qdrant = FakeQdrant([])
-    db = IndexDB(db_path, qdrant, refresh_interval_seconds=3600)
-    try:
-        # Columns are gone from images.
-        cols = {row["name"] for row in db._conn.execute("PRAGMA table_info(images)").fetchall()}
-        assert "is_favorite" not in cols
-        assert "favorited_at" not in cols
-        # Favourites table has both favourited rows, no extras.
-        fav_rows = db._conn.execute(
-            "SELECT id, favorited_at FROM favorites ORDER BY id"
-        ).fetchall()
-        assert [(r["id"], r["favorited_at"]) for r in fav_rows] == [
-            ("fav1", "2026-05-01T00:00:00+00:00"),
-            ("fav2", "2026-05-02T00:00:00+00:00"),
-        ]
-    finally:
-        db.close()
-
-
 def test_favorite_id_set_returns_only_listed_favourites(index_db):
     """favorite_id_set(ids) returns the subset of ids that are favourited.
 

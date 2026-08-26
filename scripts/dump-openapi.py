@@ -37,7 +37,6 @@ def main() -> int:
     os.environ.setdefault("SEARCH_TEST_MODE", "1")
     os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
     os.environ.setdefault("MODEL_NAME", "hf-hub:timm/ViT-gopt-16-SigLIP2-384")
-    os.environ.setdefault("AUTH_ENABLED", "false")
     # NAS_IMAGES_BASE is required by config.load() so it can resolve
     # photo paths. The dump doesn't touch the FS — a fake dir is fine.
     fake_nas = Path(os.environ.get("DUMP_NAS", "/tmp/_openapi_dump_nas"))

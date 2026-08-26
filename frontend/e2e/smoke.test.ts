@@ -87,13 +87,6 @@ test('For You renders header + body', async ({ page }) => {
   await expect(page.getByRole('combobox', { name: /Diversity mode/i })).toBeVisible();
 });
 
-test('Login renders the form', async ({ page }) => {
-  await page.goto(APP + '/login');
-  await appReady(page);
-  await expect(page.getByRole('heading', { name: /image-search/i })).toBeVisible();
-  await expect(page.getByLabel(/Password/i)).toBeVisible();
-});
-
 test('Top bar tabs are interactive', async ({ page }) => {
   await page.goto(APP + '/');
   await appReady(page);

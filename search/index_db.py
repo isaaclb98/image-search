@@ -219,13 +219,6 @@ class IndexDB:
                 """
             )
             self._conn.commit()
-            # One-shot migration: pre-persistence DBs had is_favorite /
-            # favorited_at columns on `images`. Move any favourited rows
-            # into the new dedicated `favorites` table, then drop the
-            # columns so the cache schema is clean. Runs once per DB.
-            # Requires SQLite >= 3.35 for DROP COLUMN (Python 3.12+ ships
-            # SQLite 3.41+, so this is safe in practice).
-            self._migrate_favorites_to_dedicated_table()
 
             # Filename/path FTS5 index. Backed by an FTS5 virtual
             # table that stores its own copy of `path` — no
@@ -264,13 +257,6 @@ class IndexDB:
             #   not native. Callers that need suffix should
             #   switch to a substring (drop the leading `*`).
             self._create_images_fts()
-            # One-shot migration for the FTS index on
-            # pre-existing DBs. Idempotent — the trigger setup
-            # is a no-op once the triggers exist. Forces a cache
-            # refresh when FTS is empty but images is populated,
-            # so the AI triggers fire as part of the normal
-            # rebuild flow.
-            self._migrate_images_fts()
 
     def _ensure_column(self, table: str, column: str, type_sql: str) -> None:
         """Add a column to `table` if it doesn't already exist.
@@ -293,69 +279,6 @@ class IndexDB:
                     f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}"
                 )
                 self._conn.commit()
-
-    def _migrate_favorites_to_dedicated_table(self) -> None:
-        """Move is_favorite/favorited_at columns off `images` into the
-        dedicated `favorites` table. Idempotent — no-op once the
-        columns are gone.
-
-        Pre-migration DBs (those created before the persistence
-        refactor) had favourite state stored as columns on the
-        `images` row, which meant `init_from_qdrant`'s orphan-delete
-        would silently wipe favourites for any photo whose id was no
-        longer in Qdrant. After this migration the two are physically
-        separated and the bug can't recur.
-        """
-        with self._lock:
-            cols = {
-                row["name"]
-                for row in self._conn.execute(
-                    "PRAGMA table_info(images)"
-                ).fetchall()
-            }
-            if "is_favorite" not in cols:
-                return  # already migrated
-            # Move any favourited rows into the dedicated table. The
-            # INSERT OR IGNORE means a partial-failure mid-migration
-            # leaves the favourites table intact across retries.
-            self._conn.execute(
-                """
-                INSERT OR IGNORE INTO favorites (id, favorited_at)
-                SELECT id, favorited_at FROM images
-                WHERE is_favorite = 1 AND favorited_at IS NOT NULL
-                """
-            )
-            self._conn.execute("ALTER TABLE images DROP COLUMN is_favorite")
-            self._conn.execute("ALTER TABLE images DROP COLUMN favorited_at")
-            self._conn.commit()
-            logger.info("migrated favourites off images table into dedicated favorites table")
-
-    # ---------------------- Path FTS5 ----------------------
-    #
-    # Optional filename/path-substring filter for the search side.
-    # Backed by an FTS5 virtual table that stores its own copy of
-    # `path` (no `content=` linkage) — the alternative
-    # `content='images'` mode requires a `'rebuild'` step after any
-    # bulk insert AND silently fails to populate the inverted index
-    # on certain commit-timing combinations, so we keep the path
-    # denormalised inside the FTS index itself. The FTS index is
-    # read-only from the application code's perspective — the
-    # triggers below are the only path that touches it. Sync
-    # triggers cover INSERT / UPDATE / DELETE on `images`.
-    #
-    # Why not a `path_tokens` column on `images`? FTS5 handles the
-    # tokenisation once and serves MATCH queries via the inverted
-    # index, which is O(log N) instead of full-table scans. A
-    # denormalised tokens column would either be hand-maintained
-    # (drift risk) or built lazily on read (slow).
-    #
-    # Patterns accepted by `path_token_ids()`:
-    #   * `chaewon`           — token substring match (FTS5 default).
-    #   * `chaewon*`          — token prefix match.
-    #   Anything else (notably `*chaewon` suffix or `*.jpg` glob)
-    #   raises ValueError — FTS5 doesn't support suffix matching
-    #   and fnmatch semantics are not native. Callers that need
-    #   suffix should switch to a substring (drop the leading `*`).
 
     FTS_TABLE = "images_fts"
     FTS_TOKENIZER = "unicode61 remove_diacritics 2"
@@ -416,105 +339,6 @@ class IndexDB:
                 """
             self._conn.executescript(ddl)
             self._conn.commit()
-
-    def _migrate_images_fts(self) -> None:
-        """One-shot FTS5 backfill for pre-existing DBs.
-
-        Idempotent across re-opens via a `schema_meta` flag
-        (`fts_v1`). On a legacy / partial DB (images has rows,
-        FTS is empty or under-populated), backfill FTS by
-        copying `(rowid, path)` from `images` into
-        `images_fts` — the AI/AU/AD triggers handle
-        steady-state sync from here on.
-
-        Designed to be cheap to call on every open:
-
-          * Already-migrated DB → one-row lookup, return.
-          * Fresh DB (no `images` rows yet) → mark done, return.
-          * In sync (FTS rowcount ≥ images rowcount) → mark
-            done, return.
-          * Legacy / partial → DELETE FROM images_fts,
-            backfill from `images`, mark done.
-
-        The backfill is non-destructive: we never touch the
-        `images` table, so test fixtures that seed SQLite
-        directly to bypass Qdrant still see their data on the
-        next read. The previous implementation called
-        `init_from_qdrant(force=True)` for the legacy case,
-        which is correct for production (Qdrant has the
-        authoritative data) but wipes test fixtures (Qdrant is
-        empty in those tests). The backfill is the right call
-        in both cases: production images are already in sync
-        with Qdrant (the FTS gets populated from those rows);
-        fixture images are preserved (FTS gets populated from
-        those rows). Operators who need a full rebuild from
-        Qdrant (e.g. to recover from divergent state) can use
-        `POST /api/cache/refresh`, which still calls
-        `init_from_qdrant(force=True)` on demand.
-        """
-        MIGRATION_KEY = "fts_v1"
-        with self._lock:
-            flag = self._conn.execute(
-                "SELECT 1 FROM schema_meta WHERE key = ?",
-                (MIGRATION_KEY,),
-            ).fetchone()
-            if flag is not None:
-                return
-            fts_count = int(
-                self._conn.execute(
-                    f"SELECT COUNT(*) AS n FROM {self.FTS_TABLE}"  # noqa: S608
-                ).fetchone()["n"]
-            )
-            images_count = int(
-                self._conn.execute(
-                    "SELECT COUNT(*) AS n FROM images"
-                ).fetchone()["n"]
-            )
-            if images_count == 0:
-                # Fresh DB. The lifespan hook's init_from_qdrant
-                # will populate both images and images_fts (via
-                # triggers) on the first request. Mark done so we
-                # don't re-check on every open.
-                self._conn.execute(
-                    "INSERT OR IGNORE INTO schema_meta (key, value) "
-                    "VALUES (?, ?)",
-                    (MIGRATION_KEY, _utc_now()),
-                )
-                self._conn.commit()
-                return
-            if fts_count >= images_count:
-                # Already in sync (e.g., triggers populated FTS
-                # during a subsequent init_from_qdrant). Mark
-                # done.
-                self._conn.execute(
-                    "INSERT OR IGNORE INTO schema_meta (key, value) "
-                    "VALUES (?, ?)",
-                    (MIGRATION_KEY, _utc_now()),
-                )
-                self._conn.commit()
-                return
-            # Legacy / partial: images has rows, FTS is empty or
-            # under-populated. Backfill by copying (rowid, path)
-            # from images. The triggers listen to DML on `images`;
-            # this direct INSERT into images_fts is the one-time
-            # migration path. The leading DELETE clears any
-            # partial state from a previous failed migration.
-            self._conn.execute(f"DELETE FROM {self.FTS_TABLE}")  # noqa: S608
-            self._conn.execute(
-                f"INSERT INTO {self.FTS_TABLE}(rowid, path) "  # noqa: S608
-                f"SELECT rowid, path FROM images"
-            )
-            self._conn.execute(
-                "INSERT OR IGNORE INTO schema_meta (key, value) "
-                "VALUES (?, ?)",
-                (MIGRATION_KEY, _utc_now()),
-            )
-            self._conn.commit()
-            logger.info(
-                "backfilled images_fts from existing images "
-                "(%d rows); flagged fts_v1 as done",
-                images_count,
-            )
 
     def path_token_ids(self, pattern: str) -> list[str] | None:
         """Resolve a filename/path-substring pattern to image ids.

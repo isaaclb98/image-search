@@ -25,11 +25,6 @@ from fastapi.staticfiles import StaticFiles
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search import config, text_encoder
-from search.auth import (
-    AuthGateMiddleware,
-    auth_config_from,
-    is_enabled,
-)
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -753,17 +748,9 @@ def create_app(
     app.state.random_picker = random_picker
     app.state.diversity_cache = diversity_cache
 
-    # ---------------------- Auth gate ----------------------
-    #
-    # Single-user app-level login (see search/auth.py). When
-    # AUTH_PASSWORD_HASH is configured in the environment, every
-    # request except /login, /logout, /static/* and /healthz is
-    # gated on a valid signed session cookie. When the hash is
-    # blank (dev / tests), the middleware is a no-op.
-    auth_cfg = auth_config_from(_cfg)
-
-    if is_enabled(auth_cfg):
-        app.add_middleware(AuthGateMiddleware, auth=auth_cfg, enabled=True)
+    # Router includes (§B2) follow below. Auth was removed; deploy
+    # behind a reverse proxy that handles access control (caddy auth,
+    # oauth2-proxy, tailscale, etc.) if you need it.
 
     # ---------------------- Router includes (§B2) ----------------------
     # Each resource group is one APIRouter in search/routers/. The

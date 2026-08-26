@@ -103,10 +103,6 @@ def build_payload(
 
         model_dim = _registry_get(model_name).dim
     return {
-        # Schema versioning (§A2). Every point written by a versioned
-        # writer carries this field. Readers refuse unknown versions.
-        "_schema_version": __import__("image_search_kernel.payload_schema",
-                                       fromlist=["SCHEMA_VERSION"]).SCHEMA_VERSION,
         "id": id_for(path, shard),
         "path": str(path.resolve()),
         "shard": shard,

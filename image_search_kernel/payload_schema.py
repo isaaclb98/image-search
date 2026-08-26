@@ -17,16 +17,7 @@ Adding a field:
   4. If readers need it, add the constant import to the consumer.
 
 Renaming or removing a field is a breaking change to the on-disk
-collection. Coordinate a backfill / migration before shipping.
-
-Schema versioning
------------------
-
-The Qdrant collection carries a `_schema_version` field on every
-point. The current version is `1` and is set by the kernel as
-`SCHEMA_VERSION`. Every writer must set it; every reader must check
-it; readers refuse unknown versions (HTTP 503 with structured body,
-see `docs/backend-refactor-plan.md` §4.2.1).
+collection — drop the collection and reindex.
 """
 
 from __future__ import annotations
@@ -34,8 +25,6 @@ from __future__ import annotations
 from typing import TypedDict
 
 __all__ = [  # noqa: RUF022 — grouped by category for readability; strict alphabetic sort would scatter related fields
-    # Schema version
-    "SCHEMA_VERSION",
     # Top-level payload fields
     "FIELD_ID",
     "FIELD_PATH",
@@ -49,23 +38,16 @@ __all__ = [  # noqa: RUF022 — grouped by category for readability; strict alph
     "FIELD_MODEL_REVISION",
     "FIELD_MODEL_DIM",
     "FIELD_INDEXED_AT",
-    "FIELD_SCHEMA_VERSION",
     # Diversity fingerprints
     "FIELD_CONTENT_SHA256",
     "FIELD_DHASH",
     "FINGERPRINT_FIELDS",
     # TypedDict
     "Payload",
-    # Helpers
     "payload_field_names",
+    "REQUIRED_FIELDS",
     "require_fields",
 ]
-
-
-# Schema versioning. v0 = pre-versioned (legacy); v1 = first versioned
-# schema, introduced by the refactor. New versions bump this constant
-# and add a migration transform.
-SCHEMA_VERSION: int = 1
 
 
 # --- Top-level payload fields --------------------------------------------
@@ -82,7 +64,6 @@ FIELD_MODEL_NAME = "model_name"
 FIELD_MODEL_REVISION = "model_revision"
 FIELD_MODEL_DIM = "model_dim"
 FIELD_INDEXED_AT = "indexed_at"
-FIELD_SCHEMA_VERSION = "_schema_version"
 
 
 # --- Diversity fingerprints (sub-keys; same flat payload) ---------------
@@ -95,55 +76,41 @@ FIELD_DHASH = "dhash"
 FINGERPRINT_FIELDS: tuple[str, ...] = (FIELD_CONTENT_SHA256, FIELD_DHASH)
 
 
-# --- TypedDict describing the full point payload ------------------------
-
 class Payload(TypedDict, total=False):
     """Canonical Qdrant point payload (Qdrant stores payload as JSON).
 
-    All fields are optional in the type system because legacy points
-    written before the field was introduced may omit it. The
-    `require_fields` helper below asserts the required set at parse
-    time; failure raises a typed exception.
-
-    `_schema_version` is required for any point written by a versioned
-    writer. Readers must check it and refuse unknown versions.
+    All fields are optional in the type system because Qdrant payload
+    indexing is incremental — points written by older indexer versions
+    may omit later-added fields. Readers tolerate that.
     """
-    _schema_version: int
     id: str
     path: str
     shard: str
     collection: str
     blurhash: str | None
     folder: str
-    mtime: int
+    mtime: float
     size: int
     model_name: str
     model_revision: str
     model_dim: int
-    indexed_at: str
-    # Diversity fingerprints (flat, not nested)
+    indexed_at: str  # ISO-8601 UTC string
+    # Diversity fingerprints
     content_sha256: str | None
     dhash: str | None
 
 
-# --- Required fields per schema version ----------------------------------
-
-# v0 (pre-versioned, legacy before the refactor): only the field set
-# that existed before _schema_version was introduced.
-REQUIRED_FIELDS_V0: frozenset[str] = frozenset({
-    FIELD_ID,
-    FIELD_PATH,
-})
-
-# v1: first versioned schema. Adds _schema_version, folder, model_dim.
-REQUIRED_FIELDS_V1: frozenset[str] = frozenset({
+# Single required set. Adding a field that every point must have
+# means bumping REQUIRED_FIELDS and reindexing — which is "wipe the
+# collection and reindex", the same operation we do for any other
+# breaking schema change.
+REQUIRED_FIELDS: frozenset[str] = frozenset({
     FIELD_ID,
     FIELD_PATH,
     FIELD_FOLDER,
     FIELD_MODEL_NAME,
     FIELD_MODEL_REVISION,
     FIELD_MODEL_DIM,
-    FIELD_SCHEMA_VERSION,
 })
 
 
@@ -166,28 +133,19 @@ def payload_field_names() -> list[str]:
         FIELD_MODEL_REVISION,
         FIELD_MODEL_DIM,
         FIELD_INDEXED_AT,
-        FIELD_SCHEMA_VERSION,
         FIELD_CONTENT_SHA256,
         FIELD_DHASH,
     })
 
 
-def require_fields(payload: dict[str, object], *, version: int) -> None:
-    """Assert that `payload` contains every required field for its version.
+def require_fields(payload: dict[str, object]) -> None:
+    """Assert `payload` contains every REQUIRED_FIELDS entry.
 
     Raises:
-        ValueError: with a structured message naming the missing fields
-            and the version that required them.
+        ValueError: with a structured message naming the missing fields.
     """
-    if version == 0:
-        required = REQUIRED_FIELDS_V0
-    elif version == 1:
-        required = REQUIRED_FIELDS_V1
-    else:
-        raise ValueError(f"unknown schema version: {version!r}")
-
-    missing = [f for f in required if f not in payload]
+    missing = [f for f in REQUIRED_FIELDS if f not in payload]
     if missing:
         raise ValueError(
-            f"payload missing required field(s) {missing!r} for schema version {version}"
+            f"payload missing required field(s) {missing!r}"
         )

@@ -27,7 +27,6 @@ Tests for the `?filename=` path-substring filter:
 from __future__ import annotations
 
 import logging
-import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -290,46 +289,6 @@ def test_path_token_ids_trigger_sync_on_delete():
         assert db.path_token_ids("chaewon") == []
     finally:
         db.close()
-
-
-def test_path_token_ids_legacy_db_backfill(tmp_path):
-    """A pre-existing DB without images_fts gets the table created
-    AND backfilled on IndexDB open — no manual rebuild needed."""
-    from search.index_db import IndexDB
-
-    # Build a legacy DB without the FTS table.
-    legacy = sqlite3.connect(str(tmp_path / "legacy.db"))
-    # Test fixture: values are static module constants, not user input.
-    legacy_ddl = f"""
-        CREATE TABLE images (
-          id TEXT PRIMARY KEY,
-          path TEXT NOT NULL,
-          shard TEXT DEFAULT '',
-          mtime INTEGER,
-          size INTEGER,
-          indexed_at TEXT
-        );
-        INSERT INTO images VALUES ('a', '{CHAEWON_PATH}', '', 100, 200, '2026-01-01');
-        INSERT INTO images VALUES ('b', '{KAZUHA_PATH}', '', 100, 200, '2026-01-01');
-        """  # noqa: S608
-    legacy.executescript(legacy_ddl)
-    legacy.commit()
-    legacy.close()
-
-    db = IndexDB(str(tmp_path / "legacy.db"), _FakeQdrant([]), refresh_interval_seconds=3600)
-    try:
-        # Both the FTS table and the backfill happen on open.
-        assert db.path_token_ids("chaewon") == ["a"]
-        assert sorted(db.path_token_ids("kpop")) == ["a", "b"]
-    finally:
-        db.close()
-
-
-# ============================================================
-#  /api/search — end-to-end filename filter
-# ============================================================
-
-
 def test_api_search_filename_filter_restricts_results(app_with_filename_paths):
     """`?filename=chaewon` restricts results to the matching ids only."""
     resp = app_with_filename_paths.get("/api/search?q=chaewon&filename=chaewon")

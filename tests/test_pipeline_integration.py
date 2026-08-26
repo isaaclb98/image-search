@@ -175,15 +175,13 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
     assert report.failures == []
     assert report.dry_run is False
 
-    # Verify every point landed in qdrant with the v1 schema fields.
+    # Verify every point landed in qdrant with the schema fields.
     from image_search_kernel.payload_schema import (
         FIELD_FOLDER,
         FIELD_MODEL_DIM,
         FIELD_MODEL_NAME,
         FIELD_MODEL_REVISION,
         FIELD_PATH,
-        FIELD_SCHEMA_VERSION,
-        SCHEMA_VERSION,
     )
 
     points, _ = qdrant_in_memory.scroll(
@@ -194,8 +192,7 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
 
     for p in points:
         pl = p.payload or {}
-        # v1 schema fields are present.
-        assert pl.get(FIELD_SCHEMA_VERSION) == SCHEMA_VERSION
+        # Schema fields are present.
         assert pl.get(FIELD_MODEL_DIM) == 1536
         assert pl.get(FIELD_MODEL_NAME) == "mock-1536"
         assert pl.get(FIELD_MODEL_REVISION) == "test-r0"

@@ -50,8 +50,6 @@ def test_run_pipeline_source_end_to_end(synth_corpus, qdrant_in_memory):
         FIELD_MODEL_NAME,
         FIELD_MODEL_REVISION,
         FIELD_PATH,
-        FIELD_SCHEMA_VERSION,
-        SCHEMA_VERSION,
     )
     from indexer.upsert import ensure_collection
 
@@ -77,11 +75,10 @@ def test_run_pipeline_source_end_to_end(synth_corpus, qdrant_in_memory):
     assert len(points) == 10
     for p in points:
         pl = p.payload or {}
-        assert pl.get(FIELD_SCHEMA_VERSION) == SCHEMA_VERSION
         assert pl.get(FIELD_MODEL_DIM) == 1536
         assert pl.get(FIELD_MODEL_NAME) == "mock-1536"
         assert pl.get(FIELD_MODEL_REVISION) == "test-r0"
-        assert pl.get(FIELD_PATH)
+        assert pl.get(FIELD_PATH)  # absolute path string
         assert pl.get(FIELD_FOLDER) == str(synth_corpus.resolve())
 
 

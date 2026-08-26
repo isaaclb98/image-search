@@ -71,14 +71,10 @@ class TestUpsertPayloadAssembly:
         missing = declared - actual
         assert not missing, f"build_payload missing fields: {sorted(missing)}"
 
-    def test_build_payload_schema_version_is_current(
-        self, tmp_path: Path,
-    ):
-        from image_search_kernel.payload_schema import (
-            FIELD_SCHEMA_VERSION,
-            SCHEMA_VERSION,
-        )
+    def test_build_payload_sets_required_fields(self, tmp_path: Path):
+        """Every REQUIRED_FIELDS entry lands on the payload."""
         from indexer.upsert import build_payload
+        from image_search_kernel.payload_schema import REQUIRED_FIELDS
 
         p = tmp_path / "img.png"
         self._png(p)
@@ -86,7 +82,8 @@ class TestUpsertPayloadAssembly:
             p, shard="", model_name="test", model_revision="r0",
             collection="default",
         )
-        assert payload[FIELD_SCHEMA_VERSION] == SCHEMA_VERSION
+        missing = REQUIRED_FIELDS - payload.keys()
+        assert not missing, f"build_payload missing required fields: {missing}"
 
     def test_build_payload_folder_is_parent_path(self, tmp_path: Path):
         from image_search_kernel.payload_schema import FIELD_FOLDER

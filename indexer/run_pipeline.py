@@ -39,7 +39,7 @@ from typing import Any
 
 from qdrant_client.http import models as qmodels
 
-from image_search_kernel.payload_schema import FIELD_PATH, SCHEMA_VERSION
+from image_search_kernel.payload_schema import FIELD_PATH
 from image_search_kernel.registry import Embedder
 from image_search_kernel.registry import get as _registry_get
 from indexer.pipeline import (
@@ -175,7 +175,6 @@ def _upsert(
             # registry entry.
             payload["model_name"] = _resolve_active_model_name()
             payload["model_revision"] = _resolve_active_model_revision()
-            payload["_schema_version"] = SCHEMA_VERSION
             point_id = id_for(path, shard="")
             point = qmodels.PointStruct(
                 id=point_id, vector=vec, payload=payload,
