@@ -86,18 +86,22 @@
   let albumAnchorEl: HTMLSpanElement | undefined = $state();
 
   /* Local "pressed" state for the Like / Dislike action buttons.
-     Synced from the current photo on navigation so flipping to
-     the next image clears the previous one's pressed state.
-     Pressing Like clears Dislike (and vice versa) so a photo
-     can only be in one of those two states at a time. The
-     parent component (e.g. the grid) still owns the API call. */
+     Synced from the current photo only when the user navigates
+     to a different photo — re-syncing after every server response
+     would clobber the in‑flight toggle we just made. Pressing
+     Like clears Dislike (and vice‑versa) so a photo can only be
+     in one of those two states at a time. The parent (grid) still
+     owns the API call. */
   let isFavorite = $state(false);
   let isDisliked = $state(false);
+  let lastSyncedIdx = $state(-1);
 
   $effect(() => {
+    if (idx === lastSyncedIdx) return;
     const it = items[idx];
     isFavorite = !!it?.isFavorite;
     isDisliked = !!it?.isDisliked;
+    lastSyncedIdx = idx;
   });
 
   function toggleFavorite() {
