@@ -251,14 +251,12 @@ test('Random page infinite-scrolls: scrolling loads more tiles', async ({ page }
   const initial = await page.locator('.grid-tile').count();
   expect(initial).toBeGreaterThan(0);
 
-  // The grid-wrapper is its own scroll container (height: 100vh - topbar;
-  // overflow-y: auto), so the page-level scroll never reaches the
-  // IntersectionObserver sentinel. Scroll inside the wrapper instead.
-  for (let i = 0; i < 4; i++) {
-    await page.evaluate(() => {
-      const el = document.querySelector('.grid-wrapper') as HTMLElement | null;
-      if (el) el.scrollTo({ top: el.scrollHeight * ((window.__scrollIdx = (window.__scrollIdx ?? 0) + 1) * 0.25) });
-    });
+  // The page body is the scroll container — the grid uses
+  // createWindowVirtualizer, so scrolling window reaches the sentinel.
+  for (let i = 1; i <= 4; i++) {
+    await page.evaluate((frac) => {
+      window.scrollTo({ top: document.body.scrollHeight * frac });
+    }, i / 4);
     await page.waitForTimeout(800);
   }
 
@@ -282,11 +280,10 @@ test('Search page infinite-scrolls: scrolls append a second page', async ({ page
   const initial = await page.locator('.grid-tile').count();
   expect(initial).toBe(20);
 
-  // Same scroll-container fix as the Random test.
+  // Body is the scroll container — scroll window to reach the sentinel.
   for (let i = 0; i < 3; i++) {
     await page.evaluate(() => {
-      const el = document.querySelector('.grid-wrapper') as HTMLElement | null;
-      if (el) el.scrollTo({ top: el.scrollHeight });
+      window.scrollTo({ top: document.body.scrollHeight });
     });
     await page.waitForTimeout(800);
   }

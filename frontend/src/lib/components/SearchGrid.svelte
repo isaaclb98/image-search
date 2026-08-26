@@ -13,7 +13,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
   import { photoUrl } from '$lib/api/endpoints';
-  import { createVirtualizer } from '@tanstack/svelte-virtual';
+  import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
@@ -56,7 +56,9 @@
   // State
   let lightboxIndex = $state<number | null>(null);
   let contextMenu = $state<{ x: number; y: number; item: Item } | null>(null);
-  let scrollParent: HTMLDivElement | undefined = $state();
+  // Grid wrapper ref (for width measurement only — not a scroll parent).
+  // The body is the scroll context; the virtualizer watches window.
+  let gridWrapper: HTMLDivElement | undefined = $state();
   let containerWidth = $state(0);
 
   // Calculate tile size based on container width
@@ -74,32 +76,48 @@
     )
   );
 
-  // Virtualizer
-  let virtualizer = $derived(
-    scrollParent
-      ? createVirtualizer({
-          count: rows.length,
-          getScrollElement: () => scrollParent ?? null,
-          estimateSize: () => rowHeight,
-          overscan: 5
-        })
-      : null
-  );
+  // Virtualizer — created once, scrolls with window. Created at
+  // module scope so it isn't recreated on every `rows` change
+  // (recreating resets scroll position and drops the new items).
+  const virtualizerStore = createWindowVirtualizer({
+    count: 0,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 5
+  });
 
-  let virtualItems = $derived($virtualizer?.getVirtualItems() ?? []);
-  let totalSize = $derived($virtualizer?.getTotalSize() ?? 0);
+  // Stable reference to the virtualizer instance. Don't use $derived
+  // here — setOptions forces a store update, which would re-trigger
+  // the $effect below and call setOptions again, creating a loop.
+  let theVirtualizer: ReturnType<typeof virtualizerStore.subscribe> extends (cb: (v: infer T) => any) => any ? T : never;
+  virtualizerStore.subscribe(v => { theVirtualizer = v; });
+
+  // Push reactive count/rowHeight into the virtualizer when they change.
+  // Note: do NOT read `theVirtualizer` here — only rows.length and
+  // rowHeight are the reactive dependencies.
+  $effect(() => {
+    const n = rows.length;
+    const h = rowHeight;
+    theVirtualizer?.setOptions({
+      count: n,
+      estimateSize: () => h
+    });
+  });
+
+  // Read virtualItems/totalSize from the store (re-runs when store updates).
+  let virtualItems = $derived($virtualizerStore?.getVirtualItems() ?? []);
+  let totalSize = $derived($virtualizerStore?.getTotalSize() ?? 0);
 
   // ResizeObserver for container width
   let resizeObserver: ResizeObserver | null = null;
 
   onMount(() => {
-    if (scrollParent) {
+    if (gridWrapper) {
       resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           containerWidth = entry.contentRect.width;
         }
       });
-      resizeObserver.observe(scrollParent);
+      resizeObserver.observe(gridWrapper);
     }
   });
 
@@ -107,7 +125,7 @@
     resizeObserver?.disconnect();
   });
 
-  // Infinite scroll: sentinel
+  // Infinite scroll: sentinel. root: null → viewport (window).
   let sentinel: HTMLDivElement | undefined = $state();
   let observer: IntersectionObserver | null = null;
 
@@ -120,7 +138,7 @@
             onLoadMore?.();
           }
         },
-        { root: scrollParent, threshold: 0.1 }
+        { root: null, threshold: 0.1 }
       );
       observer.observe(sentinel);
     }
@@ -154,7 +172,7 @@
 {:else if items.length === 0 && !loading}
   <div class="empty">No results</div>
 {:else}
-  <div class="grid-wrapper" bind:this={scrollParent}>
+  <div class="grid-wrapper" bind:this={gridWrapper}>
     <div
       class="grid-virtual"
       style="height: {totalSize}px; position: relative;"
@@ -223,9 +241,9 @@
 
 <style>
   .grid-wrapper {
-    overflow-y: auto;
-    overflow-x: hidden;
-    height: calc(100vh - var(--topbar-height, 64px));
+    /* Body is the scroll context. The grid is in normal flow; only
+       virtual rows the user is looking at are rendered. */
+    width: 100%;
   }
 
   .grid-virtual {

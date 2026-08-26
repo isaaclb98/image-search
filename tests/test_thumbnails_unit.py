@@ -82,26 +82,21 @@ class TestComputeThumbnail:
         result = compute_thumbnail(img, "abc123")
         assert result == thumbnail_path("abc123")
 
-    def test_thumbnail_dimensions_within_size(self, tmp_path, monkeypatch):
-        """Output should be <= 256x256 (max dimension)."""
+    def test_thumbnail_dimensions_are_square(self, tmp_path, monkeypatch):
+        """Output should be exactly 256x256 (square-cropped, not letterboxed)."""
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
         img = Image.new("RGB", (1024, 768), color="green")
         result = compute_thumbnail(img, "abc123")
         with Image.open(result) as thumb:
-            w, h = thumb.size
-            assert w <= THUMBNAIL_SIZE[0]
-            assert h <= THUMBNAIL_SIZE[1]
-            # Aspect ratio preserved: 1024x768 → 256x192
-            assert w == 256
-            assert h == 192
+            assert thumb.size == (256, 256)
 
-    def test_smaller_image_not_upscaled(self, tmp_path, monkeypatch):
-        """If input is already <= 256, don't upscale it."""
+    def test_smaller_image_upscaled_to_target(self, tmp_path, monkeypatch):
+        """Smaller square inputs are resized up to 256x256 (center-crop is no-op)."""
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
         img = Image.new("RGB", (64, 64), color="red")
         result = compute_thumbnail(img, "small123")
         with Image.open(result) as thumb:
-            assert thumb.size == (64, 64)
+            assert thumb.size == (256, 256)
 
     def test_square_image(self, tmp_path, monkeypatch):
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
@@ -110,15 +105,39 @@ class TestComputeThumbnail:
         with Image.open(result) as thumb:
             assert thumb.size == (256, 256)
 
-    def test_portrait_image(self, tmp_path, monkeypatch):
-        """Tall image should be scaled to fit within 256 height."""
+    def test_portrait_image_becomes_square(self, tmp_path, monkeypatch):
+        """Tall portrait: center-crop the shorter (width) side, resize to square."""
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
         img = Image.new("RGB", (400, 800), color="red")
         result = compute_thumbnail(img, "tall1234")
         with Image.open(result) as thumb:
-            w, h = thumb.size
-            assert h == 256
-            assert w < 256  # aspect ratio: 400/800 = 0.5 → 128x256
+            assert thumb.size == (256, 256)
+
+    def test_landscape_image_becomes_square(self, tmp_path, monkeypatch):
+        """Wide landscape: center-crop the shorter (height) side, resize to square."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (800, 400), color="red")
+        result = compute_thumbnail(img, "wide1234")
+        with Image.open(result) as thumb:
+            assert thumb.size == (256, 256)
+
+    def test_center_crop_uses_center_of_image(self, tmp_path, monkeypatch):
+        """A 4x4 image with distinct corners — center crop should sample center."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        # Build a 4x4 image where the center 2x2 is red, the borders are blue.
+        # Up-res to a larger image so center-crop has meaningful content.
+        img = Image.new("RGB", (100, 400), color="blue")
+        # Paint the center column red
+        for y in range(150, 250):
+            for x in range(100):
+                img.putpixel((x, y), (255, 0, 0))
+        result = compute_thumbnail(img, "center12")
+        # Resized 256x256 should be predominantly red (center was red)
+        with Image.open(result) as thumb:
+            assert thumb.size == (256, 256)
+            # Sample the center pixel — should be reddish
+            r, g, b = thumb.getpixel((128, 128))
+            assert r > g  # red dominates over blue
 
     def test_rgba_image_converted(self, tmp_path, monkeypatch):
         """RGBA images should still produce valid WebP output."""

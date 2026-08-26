@@ -44,12 +44,21 @@ def compute_thumbnail(image: Image.Image, point_id: str) -> Path | None:
     try:
         out_path = thumbnail_path(point_id)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Work on a copy to avoid mutating the pipeline's image
+
+        # Work on a copy to avoid mutating the pipeline's image.
+        # Center-crop to a square (the shorter side), then resize to
+        # THUMBNAIL_SIZE. The frontend displays thumbnails in 1:1 boxes
+        # with object-fit: cover, so square-cropped images fill the box
+        # rather than letterboxing with empty bands.
         thumb = image.copy()
-        thumb.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+        w, h = thumb.size
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        thumb = thumb.crop((left, top, left + side, top + side))
+        thumb = thumb.resize(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
         thumb.save(out_path, "WEBP", quality=THUMBNAIL_QUALITY, method=4)
-        
+
         return out_path
     except Exception as e:
         logger.warning("Failed to generate thumbnail for %s: %s", point_id, e)
