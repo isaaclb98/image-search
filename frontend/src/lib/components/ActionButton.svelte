@@ -27,23 +27,19 @@
     rel
   }: Props = $props();
 
-  /* Once the user activates the button it stays darker — the
-     component is built for actions like Like/Dislike that are
-     only meant to be pressed once per photo. Pressed state is
-     derived from the parent-controlled `ariaPressed` prop when
-     it is provided; otherwise we latch a local `selected` flag
-     the first time the button is clicked. */
-  let selected = $state(false);
-
-  function effectivePressed(): boolean {
-    if (ariaPressed === true || ariaPressed === 'true') return true;
-    if (ariaPressed === false || ariaPressed === 'false') return false;
-    return selected;
+  /* The component does not manage pressed state itself — the
+     parent owns it and signals it via `ariaPressed`. CSS reacts
+     to `aria-pressed='true'` to render a permanent darker fill. */
+  function pressedAttr(
+    v: Props['ariaPressed']
+  ): 'true' | 'false' | undefined {
+    if (v === true || v === 'true') return 'true';
+    if (v === false || v === 'false') return 'false';
+    return undefined;
   }
 
   function handleClick(event: MouseEvent) {
     if (disabled) return;
-    selected = true;
     if (onclick) onclick(event);
   }
 </script>
@@ -51,7 +47,7 @@
 {#if href}
   <a
     class="action"
-    aria-pressed={effectivePressed() ? 'true' : 'false'}
+    aria-pressed={pressedAttr(ariaPressed)}
     {href}
     {target}
     {rel}
@@ -66,7 +62,7 @@
   <button
     type="button"
     class="action"
-    aria-pressed={effectivePressed() ? 'true' : 'false'}
+    aria-pressed={pressedAttr(ariaPressed)}
     {disabled}
     {title}
     aria-expanded={ariaExpanded}

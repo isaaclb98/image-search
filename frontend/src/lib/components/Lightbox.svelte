@@ -85,6 +85,45 @@
   let albumMenuEl: HTMLDivElement | undefined = $state();
   let albumAnchorEl: HTMLSpanElement | undefined = $state();
 
+  /* Local "pressed" state for the Like / Dislike action buttons.
+     Synced from the current photo on navigation so flipping to
+     the next image clears the previous one's pressed state.
+     Pressing Like clears Dislike (and vice versa) so a photo
+     can only be in one of those two states at a time. The
+     parent component (e.g. the grid) still owns the API call. */
+  let isFavorite = $state(false);
+  let isDisliked = $state(false);
+
+  $effect(() => {
+    const it = items[idx];
+    isFavorite = !!it?.isFavorite;
+    isDisliked = !!it?.isDisliked;
+  });
+
+  function toggleFavorite() {
+    const it = current();
+    if (!it) return;
+    if (isFavorite) {
+      isFavorite = false;
+    } else {
+      isFavorite = true;
+      isDisliked = false;
+    }
+    onToggleFavorite?.(it.id);
+  }
+
+  function toggleDislike() {
+    const it = current();
+    if (!it) return;
+    if (isDisliked) {
+      isDisliked = false;
+    } else {
+      isDisliked = true;
+      isFavorite = false;
+    }
+    onDislike?.(it.id);
+  }
+
   async function toggleAlbumMenu() {
     albumOpen = !albumOpen;
     if (albumOpen) {
@@ -219,16 +258,16 @@
   <div class="bar glass-strong" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
       <span class="count">{idx + 1} / {items.length}</span>
       <ActionButton
-        onclick={() => current() && onToggleFavorite?.(current()!.id)}
+        onclick={toggleFavorite}
         title="Like"
-        ariaPressed={current()?.isFavorite ? 'true' : 'false'}
+        ariaPressed={isFavorite ? 'true' : 'false'}
       >
         Like
       </ActionButton>
       <ActionButton
-        onclick={() => current() && onDislike?.(current()!.id)}
+        onclick={toggleDislike}
         title="Dislike"
-        ariaPressed={current()?.isDisliked ? 'true' : 'false'}
+        ariaPressed={isDisliked ? 'true' : 'false'}
       >
         Dislike
       </ActionButton>
