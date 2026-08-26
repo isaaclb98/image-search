@@ -322,6 +322,9 @@
        already gives it the vertical space left after the action
        bar, so we just need width/height 100% inside that row. */
     position: relative;
+    /* Include the 1px border inside the cell's width/height so
+       100% on .photo never overflows the overlay. */
+    box-sizing: border-box;
     width: 100%;
     height: 100%;
     display: grid;
@@ -333,11 +336,16 @@
   }
   .photo {
     display: block;
-    /* Fill the photo cell while preserving the image's natural
-       aspect ratio. width:100% / height:100% together with
-       object-fit:contain scales the image up or down so it always
-       occupies the maximum possible size without cropping —
-       small thumbnails get enlarged, large ones get shrunk. */
+    /* Fill the entire photo cell above the action bar while
+       preserving the image's natural aspect ratio. Absolute
+       positioning + inset 0 is the most reliable way to size a
+       replaced element (img) against a grid cell without being
+       overridden by its intrinsic dimensions. object-fit: contain
+       then scales the rendered image up or down to fit inside
+       that box — small thumbnails get enlarged, large ones get
+       shrunk, nothing crops and nothing overflows. */
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: contain;
