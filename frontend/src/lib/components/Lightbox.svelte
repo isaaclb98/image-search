@@ -319,6 +319,7 @@
        grid + place-items: center lets the container shrink to the
        photo's intrinsic size — defeating object-fit: contain for
        photos that are bigger than the viewport. */
+    --bar-height: 64px;
     width: calc(100vw - 32px);
     height: calc(100vh - 32px);
     display: grid;
@@ -333,9 +334,11 @@
     /* Hard-constrain to the viewport. object-fit: contain means a
        photo at any aspect ratio lands inside this box — landscape
        fits the width, portrait fits the height — without cropping
-       or scrolling. */
+       or scrolling. The vertical limit reserves space for the
+       absolutely-positioned action bar so the photo never underlaps
+       it. */
     max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 32px);
+    max-height: calc(100% - var(--bar-height) - 12px);
     width: auto;
     height: auto;
     object-fit: contain;
@@ -370,6 +373,10 @@
     font-size: 22px;
   }
   .bar {
+    /* The photo must leave room for this bar. Exposing its height
+       as a CSS variable lets .content reserve matching vertical
+       space (see .content below). */
+    --bar-height: 64px;
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -397,10 +404,10 @@
   .album-menu {
     position: absolute;
     right: 0;
-    /* Position ABOVE the action bar (which is ~60 px tall). Without
-       the +60px offset the dropdown bottom clips into the toolbar.
-       The original "calc(100% + 6px)" cleared the button but not the
-       bar's glass-strong pill behind it. */
+    /* Position ABOVE the action bar (which is ~64 px tall plus its
+       18 px bottom margin). Without the +64px offset the dropdown
+       bottom clips into the toolbar's glass-strong pill behind
+       it. */
     bottom: calc(100% + 64px);
     min-width: 200px;
     max-height: 280px;
