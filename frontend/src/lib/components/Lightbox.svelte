@@ -289,13 +289,11 @@
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
     /* Two stacked rows: the image region (content) and the action
-       bar. The content row gets the remaining vertical space
-       (1fr) while the bar uses its intrinsic height (auto). */
+       bar. No row-gap here — the .content cell provides its own
+       margin-bottom so there is only one source of vertical
+       spacing. */
     display: grid;
     grid-template-rows: 1fr auto;
-    /* Gap between the photo cell and the action bar so they
-       aren't visually touching. */
-    row-gap: 16px;
     padding: 16px;
     box-sizing: border-box;
     animation: fade var(--t-med) var(--ease-out);
@@ -328,6 +326,10 @@
     /* Include the 1px border inside the cell's width/height so
        100% on .photo never overflows the overlay. */
     box-sizing: border-box;
+    /* Single source of vertical spacing between the photo cell and
+       the action bar below. Because the overlay has no row-gap,
+       this margin is the only space separating them. */
+    margin-bottom: 16px;
     width: 100%;
     height: 100%;
     display: grid;
