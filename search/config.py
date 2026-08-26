@@ -20,7 +20,112 @@ logger = logging.getLogger(__name__)
 # Load .env from cwd (or any ancestor) on import. Real process env wins.
 load_dotenv()
 
-DEFAULT_MODEL: str = "ViT-gopt-16-SigLIP2-384"
+# SigLIP2 variant mapping: variant name -> (model name, vector dimension)
+SIGLIP_VARIANTS = {
+    "B/16-256": ("ViT-B-16-SigLIP2-256", 768),
+    "L/16-256": ("ViT-L-16-SigLIP2-256", 1024),
+    "gopt/16-384": ("ViT-gopt-16-SigLIP2-384", 1536),
+}
+
+DEFAULT_VARIANT = "L/16-256"  # 1024-dim, balanced quality/speed
+
+def get_siglip_variant() -> str:
+    """Get the configured SigLIP2 variant from SIGLIP_VARIANT env var."""
+    variant = os.environ.get("SIGLIP_VARIANT", DEFAULT_VARIANT)
+    if variant not in SIGLIP_VARIANTS:
+        raise ValueError(
+            f"Invalid SIGLIP_VARIANT '{variant}'. "
+            f"Must be one of: {', '.join(SIGLIP_VARIANTS.keys())}"
+        )
+    return variant
+
+def get_model_name_for_variant(variant: str) -> str:
+    """Get the model name for a given variant."""
+    if variant not in SIGLIP_VARIANTS:
+        raise ValueError(f"Unknown variant: {variant}")
+    return SIGLIP_VARIANTS[variant][0]
+
+def get_vector_dim_for_variant(variant: str) -> int:
+    """Get the vector dimension for a given variant."""
+    if variant not in SIGLIP_VARIANTS:
+        raise ValueError(f"Unknown variant: {variant}")
+    return SIGLIP_VARIANTS[variant][1]
+
+def get_vector_dim() -> int:
+    """Get the vector dimension for the currently configured variant."""
+    return get_vector_dim_for_variant(get_siglip_variant())
+
+
+# Thumbnail storage path (inside container)
+THUMBNAIL_DIR = os.environ.get("THUMBNAIL_DIR", "/app/data/thumbnails")
+
+
+# Variant storage: JSON file in the data directory
+VARIANT_CONFIG_FILE = "siglip_variant.json"
+
+
+def get_variant_config_path(data_dir: str = "./data") -> Path:
+    """Get the path to the variant config file."""
+    return Path(data_dir) / VARIANT_CONFIG_FILE
+
+
+def load_stored_variant(data_dir: str = "./data") -> str | None:
+    """Load the stored variant from the config file, or None if not found."""
+    config_path = get_variant_config_path(data_dir)
+    if not config_path.exists():
+        return None
+    try:
+        import json
+        with open(config_path, "r") as f:
+            data = json.load(f)
+            return data.get("variant")
+    except Exception as e:
+        logger.warning("Failed to load variant config from %s: %s", config_path, e)
+        return None
+
+
+def save_variant(variant: str, data_dir: str = "./data") -> None:
+    """Save the variant to the config file."""
+    import json
+    config_path = get_variant_config_path(data_dir)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump({"variant": variant}, f)
+    logger.info("Saved variant '%s' to %s", variant, config_path)
+
+
+def validate_variant_against_stored(env_variant: str, data_dir: str = "./data") -> None:
+    """
+    Validate that the env variant matches the stored variant.
+    Raises ValueError with a clear message if there's a mismatch.
+    """
+    stored = load_stored_variant(data_dir)
+    if stored is None:
+        # First run or no config file — save the current variant
+        save_variant(env_variant, data_dir)
+        logger.info("First run: stored variant '%s'", env_variant)
+        return
+    
+    if stored != env_variant:
+        stored_model = get_model_name_for_variant(stored)
+        stored_dim = get_vector_dim_for_variant(stored)
+        env_model = get_model_name_for_variant(env_variant)
+        env_dim = get_vector_dim_for_variant(env_variant)
+        
+        raise ValueError(
+            f"Model variant mismatch!\n"
+            f"  Stored: {stored} ({stored_model}, {stored_dim}-dim)\n"
+            f"  Env:    {env_variant} ({env_model}, {env_dim}-dim)\n"
+            f"\n"
+            f"Changing the model variant requires re-indexing all photos.\n"
+            f"To proceed, run: python -m scripts.migrate_model --from {stored} --to {env_variant}\n"
+            f"Or remove the variant config: rm {get_variant_config_path(data_dir)}"
+        )
+    
+    logger.info("Variant validated: %s", env_variant)
+
+# Backward compatibility: these are derived from the variant
+DEFAULT_MODEL: str = get_model_name_for_variant(get_siglip_variant())
 DEFAULT_COLLECTION: str = "images"
 DEFAULT_RESULT_LIMIT: int = 20
 
@@ -228,6 +333,23 @@ def load() -> Config:
     if not nas_base and not os.environ.get("SEARCH_TEST_MODE"):
         # In test mode the NAS base may be a fixture path, set by conftest.
         raise ValueError("NAS_IMAGES_BASE is required")
+
+    # Validate SigLIP2 variant before loading the rest of the config
+    variant = get_siglip_variant()
+    index_db_path = os.environ.get("INDEX_DB_PATH")
+    if not index_db_path and os.environ.get("SEARCH_TEST_MODE"):
+        index_db_path = ":memory:"
+    if not index_db_path:
+        index_db_path = "./data/images.db"
+    
+    # Determine data directory from index_db_path
+    if index_db_path == ":memory:":
+        data_dir = "./data"
+    else:
+        data_dir = str(Path(index_db_path).parent)
+    
+    # Validate variant against stored config (raises on mismatch)
+    validate_variant_against_stored(variant, data_dir)
 
     top_k_default = _int("TOP_K_DEFAULT", DEFAULT_RESULT_LIMIT)
     top_k_max = _int("TOP_K_MAX", 200)

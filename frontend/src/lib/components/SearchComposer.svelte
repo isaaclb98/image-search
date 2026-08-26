@@ -32,6 +32,7 @@
     diversityMode: string;
     diversityDepth?: string;
     filtersOpen: boolean;
+    loading?: boolean;
     // events
     onInput: (v: string) => void;
     onMode: (m: 'pos' | 'neg') => void;
@@ -58,6 +59,7 @@
     diversityMode,
     diversityDepth = 'auto',
     filtersOpen,
+    loading = false,
     onInput,
     onMode,
     onAdd,
@@ -111,7 +113,7 @@
       type="button"
       class="primary"
       onclick={onSearch}
-      disabled={!positives.length && !negatives.length && !filename.trim()}
+      disabled={(!positives.length && !negatives.length && !filename.trim()) || loading}
       title="Run search"
     >
       {searchButtonLabel}

@@ -161,10 +161,14 @@ def get_encoder(test_mode: bool | None = None) -> TextEncoder:
     global _encoder_singleton, _model_status, _model_error
     if _encoder_singleton is None:
         import os
+        from search import config
 
         if test_mode is None:
             test_mode = os.environ.get("SEARCH_TEST_MODE") == "1"
-        arch = os.environ.get("MODEL_NAME", DEFAULT_MODEL_NAME)
+        
+        # Get model name from variant configuration
+        variant = config.get_siglip_variant()
+        arch = os.environ.get("MODEL_NAME", config.get_model_name_for_variant(variant))
         device = os.environ.get("TEXT_ENCODER_DEVICE", "cpu")
         
         _model_status = ModelStatus.LOADING
@@ -174,7 +178,7 @@ def get_encoder(test_mode: bool | None = None) -> TextEncoder:
                 arch=arch, pretrained="webli", device=device, test_mode=test_mode,
             )
             _model_status = ModelStatus.READY
-            logger.info("Model loaded: %s", arch)
+            logger.info("Model loaded: %s (variant: %s)", arch, variant)
         except Exception as e:
             _model_status = ModelStatus.ERROR
             _model_error = str(e)

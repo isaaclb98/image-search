@@ -15,7 +15,7 @@
    * interactions. The grid above just lays them out.
    */
   import { onMount } from 'svelte';
-  import { photoUrl } from '$lib/api/endpoints';
+  import { thumbUrl, photoUrl } from '../api/endpoints';
   import { blurhashToDataUrl } from './blurhash-bg';
 
   type Props = {
@@ -87,7 +87,7 @@
   <img
     bind:this={imgEl}
     class="full"
-    src={photoUrl(pointId, 640)}
+    src={thumbUrl(pointId)}
     alt=""
     loading="lazy"
     decoding="async"

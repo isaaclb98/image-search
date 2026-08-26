@@ -25,6 +25,7 @@ from qdrant_client.http import models as qmodels
 
 from indexer.blurhash import compute_blurhash
 from indexer.fingerprints import compute_fingerprints
+from search import config as search_config
 
 logger = logging.getLogger(__name__)
 
@@ -166,15 +167,23 @@ def ensure_payload_index(
 
 
 def ensure_collection(
-    client: QdrantClient, name: str = DEFAULT_COLLECTION, dim: int = VECTOR_DIM
+    client: QdrantClient, name: str = DEFAULT_COLLECTION, dim: int | None = None
 ) -> None:
     """
     Create the collection if it doesn't exist. Idempotent.
 
     Vector config:
-      - 1536-dim
+      - Dimension from SIGLIP_VARIANT (default: 768 for B/16-256)
       - Cosine distance (SigLIP2 is trained for cosine similarity)
+
+    Args:
+        client: Qdrant client
+        name: collection name
+        dim: embedding dimension. If None, reads from SIGLIP_VARIANT env var.
     """
+    if dim is None:
+        dim = search_config.get_vector_dim()
+
     existing = {c.name for c in client.get_collections().collections}
     if name in existing:
         logger.debug("collection %r already exists", name)

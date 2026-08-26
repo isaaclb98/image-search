@@ -74,3 +74,4 @@ frontend/test-results/
 frontend/build/
 frontend/.svelte-kit/
 data/
+.thumbnails/

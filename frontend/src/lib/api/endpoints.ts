@@ -9,7 +9,7 @@
  * Both come from openapi.json so they don't drift.
  */
 
-import { apiGet, apiPost, apiDelete, apiPatch, photoUrl } from './client';
+import { apiGet, apiPost, apiDelete, apiPatch, photoUrl, thumbUrl } from './client';
 import { Z } from './schemas';
 import type { components } from './types.gen';
 
@@ -270,4 +270,4 @@ export function listCentroids() {
 
 // ---------- Photo URL passthrough ----------
 
-export { photoUrl };
+export { photoUrl, thumbUrl };

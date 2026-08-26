@@ -9,6 +9,7 @@
 #
 # Data persistence:
 #   - qdrant_data: vector embeddings and metadata (named volume)
+#   - thumbnail_data: cached thumbnails (named volume, ~8KB per image)
 #   - ${NAS_IMAGES_PATH}: your photo library (read-only bind mount)
 #
 # To customize, copy to .env and edit:
@@ -64,6 +65,9 @@ services:
       
       # Logging
       LOG_LEVEL: INFO
+      
+      # Thumbnail storage path (inside container)
+      THUMBNAIL_DIR: /app/data/thumbnails
     ports:
       - "8000:8000"
     volumes:
@@ -73,6 +77,9 @@ services:
       # Persistent data volume — holds SQLite index.db AND HuggingFace model cache.
       # The Dockerfile sets HF_HOME=/app/data/hf-cache so both live under one volume.
       - search_data:/app/data
+      # Thumbnail cache — generated at index time (~8KB per image, 16GB for 2M photos)
+      # Separate volume for isolation (can be cleared/regenerated without affecting index)
+      - ${THUMBNAIL_DIR:-./_thumbnails}:/app/data/thumbnails
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 30s
