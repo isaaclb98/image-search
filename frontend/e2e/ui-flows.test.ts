@@ -103,19 +103,37 @@ test.describe('Saved searches UI', () => {
 });
 
 test.describe('Lightbox like / dislike', () => {
-  test('clicking the heart in the lightbox likes the photo', async ({ page }) => {
+  test('clicking Like in the lightbox likes the photo', async ({ page }) => {
     await page.goto('/random');
     await appReady(page);
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10000 });
     await page.locator('.grid-tile').first().click();
     await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 5000 });
 
-    // The lightbox Like button has title="Like" (see Lightbox.svelte).
-    const heart = page.locator('[role="dialog"] button[title="Like"]').first();
-    await expect(heart).toBeVisible({ timeout: 3000 });
+    const dialog = page.locator('[role="dialog"]');
+    const actions = dialog.locator('.bar .action');
+    await expect(actions).toHaveCount(5);
+    await expect(actions).toHaveText(['Like', 'Dislike', 'Most similar', 'Add to album', 'Open raw']);
+    await expect(actions.first()).toBeVisible({ timeout: 3000 });
 
+    const actionStyles = await actions.evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const style = getComputedStyle(button);
+        return {
+          color: style.color,
+          backgroundColor: style.backgroundColor,
+          borderColor: style.borderTopColor,
+          fontFamily: style.fontFamily,
+          fontSize: style.fontSize,
+          fontWeight: style.fontWeight,
+        };
+      }),
+    );
+    expect(new Set(actionStyles.map((style) => JSON.stringify(style))).size).toBe(1);
+
+    const like = dialog.locator('button[title="Like"]');
     const before = await page.request.get('/api/favorites').then((r) => r.json());
-    await heart.click();
+    await like.click();
     await page.waitForTimeout(500);
     const after = await page.request.get('/api/favorites').then((r) => r.json());
     // The like button TOGGLES — if the photo was already liked it

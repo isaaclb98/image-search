@@ -19,6 +19,7 @@
   import { goto } from '$app/navigation';
   import { photoUrl, addPhotoToAlbum, listAlbums } from '$lib/api/endpoints';
   import { blurhashToDataUrl } from './blurhash-bg';
+  import ActionButton from './ActionButton.svelte';
   import { toast } from './Toaster.svelte';
 
   function goSimilar(id: string) {
@@ -82,7 +83,7 @@
   let albumOpen = $state(false);
   let albumBusy = $state(false);
   let albumMenuEl: HTMLDivElement | undefined = $state();
-  let albumButtonEl: HTMLButtonElement | undefined = $state();
+  let albumAnchorEl: HTMLSpanElement | undefined = $state();
 
   async function toggleAlbumMenu() {
     albumOpen = !albumOpen;
@@ -127,7 +128,7 @@
     const target = e.target as Node;
     if (
       !albumMenuEl?.contains(target) &&
-      !albumButtonEl?.contains(target)
+      !albumAnchorEl?.contains(target)
     ) {
       albumOpen = false;
     }
@@ -216,47 +217,35 @@
 
     <div class="bar glass-strong">
       <span class="count">{idx + 1} / {items.length}</span>
-      <button
-        type="button"
-        class="action like"
-        class:active={current()?.isFavorite}
+      <ActionButton
         onclick={() => current() && onToggleFavorite?.(current()!.id)}
         title="Like"
-        aria-pressed={current()?.isFavorite ? 'true' : 'false'}
+        ariaPressed={current()?.isFavorite ? 'true' : 'false'}
       >
-        {current()?.isFavorite ? '♥ Liked' : '♡ Like'}
-      </button>
-      <button
-        type="button"
-        class="action neg"
-        class:active={current()?.isDisliked}
+        Like
+      </ActionButton>
+      <ActionButton
         onclick={() => current() && onDislike?.(current()!.id)}
         title="Dislike"
-        aria-pressed={current()?.isDisliked ? 'true' : 'false'}
+        ariaPressed={current()?.isDisliked ? 'true' : 'false'}
       >
-        {current()?.isDisliked ? '− Disliked' : '− Dislike'}
-      </button>
-      <button
-        type="button"
-        class="action similar"
+        Dislike
+      </ActionButton>
+      <ActionButton
         onclick={() => current() && goSimilar(current()!.id)}
         title="Open the dedicated most-similar page for this photo"
       >
-        ⟳ Most similar
-      </button>
-      <span class="album-anchor">
-        <button
-          bind:this={albumButtonEl}
-          type="button"
-          class="action"
-          class:active={albumOpen}
+        Most similar
+      </ActionButton>
+      <span bind:this={albumAnchorEl} class="album-anchor">
+        <ActionButton
           onclick={toggleAlbumMenu}
           title="Add this photo to an album"
-          aria-haspopup="menu"
+          ariaHaspopup="menu"
           aria-expanded={albumOpen}
         >
-          ＋ Add to album
-        </button>
+          Add to album
+        </ActionButton>
         {#if albumOpen}
           <div
             bind:this={albumMenuEl}
@@ -281,12 +270,11 @@
           </div>
         {/if}
       </span>
-      <a
-        class="action"
+      <ActionButton
         href={current() ? photoUrl(current()!.id) : '#'}
         target="_blank"
         rel="noopener"
-      >Open raw</a>
+      >Open raw</ActionButton>
     </div>
   </div>
 </div>
@@ -398,62 +386,6 @@
     font-size: var(--fs-sm);
     padding: 0 6px;
   }
-  .action {
-    height: 32px;
-    padding: 0 14px;
-    border-radius: var(--r-pill);
-    background: var(--glass-1);
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge);
-    transition:
-      background var(--t-fast),
-      border-color var(--t-fast),
-      color var(--t-fast),
-      transform var(--t-fast);
-    text-decoration: none;
-    font-size: var(--fs-sm);
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .action:hover { background: var(--glass-2); }
-  /* Click feedback — visible scale-down on press. Works for both
-     Like and Dislike (no backend field needed for "this was
-     clicked"). */
-  .action:active { transform: scale(0.96); }
-  .action.neg { color: var(--negative); }
-  /* Pressed feedback: when the photo is liked, the button lights up
-     pink and stays lit so users know their click registered. */
-  .action.like.active {
-    background: rgba(255, 122, 138, 0.18);
-    border-color: rgba(255, 122, 138, 0.55);
-    color: var(--accent-pink);
-  }
-  .action.like.active:hover {
-    background: rgba(255, 122, 138, 0.28);
-  }
-  /* Mirror Like's "lit" feedback for Dislike (round-5 #3) so both
-     buttons show a clear pressed state and remain distinct by color
-     — pink for Like, cool blue-grey for Dislike. */
-  .action.neg.active {
-    background: rgba(140, 160, 200, 0.20);
-    border-color: rgba(140, 160, 200, 0.55);
-    color: #c9d3e6;
-  }
-  .action.neg.active:hover {
-    background: rgba(140, 160, 200, 0.30);
-  }
-  /* Subtle tint on the "Most similar" button so it doesn't look
-     like a duplicate of Like/Dislike. */
-  .action.similar {
-    background: rgba(108, 198, 255, 0.10);
-    border-color: rgba(108, 198, 255, 0.35);
-    color: var(--accent-blue);
-  }
-  .action.similar:hover { background: rgba(108, 198, 255, 0.18); }
-
   /* Round-6 — Add to album dropdown. Anchored to the action button
      so it stays aligned; grows UP because the action bar sits at
      the bottom of the viewport. Glass-strong matches the bar so it
