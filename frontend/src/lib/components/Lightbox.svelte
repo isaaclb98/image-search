@@ -333,15 +333,13 @@
   }
   .photo {
     display: block;
-    /* Fit entirely inside the photo cell above the action bar
-       while preserving the image's natural aspect ratio.
-       width/height auto with object-fit:contain lets the photo
-       choose whichever dimension (width or height) limits it,
-       never cropping and never exceeding the cell. */
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
+    /* Fill the photo cell while preserving the image's natural
+       aspect ratio. width:100% / height:100% together with
+       object-fit:contain scales the image up or down so it always
+       occupies the maximum possible size without cropping —
+       small thumbnails get enlarged, large ones get shrunk. */
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
