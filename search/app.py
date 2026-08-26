@@ -1805,9 +1805,17 @@ def create_app(
         async def favicon() -> FileResponse:
             return FileResponse(static_dir / "favicon.svg")
 
-        # SPA fallback — every non-API path returns index.html
+        # SPA fallback — every non-API, non-asset path returns
+        # index.html. API routes get proper 404 JSON instead of
+        # being silently swallowed by the SPA catch-all.
         @app.get("/{full_path:path}", include_in_schema=False)
-        async def spa_shell(full_path: str) -> FileResponse:
+        async def spa_shell(full_path: str):
+            # Never serve SPA HTML for /api/* — those should 404
+            # with a proper JSON detail so API clients can
+            # distinguish "endpoint doesn't exist" from "got HTML".
+            if full_path.startswith("api/"):
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail="Not found")
             # Strip the leading slash; resolve and guard against
             # directory traversal.
             safe = (static_dir / full_path).resolve()
