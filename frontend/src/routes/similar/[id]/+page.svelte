@@ -129,6 +129,7 @@
       onLoadMore={() => {}}
       {onToggleFavorite}
       {onDislike}
+      onPhotoOpen={(item) => goto(`/photo/${encodeURIComponent(item.id)}`)}
     />
   </section>
 {/if}

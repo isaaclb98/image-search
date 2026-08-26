@@ -36,6 +36,14 @@
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
     albums?: { id: number; name: string }[];
+    /**
+     * Optional override for the default left-click behaviour
+     * (open the lightbox). The Similar page uses this to take the
+     * user to the dedicated photo page instead of opening a
+     * lightbox on top of the dedicated page. The handler receives
+     * the clicked item so the caller can decide what to do.
+     */
+    onPhotoOpen?: (item: Item) => void;
   };
 
   let {
@@ -45,7 +53,8 @@
     onLoadMore,
     onToggleFavorite,
     onDislike,
-    albums
+    albums,
+    onPhotoOpen
   }: Props = $props();
 
   // Grid config
@@ -191,7 +200,7 @@
                 scoreStr={item.score_str}
                 isFavorite={item.is_favorite}
                 isDisliked={item.is_disliked}
-                onOpen={() => openLightbox(itemIndex)}
+                onOpen={onPhotoOpen ? () => onPhotoOpen(item) : () => openLightbox(itemIndex)}
                 onContextMenu={(id, e) => openContextMenu(item, e)}
               />
             </div>
