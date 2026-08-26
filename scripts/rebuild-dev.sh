@@ -2,6 +2,13 @@
 # Rebuild the dev-configured search image and bring the app up for local testing.
 set -euo pipefail
 
+# Round‑13: BuildKit cache mounts in the Dockerfile require the
+# BuildKit builder. Toggle both env vars before the build so
+# `pip` and `apt` caches survive between runs (cuts a source‑only
+# rebuild from ~4 min to ~30s).
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE=(docker compose -f "$ROOT_DIR/docker-compose.yml" -f "$ROOT_DIR/docker-compose.override.yml")
 

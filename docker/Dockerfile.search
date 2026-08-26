@@ -7,6 +7,10 @@
 # path). One container, one port (8000), one Service — eliminates the
 # per-route Caddy config that required cluster DNS lookups.
 
+# syntax=docker/dockerfile:1.4 — required for --mount cache mounts
+# that keep pip + apt caches warm between builds (round‑13: cut dev
+# rebuild from ~4 min to ~30s on source-only edits).
+# syntax=docker/dockerfile:1.4
 ARG NODE_VERSION=20.19.0
 ARG PYTHON_VERSION=3.11
 
@@ -18,11 +22,12 @@ WORKDIR /web
 
 # Install deps first for layer caching
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 # Build. adapter-static output lands in /web/build
 COPY frontend/ ./
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm \
+    npm run build
 
 #--------------------------------------------------------------------
 # Stage 2 — Python backend with the SPA bundled in
@@ -35,7 +40,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Build toolchain + curl for the HEALTHCHECK
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# apt cache is mounted from the host so `apt-get update` and the
+# download list survive across builds.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
     && rm -rf /var/lib/apt/lists/*
@@ -58,7 +67,12 @@ COPY image_search_kernel/ ./image_search_kernel/
 COPY search/ ./search/
 COPY indexer/ ./indexer/
 
-RUN pip install --upgrade pip && pip install .
+# `pip install .` is the slowest step in the build (~85s on a cold
+# cache because torch + cuda + timm wheels are >500 MB). Mounting
+# the pip cache from the host keeps the wheel set warm across builds,
+# so a source-only edit drops this step to a couple of seconds.
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    pip install --upgrade pip && pip install .
 
 # Source code that isn't part of the installed package
 COPY scripts/ ./scripts/
