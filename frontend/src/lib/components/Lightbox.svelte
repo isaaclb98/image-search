@@ -331,17 +331,15 @@
   }
   .photo {
     display: block;
-    /* Hard-constrain to the viewport. object-fit: contain means a
-       photo at any aspect ratio lands inside this box — landscape
-       fits the width, portrait fits the height — without cropping
-       or scrolling. The vertical limit reserves space for the
-       absolutely-positioned action bar so the photo never underlaps
-       it. */
-    max-width: calc(100vw - 32px);
-    max-height: calc(100% - var(--bar-height) - 12px);
-    width: auto;
-    height: auto;
-    object-fit: contain;
+    /* Fill the area above the action bar. width/height 100% with
+       object-fit: cover makes the image stretch to whichever
+       dimension (width or height) limits it, cropping the other
+       axis so no empty bands appear above or below. The bar sits
+       on top via z-index and its translucent surface — users can
+       still see the action buttons over the photo. */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
   }
