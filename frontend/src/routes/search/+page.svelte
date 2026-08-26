@@ -216,6 +216,7 @@
     {diversityMode}
     {diversityDepth}
     {filtersOpen}
+    {loading}
     onInput={(v) => (input = v)}
     onMode={(m) => (mode = m)}
     onAdd={addPrompt}

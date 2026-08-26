@@ -166,10 +166,12 @@ test('Saved searches: save, pick reapplies prompts, delete removes', async ({ pa
   await input.press('Enter');
   await waitFor(page, '.chip', 8000);
 
-  // Stub window.prompt so the Save action gets a name.
-  await page.evaluate(() => {
-    (window as unknown as { prompt: (q: string) => string | null }).prompt = () => 'my-mountain-set';
-  });
+  // Use a unique name so we don't collide with saved searches from
+  // other tests, then locate our entry by that name.
+  const uniqueName = `my-mountain-set-${Date.now()}`;
+  await page.evaluate((name) => {
+    (window as unknown as { prompt: (q: string) => string | null }).prompt = () => name;
+  }, uniqueName);
 
   // Click the Save button
   await page.getByTitle('Save current search').click();
@@ -177,17 +179,15 @@ test('Saved searches: save, pick reapplies prompts, delete removes', async ({ pa
   // Open the Saved dropdown and verify our name appears
   await page.getByTitle('Saved searches').click();
   await waitFor(page, '.pop', 5000);
-  await expect(page.locator('.pop').getByText('my-mountain-set')).toBeVisible();
+  const ourItem = page.locator('.pop .item-row').filter({ hasText: uniqueName });
+  await expect(ourItem).toBeVisible({ timeout: 5000 });
 
-  // Delete it via the × button
+  // Delete our specific entry via the × button on its row
   page.once('dialog', (d) => d.accept()); // confirm()
-  await page
-    .locator('.pop .del')
-    .first()
-    .click();
+  await ourItem.locator('button.del, .del').first().click();
 
-  // After deletion the list should empty
-  await expect(page.locator('.pop .item')).toHaveCount(0, { timeout: 5000 });
+  // After deletion our entry should be gone
+  await expect(ourItem).toBeHidden({ timeout: 5000 });
 });
 
 /**

@@ -146,7 +146,12 @@
   }
 </script>
 
-{#if items.length === 0 && !loading}
+{#if loading && items.length === 0}
+  <div class="empty loading">
+    <div class="spinner" aria-label="Loading results"></div>
+    <span>Searching...</span>
+  </div>
+{:else if items.length === 0 && !loading}
   <div class="empty">No results</div>
 {:else}
   <div class="grid-wrapper" bind:this={scrollParent}>
@@ -254,5 +259,24 @@
   .loading {
     color: var(--fg-3, #7e8290);
     font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s-3, 12px);
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--glass-edge, rgba(255, 255, 255, 0.1));
+    border-top-color: var(--accent, #6cc6ff);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>
