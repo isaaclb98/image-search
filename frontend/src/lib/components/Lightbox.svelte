@@ -293,6 +293,9 @@
        (1fr) while the bar uses its intrinsic height (auto). */
     display: grid;
     grid-template-rows: 1fr auto;
+    /* Gap between the photo cell and the action bar so they
+       aren't visually touching. */
+    row-gap: 16px;
     padding: 16px;
     box-sizing: border-box;
     animation: fade var(--t-med) var(--ease-out);
