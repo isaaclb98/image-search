@@ -101,7 +101,10 @@
   });
 
   async function openNewTab() {
-    window.open(photoUrl(pointId), '_blank', 'noopener');
+    // Open the dedicated photo page, not the raw file. The page
+    // shows the photo at large size with metadata sidebar;
+    // "Open raw" inside the page is the way to get the bare image.
+    window.open(`/photo/${encodeURIComponent(pointId)}`, '_blank', 'noopener');
     onClose();
   }
   async function copyUrl() {

@@ -1218,8 +1218,13 @@ def create_app(
 
     @app.get("/api/photo/{point_id}")
     async def photo_metadata(point_id: str) -> JSONResponse:
-        """Fetch metadata for a single photo by ID. 
-        Used by the frontend's dedicated photo page to render the frame and panel.
+        """Fetch metadata for a single photo by ID.
+
+        Used by the frontend's dedicated photo page to render the
+        large photo + metadata sidebar. Returns everything the
+        sidebar can show: identity, file info, indexing info,
+        favourite status. Does NOT return the vector — that's a
+        different concern, and `payload` carries enough for the UI.
         """
         try:
             hit = qdrant.retrieve(point_id)
@@ -1228,19 +1233,40 @@ def create_app(
             raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
-        
-        # Determine favorite status
+
+        # Determine favourite status.
         fav_ids = await _favorite_id_set([point_id])
         is_fav = point_id in fav_ids
-        
+
+        # Pull the Qdrant payload — every indexed field lives here.
+        # Default everything to None so the response is always
+        # well-typed (older points indexed before some fields were
+        # added won't have them).
+        p = hit.payload or {}
         return JSONResponse(content={
             "id": hit.id,
             "path": hit.path,
             "score": hit.score,
             "is_favorite": is_fav,
             "url": f"/photo/{point_id}/raw",
-            "width": hit.payload.get("width") if hit.payload else None,
-            "height": hit.payload.get("height") if hit.payload else None
+            # Image dimensions
+            "width": p.get("width"),
+            "height": p.get("height"),
+            "blurhash": p.get("blurhash"),
+            # File info
+            "size": p.get("size"),
+            "mtime": p.get("mtime"),
+            "folder": p.get("folder"),
+            "shard": p.get("shard"),
+            "collection": p.get("collection"),
+            # Indexing info — which model wrote this point, when
+            "model_name": p.get("model_name"),
+            "model_revision": p.get("model_revision"),
+            "model_dim": p.get("model_dim"),
+            "indexed_at": p.get("indexed_at"),
+            # Fingerprints (used by Diversity ranker; useful debug info)
+            "content_sha256": p.get("content_sha256"),
+            "dhash": p.get("dhash"),
         })
 
     @app.get("/photo/{point_id}/raw")
