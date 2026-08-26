@@ -214,8 +214,9 @@
       disabled={idx === items.length - 1}
       aria-label="Next"
     >›</button>
+  </div>
 
-    <div class="bar glass-strong">
+  <div class="bar glass-strong">
       <span class="count">{idx + 1} / {items.length}</span>
       <ActionButton
         onclick={() => current() && onToggleFavorite?.(current()!.id)}
@@ -276,7 +277,6 @@
         rel="noopener"
       >Open raw</ActionButton>
     </div>
-  </div>
 </div>
 
 <style>
@@ -288,8 +288,13 @@
     background: rgba(8,8,12,0.55);
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
+    /* Two stacked rows: the image region (content) and the action
+       bar. The content row gets the remaining vertical space
+       (1fr) while the bar uses its intrinsic height (auto). */
     display: grid;
-    place-items: center;
+    grid-template-rows: 1fr auto;
+    padding: 16px;
+    box-sizing: border-box;
     animation: fade var(--t-med) var(--ease-out);
   }
   /* When the lightbox is open, the top tab bar would otherwise
@@ -313,15 +318,12 @@
     z-index: -1;
   }
   .content {
+    /* Fill the first (1fr) row of the overlay grid. The grid
+       already gives it the vertical space left after the action
+       bar, so we just need width/height 100% inside that row. */
     position: relative;
-    /* Explicit width/height (not just max-*) so the .photo inside
-       has a hard container to fit into. Without an explicit size,
-       grid + place-items: center lets the container shrink to the
-       photo's intrinsic size — defeating object-fit: contain for
-       photos that are bigger than the viewport. */
-    --bar-height: 64px;
-    width: calc(100vw - 32px);
-    height: calc(100vh - 32px);
+    width: 100%;
+    height: 100%;
     display: grid;
     place-items: center;
     border-radius: var(--r-3);
@@ -331,16 +333,13 @@
   }
   .photo {
     display: block;
-    /* Stay inside .content and leave room for the action bar.
-       width:auto / height:auto + object-fit:contain keeps the
-       aspect ratio; max-height uses the bar-height CSS variable
-       defined on .content so the photo never overflows below the
-       dialog's bottom edge. */
-    max-width: 100%;
-    max-height: calc(100% - var(--bar-height) - 12px);
-    width: auto;
-    height: auto;
-    object-fit: contain;
+    /* Fill the photo cell above the action bar while preserving
+       the aspect ratio. object-fit:cover scales the image to the
+       smaller of width/height, cropping the longer axis, so the
+       bar's region below never shows any black matting. */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
   }
@@ -372,14 +371,12 @@
     font-size: 22px;
   }
   .bar {
-    /* The photo must leave room for this bar. Exposing its height
-       as a CSS variable lets .content reserve matching vertical
-       space (see .content below). */
-    --bar-height: 64px;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 18px;
+    /* Occupies its own row in the overlay grid — no absolute
+       positioning — so the image area above is guaranteed to be
+       distinct and never underlaps the bar. */
+    justify-self: center;
+    align-self: end;
+    margin-bottom: 18px;
     display: flex;
     gap: 12px;
     align-items: center;
