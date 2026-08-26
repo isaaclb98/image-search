@@ -15,6 +15,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from search.diversity_config import Diversity, load_diversity_from_env
+
 logger = logging.getLogger(__name__)
 
 # Load .env from cwd (or any ancestor) on import. Real process env wins.
@@ -215,6 +217,9 @@ class Config:
     # Defaults to None so existing test fixtures (which construct
     # Config directly) keep working unchanged.
     centroids_dir: str | None = None
+    # Single source of truth for the Diversity knob. Routers resolve
+    # query params against this default via `resolve_diversity()`.
+    diversity: Diversity = field(default_factory=load_diversity_from_env)
     # Per-request timeout for the discovery rabbithole's recommend()
     # call. Recommend is heavier than a plain search (Qdrant has to
     # fetch the positive/negative point vectors, compute their mean,

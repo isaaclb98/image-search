@@ -21,28 +21,53 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-logger = logging.getLogger(__name__)
+from search.diversity_config import (
+    VALID_DEPTHS,
+    VALID_MODES,
+    resolve_diversity,
+)
 
-_MODEL_NAME = os.environ.get("MODEL_NAME", "ViT-L-16-SigLIP2-256")
+logger = logging.getLogger(__name__)
 
 
 def build_for_you_router(
     *,
     index_db: Any,
     qdrant: Any,
+    cfg: Any,
     invalidate_favourites_centroid: Callable[[], None],
     invalidate_for_you_signal: Callable[[], None],
 ) -> APIRouter:
-    """Build the for-you router with the live dependencies."""
+    """Build the for-you router with the live dependencies.
+
+    `cfg` is the `search.config.Config` instance; the router pulls
+    the model name + default diversity values from it so every page
+    resolves the same way.
+    """
     from search.for_you import build_state, rank
+    from search.diversity_config import Diversity
+
+    _MODEL_NAME = cfg.model_name
+    _DEFAULT_DIVERSITY = cfg.diversity
 
     router = APIRouter()
+
+    @router.get("/api/for-you/diversity")
+    async def for_you_diversity() -> dict:
+        """Expose the active Diversity defaults + valid choices to the UI."""
+        return {
+            "default": {
+                "mode": _DEFAULT_DIVERSITY.mode,
+                "depth": _DEFAULT_DIVERSITY.depth,
+            },
+            "valid_modes": list(VALID_MODES),
+            "valid_depths": list(VALID_DEPTHS),
+        }
 
     @router.get("/api/for-you/state")
     async def for_you_state() -> dict:
@@ -58,22 +83,21 @@ def build_for_you_router(
     async def for_you_feed(
         limit: int = Query(30, ge=1, le=100, description="max recommendations per page"),
         page: int = Query(0, ge=0, description="zero-based page index"),
-        diversity: str = Query("balanced", description="diversity mode"),
-        diversity_depth: str = Query("auto", description="diversity depth"),
+        diversity: str | None = Query(None, description="diversity mode"),
+        diversity_depth: str | None = Query(None, description="ignored on /for-you"),
     ) -> dict:
         """Paginated, server-side for-you feed.
 
-        - Same user signal ⇒ same ranked batch on every reload
-          (deterministic top‑K — round‑12).
-        - Diversity knob is the only thing that changes ordering.
-        - `diversity=off` short-circuits the Python MMR rerank and
-          asks Qdrant directly for the slice, saving a round‑trip.
-        - Cold start (no favourites) falls back to a zero‑vector
-          search so the page is never empty.
-        - Pagination is server-side: we ask for `limit + 1` rows so
-          we can flag `has_more` cheaply (one extra row means at
-          least one more page exists).
+        Diversity is resolved against the app‑wide `cfg.diversity`
+        default; `diversity_depth` is accepted for API parity but
+        ignored (only the discovery rabbithole uses depth today).
         """
+        div = resolve_diversity(
+            _DEFAULT_DIVERSITY,
+            mode=diversity,
+            depth=diversity_depth,
+            use_depth=False,
+        )
         try:
             limit = max(1, min(int(limit), 100))
         except (TypeError, ValueError):
@@ -87,8 +111,9 @@ def build_for_you_router(
         )
 
         probe_size = limit + 1
+        diversity_mode = div.mode
 
-        if diversity == "off":
+        if diversity_mode == "off":
             # Short-circuit: skip the Python MMR entirely. Pull the
             # ordered slice straight from Qdrant using server‑side
             # offset + score_threshold.
@@ -151,8 +176,8 @@ def build_for_you_router(
                     dis_ids=dis_ids,
                     qdrant=qdrant,
                     limit=pool_size,
-                    diversity_mode=diversity,
-                    diversity_depth=diversity_depth,
+                    diversity_mode=diversity_mode,
+                    diversity_depth=div.depth,
                 )
             except (ConnectionError, OSError) as e:
                 logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)

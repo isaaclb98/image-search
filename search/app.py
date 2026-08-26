@@ -789,6 +789,7 @@ def create_app(
     app.include_router(build_for_you_router(
         index_db=index_db,
         qdrant=qdrant,
+        cfg=_cfg,
         invalidate_favourites_centroid=_invalidate_favourites_centroid,
         invalidate_for_you_signal=_for_you_invalidate_signal,
     ))
