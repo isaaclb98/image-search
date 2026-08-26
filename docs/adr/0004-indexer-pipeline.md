@@ -2,7 +2,7 @@
 
 **Status:** Accepted.
 **Date:** 2026-08.
-**Related:** `docs/backend-refactor-plan.md` §4.4, §4.4.1, §B1.
+**Related:** `docs/archive/backend-refactor-plan.md` (archived) §4.4, §4.4.1, §B1.
 
 ## Context
 

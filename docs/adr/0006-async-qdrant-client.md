@@ -2,7 +2,7 @@
 
 **Status:** Proposed — not yet implemented.
 **Date:** 2026-08.
-**Related:** `docs/backend-refactor-plan.md` §4.8, §C1.
+**Related:** `docs/archive/backend-refactor-plan.md` (archived) §4.8, §C1.
 
 ## Context (problem statement)
 

@@ -188,7 +188,9 @@ checked on every read — see [`docs/adr/0002-schema-versioning.md`](docs/adr/00
 │   Qdrant   (vector store)   │               │  IndexDB  (SQLite)        │
 │   collection: images        │               │  folder / favorites /     │
 │   dim: 1536, cosine          │               │  dislikes / saved         │
-│   payload: see SCHEMA.md    │               │  searches / albums        │
+│   payload schema:            │               │  searches / albums        │
+│   `image_search_kernel/      │               │                           │
+│   payload_schema.py`         │               │                           │
 └────────────▲────────────────┘               └────────────▲─────────────┘
              │                                           │
              │ writes                                    │ background
@@ -204,8 +206,7 @@ checked on every read — see [`docs/adr/0002-schema-versioning.md`](docs/adr/00
 ```
 
 The shared layer (`image_search_kernel/`) is imported by both halves and
-contains no I/O of its own. See
-[`ARCHITECTURE.md`](docs/ARCHITECTURE.md) for module-by-module detail.
+contains no I/O of its own.
 
 ## API surface
 
@@ -284,8 +285,6 @@ cd frontend && npm run lint
 │
 ├── tests/                 Pytest (~15K LoC, ~630 tests across 59 files)
 ├── docs/
-│   ├── ARCHITECTURE.md    Module-by-module architecture deep-dive
-│   ├── backend-refactor-plan.md  v1 → v2 backend refactor history
 │   └── adr/               Architecture decision records
 ├── docker/
 │   ├── Dockerfile.search  Search container build
@@ -295,12 +294,9 @@ cd frontend && npm run lint
 └── pyproject.toml         uv-friendly, hatchling build backend
 ```
 
-## Documentation map
+## Documentation
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module-by-module deep-dive (search/, indexer/, kernel/).
-- [`docs/backend-refactor-plan.md`](docs/backend-refactor-plan.md) — the v1 → v2 refactor history; why the kernel exists, why async, why the dual-store.
 - [`docs/adr/`](docs/adr/) — architecture decision records (0001–0006).
-- [`SCHEMA.md`](SCHEMA.md) — the Qdrant point payload schema, mirrored from `image_search_kernel/payload_schema.py`.
 - [`.env.example`](.env.example) — every environment variable, with rationale.
 
 ## License

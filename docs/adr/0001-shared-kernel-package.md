@@ -3,7 +3,7 @@
 **Status:** Accepted.
 **Date:** 2026-08 (during the backend-refactor plan).
 **Deciders:** Isaac.
-**Related:** `docs/backend-refactor-plan.md` §3, §4.1.
+**Related:** `docs/archive/backend-refactor-plan.md` (archived) §3, §4.1.
 
 ## Context
 
