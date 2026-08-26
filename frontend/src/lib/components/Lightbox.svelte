@@ -333,13 +333,16 @@
   }
   .photo {
     display: block;
-    /* Fill the photo cell above the action bar while preserving
-       the aspect ratio. object-fit:cover scales the image to the
-       smaller of width/height, cropping the longer axis, so the
-       bar's region below never shows any black matting. */
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    /* Fit entirely inside the photo cell above the action bar
+       while preserving the image's natural aspect ratio.
+       width/height auto with object-fit:contain lets the photo
+       choose whichever dimension (width or height) limits it,
+       never cropping and never exceeding the cell. */
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
   }
