@@ -5,15 +5,10 @@
  *  - Optional Zod schema validates the response body in dev mode
  *    and throws on drift. In prod we trust the contract.
  *
- * The exported `apiGet`, `apiPost`, `apiDelete` all return typed
- * bodies (Generic T). For endpoints that mutate, supply TResponse
- * as the body type and an optional Z schema for runtime guards.
- *
- * Auth removed: credentials default to 'omit'. The backend has no
- * auth gate; access control is expected at the reverse-proxy layer.
+ * The exported `apiGet`, `apiPost`, `apiPatch`, and `apiDelete` all
+ * return typed bodies (Generic T).
  */
-
-import { browser, dev } from '$app/environment';
+import { dev } from '$app/environment';
 import { z } from 'zod';
 import { assertSchema } from './schemas';
 
@@ -30,6 +25,7 @@ export class ApiError extends Error {
 }
 
 export type FetchOpts = {
+  credentials?: RequestCredentials;
   signal?: AbortSignal;
   /** Optional Zod schema for runtime validation in dev/test. */
   schema?: z.ZodTypeAny;
@@ -45,7 +41,7 @@ async function request<T>(
 ): Promise<T> {
   const init: RequestInit = {
     method,
-    credentials: 'omit',
+    credentials: opts.credentials ?? 'include',
     headers: body !== undefined
       ? { 'content-type': 'application/json' }
       : undefined,
@@ -56,51 +52,50 @@ async function request<T>(
   const url = path.startsWith('http') ? path : BASE + path;
   const res = await fetch(url, init);
 
-  if (!res.ok) {
-    let parsed: unknown = null;
-    try {
-      parsed = await res.json();
-    } catch {
-      // not JSON; fall through
-    }
-    throw new ApiError(res.status, parsed);
+  if (res.status === 204) {
+    return undefined as T;
   }
 
-  // 204 No Content etc.
-  if (res.status === 204) return undefined as T;
-
-  // Some endpoints (DELETE) legitimately have no body; tolerate an empty body.
   const text = await res.text();
-  if (!text) return undefined as T;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new ApiError(res.status, text, 'Non-JSON response from server');
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Non-JSON body — keep it as text for a useful error below.
+      data = text;
+    }
   }
 
-  if (dev && opts.schema) {
-    assertSchema(opts.schemaName ?? path, opts.schema, parsed);
+  if (!res.ok) {
+    throw new ApiError(res.status, data, `API ${res.status} on ${path}`);
   }
-  return parsed as T;
+
+  if (opts.schema && dev) {
+    return assertSchema(opts.schemaName ?? path, opts.schema, data) as T;
+  }
+  return data as T;
 }
 
-export const apiGet = <T>(
-  path: string,
-  schema?: z.ZodTypeAny,
-  opts: Omit<FetchOpts, 'schema' | 'schemaName'> = {}
-) => request<T>('GET', path, undefined, { ...opts, schema, schemaName: path });
+export const apiGet = <T>(path: string, opts: FetchOpts = {}) =>
+  request<T>('GET', path, undefined, opts);
 
-export const apiPost = <T>(
-  path: string,
-  body: unknown,
-  schema?: z.ZodTypeAny,
-  opts: Omit<FetchOpts, 'schema' | 'schemaName'> = {}
-) => request<T>('POST', path, body, { ...opts, schema, schemaName: path });
+export const apiPost = <T>(path: string, body?: unknown, opts: FetchOpts = {}) =>
+  request<T>('POST', path, body, opts);
 
-export const apiDelete = <T>(
-  path: string,
-  schema?: z.ZodTypeAny,
-  opts: Omit<FetchOpts, 'schema' | 'schemaName'> = {}
-) => request<T>('DELETE', path, undefined, { ...opts, schema, schemaName: path });
+export const apiPatch = <T>(path: string, body?: unknown, opts: FetchOpts = {}) =>
+  request<T>('PATCH', path, body, opts);
+
+export const apiDelete = <T>(path: string, opts: FetchOpts = {}) =>
+  request<T>('DELETE', path, undefined, opts);
+
+/** Build the raw-photo URL used by the lightbox and photo page. */
+export function photoUrl(pointId: string, width?: number): string {
+  const base = `/photo/${encodeURIComponent(pointId)}/raw`;
+  return width && width > 0 ? `${base}?w=${width}` : base;
+}
+
+/** Build the thumbnail URL used by photo grid tiles. */
+export function thumbUrl(pointId: string): string {
+  return `/thumb/${encodeURIComponent(pointId)}`;
+}
