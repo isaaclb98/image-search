@@ -51,28 +51,38 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 WORKDIR /app
 
-# Copy package layout FIRST so `pip install .` can find the search,
-# indexer, and image_search_kernel packages declared in pyproject.toml.
-# Each package is a separate COPY so its layer is only invalidated by
-# its own contents — touching search/ doesn't bust the image_search_kernel
-# layer or the dep install layer above.
+# ─── Round‑13: split dependency install from source install ──────────────────
+# `pip install .` re‑runs `pip install` for any change to the source
+# tree and re‑downloads the multi‑hundred‑MB torch + CUDA + timm
+# wheels even though only a couple of .py files moved. To make dev
+# rebuilds fast we do it in two phases:
 #
-# `image_search_kernel` is the shared kernel package introduced in
-# commit 7f39438 (backend refactor phase A+B); both search/ and
-# indexer/ import from it, so it MUST be in the build context or
-# `pip install .` fails with "package directory 'image_search_kernel'
-# does not exist".
+#   1. Install only the *dependencies* listed in pyproject.toml.
+#      This layer is invalidated only when pyproject.toml changes.
+#      Wheels are kept warm by the `--mount=type=cache` from above.
+#   2. Copy the source code and install our own package with
+#      `--no-deps` so pip only copies .py files into site-packages
+#      (a few seconds, no network).
+#
+# Result: source‑only edits rebuild in seconds instead of minutes.
+
+# 1. deps layer — pyproject.toml only
 COPY pyproject.toml README.md ./
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    python -c "import tomllib, sys; \
+              t = tomllib.load(open('pyproject.toml', 'rb')); \
+              print('\n'.join(t['project']['dependencies']))" \
+              > /tmp/requirements.txt \
+ && pip install --upgrade pip \
+ && pip install -r /tmp/requirements.txt
+
+# 2. source layer — copy packages, then install ours (no deps)
 COPY image_search_kernel/ ./image_search_kernel/
 COPY search/ ./search/
 COPY indexer/ ./indexer/
-
-# `pip install .` is the slowest step in the build (~85s on a cold
-# cache because torch + cuda + timm wheels are >500 MB). Mounting
-# the pip cache from the host keeps the wheel set warm across builds,
-# so a source-only edit drops this step to a couple of seconds.
+COPY scripts/ ./scripts/
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pip install --upgrade pip && pip install .
+    pip install --no-deps .
 
 # Source code that isn't part of the installed package
 COPY scripts/ ./scripts/
