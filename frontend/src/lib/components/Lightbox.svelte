@@ -382,12 +382,12 @@
     font-size: 22px;
   }
   .bar {
-    /* Occupies its own row in the overlay grid — no absolute
-       positioning — so the image area above is guaranteed to be
-       distinct and never underlaps the bar. */
+    /* Grid item in the overlay's second row. justify-self + align-self
+       centre the pill horizontally and vertically inside that row,
+       so the action bar is always centred between the dialog's left
+       and right edges regardless of viewport width. */
     justify-self: center;
-    align-self: end;
-    margin-bottom: 18px;
+    align-self: center;
     display: flex;
     gap: 12px;
     align-items: center;
