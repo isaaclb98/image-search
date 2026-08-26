@@ -6,9 +6,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE=(docker compose -f "$ROOT_DIR/docker-compose.yml" -f "$ROOT_DIR/docker-compose.override.yml")
 
 if command -v sg >/dev/null 2>&1; then
-  sg docker -c "${COMPOSE[*]} up -d --build search"
+  sg docker -c "cd '$ROOT_DIR' && ${COMPOSE[*]} up -d --build --wait search"
 else
-  "${COMPOSE[@]}" up -d --build search
+  (cd "$ROOT_DIR" && "${COMPOSE[@]}" up -d --build --wait search)
 fi
 
 printf '\nDev app: http://localhost:8000\n'
