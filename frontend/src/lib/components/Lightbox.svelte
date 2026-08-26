@@ -331,15 +331,16 @@
   }
   .photo {
     display: block;
-    /* Fill the area above the action bar. width/height 100% with
-       object-fit: cover makes the image stretch to whichever
-       dimension (width or height) limits it, cropping the other
-       axis so no empty bands appear above or below. The bar sits
-       on top via z-index and its translucent surface — users can
-       still see the action buttons over the photo. */
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    /* Stay inside .content and leave room for the action bar.
+       width:auto / height:auto + object-fit:contain keeps the
+       aspect ratio; max-height uses the bar-height CSS variable
+       defined on .content so the photo never overflows below the
+       dialog's bottom edge. */
+    max-width: 100%;
+    max-height: calc(100% - var(--bar-height) - 12px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
   }
