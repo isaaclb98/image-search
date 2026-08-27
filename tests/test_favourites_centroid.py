@@ -426,36 +426,52 @@ def test_compute_returns_seed_ids():
     assert seed_ids == ["a", "b"]
 
 
-def test_calibrate_threshold_tight_cluster():
-    """A tight seed cluster yields a small threshold."""
-    # Two seeds 0.01 rad apart (cosine distance ~ 5e-5).
+def test_calibrate_threshold_is_constant():
+    """Round‑29: the threshold is a fixed 0.02 (near-duplicate on
+    SigLIP2), NOT a percentile of the seed set's pairwise
+    distances. Pinning this here so the calibration can't
+    silently regress to a percentile-based value."""
     import math
 
     from search.centroids import calibrate_near_dup_threshold
+
+    # Two seeds 0.01 rad apart (cosine distance ~ 5e-5) — tight.
     a = [1.0, 0.0, 0.0]
     b = [math.cos(0.01), math.sin(0.01), 0.0]
-    threshold = calibrate_near_dup_threshold([a, b])
-    # 1st percentile of a single pairwise distance is that
-    # distance itself — should be tiny.
-    assert 0.0 <= threshold < 0.01
+    # Two seeds 0.5 rad apart (cosine distance ~ 0.12) — loose.
+    c = [1.0, 0.0, 0.0]
+    d = [math.cos(0.5), math.sin(0.5), 0.0]
+
+    # Both seed sets return the same constant threshold.
+    tight = calibrate_near_dup_threshold([a, b])
+    loose = calibrate_near_dup_threshold([c, d])
+    assert tight == loose == 0.02
 
 
-def test_calibrate_threshold_single_seed_returns_zero():
-    """One seed has no intra-cluster scale; threshold = 0.0 so the
-    route can still drop exact-vector matches (Layer 1 already
-    handled exact-id matches)."""
+def test_calibrate_threshold_empty_returns_zero():
+    """No seeds at all → threshold is 0.0 (the filter short-circuits
+    anyway, but we keep the empty-input contract)."""
     from search.centroids import calibrate_near_dup_threshold
 
-    assert calibrate_near_dup_threshold([[1.0, 0.0]]) == 0.0
     assert calibrate_near_dup_threshold(None) == 0.0
     assert calibrate_near_dup_threshold([]) == 0.0
 
 
-def test_calibrate_threshold_normalises_non_unit_inputs():
-    """Defensive: non-unit-length inputs are renormalised so a
-    future indexer change can't silently bias the calibration."""
-    # A scaled by 2.0 and B by 0.5 — same directions, different
-    # magnitudes. Calibration should match the unit-length case.
+def test_calibrate_threshold_single_seed_returns_constant():
+    """A single seed photo gets the constant 0.02 threshold (was
+    0.0 before round‑29; the new contract is constant for any
+    non-empty seed set)."""
+    from search.centroids import calibrate_near_dup_threshold
+
+    assert calibrate_near_dup_threshold([[1.0, 0.0]]) == 0.02
+
+
+def test_calibrate_threshold_constant_for_non_unit_inputs():
+    """Defensive: non-unit-length inputs are still fine — the
+    threshold is a constant, so renormalisation doesn't matter.
+    (Previously this test asserted renormalisation was applied
+    before computing the percentile; now it's a no-op assertion
+    that the constant is independent of input magnitudes.)"""
     import math
 
     from search.centroids import calibrate_near_dup_threshold
@@ -465,7 +481,7 @@ def test_calibrate_threshold_normalises_non_unit_inputs():
     b = [0.5 * x for x in b_unit]
     expected = calibrate_near_dup_threshold([a_unit, b_unit])
     actual = calibrate_near_dup_threshold([a, b])
-    assert math.isclose(actual, expected, rel_tol=1e-5)
+    assert actual == expected == 0.02
 
 
 def test_filter_drops_within_cluster_keeps_outside():

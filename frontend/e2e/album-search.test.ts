@@ -82,6 +82,39 @@ test.describe('album card Search button (round‑29)', () => {
     expect(tileCount).toBeGreaterThan(0);
   });
 
+  test('clicking Dislikes Search returns results, not empty', async ({
+    page
+  }) => {
+    // Round‑29 regression test for the empty-results bug: the
+    // dislikes centroid used to filter every candidate via the
+    // over-aggressive 1st-percentile near-dup threshold, so the
+    // page rendered with 0 tiles. Pin the >=1 result here.
+    await page.goto(`${APP}/albums`);
+    await appReady(page);
+
+    const btn = page.locator(
+      'article.system-dislike button.search-btn[data-centroid="dislikes"]'
+    );
+    if (await btn.isDisabled()) {
+      test.skip(true, 'Dislikes album is empty');
+      return;
+    }
+    await btn.click();
+    await page.waitForURL(/\?centroid=dislikes/, { timeout: 5000 });
+    await expect(
+      page.locator('h1', { hasText: 'Searching by album' })
+    ).toBeVisible();
+
+    // The error banner must NOT appear — a populated centroid
+    // should always return results.
+    await expect(page.locator('.error.glass')).toHaveCount(0);
+
+    // Real results must render.
+    await page.waitForSelector('.grid-tile', { timeout: 10_000 });
+    const tileCount = await page.locator('.grid-tile').count();
+    expect(tileCount).toBeGreaterThan(0);
+  });
+
   test('clicking Dislikes Search navigates to /?centroid=dislikes', async ({
     page
   }) => {
