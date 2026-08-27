@@ -10,7 +10,6 @@
   type Tab = { href: string; label: string };
   const tabs: Tab[] = [
     { href: '/', label: 'Home' },
-    { href: '/search', label: 'Search' },
     { href: '/random', label: 'Random' },
     { href: '/for-you', label: 'For You' },
     { href: '/albums', label: 'Albums' }
