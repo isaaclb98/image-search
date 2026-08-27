@@ -81,7 +81,7 @@ def build_for_you_router(
 
     @router.get("/api/for-you/feed")
     async def for_you_feed(
-        limit: int = Query(30, ge=1, le=100, description="max recommendations per page"),
+        limit: int = Query(30, ge=1, description="max recommendations per page"),
         page: int = Query(0, ge=0, description="zero-based page index"),
         diversity: str | None = Query(None, description="diversity mode"),
         diversity_depth: str | None = Query(None, description="ignored on /for-you"),
@@ -90,7 +90,11 @@ def build_for_you_router(
 
         Diversity is resolved against the app‑wide `cfg.diversity`
         default; `diversity_depth` is accepted for API parity but
-        ignored (no current consumer uses depth).
+        ignored (only the discovery rabbithole uses depth today).
+
+        `limit` is clamped to [1, 100] silently inside the handler
+        so callers can ask for `limit=999` and get the largest valid
+        page rather than a 422.
         """
         div = resolve_diversity(
             _DEFAULT_DIVERSITY,
@@ -211,11 +215,16 @@ def build_for_you_router(
             ],
             "has_more": has_more,
             "page": page,
+            "n_likes": state.n_likes,
+            "n_dislikes": state.n_dislikes,
+            "freshest_feedback_ts": state.freshest_feedback_ts,
+            "diversity": diversity_mode,
         }
 
     @router.post("/api/for-you/reset", status_code=204)
     async def for_you_reset() -> None:
         """Invalidate the cached user signal + favourites centroid."""
+        await asyncio.to_thread(index_db.reset_feedback)
         invalidate_for_you_signal()
         invalidate_favourites_centroid()
 

@@ -24,7 +24,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
+from qdrant_client import QdrantClient
 from search import config, text_encoder
+from search.sync import SyncManager
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -524,8 +526,6 @@ def create_app(
     logging.basicConfig(level=_cfg.log_level)
 
     if qdrant is None:
-        from qdrant_client import QdrantClient
-
         client = QdrantClient(**_qdrant_client_kwargs(
             url=_cfg.qdrant_url,
             api_key=_cfg.qdrant_api_key,
@@ -560,6 +560,40 @@ def create_app(
         index_db = IndexDB(db_path=db_path, qdrant_client=qdrant)
     _index_db = index_db
     random_picker = RandomPicker(index_db)
+
+    # Round‑14: SyncManager moves points from `images_pending`
+    # → `images` on a background asyncio task. The raw client is
+    # distinct from the wrapper above because the wrapper is
+    # collection‑scoped; the sync needs to read one collection and
+    # write another.
+    #
+    # Skip in test mode (memory:// URLs fail validation and we don't
+    # need a real sync loop for unit tests).
+    if _cfg.qdrant_url.startswith(("http://", "https://")):
+        sync_client = QdrantClient(**_qdrant_client_kwargs(
+            url=_cfg.qdrant_url,
+            api_key=_cfg.qdrant_api_key,
+            timeout=_cfg.query_timeout_ms // 1000,
+        ))
+    else:
+        # Tests use the in‑memory qdrant passed in via the `qdrant`
+        # arg. Reuse its underlying client so the sync sees the same
+        # data the rest of the app sees.
+        sync_client = qdrant.client  # type: ignore[attr-defined]
+    sync_manager = SyncManager(
+        qdrant=sync_client,
+        read_collection=_cfg.qdrant_collection,
+        write_collection=_cfg.qdrant_write_collection,
+        batch_size=_cfg.qdrant_sync_batch_size,
+        interval_seconds=_cfg.qdrant_sync_interval_seconds,
+    )
+    sync_manager = SyncManager(
+        qdrant=sync_client,
+        read_collection=_cfg.qdrant_collection,
+        write_collection=_cfg.qdrant_write_collection,
+        batch_size=_cfg.qdrant_sync_batch_size,
+        interval_seconds=_cfg.qdrant_sync_interval_seconds,
+    )
     diversity_cache = DiversityResultCache(
         ttl_seconds=_cfg.diversity_cache_ttl_seconds,
         max_entries=_cfg.diversity_cache_max_entries,
@@ -650,6 +684,11 @@ def create_app(
         encoder_warmup_task = asyncio.create_task(_bg_text_encoder_warmup())
         index_init_task = asyncio.create_task(_bg_init_from_qdrant())
 
+        # Round‑14: start the SyncManager that copies
+        # `images_pending` → `images` on a background interval.
+        # Lives for the lifetime of the process.
+        await sync_manager.start()
+
         # Periodic IndexDB refresh. Picks up bulk indexer runs without
         # the operator having to hit POST /api/cache/refresh manually.
         # The manual endpoint stays as a force-now override. The task
@@ -702,6 +741,9 @@ def create_app(
         try:
             yield
         finally:
+            # Round‑14: stop the SyncManager first so we don't leave
+            # a half‑synced batch behind.
+            await sync_manager.stop()
             if refresh_task is not None:
                 refresh_task.cancel()
                 try:
@@ -827,6 +869,21 @@ def create_app(
         path_liveness_cache_max=_PATH_LIVENESS_CACHE_MAX,
     ))
     app.include_router(build_thumbnails_router())
+
+    # Round‑14: sync status endpoint (read‑only counters).
+    @app.get("/api/sync/status")
+    async def sync_status() -> dict:
+        return {
+            "read_collection": _cfg.qdrant_collection,
+            "write_collection": _cfg.qdrant_write_collection,
+            "batch_size": _cfg.qdrant_sync_batch_size,
+            "interval_seconds": _cfg.qdrant_sync_interval_seconds,
+            "cycles": sync_manager.stats.cycles,
+            "points_moved": sync_manager.stats.points_moved,
+            "last_cycle_ts": sync_manager.stats.last_cycle_ts,
+            "last_error": sync_manager.stats.last_error,
+            "is_running": sync_manager.stats.is_running,
+        }
 
     def _parse_collections(request: Request) -> list[str]:
         """

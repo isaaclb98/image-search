@@ -38,7 +38,7 @@ BASELINE: dict[str, int] = {
     "centroids_search.py": 0,
     "dislikes.py": 6,
     "favorites.py": 6,
-    "for_you.py": 6,
+    "for_you.py": 8,  # round‑14: cold‑start + reset_feedback wrap
     "random.py": 1,
     "saved_searches.py": 4,
     "search.py": 4,
