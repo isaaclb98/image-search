@@ -91,7 +91,7 @@ def _load(
     *,
     on_failure,
     model_name: str = "ViT-L-16-SigLIP2-256",
-) -> Iterator[tuple[Path, Any]]:
+) -> Iterator[tuple[Path, Any, int | None, int | None]]:
     """Concurrent PIL decode via a ThreadPoolExecutor (§C2).
 
     Round‑18: takes the active `model_name` so the loader letterboxes
@@ -134,8 +134,10 @@ def _load(
             future = next(as_completed(inflight))
             p = inflight.pop(future)
             try:
-                img = future.result()
-                yield (p, img)
+                # Round‑30: `load` now returns
+                # `(letterboxed_img, source_w, source_h)`.
+                img, source_w, source_h = future.result()
+                yield (p, img, source_w, source_h)
             except LoaderError as exc:
                 on_failure(p, exc)
             except Exception as exc:  # defensive: PIL's zoo  # noqa: BLE001
@@ -160,23 +162,26 @@ def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator
 
     pending_paths: list[Path] = []
     pending_imgs: list[Any] = []
+    pending_dims: list[tuple[int | None, int | None]] = []
 
-    def _flush() -> Iterator[tuple[Path, Any, list[float]]]:
+    def _flush() -> Iterator[tuple[Path, Any, list[float], int | None, int | None]]:
         if not pending_imgs:
             return
         vecs = embedder.embed_images(pending_imgs)
-        for p, img, v in zip(pending_paths, pending_imgs, vecs):
+        for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims):
             # Thumbnail generation is intentionally skipped — see
             # the round‑15 note above. The failure path used to log a
             # warning per image; on a 2k‑photo ingest that was 2k
             # syscalls and noticeable wall‑clock.
-            yield (p, img, v)
+            yield (p, img, v, dim[0], dim[1])
         pending_paths.clear()
         pending_imgs.clear()
+        pending_dims.clear()
 
-    for path, image in items:
+    for path, image, source_w, source_h in items:
         pending_paths.append(path)
         pending_imgs.append(image)
+        pending_dims.append((source_w, source_h))
         if len(pending_imgs) >= batch_size:
             yield from _flush()
 
@@ -199,7 +204,7 @@ def _upsert(
     each request is small and the producer can keep up.
     """
     batch: list = []
-    for path, image, vec in items:
+    for path, image, vec, source_w, source_h in items:
         try:
             # The pipeline doesn't pass model_name; use the dim
             # recorded in the embedder for self-describing payloads.
@@ -226,6 +231,11 @@ def _upsert(
                 model_dim=embedder_dim,
                 blurhash=_blurhash,
                 fingerprints=_fingerprints,
+                # Round‑30: source dims (NOT the letterboxed
+                # 256×256 input size). Captured by the loader before
+                # the letterbox squashes the image.
+                width=source_w,
+                height=source_h,
             )
             # build_payload hard-codes model_name='mock-1536' for the
             # _default_ test fixture. For real callers, we override

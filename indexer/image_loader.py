@@ -152,11 +152,20 @@ def letterbox_resize(img: Image.Image, size: int | None = None) -> Image.Image:
     return canvas
 
 
-def load(path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384") -> Image.Image:
+def load(
+    path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384",
+) -> tuple[Image.Image, int | None, int | None]:
     """
-    Load + EXIF-correct + RGB-convert + letterbox. Returns a PIL.Image
-    of `resolution`x`resolution`, ready for the embedder registered as
-    `model_name`.
+    Load + EXIF-correct + RGB-convert + letterbox. Returns
+    `(letterboxed_image, source_width, source_height)` where
+    `source_width` / `source_height` are the original pixel
+    dimensions of the file on disk (after EXIF transpose, before
+    the letterbox squashes the image to the model's resolution).
+
+    Round‑30: returns source dims so the ingest pipeline can
+    persist them in the qdrant payload. The photo page
+    (`formatDimensions()`) needs the source size, not the
+    embedder's 256×256 input size.
 
     `model_name` defaults to the web backend's current model
     (`ViT-gopt-16-SigLIP2-384`). The resolution is read from the model
@@ -186,8 +195,9 @@ def load(path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384") -> Image.Im
                 f"slow/stalled network share; raise INDEXER_LOAD_TIMEOUT_S "
                 f"if your network is just consistently slow)",
             ) from err
-    # Resize to the registered model's resolution.
-    return letterbox_resize(img, size=size)
+    # Capture source dims BEFORE the letterbox squashes the image.
+    source_w, source_h = img.width, img.height
+    return letterbox_resize(img, size=size), source_w, source_h
 
 
 # Heuristic mapping from PIL size to torchvision's expected CHW float tensor.

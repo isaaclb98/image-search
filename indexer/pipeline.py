@@ -310,10 +310,14 @@ class IndexerPipeline:
                 paths_iter, on_failure=_on_load_failure,
             )
             try:
-                for p, img in loaded_iter:
+                # Round‑30: `load()` now returns
+                # `(letterboxed_img, source_w, source_h)` — propagate
+                # the source dims through the queue so the upsert
+                # phase can persist them in the payload.
+                for p, img, source_w, source_h in loaded_iter:
                     if self._cancel.is_set():
                         return
-                    load_q.put((p, img))  # backpressure
+                    load_q.put((p, img, source_w, source_h))  # backpressure
             finally:
                 load_q.put(_SENTINEL)
 
@@ -321,6 +325,7 @@ class IndexerPipeline:
         def _embed_producer() -> None:
             pending_paths: list[Path] = []
             pending_imgs: list = []
+            pending_dims: list[tuple[int | None, int | None]] = []
 
             def _flush() -> None:
                 if not pending_imgs:
@@ -336,10 +341,11 @@ class IndexerPipeline:
                     pending_paths.clear()
                     pending_imgs.clear()
                     return
-                for p, img, v in zip(pending_paths, pending_imgs, vecs):
-                    embed_q.put((p, img, v))  # blocks if embed_q is full
+                for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims):
+                    embed_q.put((p, img, v, dim[0], dim[1]))  # blocks if embed_q is full
                 pending_paths.clear()
                 pending_imgs.clear()
+                pending_dims.clear()
 
             try:
                 while True:
@@ -347,9 +353,10 @@ class IndexerPipeline:
                     if item is _SENTINEL:
                         _flush()  # drain any partial batch
                         return
-                    p, img = item
+                    p, img, source_w, source_h = item
                     pending_paths.append(p)
                     pending_imgs.append(img)
+                    pending_dims.append((source_w, source_h))
                     if len(pending_imgs) >= embed_batch:
                         _flush()
             finally:
@@ -399,7 +406,7 @@ class IndexerPipeline:
                         if batch:
                             _flush()
                         return
-                    p, img, vec = item
+                    p, img, vec, source_w, source_h = item
                     try:
                         from indexer.blurhash import compute_blurhash as _bh
                         from indexer.fingerprints import compute_fingerprints as _fp
@@ -422,6 +429,10 @@ class IndexerPipeline:
                             model_dim=embedder_dim,
                             blurhash=_blurhash,
                             fingerprints=_fingerprints,
+                            # Round‑30: source dims (NOT the
+                            # letterboxed 256×256 input size).
+                            width=source_w,
+                            height=source_h,
                         )
                         payload["model_name"] = _resolve_active_model_name()
                         payload["model_revision"] = _resolve_active_model_revision()

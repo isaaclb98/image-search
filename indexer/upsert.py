@@ -73,6 +73,8 @@ def build_payload(
     model_dim: int | None = None,
     blurhash: str | None = None,
     fingerprints: dict | None = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> dict:
     """
     Build the Qdrant payload for a given image path.
@@ -84,6 +86,11 @@ def build_payload(
     (`path.stat()` + `compute_blurhash()` + `compute_fingerprints()`,
     each of which loads the file from disk). Bulk indexing was 3×
     faster once the pipeline started reusing the loaded image.
+
+    Round‑30: accepts optional `width` / `height` from the same
+    in-memory PIL image. Powers the photo page's
+    `formatDimensions()` display; without it the page shows
+    "—" because the indexer never wrote dims into the payload.
 
     The defaults match the original behaviour (compute from disk)
     so existing callers stay correct.
@@ -131,6 +138,13 @@ def build_payload(
         # desktop product and folder-grouped hydration in the search-side
         # cache.
         "folder": str(path.parent.resolve()),
+        # Round‑30: photo page dimensions. None when the source image
+        # couldn't be decoded; the photo page shows "—" in that case.
+        # Callers in the ingest hot path pass these from the same
+        # in-memory PIL image that produced the embedding, so this
+        # adds zero extra disk reads.
+        "width": width,
+        "height": height,
         # Search Diversity metadata. These are intentionally not indexed
         # as Qdrant payload fields; the ranker reads them from candidates
         # after the vector search.
