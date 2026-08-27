@@ -188,7 +188,7 @@
   .system {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 14px;
+    gap: var(--grid-gutter);
     margin: 0 0 24px;
   }
   .section-title {
@@ -201,7 +201,7 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 14px;
+    gap: var(--grid-gutter);
   }
   .card {
     padding: 16px 18px;
