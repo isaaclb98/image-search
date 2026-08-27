@@ -169,13 +169,23 @@ describe('search endpoint URL builder', () => {
   });
 
   // Round‑29: album-card search buttons navigate to /?centroid=…
-  // and the home page calls search({ centroid: 'album_<id>' }) (or
+  // and the home page calls search({ centroid: 'album:<id>' }) (or
   // the system name 'favourites' / 'dislikes'). These tests pin
   // the wire shape so a rename on either side trips a test.
-  it('round‑29: album_X centroid reaches the centroid search endpoint', async () => {
+  //
+  // The backend registers user-album centroids under
+  // `album:<id>` (colon) — see `_album_centroid_name` in
+  // search/app.py. Using `_` would 404 the search.
+  it('round‑29: album:<id> centroid reaches the centroid search endpoint', async () => {
     const { search } = await import('./endpoints');
-    await search({ centroid: 'album_7' });
-    expect(captured.url).toContain('/api/centroids/album_7/search');
+    await search({ centroid: 'album:7' });
+    // The colon is URL-encoded by encodeURIComponent (album%3A7)
+    // — that's fine; qdrant + FastAPI decode it back. The wire
+    // shape must use a colon, NOT an underscore (which would
+    // 404 because the backend key is `album:<id>`).
+    expect(captured.url).toContain('/api/centroids/');
+    expect(captured.url).toMatch(/album(?:%3A|:)7/);
+    expect(captured.url).not.toContain('album_7');
     // Should NOT carry any of the prompt-derived params; those
     // would hit /api/search semantics on a centroid query.
     const url = new URL(captured.url, 'http://test');

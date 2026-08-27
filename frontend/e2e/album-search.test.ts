@@ -141,7 +141,7 @@ test.describe('album card Search button (round‑29)', () => {
   test('home page composer is hidden while a centroid is active', async ({
     page
   }) => {
-    await page.goto(`${APP}/?centroid=album_999`);
+    await page.goto(`${APP}/?centroid=album:999`);
     await appReady(page);
     // No real album with id 999 — the API will 404, which the
     // page surfaces as an error banner. We only assert that the
@@ -154,6 +154,44 @@ test.describe('album card Search button (round‑29)', () => {
     await expect(
       page.locator('h1', { hasText: 'Find photos by what they look like' })
     ).toHaveCount(0);
+  });
+
+  test('clicking a user album Search button navigates to /?centroid=album:<id>', async ({
+    page
+  }) => {
+    await page.goto(`${APP}/albums`);
+    await appReady(page);
+
+    // Find any non-system album card whose Search button is enabled.
+    const userBtn = page
+      .locator('article.card:not(.system-like):not(.system-dislike) button.search-btn[data-centroid^="album:"]:not([disabled])')
+      .first();
+
+    if (await userBtn.count() === 0) {
+      test.skip(true, 'no populated user albums in the dev DB');
+      return;
+    }
+
+    const centroidAttr = await userBtn.getAttribute('data-centroid');
+    expect(centroidAttr).toMatch(/^album:\d+$/);
+
+    await userBtn.click();
+    // The colon is URL-encoded as %3A; accept both forms.
+    await page.waitForURL(/\?centroid=album(?:%3A|:)\d+/, { timeout: 5000 });
+
+    // The wire shape must use a colon, not an underscore —
+    // underscores 404 because the backend key is `album:<id>`.
+    expect(page.url()).not.toContain('album_');
+
+    await expect(
+      page.locator('h1', { hasText: 'Searching by album' })
+    ).toBeVisible();
+
+    // Results should render — a populated user album centroid
+    // has at least one valid photo.
+    await page.waitForSelector('.grid-tile', { timeout: 10_000 });
+    const tileCount = await page.locator('.grid-tile').count();
+    expect(tileCount).toBeGreaterThan(0);
   });
 
   test('clearing ?centroid= from the URL re-shows the composer', async ({

@@ -314,6 +314,56 @@ def _make_favourites_centroid_spec(
     )
 
 
+def _make_dislikes_centroid_spec(
+    qdrant, index_db,
+) -> DynamicCentroidSpec:
+    """Build the registration spec for the dislikes dynamic centroid.
+
+    Round‑29: mirror of `_make_favourites_centroid_spec` so the
+    Search button on the Dislikes album card has a real centroid
+    to query. Without this, /api/centroids/dislikes/search 404s.
+
+    The compute path is identical to favourites (mean of member
+    vectors, L2-normalised) — only the source table differs.
+    """
+    import numpy as np
+
+    def compute() -> tuple[list[float], int, list[str]] | None:
+        dislike_ids = index_db.list_dislike_ids()
+        if not dislike_ids:
+            return None
+        pairs = qdrant.retrieve_batch_with_vectors(dislike_ids)
+        if not pairs:
+            return None
+        vectors = np.asarray(
+            [v for _, v in pairs if v], dtype=np.float32,
+        )
+        if vectors.size == 0:
+            return None
+        centroid = vectors.mean(axis=0)
+        norm = float(np.linalg.norm(centroid))
+        if norm == 0:
+            return None
+        centroid = (centroid / norm).tolist()
+        seed_ids = [pid for pid, _ in pairs]
+        return (centroid, len(seed_ids), seed_ids)
+
+    return DynamicCentroidSpec(
+        name="dislikes",
+        label="Dislikes",
+        description=(
+            "Mean of every disliked photo's embedding, "
+            "re-normalised to unit length. Updates as you dislike."
+        ),
+        compute_fn=compute,
+        source="dislikes",
+        empty_message=(
+            "Dislike a few photos first — this centroid is built "
+            "from your dislikes list."
+        ),
+    )
+
+
 def _invalidate_favourites_centroid() -> None:
     """Drop the cached favourites centroid so the next read recomputes.
 
@@ -323,6 +373,17 @@ def _invalidate_favourites_centroid() -> None:
     """
     if _dynamic_centroids is not None:
         _dynamic_centroids.invalidate("favourites")
+
+
+def _invalidate_dislikes_centroid() -> None:
+    """Drop the cached dislikes centroid so the next read recomputes.
+
+    Round‑29: mirror of `_invalidate_favourites_centroid`, wired
+    into mark_dislike / unmark_dislike so the centroid stays in
+    sync with the dislikes table.
+    """
+    if _dynamic_centroids is not None:
+        _dynamic_centroids.invalidate("dislikes")
 
 
 # ---------------------- Album centroid helpers ----------------------
@@ -606,6 +667,12 @@ def create_app(
     global _dynamic_centroids
     _dynamic_centroids = DynamicCentroidRegistry()
     _dynamic_centroids.register(_make_favourites_centroid_spec(qdrant, index_db))
+    # Round‑29: register the dislikes centroid so the Search
+    # button on the Dislikes album card has a real centroid to
+    # query. New dislikes / undislikes invalidate it via
+    # `_invalidate_dislikes_centroid` (wired into the dislikes
+    # router below).
+    _dynamic_centroids.register(_make_dislikes_centroid_spec(qdrant, index_db))
     # Register every existing album as a centroid. New albums
     # register themselves via POST /api/albums → _register_album_centroid;
     # renames via PATCH /api/albums/{id}; deletes via
@@ -833,6 +900,7 @@ def create_app(
         cfg=_cfg,
         invalidate_favourites_centroid=_invalidate_favourites_centroid,
         invalidate_for_you_signal=_for_you_invalidate_signal,
+        invalidate_dislikes_centroid=_invalidate_dislikes_centroid,  # round‑29
     ))
     app.include_router(build_albums_router(
         index_db=index_db,

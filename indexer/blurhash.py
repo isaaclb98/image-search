@@ -113,7 +113,7 @@ def compute_blurhash(
         # PIL raises a long tail of exceptions for "we can't open this"
         # (UnidentifiedImageError, OSError, etc.). Treat them all the
         # same: "no placeholder for this one".
-        logger.debug("blurhash: failed to encode %s: %s", path, exc)
+        logger.debug("blurhash: failed to encode %s: %s", source, exc)
         return None
 
 

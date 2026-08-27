@@ -31,7 +31,10 @@
   }
 
   function searchByUserAlbum(albumId: number) {
-    searchByAlbum(`album_${albumId}`);
+    // Round‑29 fix: backend registers user-album centroids under
+    // `album:<id>` (colon, not underscore). Sending `album_<id>`
+    // 404s. See `_album_centroid_name` in search/app.py.
+    searchByAlbum(`album:${albumId}`);
   }
 
   let albums = $state<AlbumSummary[]>([]);
@@ -191,7 +194,7 @@
         <button
           class="search-btn"
           type="button"
-          data-centroid="album_{a.id}"
+          data-centroid="album:{a.id}"
           onclick={() => searchByUserAlbum(a.id)}
           disabled={(a.member_count ?? 0) === 0}
           aria-label="Search by {a.name} centroid"
