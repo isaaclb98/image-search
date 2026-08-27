@@ -147,6 +147,7 @@
 <style>
   .row-section {
     margin-top: var(--s-5);
+    padding: 0 var(--s-4, 24px);
   }
   .head {
     display: flex;
