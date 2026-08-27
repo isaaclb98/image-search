@@ -77,7 +77,7 @@ def _build(fake_index_db, fake_qdrant, invalidate, *, state=None, hits=None):
         index_db=fake_index_db,
         qdrant=fake_qdrant,
         cfg=cfg,
-        invalidate_favourites_centroid=invalidate,
+        invalidate_likes_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
     app = FastAPI()
@@ -186,7 +186,7 @@ def test_feed_clamps_limit_to_100(fake_index_db, fake_qdrant, invalidate, fake_s
         index_db=fake_index_db,
         qdrant=fake_qdrant,
         cfg=cfg,
-        invalidate_favourites_centroid=invalidate,
+        invalidate_likes_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
     app = FastAPI()

@@ -57,10 +57,11 @@ def test_load_phase_protocol_shape():
 
     def fake_load(
         paths: Iterator[Path], *, on_failure,
-    ) -> Iterator[tuple[Path, object]]:
+    ) -> Iterator[tuple[Path, object, int | None, int | None]]:
+        # Round‑30: load yields (path, image, source_w, source_h).
         for p in paths:
             try:
-                yield (p, b"tensor-bytes")
+                yield (p, b"tensor-bytes", 100, 200)
             except Exception as e:
                 on_failure(p, e)
 
@@ -120,8 +121,13 @@ def _make_pipelines() -> tuple:
         return iter([Path("/fake/a.jpg"), Path("/fake/b.jpg")])
 
     def fake_load(paths, *, on_failure):
+        # Round‑30: load yields (path, image, source_w, source_h).
+        # The upsert phase calls build_payload → compute_fingerprints,
+        # which expects a PIL.Image (or Path), not raw bytes.
+        from PIL import Image
+        img = Image.new("RGB", (100, 100), color=(0, 0, 0))
         for p in paths:
-            yield (p, b"tensor")
+            yield (p, img, 100, 200)
 
     def fake_embed(items, *, embedder):
         for path, tensor in items:
@@ -246,11 +252,14 @@ def test_pipeline_aggregates_failures():
         yield source / "b.jpg"
 
     def load_failing(paths, *, on_failure):
+        from PIL import Image
+        img = Image.new("RGB", (100, 100), color=(0, 0, 0))
         for p in paths:
             if p.name == "b.jpg":
                 on_failure(p, RuntimeError("intentional load failure"))
                 continue
-            yield (p, b"tensor")
+            # Round‑30: load yields (path, image, source_w, source_h).
+            yield (p, img, 100, 200)
 
     def embed_ok(items, *, embedder):
         for path, tensor in items:

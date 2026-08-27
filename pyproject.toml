@@ -42,9 +42,12 @@ dependencies = [
 dev = [
     "pytest>=8",
     "httpx>=0.27",
-    "pytest-asyncio>=0.23",
+    "pytest-asyncio>=0.23,<0.24",  # T1.1: tight pin before strict-mode migration
     "anyio>=4",
     "ruff>=0.6",
+    # Coverage reporting. T1.3: fail CI under threshold so untested
+    # modules can't grow unnoticed.
+    "pytest-cov>=5",
     # Parallel test execution. The backend CI job runs
     # `pytest -n auto` so the runner's CPU count drives worker
     # fan-out. Pinned >=3.6 for the modern `-n auto` semantics;
@@ -65,11 +68,34 @@ packages = ["search", "indexer", "image_search_kernel"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
+asyncio_mode = "strict"  # T1.1: explicit @pytest.mark.asyncio on each async test
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+
+# T1.3: coverage reporting + threshold gate. The threshold is
+# intentionally low to start; the goal is to make coverage drift
+# visible, not to force a refactor to hit 90% in one PR.
+[tool.coverage.run]
+source = ["search", "indexer", "image_search_kernel"]
+omit = [
+    # Test fixtures and dev-only scripts
+    "*/tests/*",
+    "*/scripts/*",
+]
+
+[tool.coverage.report]
+# Skip the `pragma: no cover` comments + non-trivial defensive lines.
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+# Per-file threshold (no per-file minimum yet — single global).
+skip_covered = false
+show_missing = true
 
 [tool.ruff]
 line-length = 100

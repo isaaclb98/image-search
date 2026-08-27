@@ -229,11 +229,16 @@ jobs:
         # serial run took ~2-3× that. Same in-memory Qdrant
         # fixture, same env vars (qdrant_url.client_kwargs() rejects
         # `memory://`).
+        #
+        # T1.3: --cov gates CI on a coverage threshold (currently
+        # 70% — see [tool.coverage.report] in pyproject.toml). Drift
+        # below the threshold fails the build even if all tests pass.
         run: |
           QDRANT_URL="http://localhost:6333" \
           SEARCH_TEST_MODE=1 \
           LOG_LEVEL="WARNING" \
-            uv run pytest tests/ -q -n auto --tb=short
+            uv run pytest tests/ -q -n auto --tb=short \
+              --cov --cov-fail-under=70
 
       - name: Cache .pytest_cache
         # Pure speedup: the next run's collection phase is faster.

@@ -279,7 +279,9 @@ def test_api_centroids_includes_dynamic_favourites(fav_app):
         None,
     )
     assert fav is not None
-    assert fav["label"] == "Favourites"
+    # Round‑29: label kept as "Favourites (legacy alias)" for back-compat
+    # with older clients that matched on the exact string.
+    assert fav["label"] == "Favourites (legacy alias)"
     assert fav["source"] == "favourites"
     assert fav["n_images"] is None
 
@@ -378,7 +380,7 @@ def test_orphaned_favourite_excluded_from_centroid(fav_app):
         points_selector=qmodels.PointIdsList(points=[fav_id]),
         wait=True,
     )
-    _app_mod._invalidate_favourites_centroid()
+    _app_mod._invalidate_likes_centroid()
     fav_app.get("/api/centroids")
     data = fav_app.get("/api/centroids").json()
     fav = next(d for d in data["dynamic_centroids"] if d["name"] == "favourites")

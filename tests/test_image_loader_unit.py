@@ -171,15 +171,16 @@ class TestLoad:
     def test_basic_load(self, tmp_path):
         img_path = tmp_path / "test.jpg"
         Image.new("RGB", (300, 200), color="red").save(img_path, "JPEG")
-        loaded = load(img_path)
+        # Round‑30: load() returns (img, source_w, source_h).
+        loaded_img, _sw, _sh = load(img_path)
         # Should be letterboxed to model's resolution
-        assert loaded.size == (_default_resolution(), _default_resolution())
+        assert loaded_img.size == (_default_resolution(), _default_resolution())
 
     def test_load_returns_rgb(self, tmp_path):
         img_path = tmp_path / "test.png"
         Image.new("RGBA", (200, 200), color=(0, 0, 255, 255)).save(img_path, "PNG")
-        loaded = load(img_path)
-        assert loaded.mode == "RGB"
+        loaded_img, _sw, _sh = load(img_path)
+        assert loaded_img.mode == "RGB"
 
     def test_load_with_specific_model(self, tmp_path):
         """Loading with a different model name should use that model's resolution."""
@@ -191,8 +192,8 @@ class TestLoad:
         for model_name in ["ViT-L-16-SigLIP2-256", "ViT-B-16-SigLIP2-256"]:
             try:
                 spec = registry_get(model_name)
-                loaded = load(img_path, model_name=model_name)
-                assert loaded.size == (spec.resolution, spec.resolution)
+                loaded_img, _sw, _sh = load(img_path, model_name=model_name)
+                assert loaded_img.size == (spec.resolution, spec.resolution)
             except Exception:
                 # Model not registered in test env — skip
                 pass

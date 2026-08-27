@@ -60,11 +60,17 @@ class ScanPhase(Protocol):
 
 @runtime_checkable
 class LoadPhase(Protocol):
-    """Convert each scanned `Path` into `(Path, Tensor)` pairs.
+    """Convert each scanned `Path` into `(Path, Tensor, sw, sh)` quads.
 
     `Tensor` is whatever the registered `Embedder` consumes —
     typically a PIL.Image for the open_clip path, or a preprocessed
     CHW float list for ONNX. The pipeline doesn't constrain it.
+
+    `source_w` / `source_h` are the original pixel dimensions of the
+    file on disk (after EXIF transpose, before any letterbox). They
+    propagate through the queue so the upsert phase can persist them
+    in the payload. The photo page needs the source size, not the
+    embedder's 256x256 input size.
 
     `on_failure` is invoked for each path that the load phase cannot
     handle (corrupt file, permission error, etc.). The phase must
@@ -76,20 +82,18 @@ class LoadPhase(Protocol):
         paths: Iterator[Path],
         *,
         on_failure: Callable[[Path, LoaderErrorLike], None],
-    ) -> Iterator[tuple[Path, Any]]: ...
+    ) -> Iterator[tuple[Path, Any, int | None, int | None]]: ...
 
 
 @runtime_checkable
 class EmbedPhase(Protocol):
-    """Run the registered embedder on each `(Path, Tensor)` item."""
-
+    """Run the registered embedder on each `(Path, Tensor, sw, sh)` item."""
     def __call__(
         self,
-        items: Iterator[tuple[Path, Any]],
+        items: Iterator[tuple[Path, Any, int | None, int | None]],
         *,
         embedder: Embedder,
     ) -> Iterator[tuple[Path, Any, list[float]]]: ...
-
 
 @runtime_checkable
 class UpsertPhase(Protocol):

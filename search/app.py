@@ -399,9 +399,13 @@ def _invalidate_likes_centroid() -> None:
     user-visible album label. Old name is preserved as a back-compat
     alias (see the `_register_likes_centroid_under_old_name` call in
     create_app) so legacy `?centroid=favourites` URLs still work.
+
+    Invalidates both names so callers that check the legacy alias
+    (e.g. `cached_n_images('favourites')`) see the cache drop too.
     """
     if _dynamic_centroids is not None:
         _dynamic_centroids.invalidate("likes")
+        _dynamic_centroids.invalidate("favourites")
 
 
 def _invalidate_dislikes_centroid() -> None:

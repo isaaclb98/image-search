@@ -123,7 +123,8 @@ class TestImageLoader:
 
         p = tmp_path / "valid.png"
         Image.new("RGB", (32, 32), color=(255, 0, 0)).save(p, "PNG")
-        img = load(p)
+        # Round‑30: load() returns (img, source_w, source_h).
+        img, _sw, _sh = load(p)
         assert img.size == (384, 384)  # default resolution
 
     def test_load_letterboxes_to_registered_resolution(self, tmp_path: Path):
@@ -132,7 +133,7 @@ class TestImageLoader:
 
         p = tmp_path / "valid.png"
         Image.new("RGB", (32, 32), color=(0, 255, 0)).save(p, "PNG")
-        img = load(p, model_name="ViT-L-16-SigLIP2-256")
+        img, _sw, _sh = load(p, model_name="ViT-L-16-SigLIP2-256")
         assert img.size == (256, 256)
 
     def test_load_raises_on_corrupt_file(self, tmp_path: Path):
@@ -170,7 +171,7 @@ class TestImageLoader:
 
         p = tmp_path / "no_exif.jpg"
         Image.new("RGB", (100, 200), color=(0, 0, 255)).save(p, "JPEG")
-        img = load(p)
+        img, _sw, _sh = load(p)
         assert img.size == (384, 384)  # letterboxed
 
 

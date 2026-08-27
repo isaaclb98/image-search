@@ -352,7 +352,7 @@ def main(argv=None):
 
                     encoder = VisionEncoder(arch=args.model, device=args.device)
 
-                vecs = encoder.embed_batch([letterbox_resize(img) for _, img in loaded])
+                vecs = encoder.embed_batch([letterbox_resize(img) for (_, img, _sw, _sh) in loaded])
             except Exception:
                 logger.exception("embed failed")
                 total_errors += len(loaded)

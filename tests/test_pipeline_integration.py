@@ -36,15 +36,19 @@ def _scan_adapter(source: Path) -> Iterator[Path]:
 
 def _load_adapter(
     paths: Iterator[Path], *, on_failure,
-) -> Iterator[tuple[Path, object]]:
+) -> Iterator[tuple[Path, object, int | None, int | None]]:
     """Wrap `indexer.image_loader.load` so per-file `LoaderError`s
-    are reported via `on_failure` rather than aborting the pipeline."""
+    are reported via `on_failure` rather than aborting the pipeline.
+
+    Round‑30: `load()` returns `(img, source_w, source_h)`; we
+    propagate the source dims through to the upsert phase.
+    """
     from indexer.image_loader import LoaderError, load
 
     for p in paths:
         try:
-            img = load(p)
-            yield (p, img)
+            img, source_w, source_h = load(p)
+            yield (p, img, source_w, source_h)
         except LoaderError as e:
             on_failure(p, e)
         except Exception as e:  # defensive: PIL's zoo of exceptions
@@ -165,6 +169,12 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
         qdrant_client=qdrant_in_memory,
         progress_every=5,
     )
+    # The pipeline records the active model via `_resolve_active_model_name`,
+    # which falls back to the production default unless the test sets the
+    # active-model global. Without this, payloads would carry
+    # "ViT-gopt-16-SigLIP2-384" instead of "mock-1536".
+    from indexer.run_pipeline import set_active_model
+    set_active_model("mock-1536", "test-r0")
     report = pipeline.run(config)
 
     # 10 synthetic images, no failures expected.

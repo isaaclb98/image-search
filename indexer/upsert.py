@@ -75,6 +75,11 @@ def build_payload(
     fingerprints: dict | None = None,
     width: int | None = None,
     height: int | None = None,
+    # Pre-extracted filesystem metadata. Pass these to skip the
+    # `path.stat()` call when the source path doesn't exist on disk
+    # (test stubs, in-memory pipeline runs, etc.). Round‑31.
+    mtime: float | None = None,
+    size: int | None = None,
 ) -> dict:
     """
     Build the Qdrant payload for a given image path.
@@ -91,6 +96,11 @@ def build_payload(
     in-memory PIL image. Powers the photo page's
     `formatDimensions()` display; without it the page shows
     "—" because the indexer never wrote dims into the payload.
+
+    Round‑31: accepts optional `mtime` / `size` so callers that
+    already have the filesystem metadata (or want to skip it for
+    testing) don't have to call `path.stat()` themselves. Falls back
+    to `path.stat()` only when not provided.
 
     The defaults match the original behaviour (compute from disk)
     so existing callers stay correct.
@@ -115,7 +125,6 @@ def build_payload(
         fingerprints: pre-computed fingerprint dict; if None we
             compute it from `path` (the original behaviour).
     """
-    stat = path.stat()
     if blurhash is None:
         blurhash = compute_blurhash(path)
     if fingerprints is None:
@@ -124,6 +133,18 @@ def build_payload(
         from image_search_kernel.registry import get as _registry_get
 
         model_dim = _registry_get(model_name).dim
+    # Round‑31: skip the disk round-trip when the caller already
+    # has the metadata (e.g. the in-memory pipeline after `indexer.image_loader.load`).
+    if mtime is None or size is None:
+        try:
+            stat = path.stat()
+            mtime = float(stat.st_mtime) if mtime is None else mtime
+            size = int(stat.st_size) if size is None else size
+        except OSError:
+            # Path doesn't exist on disk (test stubs, in-memory runs).
+            # Fall back to zero values rather than failing the ingest.
+            mtime = mtime if mtime is not None else 0.0
+            size = size if size is not None else 0
     return {
         "id": id_for(path, shard),
         "path": str(path.resolve()),
@@ -149,8 +170,8 @@ def build_payload(
         # as Qdrant payload fields; the ranker reads them from candidates
         # after the vector search.
         **fingerprints,
-        "mtime": int(stat.st_mtime),
-        "size": int(stat.st_size),
+        "mtime": int(mtime),
+        "size": int(size),
         "model_name": model_name,
         "model_revision": model_revision,
         # §A2: vector dim produced by the model that wrote this point.
