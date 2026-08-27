@@ -20,8 +20,7 @@ Design
 We lean on Qdrant's native `recommend()` endpoint rather than
 computing our own centroid. Qdrant does `mean(positive_vecs) −
 α·mean(negative_vecs)` server-side in 1536-d space, which is exactly
-the "rolling recommendation" query we want. The same path /discover
-already uses, so future perf tuning reaches both pages at once.
+the "rolling recommendation" query we want.
 
 Qdrant's Recommend API doesn't accept per-point weights, so we can't
 do exponential time decay inside the vector arithmetic. The MVP

@@ -36,7 +36,6 @@ BASELINE: dict[str, int] = {
     "centroids.py": 0,
     "centroids_list.py": 0,
     "centroids_search.py": 0,
-    "discover.py": 0,
     "dislikes.py": 6,
     "favorites.py": 6,
     "for_you.py": 6,

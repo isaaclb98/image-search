@@ -39,7 +39,6 @@ from search.for_you import invalidate_signal_cache as _for_you_invalidate_signal
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
-    DiscoveryPair,
     DiversityMetadata,
     ErrorResponse,
     SearchResult,
@@ -763,7 +762,6 @@ def create_app(
     from search.routers.centroids_list import build_centroids_list_router
     from search.routers.centroids_search import build_centroids_search_router
     from search.routers.collections import build_collections_router
-    from search.routers.discover import build_discover_router
     from search.routers.dislikes import build_dislikes_router
     from search.routers.favorites import build_favorites_router
     from search.routers.for_you import build_for_you_router
@@ -775,11 +773,6 @@ def create_app(
     from search.routers.thumbnails import build_thumbnails_router
     app.include_router(build_collections_router(qdrant=qdrant))
     app.include_router(build_saved_searches_router(index_db=index_db))
-    app.include_router(build_discover_router(
-        qdrant=qdrant,
-        cfg=_cfg,
-        index_db=index_db,
-    ))
     app.include_router(build_similar_router(
         qdrant=qdrant,
         cfg=_cfg,
@@ -1164,21 +1157,6 @@ def create_app(
             pool_depth=stats.pool_depth,
         )
 
-
-    def _hydrate_pair_urls(pair: DiscoveryPair | None) -> DiscoveryPair | None:
-        """Fill in the public /photo/{id}/raw URL on each image.
-
-        discover.py builds pairs with empty URLs because it doesn't
-        know the web_ui_url. We patch them in here, where the
-        config is available.
-        """
-        if pair is None:
-            return None
-        if pair.left is not None and not pair.left.url:
-            pair.left.url = resolve_url(pair.left.id, _cfg.web_ui_url)
-        if pair.right is not None and not pair.right.url:
-            pair.right.url = resolve_url(pair.right.id, _cfg.web_ui_url)
-        return pair
 
     def _bad_request(detail: str) -> JSONResponse:
         return JSONResponse(

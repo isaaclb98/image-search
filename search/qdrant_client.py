@@ -45,15 +45,14 @@ class QdrantSearch:
         self.client = client
         self.collection = collection
         self.timeout_ms = timeout_ms
-        # Per-request timeout for the discovery rabbithole's
-        # recommend() call. The default 2s (set by `timeout_ms`) is
-        # too tight for the recommend path over HTTPS through a
-        # reverse proxy on a large collection: Qdrant has to fetch
-        # the positive/negative point vectors, compute their mean,
-        # then run an HNSW search. 10s is generous; in practice a
-        # healthy Qdrant returns in <1s. Configurable via Config
-        # (RECOMMEND_TIMEOUT_MS env var) so the operator can tune
-        # without code changes.
+        # Per-request timeout for the recommend() call. The default
+        # 2s (set by `timeout_ms`) is too tight for the recommend path
+        # over HTTPS through a reverse proxy on a large collection:
+        # Qdrant has to fetch the positive/negative point vectors,
+        # compute their mean, then run an HNSW search. 10s is generous;
+        # in practice a healthy Qdrant returns in <1s. Configurable
+        # via Config (RECOMMEND_TIMEOUT_MS env var) so the operator
+        # can tune without code changes.
         self.recommend_timeout_ms = recommend_timeout_ms
 
     def search(
@@ -174,7 +173,7 @@ class QdrantSearch:
 
         `positive` and `negative` are lists of point IDs. Must be
         non-empty. Caller is responsible for sampling/deduping the
-        results (e.g. the discovery feed draws 2 from the top-20 to
+        results (e.g. /for-you draws 2 from the top-20 to
         keep the feed from converging to the same top-1 result).
 
         Score is the cosine similarity to the recomputed target
@@ -242,12 +241,10 @@ class QdrantSearch:
         except Exception as e:  # noqa: BLE001
             # Graceful fallback: if the recommend call times out
             # (or any other transient Qdrant error fires), return
-            # an empty result set instead of propagating. The
-            # discovery rabbithole already handles `< 2 unseen
-            # candidates` by falling back to a random pair and
-            # clearing burst state, so returning [] here means the
-            # user gets a random pair on this round and a fresh
-            # recommend will be retried on the next burst. The
+            # an empty result set instead of propagating. /for-you's
+            # fallback already handles `< 2 unseen candidates` by
+            # using a random sample, so returning [] here means the
+            # user gets a slightly-less-personalized next round. The
             # alternative — letting the exception bubble up to the
             # HTTP layer — turns a slow Qdrant into a 500, which
             # is strictly worse than a slightly-less-personalized
@@ -450,9 +447,8 @@ class QdrantSearch:
         """
         Return up to `limit` points sampled uniformly at random
         from the collection. Used as a cold-start sampler for
-        the discovery feed's seed rounds, where no
-        positive/negative signal exists yet to drive a recommend
-        query.
+        the /random route and for /for-you when no positive/
+        negative signal exists yet to drive a recommend query.
 
         Implementation:
           1. Paginate the collection to gather a list of all
@@ -473,9 +469,8 @@ class QdrantSearch:
 
         The current implementation uniformly samples ids, then
         batch-retrieves them. Cost: one full id-pagination per
-        call (O(N) network), but this is only invoked from the
-        discovery rabbithole's seed phase (5 rounds), so the
-        cost is amortized.
+        call (O(N) network), but this is only invoked from
+        cold-start paths, so the cost is amortized.
         """
         try:
             count_resp = self.client.get_collection(self.collection)

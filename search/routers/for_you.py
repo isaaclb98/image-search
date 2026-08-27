@@ -90,7 +90,7 @@ def build_for_you_router(
 
         Diversity is resolved against the app‑wide `cfg.diversity`
         default; `diversity_depth` is accepted for API parity but
-        ignored (only the discovery rabbithole uses depth today).
+        ignored (no current consumer uses depth).
         """
         div = resolve_diversity(
             _DEFAULT_DIVERSITY,

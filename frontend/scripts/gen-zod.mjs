@@ -144,19 +144,6 @@ const AlbumDetailResponse = z.object({
   updated_at: z.string().optional()
 }).passthrough();
 
-// ---- discover ----
-const DiscoveryStartResponse = z.object({
-  pair_id: z.string(),
-  images: z.array(SearchResult).length(2)
-}).passthrough();
-
-const DiscoveryPickResponse = z.object({
-  pair_id: z.string(),
-  chosen: z.string(),
-  skipped: z.string().optional(),
-  state: z.record(z.string(), z.unknown()).optional()
-}).passthrough();
-
 // ---- for-you ----
 const ForYouFeedItem = z.object({
   point_id: z.string().optional(),
@@ -225,8 +212,6 @@ export const Z = {
   AlbumDetailResponse,
   CollectionsList,
   CentroidList,
-  DiscoveryStartResponse,
-  DiscoveryPickResponse,
   ForYouFeedItem,
   ForYouFeedResponse,
   ForYouState

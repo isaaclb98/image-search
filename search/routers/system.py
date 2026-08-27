@@ -4,8 +4,8 @@ search/routers/system.py — system endpoints (§B2 step 1).
 The smallest extractable router group: `/healthz` (the k8s probe)
 and `/api/cache/status` (operator visibility into the dual-store
 sync). This module establishes the pattern for the rest of §B2
-(auth, search, favorites, albums, photos, saved-searches, centroids,
-discover, for-you) which land in follow-up PRs.
+(search, favorites, albums, photos, saved-searches, centroids,
+for-you) which land in follow-up PRs.
 
 Pattern:
 

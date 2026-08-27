@@ -101,41 +101,6 @@ test.describe('Albums CRUD', () => {
   });
 });
 
-test.describe('Discovery rabbithole', () => {
-  test('start → pick multiple times → state tracks likes/dislikes', async ({ page }) => {
-    const startRes = await page.request.post('/api/discover/start');
-    expect(startRes.status()).toBe(200);
-    const start = await startRes.json();
-    expect(start.session_id).toBeTruthy();
-    // Discover returns a single `pair` (not `pairs`) with left/right objects.
-    expect(start.pair).toBeTruthy();
-    expect(start.pair.left?.id).toBeTruthy();
-    expect(start.pair.right?.id).toBeTruthy();
-
-    const sessionId = start.session_id as string;
-
-    // Pick the left image. The endpoint takes `session_id` + `image_id` as
-    // QUERY STRING params (not body), and a successful pick returns
-    // either a new pair (continuing) or a done state.
-    const pickRes = await page.request.post(
-      `/api/discover/pick?session_id=${encodeURIComponent(sessionId)}&image_id=${encodeURIComponent(start.pair.left.id)}`
-    );
-    expect(pickRes.status()).toBe(200);
-    const pick = await pickRes.json();
-    // After a pick we get either a new pair (continue) or a done state.
-    // Both shapes include either pair or done; pick has been recorded.
-    expect(pick.pair !== undefined || pick.done === true).toBe(true);
-
-    // For-you state should reflect at least some likes
-    const stateRes = await page.request.get('/api/for-you/state');
-    const state = await stateRes.json();
-    // The state endpoint uses n_likes / n_dislikes, not liked_count / disliked_count
-    expect(typeof state.n_likes === 'number').toBe(true);
-    expect(typeof state.n_dislikes === 'number').toBe(true);
-    expect(state.n_likes).toBeGreaterThanOrEqual(0);
-  });
-});
-
 test.describe('Saved searches', () => {
   test('save → pick reapplies prompts → delete removes', async ({ page }) => {
     const saveRes = await page.request.post('/api/saved-searches', {

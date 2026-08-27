@@ -7,8 +7,8 @@ Pins the system router module's contract: the factory function
 shapes. The router must be importable and testable without the full
 `create_app()` machinery.
 
-When the rest of §B2 lands (auth, search, favorites, albums,
-photos, saved-searches, centroids, discover, for-you), this test
+When the rest of §B2 lands (search, favorites, albums,
+photos, saved-searches, centroids, for-you), this test
 file is the template: one module per group, one test file per group.
 """
 

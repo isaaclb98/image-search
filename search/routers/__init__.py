@@ -1,8 +1,8 @@
 """search.routers — FastAPI APIRouter modules per resource group (§B2).
 
 The 39 routes in `search/app.py` are split into one `APIRouter` per
-resource group: auth, search, favorites, albums, photos, saved-searches,
-centroids, discover, for-you, system. Each router is a factory
+resource group: search, favorites, albums, photos, saved-searches,
+centroids, for-you, system. Each router is a factory
 function `build_<group>_router(...)` returning an `APIRouter` ready
 to `app.include_router(...)`.
 

@@ -126,41 +126,6 @@ test.describe('Journey: Power user builds an album from search', () => {
   });
 });
 
-test.describe('Journey: Discovery rabbithole session', () => {
-  test('start session → pick pairs → end session → check For You reflects picks', async ({ page }) => {
-    await page.goto('/');
-    await appReady(page);
-
-    // Start a discovery session via API (POST)
-    const startRes = await page.request.post('/api/discover/start');
-    expect(startRes.status()).toBe(200);
-    const session = await startRes.json();
-    expect(session.session_id).toBeTruthy();
-    expect(session.pair).toBeTruthy();
-
-    // Make picks. Each pick returns either a new pair or done=true.
-    for (let i = 0; i < 5; i++) {
-      const pickRes = await page.request.post(
-        `/api/discover/pick?session_id=${session.session_id}&image_id=${session.pair.left.id}`
-      );
-      expect(pickRes.status()).toBe(200);
-      const result = await pickRes.json();
-      if (result.done) break;
-      // The next iteration should use the returned pair, not the old one
-      if (result.pair) {
-        session.pair = result.pair;
-      } else {
-        break;
-      }
-    }
-
-    // Verify For You state has been updated
-    const fyStateRes = await page.request.get('/api/for-you/state');
-    const fyState = await fyStateRes.json();
-    expect(fyState.n_likes).toBeGreaterThanOrEqual(0);
-  });
-});
-
 test.describe('Journey: Cross-page state persistence', () => {
   test('search with URL params → refresh → params preserved', async ({ page }) => {
     await page.goto('/search?positives=beach&negatives=ocean');

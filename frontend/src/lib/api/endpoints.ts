@@ -273,23 +273,6 @@ export async function removePhotoFromAlbum(albumId: number, pointId: string) {
   await apiDelete(`/api/albums/${albumId}/members/${encodeURIComponent(pointId)}`);
 }
 
-// ---------- Discover ----------
-
-export function startDiscovery() {
-  return apiGet<unknown>('/api/discover/start', {
-    schema: Z.DiscoveryStartResponse,
-    schemaName: 'DiscoveryStartResponse'
-  });
-}
-
-export function pickDiscovery(pairId: string, chosen: string) {
-  return apiPost<unknown>(
-    '/api/discover/pick',
-    { pair_id: pairId, chosen },
-    { schema: Z.DiscoveryPickResponse, schemaName: 'DiscoveryPickResponse' }
-  );
-}
-
 // ---------- Misc ----------
 
 export function listCollections() {
