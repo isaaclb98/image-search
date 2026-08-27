@@ -72,7 +72,11 @@
       items = items.map((x) =>
         x.id === id ? { ...x, is_favorite: !liked } : x
       );
-      lightboxIndex = null;
+      // Round‑28: do NOT close the lightbox here. The user just
+      // tapped Like on a photo they like; dismissing the lightbox
+      // forces a context switch and breaks the flow when they're
+      // paging through photos with arrow keys. The visual feedback
+      // (filled heart) is enough.
     } catch {
       toast.show('Failed to update like.', { kind: 'error' });
     }
@@ -84,7 +88,8 @@
       items = items.map((x) =>
         x.id === id ? { ...x, is_disliked: true } : x
       );
-      lightboxIndex = null;
+      // Round‑28: same — keep the lightbox open. The user can close
+      // it themselves or page to the next photo.
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }
