@@ -156,6 +156,18 @@ def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator
 def _upsert(
     items, *, client, collection, dry_run, batch_size, on_failure,
 ) -> Iterator[WriteResult]:
+    """Upsert pipeline phase.
+
+    Round‑15: actually honour `batch_size` instead of accumulating
+    every point and flushing once at the end. The old behaviour
+    meant a 2k‑photo ingest would build an 8 MB vector blob and try
+    to ship it in a single `upsert`, which hits qdrant's 32 MB
+    JSON‑payload limit and blocks the whole pipeline until the
+    HTTP call returns.
+
+    New behaviour: flush every `batch_size` points (default 16) so
+    each request is small and the producer can keep up.
+    """
     batch: list = []
     for path, image, vec in items:
         try:
@@ -186,6 +198,17 @@ def _upsert(
             )
         except Exception as exc:  # noqa: BLE001
             on_failure(path, exc)
+
+        # Flush when the batch is full so the pipeline keeps making
+        # forward progress instead of waiting until the end.
+        if not dry_run and len(batch) >= batch_size:
+            try:
+                client.upsert(collection_name=collection, points=batch, wait=False)
+            except Exception as exc:  # noqa: BLE001
+                for pt in batch:
+                    on_failure(pt.payload["path"], exc)  # type: ignore[index]
+                raise
+            batch = []
 
     if batch and not dry_run:
         try:
