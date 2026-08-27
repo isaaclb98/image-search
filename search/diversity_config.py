@@ -1,15 +1,14 @@
 """
 search/diversity_config.py — single source of truth for diversity.
 
-Every page that surfaces the Diversity select (for‑you, search,
-discover) routes its query params through `resolve_diversity()` so
-the validation, defaults, and env‑based fallback live in exactly
-one place.
+Every page that surfaces the Diversity select (for‑you, search)
+routes its query params through `resolve_diversity()` so the
+validation, defaults, and env‑based fallback live in exactly one place.
 
 Knobs:
 - `mode`:   off | low | balanced | high
 - `depth`:  auto | 500 | 1000 | 2000 | 5000
-           (only used by the discovery rabbithole today)
+           (only used by /api/for-you today)
 
 Defaults come from the environment:
 - `DIVERSITY_MODE`    (default: "balanced")
@@ -70,7 +69,7 @@ def resolve_diversity(
     """Resolve a Diversity from query params + the app‑wide default.
 
     `use_depth=False` (default) ignores the depth query param, which
-    is what every page except /discover wants. /discover passes
+    is what every page except /api/for-you wants. /api/for-you passes
     `use_depth=True` so the user‑facing depth select actually flows
     through.
     """
