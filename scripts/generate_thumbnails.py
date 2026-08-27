@@ -27,9 +27,13 @@ def _generate_one(point_id: str, photo_path: str):
         return (point_id, True, "exists")
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
-        from PIL import Image
+        from PIL import Image, ImageOps
         with Image.open(photo_path) as im:
-            im = im.convert("RGB")
+            # Round‑22: apply EXIF orientation. Many phone photos
+            # are stored rotated (camera sensor captures landscape
+            # but the EXIF tag tells the viewer to rotate on read);
+            # without this, portrait shots render sideways.
+            im = ImageOps.exif_transpose(im).convert("RGB")
             im.thumbnail((THUMB_MAX_EDGE, THUMB_MAX_EDGE), Image.Resampling.LANCZOS)
             im.save(out_path, "WEBP", quality=THUMB_QUALITY, method=6)
         return (point_id, True, "ok")
