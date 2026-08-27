@@ -45,6 +45,7 @@ class SyncStats:
     last_cycle_ts: float = 0.0
     last_error: str | None = None
     is_running: bool = False
+    paused: bool = False
 
 
 class SyncManager:
@@ -91,12 +92,31 @@ class SyncManager:
                 self._task.cancel()
             self._task = None
 
+    def pause(self) -> None:
+        """Stop syncing until `resume()` is called. Cycles short-circuit
+        and return 0 immediately so the indexer doesn't have to
+        contend with this loop for qdrant's HTTP server."""
+        if not self.stats.paused:
+            logger.info("SyncManager paused (cycle counter stops advancing)")
+            self.stats.paused = True
+
+    def resume(self) -> None:
+        """Re-enable the sync loop. Next cycle resumes from the
+        current pending state — no points are lost."""
+        if self.stats.paused:
+            logger.info("SyncManager resumed")
+            self.stats.paused = False
+
     async def sync_once(self) -> int:
         """Run one sync cycle synchronously. Returns points moved.
 
         Exposed so tests can drive a single cycle deterministically.
+        Skips immediately when `paused` so the indexer doesn't
+        contend with the sync loop for qdrant's HTTP server.
         """
         import time
+        if self.stats.paused:
+            return 0
         from qdrant_client.http import models as _qm
         self.stats.cycles += 1
         self.stats.is_running = True

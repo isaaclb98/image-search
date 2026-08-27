@@ -148,3 +148,27 @@ def test_sync_isolates_collections():
     )
     asyncio.run(mgr.sync_once())
     assert len(fake.search) == 1  # now it appears
+
+
+def test_pause_short_circuits_sync():
+    """Round‑16: while paused, sync_once returns 0 immediately and
+    never touches qdrant. Resuming re‑enables the loop."""
+    fake = FakeQdrant()
+    fake.pending = [make_record("p1", [0.0] * 1024, {"path": "/x"})]
+    mgr = SyncManager(
+        qdrant=fake,
+        read_collection="search",
+        write_collection="pending",
+    )
+    mgr.pause()
+    moved = asyncio.run(mgr.sync_once())
+    assert moved == 0
+    assert fake.upsert_calls == []
+    assert len(fake.search) == 0
+    assert mgr.stats.paused is True
+
+    mgr.resume()
+    moved = asyncio.run(mgr.sync_once())
+    assert moved == 1
+    assert len(fake.search) == 1
+    assert mgr.stats.paused is False

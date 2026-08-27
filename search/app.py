@@ -883,7 +883,19 @@ def create_app(
             "last_cycle_ts": sync_manager.stats.last_cycle_ts,
             "last_error": sync_manager.stats.last_error,
             "is_running": sync_manager.stats.is_running,
+            "paused": sync_manager.stats.paused,
         }
+
+    # Round‑16: pause / resume the sync loop. Indexer scripts call
+    # these around a bulk ingest so qdrant contention drops to zero
+    # for the duration.
+    @app.post("/api/sync/pause", status_code=204)
+    async def sync_pause() -> None:
+        sync_manager.pause()
+
+    @app.post("/api/sync/resume", status_code=204)
+    async def sync_resume() -> None:
+        sync_manager.resume()
 
     def _parse_collections(request: Request) -> list[str]:
         """
