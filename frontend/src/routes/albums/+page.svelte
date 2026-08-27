@@ -5,9 +5,13 @@
    * user-created albums follow.
    *
    * Round‑29: every card has a "Search" button that navigates to
-   * the home page with ?centroid=album_{id} (or ?centroid=favourites
-   * / dislikes for the built-ins). The home page renders results
-   * inline using that album's centroid.
+   * the home page with ?centroid=album:{id} (or ?centroid=likes /
+   * ?centroid=dislikes for the built-ins). The home page renders
+   * results inline using that album's centroid.
+   *
+   * Round‑29b: the Likes centroid is now registered under
+   * `likes` (was `favourites`). The backend keeps `favourites`
+   * as a back-compat alias so legacy URLs still resolve.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -19,11 +23,11 @@
   import { toast } from '$lib/components/Toaster.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
-  // Stable centroid names for the system albums. The backend
-  // registers them as "favourites" and "dislikes" respectively
-  // (see _make_favourites_centroid_spec / _make_dislikes_centroid_spec
-  // in search/app.py). User albums are registered as "album_{id}".
-  const LIKES_CENTROID = 'favourites';
+  // Round‑29b: renamed from 'favourites' to 'likes' to match
+  // the user-visible album label. The backend also registers
+  // 'favourites' as a back-compat alias so legacy URLs still
+  // resolve.
+  const LIKES_CENTROID = 'likes';
   const DISLIKES_CENTROID = 'dislikes';
 
   function searchByAlbum(centroidName: string) {
@@ -142,8 +146,9 @@
       <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
     </footer>
     <!-- Round‑29: search button on every album card. The Likes
-         centroid is named "favourites" on the backend; clicking
-         this takes the user to the home page with results. -->
+         centroid is named "likes" on the backend (round‑29b);
+         "favourites" is a back‑compat alias. Clicking either
+         takes the user to the home page with results. -->
     <button
       class="search-btn"
       type="button"

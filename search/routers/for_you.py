@@ -40,7 +40,7 @@ def build_for_you_router(
     index_db: Any,
     qdrant: Any,
     cfg: Any,
-    invalidate_favourites_centroid: Callable[[], None],
+    invalidate_likes_centroid: Callable[[], None],
     invalidate_for_you_signal: Callable[[], None],
 ) -> APIRouter:
     """Build the for-you router with the live dependencies.
@@ -226,6 +226,6 @@ def build_for_you_router(
         """Invalidate the cached user signal + favourites centroid."""
         await asyncio.to_thread(index_db.reset_feedback)
         invalidate_for_you_signal()
-        invalidate_favourites_centroid()
+        invalidate_likes_centroid()
 
     return router

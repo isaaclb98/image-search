@@ -170,8 +170,8 @@ describe('search endpoint URL builder', () => {
 
   // Round‑29: album-card search buttons navigate to /?centroid=…
   // and the home page calls search({ centroid: 'album:<id>' }) (or
-  // the system name 'favourites' / 'dislikes'). These tests pin
-  // the wire shape so a rename on either side trips a test.
+  // the system name 'likes' / 'dislikes'). These tests pin the
+  // wire shape so a rename on either side trips a test.
   //
   // The backend registers user-album centroids under
   // `album:<id>` (colon) — see `_album_centroid_name` in
@@ -193,12 +193,19 @@ describe('search endpoint URL builder', () => {
     expect(url.searchParams.getAll('negatives')).toEqual([]);
   });
 
-  it('round‑29: favourites / dislikes centroid names resolve', async () => {
+  it('round‑29b: likes / dislikes centroid names resolve', async () => {
+    const { search } = await import('./endpoints');
+    await search({ centroid: 'likes' });
+    expect(captured.url).toContain('/api/centroids/likes/search');
+    await search({ centroid: 'dislikes' });
+    expect(captured.url).toContain('/api/centroids/dislikes/search');
+  });
+
+  it('round‑29b: legacy favourites centroid name still resolves', async () => {
+    // Back-compat: old saved searches / shared links still work.
     const { search } = await import('./endpoints');
     await search({ centroid: 'favourites' });
     expect(captured.url).toContain('/api/centroids/favourites/search');
-    await search({ centroid: 'dislikes' });
-    expect(captured.url).toContain('/api/centroids/dislikes/search');
   });
 
   it('round‑29: no centroid + empty prompts → /api/search (not centroid)', async () => {

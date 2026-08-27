@@ -90,7 +90,7 @@ def build_dislikes_router(
     *,
     index_db: Any,
     cfg: Any,
-    invalidate_favourites_centroid: Callable[[], None],
+    invalidate_likes_centroid: Callable[[], None],
     invalidate_for_you_signal: Callable[[], None],
     invalidate_dislikes_centroid: Callable[[], None] | None = None,  # round‑29
 ) -> APIRouter:
@@ -105,7 +105,7 @@ def build_dislikes_router(
         )
         # Same invalidation shape as mark_favorite — every dislike moves
         # the user preference vector (just in the negative direction).
-        invalidate_favourites_centroid()
+        invalidate_likes_centroid()
         invalidate_for_you_signal()
         if invalidate_dislikes_centroid is not None:
             invalidate_dislikes_centroid()
@@ -113,7 +113,7 @@ def build_dislikes_router(
     @router.delete("/api/dislikes/{point_id}", status_code=204)
     async def unmark_dislike(point_id: str) -> None:
         await asyncio.to_thread(index_db.unmark_dislike, point_id)
-        invalidate_favourites_centroid()
+        invalidate_likes_centroid()
         invalidate_for_you_signal()
         if invalidate_dislikes_centroid is not None:
             invalidate_dislikes_centroid()

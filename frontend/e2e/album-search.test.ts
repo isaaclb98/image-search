@@ -47,14 +47,14 @@ test.describe('album card Search button (round‑29)', () => {
     }
   });
 
-  test('clicking Likes Search navigates to /?centroid=favourites', async ({
+  test('clicking Likes Search navigates to /?centroid=likes', async ({
     page
   }) => {
     await page.goto(`${APP}/albums`);
     await appReady(page);
 
     const likesButton = page.locator(
-      'article.system-like button.search-btn[data-centroid="favourites"]'
+      'article.system-like button.search-btn[data-centroid="likes"]'
     );
     // Skip when Likes is empty — button is disabled.
     if (await likesButton.isDisabled()) {
@@ -62,7 +62,7 @@ test.describe('album card Search button (round‑29)', () => {
       return;
     }
     await likesButton.click();
-    await page.waitForURL(/\?centroid=favourites/, { timeout: 5000 });
+    await page.waitForURL(/\?centroid=likes/, { timeout: 5000 });
 
     // The hero heading flips to "Searching by album".
     await expect(
@@ -154,14 +154,14 @@ test.describe('album card Search button (round‑29)', () => {
   });
 
   test('reload on /?centroid=… restores the search', async ({ page }) => {
-    await page.goto(`${APP}/?centroid=favourites`);
+    await page.goto(`${APP}/?centroid=likes`);
     await appReady(page);
     await expect(
       page.locator('h1', { hasText: 'Searching by album' })
     ).toBeVisible();
     await page.waitForSelector('.grid-tile', { timeout: 10_000 });
 
-    // Hard reload — the page should pick up ?centroid=favourites
+    // Hard reload — the page should pick up ?centroid=likes
     // from the URL and re-run the search automatically.
     await page.reload();
     await appReady(page);
@@ -231,7 +231,7 @@ test.describe('album card Search button (round‑29)', () => {
     page
   }) => {
     // Start on a centroid page.
-    await page.goto(`${APP}/?centroid=favourites`);
+    await page.goto(`${APP}/?centroid=likes`);
     await appReady(page);
     await expect(
       page.locator('h1', { hasText: 'Searching by album' })
@@ -243,5 +243,21 @@ test.describe('album card Search button (round‑29)', () => {
     await expect(
       page.locator('h1', { hasText: 'Find photos by what they look like' })
     ).toBeVisible();
+  });
+
+  test('legacy ?centroid=favourites still resolves (back-compat alias)', async ({
+    page
+  }) => {
+    // Round‑29b: the backend keeps `favourites` as a back-compat
+    // alias for the Likes centroid. Old shared links / saved
+    // searches should keep working.
+    await page.goto(`${APP}/?centroid=favourites`);
+    await appReady(page);
+    await expect(
+      page.locator('h1', { hasText: 'Searching by album' })
+    ).toBeVisible();
+    // No error banner — the centroid must resolve.
+    await expect(page.locator('.error.glass')).toHaveCount(0);
+    await page.waitForSelector('.grid-tile', { timeout: 10_000 });
   });
 });
