@@ -34,28 +34,38 @@ def content_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str | None:
     return digest.hexdigest()
 
 
-def dhash(path: Path, hash_size: int = DEFAULT_DHASH_SIZE) -> str | None:
+def dhash(
+    source,
+    hash_size: int = DEFAULT_DHASH_SIZE,
+) -> str | None:
     """Return a difference hash for an image, or ``None`` when invalid.
 
     An 8x8 hash gives 64 structural bits while remaining tiny in a Qdrant
     payload. Hamming distance is used by the search ranker instead of exact
     equality so recompressed or lightly edited copies can be grouped.
+
+    `source` may be either a `Path` (round‑19: original behaviour,
+    re‑reads the file) **or** an already‑loaded PIL Image (skips the
+    disk read + JPEG decode, which is the bulk‑ingest hot path).
     """
     if hash_size < 2:
         raise ValueError("hash_size must be >= 2")
     try:
         from PIL import Image, ImageOps
 
-        with Image.open(path) as image:
-            image = ImageOps.exif_transpose(image).convert("L")
-            resampling = getattr(Image, "Resampling", Image)
-            image = image.resize(
-                (hash_size + 1, hash_size),
-                resampling.LANCZOS,
-            )
-            pixels = list(image.getdata())
+        if isinstance(source, Image.Image):
+            image = source
+        else:
+            image = Image.open(source)
+        image = ImageOps.exif_transpose(image).convert("L")
+        resampling = getattr(Image, "Resampling", Image)
+        image = image.resize(
+            (hash_size + 1, hash_size),
+            resampling.LANCZOS,
+        )
+        pixels = list(image.getdata())
     except (OSError, ValueError, TypeError) as exc:
-        logger.debug("fingerprint: dhash failed for %s: %s", path, exc)
+        logger.debug("fingerprint: dhash failed for %s: %s", source, exc)
         return None
 
     bits = [
@@ -80,9 +90,19 @@ def hamming_distance(left: str, right: str) -> int | None:
         return None
 
 
-def compute_fingerprints(path: Path) -> dict[str, str | None]:
-    """Compute all Diversity payload fingerprints for *path*."""
+def compute_fingerprints(source) -> dict[str, str | None]:
+    """Compute all Diversity payload fingerprints for *source*.
+
+    `source` may be either a `Path` or an already-loaded PIL Image.
+    Bulk ingest calls this with the in-memory letterboxed image to
+    skip an extra disk read + JPEG decode.
+    """
     return {
-        "content_sha256": content_sha256(path),
-        "dhash": dhash(path),
+        "content_sha256": content_sha256(source) if not _is_pil_image(source) else None,
+        "dhash": dhash(source),
     }
+
+
+def _is_pil_image(x) -> bool:
+    from PIL import Image as _Image
+    return isinstance(x, _Image.Image)

@@ -38,17 +38,19 @@ _THUMB_MAX_EDGE = 32
 
 
 def compute_blurhash(
-    path: Path,
+    source: "Path | Image.Image",
     x_components: int = _DEFAULT_X_COMPONENTS,
     y_components: int = _DEFAULT_Y_COMPONENTS,
 ) -> str | None:
     """
-    Compute a Blurhash string for `path`. Returns None on any failure
+    Compute a Blurhash string for `source`. Returns None on any failure
     (missing/corrupt file, decode error, encode error) so callers can
     fall through to "no placeholder" without crashing the indexer.
 
     Args:
-        path: source image on disk.
+        source: source image on disk (`Path`) **or** an already-loaded
+            PIL Image. Passing an image avoids an extra disk read +
+            JPEG decode, which matters during bulk ingest.
         x_components: horizontal sample count (3-8 typical).
         y_components: vertical sample count (3-8 typical).
             Must be `<= x_components` (blurhash API rule).
@@ -65,7 +67,13 @@ def compute_blurhash(
         return None
 
     try:
-        with Image.open(path) as img:
+        if isinstance(source, Image.Image):
+            img = source
+            owns_open = False
+        else:
+            img = Image.open(source)
+            owns_open = True
+        try:
             # Convert to RGB so we don't get a mode the encoder
             # doesn't understand (RGBA / P / L all map cleanly).
             rgb = img.convert("RGB")
@@ -91,12 +99,15 @@ def compute_blurhash(
             if not is_valid_blurhash(encoded):
                 logger.debug(
                     "blurhash: encoder returned invalid output for %s (len=%d)",
-                    path, len(encoded) if isinstance(encoded, str) else 0,
+                    source, len(encoded) if isinstance(encoded, str) else 0,
                 )
                 return None
             return encoded
+        finally:
+            if owns_open:
+                img.close()
     except FileNotFoundError:
-        logger.debug("blurhash: file missing — %s", path)
+        logger.debug("blurhash: file missing — %s", source)
         return None
     except (OSError, ValueError, TypeError) as exc:
         # PIL raises a long tail of exceptions for "we can't open this"

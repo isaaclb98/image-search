@@ -86,8 +86,19 @@ def _scan(source: Path) -> Iterator[Path]:
     return iter(snapshot(source))
 
 
-def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
+def _load(
+    paths: Iterator[Path],
+    *,
+    on_failure,
+    model_name: str = "ViT-L-16-SigLIP2-256",
+) -> Iterator[tuple[Path, Any]]:
     """Concurrent PIL decode via a ThreadPoolExecutor (§C2).
+
+    Round‑18: takes the active `model_name` so the loader letterboxes
+    to the right resolution. The previous default of
+    `ViT-gopt-16-SigLIP2-384` meant the embedder (running the L/16
+    model) received 384×384 images — 9× more pixels than it needs —
+    which silently inflated embed time by ~10×.
 
     `indexer.image_loader.load` is GIL-released (PIL is mostly C
     code) — threads work and are cheaper than processes. The pool
@@ -109,7 +120,7 @@ def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
             p = next(paths)
         except StopIteration:
             return False
-        inflight[executor.submit(load, p)] = p
+        inflight[executor.submit(load, p, model_name=model_name)] = p
         return True
 
     with ThreadPoolExecutor(max_workers=_LOAD_POOL_SIZE) as executor:
@@ -193,12 +204,28 @@ def _upsert(
             # The pipeline doesn't pass model_name; use the dim
             # recorded in the embedder for self-describing payloads.
             embedder_dim = getattr(image, "__embedder_dim__", None) or len(vec)
+            # Round‑19: compute blurhash + fingerprints from the
+            # already-loaded letterboxed image instead of re-reading
+            # the file from disk. The image is 256×256 (model res)
+            # so blurhash is fast and fingerprints are accurate.
+            from indexer.blurhash import compute_blurhash as _bh
+            from indexer.fingerprints import compute_fingerprints as _fp
+            try:
+                _blurhash = _bh(image)
+            except Exception:  # noqa: BLE001
+                _blurhash = None
+            try:
+                _fingerprints = _fp(image)
+            except Exception:  # noqa: BLE001
+                _fingerprints = None
             payload = build_payload(
                 path=path, shard="",
                 model_name="mock-1536",  # overwritten below via direct registry lookup
                 model_revision="test-r0",
                 collection=collection,
                 model_dim=embedder_dim,
+                blurhash=_blurhash,
+                fingerprints=_fingerprints,
             )
             # build_payload hard-codes model_name='mock-1536' for the
             # _default_ test fixture. For real callers, we override
@@ -273,7 +300,7 @@ def run_pipeline_source(
     source: Path,
     qdrant_client: Any,
     collection: str,
-    model_name: str = "ViT-gopt-16-SigLIP2-384",
+    model_name: str = "ViT-L-16-SigLIP2-256",
     batch_size: int = 16,
     dry_run: bool = False,
     cancel_event: threading.Event | None = None,
@@ -281,15 +308,25 @@ def run_pipeline_source(
 ) -> PipelineReport:
     """Run the new `IndexerPipeline` for a single source directory.
 
+    Round‑18: default model is now L/16‑256 to match the desktop
+    ingest path. The old gopt‑384 default silently loaded 384×384
+    images even when the embedder was the L/16 model, multiplying
+    embed time by ~10×.
+
     Returns a `PipelineReport`. Failures are aggregated, not raised.
     Cancelling via `cancel_event` between phases returns a partial
     report.
     """
     embedder = _registry_get(model_name).vision  # noqa: F841
 
+    # Round‑18: bind `model_name` into `_load` so the loader
+    # letterboxes to the right resolution for this embedder.
+    import functools as _functools
+    _load_bound = _functools.partial(_load, model_name=model_name)
+
     pipeline = IndexerPipeline(
         scan=_scan,        # type: ignore[arg-type]
-        load=_load,        # type: ignore[arg-type]
+        load=_load_bound,  # type: ignore[arg-type]
         embed=_embed,      # type: ignore[arg-type]
         upsert=_upsert,    # type: ignore[arg-type]
         cancel_event=cancel_event,

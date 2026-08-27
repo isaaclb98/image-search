@@ -56,12 +56,29 @@ class LoaderError(Exception):
         self.reason = reason
 
 
-def load_image_pil(path: Path) -> Image.Image:
+# Cap PIL's decoder at this many pixels on the long edge. The
+# model expects a letterbox to its registered resolution (256 /
+# 384), so decoding the full multi‑megapixel JPEG is pure waste.
+# Override with INDEXER_DECODE_MAX=512 if you want a higher cap.
+_DECODE_MAX: int = int(os.environ.get("INDEXER_DECODE_MAX", "0"))
+
+
+def load_image_pil(
+    path: Path,
+    *,
+    decode_max: int | None = None,
+) -> Image.Image:
     """
     Load an image and apply EXIF orientation. Returns a PIL.Image in RGB.
 
     Does NOT resize or normalize — that's the next step. Useful for tests
     and for callers that want to inspect the image before tensorizing.
+
+    `decode_max` caps the JPEG/PNG decoder at the given long‑edge
+    pixel count via PIL's `Image.draft()` fast path. The model
+    letterboxes to its registered resolution anyway, so decoding
+    beyond ~2x the model's resolution is wasted work. Default cap
+    comes from `INDEXER_DECODE_MAX` (0 = disabled, no cap).
     """
     # Suppress PIL's decompression bomb check. Several photos in the
     # collection exceed the default MAX_IMAGE_PIXELS (178956970) at
@@ -71,8 +88,18 @@ def load_image_pil(path: Path) -> Image.Image:
     # frame this pipeline will ever encounter.
     from PIL import Image as _PIL
     _PIL.MAX_IMAGE_PIXELS = 1_000_000_000
+
+    cap = decode_max if decode_max is not None else (_DECODE_MAX or None)
+
     try:
         with Image.open(path) as img:
+            # Tell PIL's decoder to only decode enough for `cap` on
+            # the long edge. libjpeg will skip remaining MCU rows.
+            # This is the documented fast path for "I don't need the
+            # full image". Falls back to full decode for formats
+            # without a draft hint (PNG, HEIC, etc).
+            if cap:
+                img.draft("RGB", (cap, cap))
             # .copy() so the file handle is released (Windows file locking)
             img = ImageOps.exif_transpose(img).copy()
         if img.mode != "RGB":
@@ -142,7 +169,14 @@ def load(path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384") -> Image.Im
     the next file).
     """
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(load_image_pil, path)
+        from image_search_kernel.registry import get as _registry_get
+        size = _registry_get(model_name).resolution
+        # 2× the model's resolution is enough room for the letterbox
+        # to keep the full image visible while capping the decoder at
+        # a small fraction of the source file's pixels. Override via
+        # INDEXER_DECODE_MAX.
+        decode_cap = 2 * size
+        future = executor.submit(load_image_pil, path, decode_max=decode_cap)
         try:
             img = future.result(timeout=_LOAD_TIMEOUT_S)
         except concurrent.futures.TimeoutError as err:
@@ -153,8 +187,6 @@ def load(path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384") -> Image.Im
                 f"if your network is just consistently slow)",
             ) from err
     # Resize to the registered model's resolution.
-    from image_search_kernel.registry import get as _registry_get
-    size = _registry_get(model_name).resolution
     return letterbox_resize(img, size=size)
 
 
