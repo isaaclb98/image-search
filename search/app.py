@@ -24,7 +24,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
+from qdrant_client import QdrantClient
 from search import config, text_encoder
+from search.sync import SyncManager
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -39,7 +41,6 @@ from search.for_you import invalidate_signal_cache as _for_you_invalidate_signal
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
-    DiscoveryPair,
     DiversityMetadata,
     ErrorResponse,
     SearchResult,
@@ -525,8 +526,6 @@ def create_app(
     logging.basicConfig(level=_cfg.log_level)
 
     if qdrant is None:
-        from qdrant_client import QdrantClient
-
         client = QdrantClient(**_qdrant_client_kwargs(
             url=_cfg.qdrant_url,
             api_key=_cfg.qdrant_api_key,
@@ -561,6 +560,40 @@ def create_app(
         index_db = IndexDB(db_path=db_path, qdrant_client=qdrant)
     _index_db = index_db
     random_picker = RandomPicker(index_db)
+
+    # Round‑14: SyncManager moves points from `images_pending`
+    # → `images` on a background asyncio task. The raw client is
+    # distinct from the wrapper above because the wrapper is
+    # collection‑scoped; the sync needs to read one collection and
+    # write another.
+    #
+    # Skip in test mode (memory:// URLs fail validation and we don't
+    # need a real sync loop for unit tests).
+    if _cfg.qdrant_url.startswith(("http://", "https://")):
+        sync_client = QdrantClient(**_qdrant_client_kwargs(
+            url=_cfg.qdrant_url,
+            api_key=_cfg.qdrant_api_key,
+            timeout=_cfg.query_timeout_ms // 1000,
+        ))
+    else:
+        # Tests use the in‑memory qdrant passed in via the `qdrant`
+        # arg. Reuse its underlying client so the sync sees the same
+        # data the rest of the app sees.
+        sync_client = qdrant.client  # type: ignore[attr-defined]
+    sync_manager = SyncManager(
+        qdrant=sync_client,
+        read_collection=_cfg.qdrant_collection,
+        write_collection=_cfg.qdrant_write_collection,
+        batch_size=_cfg.qdrant_sync_batch_size,
+        interval_seconds=_cfg.qdrant_sync_interval_seconds,
+    )
+    sync_manager = SyncManager(
+        qdrant=sync_client,
+        read_collection=_cfg.qdrant_collection,
+        write_collection=_cfg.qdrant_write_collection,
+        batch_size=_cfg.qdrant_sync_batch_size,
+        interval_seconds=_cfg.qdrant_sync_interval_seconds,
+    )
     diversity_cache = DiversityResultCache(
         ttl_seconds=_cfg.diversity_cache_ttl_seconds,
         max_entries=_cfg.diversity_cache_max_entries,
@@ -651,6 +684,11 @@ def create_app(
         encoder_warmup_task = asyncio.create_task(_bg_text_encoder_warmup())
         index_init_task = asyncio.create_task(_bg_init_from_qdrant())
 
+        # Round‑14: start the SyncManager that copies
+        # `images_pending` → `images` on a background interval.
+        # Lives for the lifetime of the process.
+        await sync_manager.start()
+
         # Periodic IndexDB refresh. Picks up bulk indexer runs without
         # the operator having to hit POST /api/cache/refresh manually.
         # The manual endpoint stays as a force-now override. The task
@@ -703,6 +741,9 @@ def create_app(
         try:
             yield
         finally:
+            # Round‑14: stop the SyncManager first so we don't leave
+            # a half‑synced batch behind.
+            await sync_manager.stop()
             if refresh_task is not None:
                 refresh_task.cancel()
                 try:
@@ -763,7 +804,6 @@ def create_app(
     from search.routers.centroids_list import build_centroids_list_router
     from search.routers.centroids_search import build_centroids_search_router
     from search.routers.collections import build_collections_router
-    from search.routers.discover import build_discover_router
     from search.routers.dislikes import build_dislikes_router
     from search.routers.favorites import build_favorites_router
     from search.routers.for_you import build_for_you_router
@@ -775,11 +815,6 @@ def create_app(
     from search.routers.thumbnails import build_thumbnails_router
     app.include_router(build_collections_router(qdrant=qdrant))
     app.include_router(build_saved_searches_router(index_db=index_db))
-    app.include_router(build_discover_router(
-        qdrant=qdrant,
-        cfg=_cfg,
-        index_db=index_db,
-    ))
     app.include_router(build_similar_router(
         qdrant=qdrant,
         cfg=_cfg,
@@ -789,6 +824,7 @@ def create_app(
     app.include_router(build_for_you_router(
         index_db=index_db,
         qdrant=qdrant,
+        cfg=_cfg,
         invalidate_favourites_centroid=_invalidate_favourites_centroid,
         invalidate_for_you_signal=_for_you_invalidate_signal,
     ))
@@ -833,6 +869,33 @@ def create_app(
         path_liveness_cache_max=_PATH_LIVENESS_CACHE_MAX,
     ))
     app.include_router(build_thumbnails_router())
+
+    # Round‑14: sync status endpoint (read‑only counters).
+    @app.get("/api/sync/status")
+    async def sync_status() -> dict:
+        return {
+            "read_collection": _cfg.qdrant_collection,
+            "write_collection": _cfg.qdrant_write_collection,
+            "batch_size": _cfg.qdrant_sync_batch_size,
+            "interval_seconds": _cfg.qdrant_sync_interval_seconds,
+            "cycles": sync_manager.stats.cycles,
+            "points_moved": sync_manager.stats.points_moved,
+            "last_cycle_ts": sync_manager.stats.last_cycle_ts,
+            "last_error": sync_manager.stats.last_error,
+            "is_running": sync_manager.stats.is_running,
+            "paused": sync_manager.stats.paused,
+        }
+
+    # Round‑16: pause / resume the sync loop. Indexer scripts call
+    # these around a bulk ingest so qdrant contention drops to zero
+    # for the duration.
+    @app.post("/api/sync/pause", status_code=204)
+    async def sync_pause() -> None:
+        sync_manager.pause()
+
+    @app.post("/api/sync/resume", status_code=204)
+    async def sync_resume() -> None:
+        sync_manager.resume()
 
     def _parse_collections(request: Request) -> list[str]:
         """
@@ -1163,21 +1226,6 @@ def create_app(
             pool_depth=stats.pool_depth,
         )
 
-
-    def _hydrate_pair_urls(pair: DiscoveryPair | None) -> DiscoveryPair | None:
-        """Fill in the public /photo/{id}/raw URL on each image.
-
-        discover.py builds pairs with empty URLs because it doesn't
-        know the web_ui_url. We patch them in here, where the
-        config is available.
-        """
-        if pair is None:
-            return None
-        if pair.left is not None and not pair.left.url:
-            pair.left.url = resolve_url(pair.left.id, _cfg.web_ui_url)
-        if pair.right is not None and not pair.right.url:
-            pair.right.url = resolve_url(pair.right.id, _cfg.web_ui_url)
-        return pair
 
     def _bad_request(detail: str) -> JSONResponse:
         return JSONResponse(

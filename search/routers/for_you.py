@@ -1,32 +1,20 @@
 """
-search/routers/for_you.py — /api/for-you/* (§B2 step 5).
+search/routers/for_you.py — HTTP routes for the For You feed.
 
-For-You endpoints:
+Three endpoints:
 
-- GET  /api/for-you/state: cheap signal snapshot (likes, dislikes,
-  freshest feedback timestamp) for the header chip + empty state.
-- GET  /api/for-you/feed: heavy path. Rebuilds the signal snapshot,
-  reads fav/dis ids from the index, calls `for_you.rank`, returns a
-  SearchResponse-shaped payload with the recommended hits.
-- POST /api/for-you/reset: wipe dislikes + feedback_events (favourites
-  stay so the next page load still has a "warm start").
+- GET /api/for-you/state     → cheap header-chip snapshot
+- GET /api/for-you/feed      → page-of-recommendations (round‑13 rewrite)
+- POST /api/for-you/reset    → invalidate the cached user signal
 
-Both GETs use `for_you.build_state` and `for_you.rank` from
-`search.for_you` (the compute side of the for-you algorithm). The
-router is the only place that orchestrates them against Qdrant
-+ IndexDB.
-
-The router takes the live index_db / qdrant / invalidators via the
-factory function so the `app.include_router` call in `app.py`
-stays a one-liner.
+The router orchestrates the live `index_db` + `QdrantSearch` against
+the pure compute helpers in `search.for_you` and the registry‑aware
+zero‑vector builder in `search.for_you_compute`.
 
 Tests pin:
-
-- The three endpoints' status codes + response shapes.
-- The state endpoint returns n_likes/n_dislikes/freshest_feedback_ts
-  with the documented types.
-- Reset returns 204 and calls both invalidators.
-- Feed wraps Qdrant errors as 502.
+- status codes + response shapes for each endpoint
+- feed wraps Qdrant errors as 502
+- pagination uses server‑side offset + a one‑row probe for `has_more`
 """
 
 from __future__ import annotations
@@ -38,6 +26,12 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from search.diversity_config import (
+    VALID_DEPTHS,
+    VALID_MODES,
+    resolve_diversity,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,19 +39,35 @@ def build_for_you_router(
     *,
     index_db: Any,
     qdrant: Any,
+    cfg: Any,
     invalidate_favourites_centroid: Callable[[], None],
     invalidate_for_you_signal: Callable[[], None],
 ) -> APIRouter:
     """Build the for-you router with the live dependencies.
 
-    `qdrant` is the `QdrantSearch` wrapper used by the search routes;
-    the router passes it straight through to `for_you.rank`.
+    `cfg` is the `search.config.Config` instance; the router pulls
+    the model name + default diversity values from it so every page
+    resolves the same way.
     """
     from search.for_you import build_state, rank
-    import os
-    _MODEL_NAME = os.environ.get("MODEL_NAME", "ViT-L-16-SigLIP2-256")
+    from search.diversity_config import Diversity
+
+    _MODEL_NAME = cfg.model_name
+    _DEFAULT_DIVERSITY = cfg.diversity
 
     router = APIRouter()
+
+    @router.get("/api/for-you/diversity")
+    async def for_you_diversity() -> dict:
+        """Expose the active Diversity defaults + valid choices to the UI."""
+        return {
+            "default": {
+                "mode": _DEFAULT_DIVERSITY.mode,
+                "depth": _DEFAULT_DIVERSITY.depth,
+            },
+            "valid_modes": list(VALID_MODES),
+            "valid_depths": list(VALID_DEPTHS),
+        }
 
     @router.get("/api/for-you/state")
     async def for_you_state() -> dict:
@@ -71,21 +81,27 @@ def build_for_you_router(
 
     @router.get("/api/for-you/feed")
     async def for_you_feed(
-        limit: int = Query(30, description="max recommendations per page"),
+        limit: int = Query(30, ge=1, description="max recommendations per page"),
         page: int = Query(0, ge=0, description="zero-based page index"),
-        diversity: str = Query("balanced", description="diversity mode"),
-        diversity_depth: str = Query("auto", description="diversity depth"),
+        diversity: str | None = Query(None, description="diversity mode"),
+        diversity_depth: str | None = Query(None, description="ignored on /for-you"),
     ) -> dict:
-        """
-        For-you feed endpoint.
+        """Paginated, server-side for-you feed.
 
-        - Same user signal ⇒ same ranked batch on every reload (round‑12).
-        - Diversity knob is the *only* thing that changes ordering.
-        - Pagination is server‑side: `?page=N` returns the next slice.
-        - Diversity=off short‑circuits the Python MMR rerank and asks
-          Qdrant directly for the slice, saving a round‑trip.
+        Diversity is resolved against the app‑wide `cfg.diversity`
+        default; `diversity_depth` is accepted for API parity but
+        ignored (only the discovery rabbithole uses depth today).
+
+        `limit` is clamped to [1, 100] silently inside the handler
+        so callers can ask for `limit=999` and get the largest valid
+        page rather than a 422.
         """
-        # Manual validation so we return 400 (not 422) for bad input.
+        div = resolve_diversity(
+            _DEFAULT_DIVERSITY,
+            mode=diversity,
+            depth=diversity_depth,
+            use_depth=False,
+        )
         try:
             limit = max(1, min(int(limit), 100))
         except (TypeError, ValueError):
@@ -98,14 +114,10 @@ def build_for_you_router(
             asyncio.to_thread(index_db.list_dislike_ids),
         )
 
-        # The Python diversity rerank returns `limit` items after
-        # MMR. To paginate *after* reranking we have to fetch enough
-        # items to cover the requested page. We cap the pool at 200
-        # to keep the Python O(n²) cost bounded.
-        pool_target = max((page + 1) * limit, limit)
-        pool_size = min(max(pool_target * 4, 80), 200)
+        probe_size = limit + 1
+        diversity_mode = div.mode
 
-        if diversity == "off":
+        if diversity_mode == "off":
             # Short-circuit: skip the Python MMR entirely. Pull the
             # ordered slice straight from Qdrant using server‑side
             # offset + score_threshold.
@@ -115,7 +127,7 @@ def build_for_you_router(
                         qdrant.recommend,
                         positive=fav_ids,
                         negative=dis_ids,
-                        limit=pool_size,
+                        limit=probe_size,
                         offset=page * limit,
                         score_threshold=0.30,
                         exclude_ids=list(state.excluded_ids),
@@ -129,18 +141,17 @@ def build_for_you_router(
                     logger.warning("Qdrant error for /api/for-you/feed: %s", e)
                     raise HTTPException(status_code=502, detail="Qdrant error") from e
             else:
-                # Cold start: no likes yet, recommend has no positive
-                # IDs to work with. Fall back to a zero‑vector search
-                # so the page is never empty for a fresh user.
+                # Cold start: no likes yet. Fall back to a zero‑vector
+                # search so the page is never empty for a fresh user.
                 from image_search_kernel.registry import get as _registry_get
                 from search.for_you_compute import zero_vector
-                _dim = _registry_get(_MODEL_NAME).dim
 
+                _dim = _registry_get(_MODEL_NAME).dim
                 try:
                     _hits, _ = await asyncio.to_thread(
                         qdrant.search,
                         vector=zero_vector(_dim),
-                        limit=pool_size,
+                        limit=probe_size,
                         offset=page * limit,
                         collections=None,
                         allowed_ids=None,
@@ -156,6 +167,11 @@ def build_for_you_router(
                     logger.warning("Qdrant error for /api/for-you/feed: %s", e)
                     raise HTTPException(status_code=502, detail="Qdrant error") from e
         else:
+            # Python diversity rerank runs MMR over a pool sized to
+            # `pool_size`. To detect the end of the corpus cheaply we
+            # ask for `probe_size + page * limit` rows (capped at 200
+            # to bound the O(n²) cost), then slice to the page.
+            pool_size = min(max(probe_size + page * limit, 80), 200)
             try:
                 hits = await asyncio.to_thread(
                     rank,
@@ -164,8 +180,8 @@ def build_for_you_router(
                     dis_ids=dis_ids,
                     qdrant=qdrant,
                     limit=pool_size,
-                    diversity_mode=diversity,
-                    diversity_depth=diversity_depth,
+                    diversity_mode=diversity_mode,
+                    diversity_depth=div.depth,
                 )
             except (ConnectionError, OSError) as e:
                 logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
@@ -175,13 +191,12 @@ def build_for_you_router(
                     raise HTTPException(status_code=504, detail="Qdrant timeout") from e
                 logger.warning("Qdrant error for /api/for-you/feed: %s", e)
                 raise HTTPException(status_code=502, detail="Qdrant error") from e
-            # Slice the ordered list to the requested page.
             start = page * limit
-            end = start + limit
-            hits = hits[start:end]
+            hits = hits[start : start + probe_size]
 
-        # If we got fewer than `limit` items we're at the end.
-        has_more = len(hits) >= limit
+        has_more = len(hits) > limit
+        if has_more:
+            hits = hits[:limit]
 
         fav_set = set(fav_ids)
         dis_set = set(dis_ids)
@@ -200,13 +215,17 @@ def build_for_you_router(
             ],
             "has_more": has_more,
             "page": page,
+            "n_likes": state.n_likes,
+            "n_dislikes": state.n_dislikes,
+            "freshest_feedback_ts": state.freshest_feedback_ts,
+            "diversity": diversity_mode,
         }
 
     @router.post("/api/for-you/reset", status_code=204)
     async def for_you_reset() -> None:
-        """Wipe dislikes + feedback_events. Favourites stay."""
+        """Invalidate the cached user signal + favourites centroid."""
         await asyncio.to_thread(index_db.reset_feedback)
-        invalidate_favourites_centroid()
         invalidate_for_you_signal()
+        invalidate_favourites_centroid()
 
     return router

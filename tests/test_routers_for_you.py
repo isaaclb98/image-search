@@ -55,9 +55,28 @@ def _build(fake_index_db, fake_qdrant, invalidate, *, state=None, hits=None):
     hits = hits if hits is not None else []
     for_you_mod.build_state = MagicMock(return_value=state)
     for_you_mod.rank = MagicMock(return_value=hits)
+    from search.config import Config, DEFAULT_WRITE_COLLECTION
+    cfg = Config(
+        qdrant_url="http://localhost:6333",
+        qdrant_collection="images",
+        qdrant_api_key=None,
+        model_name="mock",
+        model_revision="",
+        device="cpu",
+        top_k_default=20,
+        top_k_max=200,
+        query_timeout_ms=2000,
+        nas_images_base="/tmp",
+        path_prefix="",
+        web_ui_url="http://localhost:8000",
+        log_level="WARNING",
+        test_mode=True,
+        qdrant_write_collection=DEFAULT_WRITE_COLLECTION,
+    )
     router = build_for_you_router(
         index_db=fake_index_db,
         qdrant=fake_qdrant,
+        cfg=cfg,
         invalidate_favourites_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
@@ -130,7 +149,12 @@ def test_feed_marks_favourites(fake_index_db, fake_qdrant, invalidate, fake_stat
 
 
 def test_feed_clamps_limit_to_100(fake_index_db, fake_qdrant, invalidate, fake_state):
-    """limit above 100 gets clamped silently — the route's documented behaviour."""
+    """limit above 100 gets clamped silently — the route's documented behaviour.
+
+    Round‑14: the handler passes `limit + 1` as the pool size so we
+    can detect end-of-corpus cheaply, so the captured value is the
+    clamped limit plus one.
+    """
     import search.for_you as for_you_mod
     captured = {}
 
@@ -140,10 +164,28 @@ def test_feed_clamps_limit_to_100(fake_index_db, fake_qdrant, invalidate, fake_s
 
     for_you_mod.build_state = MagicMock(return_value=fake_state)
     for_you_mod.rank = _rank
+    from search.config import Config
     from search.routers.for_you import build_for_you_router
+    cfg = Config(
+        qdrant_url="http://localhost:6333",
+        qdrant_collection="images",
+        qdrant_api_key=None,
+        model_name="mock",
+        model_revision="",
+        device="cpu",
+        top_k_default=20,
+        top_k_max=200,
+        query_timeout_ms=2000,
+        nas_images_base="/tmp",
+        path_prefix="",
+        web_ui_url="http://localhost:8000",
+        log_level="WARNING",
+        test_mode=True,
+    )
     router = build_for_you_router(
         index_db=fake_index_db,
         qdrant=fake_qdrant,
+        cfg=cfg,
         invalidate_favourites_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
@@ -152,7 +194,8 @@ def test_feed_clamps_limit_to_100(fake_index_db, fake_qdrant, invalidate, fake_s
     with TestClient(app) as client:
         resp = client.get("/api/for-you/feed?limit=999")
     assert resp.status_code == 200
-    assert captured["limit"] == 100
+    # limit was clamped to 100 → pool = 100 + 1 (probe row) = 101
+    assert captured["limit"] == 101
 
 
 def test_reset_calls_db_and_invalidators(fake_index_db, fake_qdrant, invalidate):

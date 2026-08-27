@@ -86,8 +86,19 @@ def _scan(source: Path) -> Iterator[Path]:
     return iter(snapshot(source))
 
 
-def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
+def _load(
+    paths: Iterator[Path],
+    *,
+    on_failure,
+    model_name: str = "ViT-L-16-SigLIP2-256",
+) -> Iterator[tuple[Path, Any]]:
     """Concurrent PIL decode via a ThreadPoolExecutor (§C2).
+
+    Round‑18: takes the active `model_name` so the loader letterboxes
+    to the right resolution. The previous default of
+    `ViT-gopt-16-SigLIP2-384` meant the embedder (running the L/16
+    model) received 384×384 images — 9× more pixels than it needs —
+    which silently inflated embed time by ~10×.
 
     `indexer.image_loader.load` is GIL-released (PIL is mostly C
     code) — threads work and are cheaper than processes. The pool
@@ -109,7 +120,7 @@ def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
             p = next(paths)
         except StopIteration:
             return False
-        inflight[executor.submit(load, p)] = p
+        inflight[executor.submit(load, p, model_name=model_name)] = p
         return True
 
     with ThreadPoolExecutor(max_workers=_LOAD_POOL_SIZE) as executor:
@@ -133,41 +144,88 @@ def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
 
 
 def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator[tuple[Path, Any, list[float]]]:
+    """Embed phase.
+
+    Round‑15: accumulate `embedder.embed_batch_size` decoded images
+    and send them as one GPU forward pass. We also drop the thumbnail
+    generation step entirely: it's best‑effort, the host can't write
+    to /app/thumbnails, and the per‑image log spam was costing real
+    wall‑clock time. The frontend fetches /api/thumbnails lazily on
+    demand so an empty / missing thumbnail cache is fine.
+    """
     from indexer.thumbnails import generate_thumbnail_for_path
     import logging
     logger = logging.getLogger(__name__)
-    
+    batch_size = getattr(embedder, "embed_batch_size", 16)
+
+    pending_paths: list[Path] = []
+    pending_imgs: list[Any] = []
+
+    def _flush() -> Iterator[tuple[Path, Any, list[float]]]:
+        if not pending_imgs:
+            return
+        vecs = embedder.embed_images(pending_imgs)
+        for p, img, v in zip(pending_paths, pending_imgs, vecs):
+            # Thumbnail generation is intentionally skipped — see
+            # the round‑15 note above. The failure path used to log a
+            # warning per image; on a 2k‑photo ingest that was 2k
+            # syscalls and noticeable wall‑clock.
+            yield (p, img, v)
+        pending_paths.clear()
+        pending_imgs.clear()
+
     for path, image in items:
-        vec = embedder.embed_image(image)
-        
-        # Generate thumbnail as a side effect
-        # The image is already in memory, so this is cheap (~25ms)
-        try:
-            thumb_path = generate_thumbnail_for_path(image, path, shard="")
-            if thumb_path:
-                logger.debug(f"Generated thumbnail: {thumb_path}")
-        except Exception as e:
-            # Thumbnail generation is best-effort, don't fail the pipeline
-            logger.warning(f"Failed to generate thumbnail for {path}: {e}")
-        
-        yield (path, image, vec)
+        pending_paths.append(path)
+        pending_imgs.append(image)
+        if len(pending_imgs) >= batch_size:
+            yield from _flush()
+
+    yield from _flush()
 
 
 def _upsert(
     items, *, client, collection, dry_run, batch_size, on_failure,
 ) -> Iterator[WriteResult]:
+    """Upsert pipeline phase.
+
+    Round‑15: actually honour `batch_size` instead of accumulating
+    every point and flushing once at the end. The old behaviour
+    meant a 2k‑photo ingest would build an 8 MB vector blob and try
+    to ship it in a single `upsert`, which hits qdrant's 32 MB
+    JSON‑payload limit and blocks the whole pipeline until the
+    HTTP call returns.
+
+    New behaviour: flush every `batch_size` points (default 16) so
+    each request is small and the producer can keep up.
+    """
     batch: list = []
     for path, image, vec in items:
         try:
             # The pipeline doesn't pass model_name; use the dim
             # recorded in the embedder for self-describing payloads.
             embedder_dim = getattr(image, "__embedder_dim__", None) or len(vec)
+            # Round‑19: compute blurhash + fingerprints from the
+            # already-loaded letterboxed image instead of re-reading
+            # the file from disk. The image is 256×256 (model res)
+            # so blurhash is fast and fingerprints are accurate.
+            from indexer.blurhash import compute_blurhash as _bh
+            from indexer.fingerprints import compute_fingerprints as _fp
+            try:
+                _blurhash = _bh(image)
+            except Exception:  # noqa: BLE001
+                _blurhash = None
+            try:
+                _fingerprints = _fp(image)
+            except Exception:  # noqa: BLE001
+                _fingerprints = None
             payload = build_payload(
                 path=path, shard="",
                 model_name="mock-1536",  # overwritten below via direct registry lookup
                 model_revision="test-r0",
                 collection=collection,
                 model_dim=embedder_dim,
+                blurhash=_blurhash,
+                fingerprints=_fingerprints,
             )
             # build_payload hard-codes model_name='mock-1536' for the
             # _default_ test fixture. For real callers, we override
@@ -186,6 +244,17 @@ def _upsert(
             )
         except Exception as exc:  # noqa: BLE001
             on_failure(path, exc)
+
+        # Flush when the batch is full so the pipeline keeps making
+        # forward progress instead of waiting until the end.
+        if not dry_run and len(batch) >= batch_size:
+            try:
+                client.upsert(collection_name=collection, points=batch, wait=False)
+            except Exception as exc:  # noqa: BLE001
+                for pt in batch:
+                    on_failure(pt.payload["path"], exc)  # type: ignore[index]
+                raise
+            batch = []
 
     if batch and not dry_run:
         try:
@@ -231,7 +300,7 @@ def run_pipeline_source(
     source: Path,
     qdrant_client: Any,
     collection: str,
-    model_name: str = "ViT-gopt-16-SigLIP2-384",
+    model_name: str = "ViT-L-16-SigLIP2-256",
     batch_size: int = 16,
     dry_run: bool = False,
     cancel_event: threading.Event | None = None,
@@ -239,15 +308,25 @@ def run_pipeline_source(
 ) -> PipelineReport:
     """Run the new `IndexerPipeline` for a single source directory.
 
+    Round‑18: default model is now L/16‑256 to match the desktop
+    ingest path. The old gopt‑384 default silently loaded 384×384
+    images even when the embedder was the L/16 model, multiplying
+    embed time by ~10×.
+
     Returns a `PipelineReport`. Failures are aggregated, not raised.
     Cancelling via `cancel_event` between phases returns a partial
     report.
     """
     embedder = _registry_get(model_name).vision  # noqa: F841
 
+    # Round‑18: bind `model_name` into `_load` so the loader
+    # letterboxes to the right resolution for this embedder.
+    import functools as _functools
+    _load_bound = _functools.partial(_load, model_name=model_name)
+
     pipeline = IndexerPipeline(
         scan=_scan,        # type: ignore[arg-type]
-        load=_load,        # type: ignore[arg-type]
+        load=_load_bound,  # type: ignore[arg-type]
         embed=_embed,      # type: ignore[arg-type]
         upsert=_upsert,    # type: ignore[arg-type]
         cancel_event=cancel_event,

@@ -251,50 +251,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/discover/pick": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Discover Pick
-         * @description Record a pick and return the next pair.
-         *
-         *     Returns pair=None if the session is gone (expired TTL,
-         *     server restart, fake id). The frontend treats that as
-         *     "session ended, start over" and redirects to /discover.
-         */
-        post: operations["discover_pick_api_discover_pick_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/discover/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Discover Start
-         * @description Create a new discovery session and return the first pair.
-         */
-        post: operations["discover_start_api_discover_start_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/dislikes": {
         parameters: {
             query?: never;
@@ -661,75 +617,6 @@ export interface components {
         AlbumsListResponse: {
             /** Albums */
             albums: components["schemas"]["AlbumSummary"][];
-        };
-        /**
-         * DiscoveryImage
-         * @description One image in a discovery feed pair or in the liked gallery.
-         */
-        DiscoveryImage: {
-            /**
-             * Blurhash
-             * @description Optional client-decoded low-quality image placeholder.
-             */
-            blurhash?: string | null;
-            /** Id */
-            id: string;
-            /**
-             * Is Favorite
-             * @description True when the image is in favourites.
-             * @default false
-             */
-            is_favorite: boolean;
-            /** Path */
-            path: string;
-            /** Picked Round */
-            picked_round?: number | null;
-            /**
-             * Url
-             * @description Public URL for /photo/{id}/raw
-             * @default
-             */
-            url: string;
-        };
-        /**
-         * DiscoveryPair
-         * @description A two-image pair shown to the user. The user picks one.
-         */
-        DiscoveryPair: {
-            left?: components["schemas"]["DiscoveryImage"] | null;
-            right?: components["schemas"]["DiscoveryImage"] | null;
-            /**
-             * Round
-             * @description 1-based round number for this pair
-             */
-            round: number;
-            /**
-             * Source
-             * @description Where the pair came from: 'random' (seed phase) or 'recommend'.
-             * @default
-             */
-            source: string;
-        };
-        /** DiscoveryPickResponse */
-        DiscoveryPickResponse: {
-            /**
-             * Liked Count
-             * @description Total picks in this session so far.
-             */
-            liked_count: number;
-            /** @description Next pair. None if the session is gone (treat as 'start over'). */
-            pair?: components["schemas"]["DiscoveryPair"] | null;
-            /**
-             * Round
-             * @description Round number the user just completed (1-based).
-             */
-            round: number;
-        };
-        /** DiscoveryStartResponse */
-        DiscoveryStartResponse: {
-            pair: components["schemas"]["DiscoveryPair"];
-            /** Session Id */
-            session_id: string;
         };
         /**
          * DiversityMetadata
@@ -1464,60 +1351,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    discover_pick_api_discover_pick_post: {
-        parameters: {
-            query: {
-                /** @description discovery session id */
-                session_id: string;
-                /** @description the image id the user picked */
-                image_id: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiscoveryPickResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    discover_start_api_discover_start_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiscoveryStartResponse"];
                 };
             };
         };

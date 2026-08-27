@@ -15,6 +15,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from search.diversity_config import Diversity, load_diversity_from_env
+
 logger = logging.getLogger(__name__)
 
 # Load .env from cwd (or any ancestor) on import. Real process env wins.
@@ -130,6 +132,13 @@ def validate_variant_against_stored(env_variant: str, data_dir: str = "./data") 
 # Backward compatibility: these are derived from the variant
 DEFAULT_MODEL: str = get_model_name_for_variant(get_siglip_variant())
 DEFAULT_COLLECTION: str = "images"
+# Round‑14: separate read/write collections so the indexer never
+# contends with the app. The indexer writes to `images_pending`;
+# the app reads from `images`; a background SyncManager moves
+# pending → images in small batches.
+DEFAULT_WRITE_COLLECTION: str = "images_pending"
+SYNC_BATCH_SIZE: int = 100
+SYNC_INTERVAL_SECONDS: float = 5.0
 DEFAULT_RESULT_LIMIT: int = 20
 
 # Mapping from open_clip arch tag → (centroid-file `model` string).
@@ -196,9 +205,15 @@ class Config:
     # In test mode the real model is replaced with a deterministic mock.
     # Set SEARCH_TEST_MODE=1 from conftest to enable.
     test_mode: bool
+    # Round‑14: separate read/write collections so the indexer never
+    # contends with the app. The indexer writes to `qdrant_write_collection`;
+    # the app reads from `qdrant_collection`; a background SyncManager
+    # moves pending → search in small batches.
+    qdrant_write_collection: str = DEFAULT_WRITE_COLLECTION
+    qdrant_sync_batch_size: int = SYNC_BATCH_SIZE
+    qdrant_sync_interval_seconds: float = SYNC_INTERVAL_SECONDS
     # Search Diversity. These knobs apply only to ordinary /api/search and
-    # the SSR search page; Discovery owns a separate implementation and is
-    # intentionally not wired to these values.
+    # the SSR search page.
     diversity_max_candidate_pool_size: int = 5000
     diversity_cache_ttl_seconds: int = 300
     diversity_cache_max_entries: int = 64
@@ -215,13 +230,17 @@ class Config:
     # Defaults to None so existing test fixtures (which construct
     # Config directly) keep working unchanged.
     centroids_dir: str | None = None
-    # Per-request timeout for the discovery rabbithole's recommend()
-    # call. Recommend is heavier than a plain search (Qdrant has to
-    # fetch the positive/negative point vectors, compute their mean,
-    # then run an HNSW search across the whole collection), and the
-    # default 2s used for normal search is too tight over HTTPS
-    # through a reverse proxy on a 270K+ point collection. 10s is
-    # generous; in practice a healthy Qdrant returns in <1s.
+    # Single source of truth for the Diversity knob. Routers resolve
+    # query params against this default via `resolve_diversity()`.
+    diversity: Diversity = field(default_factory=load_diversity_from_env)
+    # Per-request timeout for Qdrant's recommend() API (used by /api/for-you's
+    # centroid blend and any future recommend-style endpoints). Recommend
+    # is heavier than a plain search (Qdrant has to fetch positive/negative
+    # point vectors, compute their mean, then run an HNSW search across
+    # the whole collection), and the default 2s used for normal search is
+    # too tight over HTTPS through a reverse proxy on a 270K+ point
+    # collection. 10s is generous; in practice a healthy Qdrant returns
+    # in <1s.
     recommend_timeout_ms: int = 10000
     # Derived from MODEL_NAME: which `model` tag and dim centroids
     # must have to be loaded. Defaults match the production model
@@ -238,7 +257,7 @@ class Config:
         ).get("ViT-gopt-16-SigLIP2-384").dim,
     )
     index_db_path: str = "./data/images.db"
-    # ----- Operational constants (formerly module-level in app.py / discover.py) -----
+    # ----- Operational constants (formerly module-level in app.py) -----
     # All env-driven so an operator can tune the running service without
     # a code change. Defaults match the prior hardcoded values exactly.
     max_results_total: int = 5000
@@ -252,15 +271,6 @@ class Config:
     default_view: str = "grid"
     # FTS filter cardinality guard (see app.py:_resolve_filename_filter).
     filename_cardinality_guard: float = 0.5
-    # Discovery rabbithole burst timeline (formerly module-level in
-    # discover.py). Tuned empirically against a real dataset; these
-    # are exactly the knobs an operator wants to fiddle with in prod.
-    discover_seed_rounds: int = 10
-    discover_recommend_overfetch: int = 200
-    discover_diversify_lambda: float = 0.5
-    discover_mmr_pool_size: int = 10
-    discover_burst_size: int = 5
-    discover_session_ttl_seconds: int = 1800
     # ----- Dual-store sync (Qdrant ↔ SQLite IndexDB) -----
     # How often the search container re-runs `IndexDB.init_from_qdrant`
     # in the background so the browse cache (SQLite) catches up with
@@ -353,7 +363,10 @@ def load() -> Config:
 
     cfg = Config(
         qdrant_url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
-        qdrant_collection=os.environ.get("QDRANT_COLLECTION", DEFAULT_COLLECTION),
+        qdrant_collection=os.environ.get("QDRANT_READ_COLLECTION", DEFAULT_COLLECTION),
+        qdrant_write_collection=os.environ.get("QDRANT_WRITE_COLLECTION", DEFAULT_WRITE_COLLECTION),
+        qdrant_sync_batch_size=_int("QDRANT_SYNC_BATCH_SIZE", SYNC_BATCH_SIZE),
+        qdrant_sync_interval_seconds=_float("QDRANT_SYNC_INTERVAL_SECONDS", SYNC_INTERVAL_SECONDS),
         qdrant_api_key=os.environ.get("QDRANT_API_KEY") or None,
         model_name=os.environ.get("MODEL_NAME", DEFAULT_MODEL),
         model_revision=os.environ.get("MODEL_REVISION", ""),
@@ -386,12 +399,6 @@ def load() -> Config:
         max_prompt_chars=_int("MAX_PROMPT_CHARS", 512),
         max_prompts_total=_int("MAX_PROMPTS_TOTAL", 16),
         filename_cardinality_guard=_float("FILENAME_CARDINALITY_GUARD", 0.5),
-        discover_seed_rounds=_int("DISCOVER_SEED_ROUNDS", 10),
-        discover_recommend_overfetch=_int("DISCOVER_RECOMMEND_OVERFETCH", 200),
-        discover_diversify_lambda=_float("DISCOVER_DIVERSIFY_LAMBDA", 0.5),
-        discover_mmr_pool_size=_int("DISCOVER_MMR_POOL_SIZE", 10),
-        discover_burst_size=_int("DISCOVER_BURST_SIZE", 5),
-        discover_session_ttl_seconds=_int("DISCOVER_SESSION_TTL_SECONDS", 1800),
         index_db_refresh_interval_seconds=_int("INDEX_DB_REFRESH_INTERVAL_SECONDS", 21600),
         path_liveness_ttl_seconds=_int("PATH_LIVENESS_TTL_SECONDS", 60),
         # Auth removed — no env vars to read here.

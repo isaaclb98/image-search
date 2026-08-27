@@ -49,8 +49,24 @@ class OpenClipEmbedder:
         self._model = None
         self._tokenizer = None
         self._preprocess = None
-        self._device = "cpu"
+        # Round‑15: honour `DEVICE` env var (defaults to cpu). When set
+        # to `cuda` and a GPU is available, the loaded model is moved
+        # to that device so image embedding can actually run on the
+        # RTX 3080 instead of the CPU.
+        import os as _os
+        _dev = _os.environ.get("DEVICE", "cpu").strip().lower()
+        if _dev == "cuda" and __import__("torch").cuda.is_available():
+            self._device = "cuda"
+        else:
+            self._device = "cpu"
         self._lock = __import__("threading").Lock()
+        # Round‑15: batch size used by the pipeline's _embed phase to
+        # stack images into a single GPU forward pass. RTX 3080
+        # (10 GB VRAM) comfortably holds 32 L/16-256 tensors; bump
+        # for larger GPUs, drop for smaller ones.
+        self.embed_batch_size = int(
+            __import__("os").environ.get("EMBED_BATCH_SIZE", "32")
+        )
 
     @property
     def dim(self) -> int:
@@ -70,7 +86,7 @@ class OpenClipEmbedder:
                 f"hf-hub:{self._arch_tag}",
             )
             tokenizer = open_clip.get_tokenizer(f"hf-hub:{self._arch_tag}")
-            self._model = model.eval()
+            self._model = model.eval().to(self._device)
             self._preprocess = preprocess
             self._tokenizer = tokenizer
 
@@ -78,6 +94,7 @@ class OpenClipEmbedder:
         self._ensure_loaded()
         assert self._model is not None and self._tokenizer is not None  # noqa: S101 — type-narrowing after _ensure_loaded
         tokens = self._tokenizer([text])
+        tokens = tokens.to(self._device)
         with torch.no_grad():
             features = self._model.encode_text(tokens)
             features = features / features.norm(dim=-1, keepdim=True)
@@ -93,14 +110,38 @@ class OpenClipEmbedder:
 
         if not isinstance(image, _PILImage.Image):
             raise TypeError(f"expected PIL.Image, got {type(image).__name__}")
-        tensor = self._preprocess(image).unsqueeze(0)
+        tensor = self._preprocess(image).unsqueeze(0).to(self._device)
         with torch.no_grad():
             features = self._model.encode_image(tensor)
             features = features / features.norm(dim=-1, keepdim=True)
         return features[0].tolist()
 
     def embed_images(self, images) -> list[list[float]]:
-        return [self.embed_image(img) for img in images]
+        """Batched image embedding.
+
+        Round‑15: stacks all images into a single forward pass on
+        the GPU. The naive `embed_image` loop calls `encode_image`
+        once per image, which serialises the work and leaves the GPU
+        starved between launches.
+        """
+        self._ensure_loaded()
+        assert self._model is not None and self._preprocess is not None  # noqa: S101
+        from PIL import Image as _PILImage
+
+        if not images:
+            return []
+        bad = [i for i, img in enumerate(images) if not isinstance(img, _PILImage.Image)]
+        if bad:
+            raise TypeError(f"non-PIL images at indices {bad}")
+        # Pre-process every image, then concatenate on the GPU in one
+        # shot. `unsqueeze(0)` on each, then `torch.cat` to (N, C, H, W).
+        import torch as _torch
+        tensors = [self._preprocess(img) for img in images]
+        batch = _torch.stack(tensors, dim=0).to(self._device)
+        with _torch.no_grad():
+            features = self._model.encode_image(batch)
+            features = features / features.norm(dim=-1, keepdim=True)
+        return features.cpu().tolist()
 
 
 def register_into(registry: Registry) -> None:

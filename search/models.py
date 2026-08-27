@@ -136,53 +136,6 @@ class ErrorResponse(BaseModel):
     code: str  # "bad_request" | "qdrant_unreachable" | "qdrant_timeout" | "internal_error" | "not_found" | "conflict"
 
 
-# ---------------- Discovery rabbithole ----------------
-
-
-class DiscoveryImage(BaseModel):
-    """One image in a discovery feed pair or in the liked gallery."""
-    id: str
-    path: str
-    url: str = Field("", description="Public URL for /photo/{id}/raw")
-    blurhash: str | None = Field(
-        None, description="Optional client-decoded low-quality image placeholder."
-    )
-    is_favorite: bool = Field(False, description="True when the image is in favourites.")
-    # When present (gallery only), the round in which the user
-    # picked this image. Pairs in the live feed don't set this.
-    picked_round: int | None = None
-
-
-class DiscoveryPair(BaseModel):
-    """A two-image pair shown to the user. The user picks one."""
-    round: int = Field(..., description="1-based round number for this pair")
-    left: DiscoveryImage | None = None
-    right: DiscoveryImage | None = None
-    source: str = Field(
-        "",
-        description="Where the pair came from: 'random' (seed phase) or 'recommend'.",
-    )
-
-
-class DiscoveryStartResponse(BaseModel):
-    session_id: str
-    pair: DiscoveryPair
-
-
-class DiscoveryPickResponse(BaseModel):
-    pair: DiscoveryPair | None = Field(
-        None,
-        description="Next pair. None if the session is gone (treat as 'start over').",
-    )
-    round: int = Field(..., description="Round number the user just completed (1-based).")
-    liked_count: int = Field(..., description="Total picks in this session so far.")
-
-
-class DiscoveryLikedResponse(BaseModel):
-    session_id: str
-    images: list[DiscoveryImage]
-
-
 # ---------------- Favourites ----------------
 
 
