@@ -3,7 +3,7 @@
    * Likes — built-in non-deletable album. Reads from /api/favorites
    * and renders them in the same grid the user-created albums use.
    *
-   * "Like" / "Unlike" toggles go through SearchGrid's
+   * "Like" / "Unlike" toggles go through PhotoGrid's
    * onToggleFavorite handler (wired below). Unlike removes the
    * photo from the grid.
    */
@@ -12,7 +12,7 @@
     listFavorites,
     unlikePoint
   } from '$lib/api/endpoints';
-  import SearchGrid from '$lib/components/SearchGrid.svelte';
+  import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -75,7 +75,7 @@
   </div>
 {:else}
   <section>
-    <SearchGrid {items} loading={false} hasMore={false} {onToggleFavorite} />
+    <PhotoGrid {items} loading={false} hasMore={false} {onToggleFavorite} />
   </section>
 {/if}
 

@@ -13,7 +13,7 @@
     listDislikes,
     undislikePoint
   } from '$lib/api/endpoints';
-  import SearchGrid from '$lib/components/SearchGrid.svelte';
+  import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -76,7 +76,7 @@
   </div>
 {:else}
   <section>
-    <SearchGrid {items} loading={false} hasMore={false} {onDislike} />
+    <PhotoGrid {items} loading={false} hasMore={false} {onDislike} />
   </section>
 {/if}
 

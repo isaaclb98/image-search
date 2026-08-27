@@ -21,7 +21,7 @@
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import SearchComposer from '$lib/components/SearchComposer.svelte';
-  import SearchGrid from '$lib/components/SearchGrid.svelte';
+  import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import ForYouRow from '$lib/components/ForYouRow.svelte';
   import {
     search,
@@ -256,7 +256,7 @@
     {#if error}
       <div class="error glass">Couldn't load results: {error}</div>
     {:else}
-      <SearchGrid
+      <PhotoGrid
         items={items}
         {loading}
         {hasMore}

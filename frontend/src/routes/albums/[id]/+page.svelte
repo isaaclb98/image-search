@@ -7,7 +7,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { getAlbum } from '$lib/api/endpoints';
-  import SearchGrid from '$lib/components/SearchGrid.svelte';
+  import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
 
   type Member = {
@@ -78,7 +78,7 @@
     {/if}
   </section>
   <section>
-    <SearchGrid items={items()} loading={false} hasMore={false} />
+    <PhotoGrid items={items()} loading={false} hasMore={false} />
   </section>
 {/if}
 

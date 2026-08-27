@@ -1,14 +1,25 @@
 <script lang="ts">
   /**
-   * SearchGrid — virtualized grid of photo tiles.
-   * Used by Search, Random, For-You, Home, Albums, Similar.
+   * PhotoGrid — the single, canonical photo-tile grid.
+   *
+   * Round‑27: unified the old SearchGrid + ForYouRow into one
+   * component. Used by every page that lays out photo tiles:
+   *   - Home page search results
+   *   - Home page "For you" row (via ForYouRow wrapper)
+   *   - /random, /for-you, /search, /similar/[id], /albums/[id]
    *
    *   - Renders tiles via PhotoTile
    *   - Right-click on a tile opens the ImageContextMenu
-   *   - Left-click opens the Lightbox
+   *   - Left-click opens the Lightbox (or runs onPhotoOpen when set)
    *   - Infinite scroll: when the sentinel near the bottom
    *     intersects the viewport, calls onLoadMore
-   *   - Virtual scrolling: only renders visible rows for perf
+   *   - Virtual scrolling: only renders visible rows for perf;
+   *     no‑op when the item count fits in one viewport (the common
+   *     case for the Home For-You row of 20 items).
+   *
+   * All callers share one outer padding token and one gutter token
+   * (--s-4 and --grid-gutter), so the grid renders the same on every
+   * page. No more divergent copy-paste.
    */
   import { onMount, onDestroy } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
@@ -44,6 +55,13 @@
      * the clicked item so the caller can decide what to do.
      */
     onPhotoOpen?: (item: Item) => void;
+    /**
+     * Bindable. When the parent owns the lightbox state (e.g. the
+     * ForYouRow wrapper), bind here so clicks reset the parent's
+     * lightboxIndex instead of an internal one. If unbound, the
+     * component manages its own lightboxIndex internally.
+     */
+    lightboxIndex?: number | null;
   };
 
   let {
@@ -54,7 +72,8 @@
     onToggleFavorite,
     onDislike,
     albums,
-    onPhotoOpen
+    onPhotoOpen,
+    lightboxIndex = $bindable<number | null>(null)
   }: Props = $props();
 
   // Grid config
@@ -63,7 +82,6 @@
   const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
 
   // State
-  let lightboxIndex = $state<number | null>(null);
   let contextMenu = $state<{ x: number; y: number; item: Item } | null>(null);
   // Grid wrapper ref (for width measurement only — not a scroll parent).
   // The body is the scroll context; the virtualizer watches window.

@@ -22,7 +22,7 @@
     unlikePoint,
     dislikePoint
   } from '$lib/api/endpoints';
-  import SearchGrid from '$lib/components/SearchGrid.svelte';
+  import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -179,7 +179,7 @@
 </section>
 
 <section>
-  <SearchGrid
+  <PhotoGrid
     {items}
     {loading}
     {hasMore}
