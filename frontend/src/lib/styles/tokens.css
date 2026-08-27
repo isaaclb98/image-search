@@ -77,7 +77,7 @@
 
   /* layout */
   --topbar-h: 56px;
-  --grid-gutter: 14px;
+  --grid-gutter: 20px;
 
   /* motion */
   --ease-out: cubic-bezier(0.16, 0.84, 0.32, 1);

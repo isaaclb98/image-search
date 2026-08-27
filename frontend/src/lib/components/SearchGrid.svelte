@@ -262,7 +262,7 @@
   .grid-row {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: var(--s-2, 12px);
+    gap: var(--grid-gutter, 20px);
     padding: 0 var(--s-4, 24px);
     box-sizing: border-box;
   }
