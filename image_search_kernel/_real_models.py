@@ -60,6 +60,13 @@ class OpenClipEmbedder:
         else:
             self._device = "cpu"
         self._lock = __import__("threading").Lock()
+        # Round‑15: batch size used by the pipeline's _embed phase to
+        # stack images into a single GPU forward pass. RTX 3080
+        # (10 GB VRAM) comfortably holds 32 L/16-256 tensors; bump
+        # for larger GPUs, drop for smaller ones.
+        self.embed_batch_size = int(
+            __import__("os").environ.get("EMBED_BATCH_SIZE", "32")
+        )
 
     @property
     def dim(self) -> int:
@@ -110,7 +117,31 @@ class OpenClipEmbedder:
         return features[0].tolist()
 
     def embed_images(self, images) -> list[list[float]]:
-        return [self.embed_image(img) for img in images]
+        """Batched image embedding.
+
+        Round‑15: stacks all images into a single forward pass on
+        the GPU. The naive `embed_image` loop calls `encode_image`
+        once per image, which serialises the work and leaves the GPU
+        starved between launches.
+        """
+        self._ensure_loaded()
+        assert self._model is not None and self._preprocess is not None  # noqa: S101
+        from PIL import Image as _PILImage
+
+        if not images:
+            return []
+        bad = [i for i, img in enumerate(images) if not isinstance(img, _PILImage.Image)]
+        if bad:
+            raise TypeError(f"non-PIL images at indices {bad}")
+        # Pre-process every image, then concatenate on the GPU in one
+        # shot. `unsqueeze(0)` on each, then `torch.cat` to (N, C, H, W).
+        import torch as _torch
+        tensors = [self._preprocess(img) for img in images]
+        batch = _torch.stack(tensors, dim=0).to(self._device)
+        with _torch.no_grad():
+            features = self._model.encode_image(batch)
+            features = features / features.norm(dim=-1, keepdim=True)
+        return features.cpu().tolist()
 
 
 def register_into(registry: Registry) -> None:

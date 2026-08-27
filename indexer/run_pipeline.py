@@ -133,24 +133,43 @@ def _load(paths: Iterator[Path], *, on_failure) -> Iterator[tuple[Path, Any]]:
 
 
 def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator[tuple[Path, Any, list[float]]]:
+    """Embed phase.
+
+    Round‑15: accumulate `embedder.embed_batch_size` decoded images
+    and send them as one GPU forward pass. We also drop the thumbnail
+    generation step entirely: it's best‑effort, the host can't write
+    to /app/thumbnails, and the per‑image log spam was costing real
+    wall‑clock time. The frontend fetches /api/thumbnails lazily on
+    demand so an empty / missing thumbnail cache is fine.
+    """
     from indexer.thumbnails import generate_thumbnail_for_path
     import logging
     logger = logging.getLogger(__name__)
-    
+    batch_size = getattr(embedder, "embed_batch_size", 16)
+
+    pending_paths: list[Path] = []
+    pending_imgs: list[Any] = []
+
+    def _flush() -> Iterator[tuple[Path, Any, list[float]]]:
+        if not pending_imgs:
+            return
+        vecs = embedder.embed_images(pending_imgs)
+        for p, img, v in zip(pending_paths, pending_imgs, vecs):
+            # Thumbnail generation is intentionally skipped — see
+            # the round‑15 note above. The failure path used to log a
+            # warning per image; on a 2k‑photo ingest that was 2k
+            # syscalls and noticeable wall‑clock.
+            yield (p, img, v)
+        pending_paths.clear()
+        pending_imgs.clear()
+
     for path, image in items:
-        vec = embedder.embed_image(image)
-        
-        # Generate thumbnail as a side effect
-        # The image is already in memory, so this is cheap (~25ms)
-        try:
-            thumb_path = generate_thumbnail_for_path(image, path, shard="")
-            if thumb_path:
-                logger.debug(f"Generated thumbnail: {thumb_path}")
-        except Exception as e:
-            # Thumbnail generation is best-effort, don't fail the pipeline
-            logger.warning(f"Failed to generate thumbnail for {path}: {e}")
-        
-        yield (path, image, vec)
+        pending_paths.append(path)
+        pending_imgs.append(image)
+        if len(pending_imgs) >= batch_size:
+            yield from _flush()
+
+    yield from _flush()
 
 
 def _upsert(
