@@ -4,12 +4,13 @@
    * Dislikes) are rendered first and cannot be deleted or renamed;
    * user-created albums follow.
    *
-   * The system counts are fetched from /api/favorites and
-   * /api/dislikes — the same tables the Like / Dislike buttons
-   * write to — so the count on the album card always matches
-   * what's actually saved.
+   * Round‑29: every card has a "Search" button that navigates to
+   * the home page with ?centroid=album_{id} (or ?centroid=favourites
+   * / dislikes for the built-ins). The home page renders results
+   * inline using that album's centroid.
    */
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import {
     listAlbums,
     createAlbum,
@@ -17,6 +18,21 @@
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
+
+  // Stable centroid names for the system albums. The backend
+  // registers them as "favourites" and "dislikes" respectively
+  // (see _make_favourites_centroid_spec / _make_dislikes_centroid_spec
+  // in search/app.py). User albums are registered as "album_{id}".
+  const LIKES_CENTROID = 'favourites';
+  const DISLIKES_CENTROID = 'dislikes';
+
+  function searchByAlbum(centroidName: string) {
+    goto(`/?centroid=${encodeURIComponent(centroidName)}`);
+  }
+
+  function searchByUserAlbum(albumId: number) {
+    searchByAlbum(`album_${albumId}`);
+  }
 
   let albums = $state<AlbumSummary[]>([]);
   let loading = $state(true);
@@ -122,14 +138,33 @@
       <span class="count">{likesCount} photo{likesCount === 1 ? '' : 's'}</span>
       <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
     </footer>
+    <!-- Round‑29: search button on every album card. The Likes
+         centroid is named "favourites" on the backend; clicking
+         this takes the user to the home page with results. -->
+    <button
+      class="search-btn"
+      type="button"
+      data-centroid={LIKES_CENTROID}
+      onclick={() => searchByAlbum(LIKES_CENTROID)}
+      disabled={likesCount === 0}
+      aria-label="Search by Likes centroid"
+    >Search</button>
   </article>
   <article class="card glass system-dislike">
     <a class="title" href="/albums/dislikes">− Dislikes</a>
-    <p class="desc">Photos you've marked as not interested. Built-in, always here.</p>
+    <p class="desc">Photos you've disliked. Built-in, always here.</p>
     <footer>
       <span class="count">{dislikesCount} photo{dislikesCount === 1 ? '' : 's'}</span>
       <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
     </footer>
+    <button
+      class="search-btn"
+      type="button"
+      data-centroid={DISLIKES_CENTROID}
+      onclick={() => searchByAlbum(DISLIKES_CENTROID)}
+      disabled={dislikesCount === 0}
+      aria-label="Search by Dislikes centroid"
+    >Search</button>
   </article>
 </section>
 
@@ -153,6 +188,14 @@
             aria-label="Delete {a.name}"
           >Delete</button>
         </footer>
+        <button
+          class="search-btn"
+          type="button"
+          data-centroid="album_{a.id}"
+          onclick={() => searchByUserAlbum(a.id)}
+          disabled={(a.member_count ?? 0) === 0}
+          aria-label="Search by {a.name} centroid"
+        >Search</button>
       </article>
     {/each}
   </div>
@@ -183,6 +226,33 @@
     font-weight: 600;
   }
   .new:hover { background: var(--accent-2); }
+
+  /* Round‑29: search-by-album button. Same shape as the Delete
+     button so the two actions sit side-by-side; the accent colour
+     differentiates "primary action" from "destructive". */
+  .search-btn {
+    margin-top: auto;
+    align-self: stretch;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: var(--r-2);
+    background: transparent;
+    color: var(--fg-1);
+    border: 1px solid var(--glass-edge);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: var(--fs-sm);
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  }
+  .search-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--fg-on-accent);
+    border-color: var(--accent);
+  }
+  .search-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 
   /* System albums — pinned to the top, never deletable. */
   .system {

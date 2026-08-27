@@ -167,4 +167,35 @@ describe('search endpoint URL builder', () => {
     });
     expect(captured.url).toContain('/api/centroids/cool-shots/search');
   });
+
+  // Round‑29: album-card search buttons navigate to /?centroid=…
+  // and the home page calls search({ centroid: 'album_<id>' }) (or
+  // the system name 'favourites' / 'dislikes'). These tests pin
+  // the wire shape so a rename on either side trips a test.
+  it('round‑29: album_X centroid reaches the centroid search endpoint', async () => {
+    const { search } = await import('./endpoints');
+    await search({ centroid: 'album_7' });
+    expect(captured.url).toContain('/api/centroids/album_7/search');
+    // Should NOT carry any of the prompt-derived params; those
+    // would hit /api/search semantics on a centroid query.
+    const url = new URL(captured.url, 'http://test');
+    expect(url.searchParams.getAll('positives')).toEqual([]);
+    expect(url.searchParams.getAll('negatives')).toEqual([]);
+  });
+
+  it('round‑29: favourites / dislikes centroid names resolve', async () => {
+    const { search } = await import('./endpoints');
+    await search({ centroid: 'favourites' });
+    expect(captured.url).toContain('/api/centroids/favourites/search');
+    await search({ centroid: 'dislikes' });
+    expect(captured.url).toContain('/api/centroids/dislikes/search');
+  });
+
+  it('round‑29: no centroid + empty prompts → /api/search (not centroid)', async () => {
+    const { search } = await import('./endpoints');
+    // captured.url is reset by the beforeEach hook on every fetch.
+    await search({ positives: [], negatives: [], filename: '' });
+    expect(captured.url).toContain('/api/search?');
+    expect(captured.url).not.toContain('/api/centroids/');
+  });
 });
