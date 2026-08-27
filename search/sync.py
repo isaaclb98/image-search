@@ -59,12 +59,14 @@ class SyncManager:
         write_collection: str,
         batch_size: int = 100,
         interval_seconds: float = 5.0,
+        index_db: Any = None,   # round‑21: IndexDB instance for SQLite upserts
     ) -> None:
         self.qdrant = qdrant
         self.read_collection = read_collection
         self.write_collection = write_collection
         self.batch_size = batch_size
         self.interval_seconds = interval_seconds
+        self.index_db = index_db
         self.stats = SyncStats()
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
@@ -172,6 +174,18 @@ class SyncManager:
                 points=points,
                 wait=False,  # don't block on fsync — keep the sync snappy
             )
+
+            # Round‑21: also upsert into the local SQLite cache. The
+            # frontend endpoints (`/api/random`, `/api/photo/{id}/raw`,
+            # etc.) read from this DB. Without this, newly indexed
+            # photos only reach qdrant but never show up in the UI.
+            if self.index_db is not None:
+                try:
+                    await asyncio.to_thread(
+                        self.index_db.upsert_records, records,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.exception("sqlite upsert during sync failed")
 
             # Delete from pending by id.
             ids = [r.id for r in records]

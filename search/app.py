@@ -586,13 +586,7 @@ def create_app(
         write_collection=_cfg.qdrant_write_collection,
         batch_size=_cfg.qdrant_sync_batch_size,
         interval_seconds=_cfg.qdrant_sync_interval_seconds,
-    )
-    sync_manager = SyncManager(
-        qdrant=sync_client,
-        read_collection=_cfg.qdrant_collection,
-        write_collection=_cfg.qdrant_write_collection,
-        batch_size=_cfg.qdrant_sync_batch_size,
-        interval_seconds=_cfg.qdrant_sync_interval_seconds,
+        index_db=index_db,  # round‑21: SQLite upsert during sync
     )
     diversity_cache = DiversityResultCache(
         ttl_seconds=_cfg.diversity_cache_ttl_seconds,

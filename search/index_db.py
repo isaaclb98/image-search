@@ -1367,6 +1367,73 @@ class IndexDB:
             "blurhash": str(payload.get("blurhash") or ""),
         }
 
+    def upsert_records(self, points) -> int:
+        """Round‑21: insert or replace rows in the local SQLite cache.
+
+        Used by the SyncManager after moving points from
+        `images_pending` → `images` in qdrant. Without this, the
+        frontend endpoints (`/api/random`, `/api/photo/{id}/raw`,
+        etc.) only see the rows from the previous full rebuild —
+        newly indexed photos never reach the random deck or the
+        thumbnail URL resolver.
+
+        Upsert is keyed on `id`. Existing rows are replaced; new rows
+        are inserted. `indexed_at` defaults to the current timestamp
+        if missing from the payload.
+
+        Returns the number of rows written. Best‑effort: if any
+        row fails, the batch is rolled back and the count is 0.
+        """
+        rows = []
+        now = datetime.now(timezone.utc).isoformat()
+        for p in points:
+            try:
+                payload = p.payload if hasattr(p, "payload") else (p.get("payload") or {})
+                point_id = str(
+                    getattr(p, "id", None) if hasattr(p, "id")
+                    else (p.get("id") or payload.get("id") or "")
+                )
+                path = str(payload.get("path") or "")
+                if not point_id or not path:
+                    continue
+                rows.append({
+                    "id": point_id,
+                    "path": path,
+                    "shard": str(payload.get("shard") or ""),
+                    "collection": str(payload.get("collection") or ""),
+                    "mtime": _optional_int(payload.get("mtime")),
+                    "size": _optional_int(payload.get("size")),
+                    "indexed_at": payload.get("indexed_at") or now,
+                    "blurhash": str(payload.get("blurhash") or ""),
+                })
+            except Exception:  # noqa: BLE001 — skip malformed points
+                continue
+        if not rows:
+            return 0
+        with self._lock:
+            try:
+                self._conn.executemany(
+                    """
+                    INSERT INTO images (id, path, shard, collection, mtime, size, indexed_at, blurhash)
+                    VALUES (:id, :path, :shard, :collection, :mtime, :size, :indexed_at, :blurhash)
+                    ON CONFLICT(id) DO UPDATE SET
+                        path=excluded.path,
+                        shard=excluded.shard,
+                        collection=excluded.collection,
+                        mtime=excluded.mtime,
+                        size=excluded.size,
+                        indexed_at=excluded.indexed_at,
+                        blurhash=excluded.blurhash
+                    """,
+                    rows,
+                )
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                logger.exception("IndexDB.upsert_records failed")
+                return 0
+        return len(rows)
+
     def pick_random_rows(
         self, n: int, collections: list[str] | None = None
     ) -> list[dict]:
