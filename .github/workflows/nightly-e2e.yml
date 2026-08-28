@@ -104,6 +104,11 @@ jobs:
           # (see frontend/playwright.config.ts).
           CI: "true"
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
+          # FRONTEND_DIR tells create_app() where to find the SPA
+          # build (default is /app/static, the production path).
+          # Without this, the dev_server only exposes the API —
+          # playwright tests would 404 on every page load.
+          FRONTEND_DIR: ${{ github.workspace }}/frontend/build
         run: |
           set -euo pipefail
           mkdir -p .nightly-logs
