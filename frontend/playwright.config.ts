@@ -15,26 +15,16 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure'
   },
-  webServer: {
-    // The dev backend is managed externally — by the nightly-e2e
-    // workflow on CI, or by `scripts/dev-qdrant.sh` +
-    // `search.dev_server` locally. Playwright's webServer mode
-    // spawns a process itself, which we don't want; instead we just
-    // connect to whatever's already listening on `url`.
-    //
-    // To make this work without spawning anything, we use `command:
-    // tail -f /dev/null` — a never-exiting process. Combined with
-    // `reuseExistingServer: true`, Playwright probes `url` first,
-    // sees the dev server, and skips waiting on the tail process.
-    // If the dev server is NOT running, the tail process keeps
-    // Playwright alive until the 120s timeout, then fails with a
-    // clear "server didn't come up" error rather than a vague
-    // "webServer exited early".
-    command: 'tail -f /dev/null',
-    url: BASE_URL,
-    reuseExistingServer: true,
-    timeout: 120_000
-  },
+  // The dev backend is managed by the workflow itself (or by
+  // scripts/dev-qdrant.sh + search.dev_server locally) — it
+  // runs as a long-lived process that the runner keeps alive
+  // for the duration of the e2e step. Playwright's webServer
+  // mode would either: (a) try to spawn the server itself
+  // (wrong — the workflow already does), or (b) wait for a
+  // placeholder command to "make the URL available", which
+  // doesn't happen with a no-op `tail -f` even when the URL
+  // is already up. Omit webServer entirely so Playwright just
+  // connects to whatever's listening on `baseURL`.
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
   ]
