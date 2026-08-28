@@ -88,7 +88,7 @@ def build_favorites_router(
     *,
     index_db: Any,
     cfg: Any,
-    invalidate_favourites_centroid: Callable[[], None],
+    invalidate_likes_centroid: Callable[[], None],
     invalidate_for_you_signal: Callable[[], None],
 ) -> APIRouter:
     """Build the favourites router with the live dependencies."""
@@ -109,7 +109,7 @@ def build_favorites_router(
         # search through it reflects the new favourite. Same for
         # for_you's signal cache — every mark moves the user
         # preference vector.
-        invalidate_favourites_centroid()
+        invalidate_likes_centroid()
         invalidate_for_you_signal()
         row = await asyncio.to_thread(index_db.get_by_id, point_id)
         return FavoriteToggleResponse(
@@ -126,7 +126,7 @@ def build_favorites_router(
         # Same invalidation as mark_favorite — every unmark moves the
         # centroid, and we don't try to detect whether it moved enough
         # to matter. Cheap, simple, correct.
-        invalidate_favourites_centroid()
+        invalidate_likes_centroid()
         invalidate_for_you_signal()
 
     @router.get("/api/favorites")

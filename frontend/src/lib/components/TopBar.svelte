@@ -4,12 +4,27 @@
    * + a horizontal row of tabs. No floating pill — sits as a
    * real document-flow strip with whitespace separating it from
    * content.
+   *
+   * Round‑29c: the Home tab uses `location.assign('/')` instead
+   * of an anchor `href="/"` so clicking it from
+   * `/?positives=…&diversity=…` actually navigates back to a
+   * clean home (clears query string, resets composer state).
+   *
+   * A plain `<a href="/">` on the same pathname is a no-op for
+   * the browser + SvelteKit — the URL doesn't change because
+   * the path is already `/`, so the user stays on the search
+   * results page. `goto('/')` from `$app/navigation` has the
+   * same problem: it skips navigation when the URL is identical
+   * to the current page.
+   *
+   * `location.assign('/')` always triggers a full page load,
+   * which is exactly what we want for "reset to default home".
    */
   import { page } from '$app/stores';
 
-  type Tab = { href: string; label: string };
+  type Tab = { href: string; label: string; reset?: boolean };
   const tabs: Tab[] = [
-    { href: '/', label: 'Home' },
+    { href: '/', label: 'Home', reset: true },
     { href: '/random', label: 'Random' },
     { href: '/for-you', label: 'For You' },
     { href: '/albums', label: 'Albums' }
@@ -19,6 +34,20 @@
   function isActive(href: string, path: string): boolean {
     if (href === '/') return path === '/';
     return path === href || path.startsWith(href + '/');
+  }
+  function onTabClick(t: Tab, e: MouseEvent) {
+    // Modifier‑click (cmd / ctrl / shift) should still open in
+    // a new tab / window — let the browser handle it.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    // "Reset" tabs (Home) always do a full page load so the URL
+    // and the composer state get cleared. Other tabs use plain
+    // anchor navigation.
+    if (t.reset) {
+      e.preventDefault();
+      location.assign(t.href);
+    }
   }
 </script>
 
@@ -34,6 +63,7 @@
           class="tab"
           class:active={isActive(t.href, currentPath)}
           href={t.href}
+          onclick={(e) => onTabClick(t, e)}
           aria-current={isActive(t.href, currentPath) ? 'page' : undefined}
         >{t.label}</a>
       {/each}

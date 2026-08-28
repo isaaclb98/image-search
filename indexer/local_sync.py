@@ -336,8 +336,10 @@ def main(argv=None):
             loaded = []
             for p, _reason in to_embed:
                 try:
-                    img = load(p)
-                    loaded.append((p, img))
+                    # Round‑30: load() now returns
+                    # `(letterboxed_img, source_w, source_h)`.
+                    img, source_w, source_h = load(p)
+                    loaded.append((p, img, source_w, source_h))
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("load error %s: %s", p, exc)
                     total_errors += 1
@@ -350,24 +352,41 @@ def main(argv=None):
 
                     encoder = VisionEncoder(arch=args.model, device=args.device)
 
-                vecs = encoder.embed_batch([letterbox_resize(img) for _, img in loaded])
+                vecs = encoder.embed_batch([letterbox_resize(img) for (_, img, _sw, _sh) in loaded])
             except Exception:
                 logger.exception("embed failed")
                 total_errors += len(loaded)
                 continue
 
             items = []
-            for (path, img), vec in zip(loaded, vecs, strict=False):
+            for (path, img, _source_w, _source_h), vec in zip(
+                loaded, vecs, strict=False,
+            ):
                 # Generate thumbnail (best-effort, non-fatal)
                 try:
-                    point_id = upsert.id_for(path, "")
+                    upsert.id_for(path, "")
                     thumb_path = generate_thumbnail_for_path(img, path, "")
                     if thumb_path:
                         logger.debug(f"Generated thumbnail: {thumb_path}")
-                except Exception as e:
+                except (OSError, ValueError, RuntimeError) as e:
+                    # Thumbnail generation can fail on corrupt JPEGs,
+                    # PIL decode errors, or filesystem issues. The
+                    # caller wants the index to continue regardless;
+                    # narrow to the realistic failure modes rather
+                    # than a blind `Exception` catch.
                     logger.warning(f"Failed to generate thumbnail for {path}: {e}")
-                
+
                 canon = canonical_payload_path(path, args.prefix, args.base)
+                # Round‑30: local_sync's full-sweep backfill still
+                # uses the simple `build_payload` signature — dims
+                # would require an extra PIL.Image.read() per file.
+                # Skip source dims here; the regular ingest pipeline
+                # populates them, and any photo indexed via
+                # local_sync will be re-embedded by the next
+                # run_pipeline_source call (which DOES populate
+                # dims). Trade-off: photos that were only ever
+                # touched by local_sync show "—" on the photo
+                # page until a regular ingest re-runs.
                 payload = upsert.build_payload(path, "", args.model, "", src_name)
                 payload["path"] = canon
                 items.append((upsert.id_for(path, ""), vec, payload))

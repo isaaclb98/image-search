@@ -66,7 +66,7 @@ def _build(fake_index_db, fake_qdrant, invalidate, *, state=None, hits=None):
         top_k_default=20,
         top_k_max=200,
         query_timeout_ms=2000,
-        nas_images_base="/tmp",
+        nas_images_base="/tmp",  # noqa: S108 — placeholder for router build, not a tempfile
         path_prefix="",
         web_ui_url="http://localhost:8000",
         log_level="WARNING",
@@ -77,7 +77,7 @@ def _build(fake_index_db, fake_qdrant, invalidate, *, state=None, hits=None):
         index_db=fake_index_db,
         qdrant=fake_qdrant,
         cfg=cfg,
-        invalidate_favourites_centroid=invalidate,
+        invalidate_likes_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
     app = FastAPI()
@@ -176,7 +176,7 @@ def test_feed_clamps_limit_to_100(fake_index_db, fake_qdrant, invalidate, fake_s
         top_k_default=20,
         top_k_max=200,
         query_timeout_ms=2000,
-        nas_images_base="/tmp",
+        nas_images_base="/tmp",  # noqa: S108 — placeholder for router build, not a tempfile
         path_prefix="",
         web_ui_url="http://localhost:8000",
         log_level="WARNING",
@@ -186,7 +186,7 @@ def test_feed_clamps_limit_to_100(fake_index_db, fake_qdrant, invalidate, fake_s
         index_db=fake_index_db,
         qdrant=fake_qdrant,
         cfg=cfg,
-        invalidate_favourites_centroid=invalidate,
+        invalidate_likes_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
     app = FastAPI()

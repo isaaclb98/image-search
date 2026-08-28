@@ -116,7 +116,7 @@ def _coerce_view(raw: str | None) -> str:
 class _RandomSession:
     """One shuffled walk through the library."""
 
-    __slots__ = ("ids", "created_at", "ttl_s")
+    __slots__ = ("created_at", "ids", "ttl_s")
 
     def __init__(self, ids: list[str], ttl_s: float):
         self.ids = ids

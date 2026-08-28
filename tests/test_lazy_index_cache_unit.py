@@ -7,11 +7,11 @@ Tests use a mock IndexDB to avoid the full DB setup.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-import pytest
 
 from search.lazy_index_cache import LazyIndexCache
+import contextlib
 
 
 # ----- Constructor -----
@@ -22,7 +22,7 @@ class TestLazyIndexCacheConstruction:
     def test_construction_does_not_hydrate(self):
         """Construction must not call the underlying DB."""
         mock_db = MagicMock()
-        cache = LazyIndexCache(mock_db)
+        LazyIndexCache(mock_db)
         # DB was never queried
         mock_db.refresh.assert_not_called()
         mock_db.read.assert_not_called()
@@ -107,10 +107,8 @@ class TestScheduleHydrate:
             # Cancel immediately to avoid actual hydration
             if task is not None and not task.done():
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
 
         asyncio.run(runner())
 
@@ -126,10 +124,8 @@ class TestScheduleHydrate:
             for t in (t1, t2):
                 if t is not None and not t.done():
                     t.cancel()
-                    try:
+                    with contextlib.suppress(asyncio.CancelledError):
                         await t
-                    except asyncio.CancelledError:
-                        pass
 
         asyncio.run(runner())
 
@@ -163,7 +159,7 @@ class TestLazyIndexCacheWithMockDb:
                 self.refresh_called = True
 
         fake = FakeIndexDB()
-        cache = LazyIndexCache(fake)
+        LazyIndexCache(fake)
         # Construction shouldn't trigger refresh
         assert fake.refresh_called is False
 

@@ -78,10 +78,13 @@ def load_stored_variant(data_dir: str = "./data") -> str | None:
         return None
     try:
         import json
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = json.load(f)
             return data.get("variant")
-    except Exception as e:
+    except (OSError, ValueError) as e:
+        # JSON decode errors are ValueError subclasses; file
+        # permission/missing errors are OSError. Anything else is a
+        # real bug — let it propagate.
         logger.warning("Failed to load variant config from %s: %s", config_path, e)
         return None
 
@@ -336,10 +339,7 @@ def load() -> Config:
         index_db_path = "./data/images.db"
     
     # Determine data directory from index_db_path
-    if index_db_path == ":memory:":
-        data_dir = "./data"
-    else:
-        data_dir = str(Path(index_db_path).parent)
+    data_dir = "./data" if index_db_path == ":memory:" else str(Path(index_db_path).parent)
     
     # Validate variant against stored config (raises on mismatch)
     validate_variant_against_stored(variant, data_dir)

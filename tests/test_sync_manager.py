@@ -7,7 +7,6 @@ the SyncManager logic in isolation.
 import asyncio
 from unittest.mock import MagicMock
 
-import pytest
 
 from search.sync import SyncManager
 
@@ -28,12 +27,12 @@ class FakeQdrant:
 
     def get_collection(self, name):
         if name not in self.collections:
-            raise Exception(f"Not found: collection '{name}' not found")
+            raise KeyError(f"collection '{name}' not found")
         return MagicMock()
 
     def scroll(self, collection_name, limit, offset, with_payload, with_vectors):
         if collection_name not in self.collections:
-            raise Exception("Not found")
+            raise KeyError(f"collection '{collection_name}' not found")
         if collection_name != "pending":
             return [], None
         # paginate by `offset`

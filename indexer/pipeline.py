@@ -60,11 +60,17 @@ class ScanPhase(Protocol):
 
 @runtime_checkable
 class LoadPhase(Protocol):
-    """Convert each scanned `Path` into `(Path, Tensor)` pairs.
+    """Convert each scanned `Path` into `(Path, Tensor, sw, sh)` quads.
 
     `Tensor` is whatever the registered `Embedder` consumes —
     typically a PIL.Image for the open_clip path, or a preprocessed
     CHW float list for ONNX. The pipeline doesn't constrain it.
+
+    `source_w` / `source_h` are the original pixel dimensions of the
+    file on disk (after EXIF transpose, before any letterbox). They
+    propagate through the queue so the upsert phase can persist them
+    in the payload. The photo page needs the source size, not the
+    embedder's 256x256 input size.
 
     `on_failure` is invoked for each path that the load phase cannot
     handle (corrupt file, permission error, etc.). The phase must
@@ -76,20 +82,18 @@ class LoadPhase(Protocol):
         paths: Iterator[Path],
         *,
         on_failure: Callable[[Path, LoaderErrorLike], None],
-    ) -> Iterator[tuple[Path, Any]]: ...
+    ) -> Iterator[tuple[Path, Any, int | None, int | None]]: ...
 
 
 @runtime_checkable
 class EmbedPhase(Protocol):
-    """Run the registered embedder on each `(Path, Tensor)` item."""
-
+    """Run the registered embedder on each `(Path, Tensor, sw, sh)` item."""
     def __call__(
         self,
-        items: Iterator[tuple[Path, Any]],
+        items: Iterator[tuple[Path, Any, int | None, int | None]],
         *,
         embedder: Embedder,
     ) -> Iterator[tuple[Path, Any, list[float]]]: ...
-
 
 @runtime_checkable
 class UpsertPhase(Protocol):
@@ -295,8 +299,8 @@ class IndexerPipeline:
         # embed; embed_q holds embedded vectors waiting for upsert.
         # Cap is ~2× the consumer's batch size so producers can stay
         # one batch ahead without unbounded memory growth.
-        load_q: "_queue.Queue" = _queue.Queue(maxsize=embed_batch * 2)
-        embed_q: "_queue.Queue" = _queue.Queue(maxsize=config.batch_size * 4)
+        load_q: _queue.Queue = _queue.Queue(maxsize=embed_batch * 2)
+        embed_q: _queue.Queue = _queue.Queue(maxsize=config.batch_size * 4)
 
         # -------- Producer 1: scan + load --------
         def _scan_load_producer() -> None:
@@ -310,10 +314,14 @@ class IndexerPipeline:
                 paths_iter, on_failure=_on_load_failure,
             )
             try:
-                for p, img in loaded_iter:
+                # Round‑30: `load()` now returns
+                # `(letterboxed_img, source_w, source_h)` — propagate
+                # the source dims through the queue so the upsert
+                # phase can persist them in the payload.
+                for p, img, source_w, source_h in loaded_iter:
                     if self._cancel.is_set():
                         return
-                    load_q.put((p, img))  # backpressure
+                    load_q.put((p, img, source_w, source_h))  # backpressure
             finally:
                 load_q.put(_SENTINEL)
 
@@ -321,6 +329,7 @@ class IndexerPipeline:
         def _embed_producer() -> None:
             pending_paths: list[Path] = []
             pending_imgs: list = []
+            pending_dims: list[tuple[int | None, int | None]] = []
 
             def _flush() -> None:
                 if not pending_imgs:
@@ -336,10 +345,11 @@ class IndexerPipeline:
                     pending_paths.clear()
                     pending_imgs.clear()
                     return
-                for p, img, v in zip(pending_paths, pending_imgs, vecs):
-                    embed_q.put((p, img, v))  # blocks if embed_q is full
+                for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims, strict=False):
+                    embed_q.put((p, img, v, dim[0], dim[1]))  # blocks if embed_q is full
                 pending_paths.clear()
                 pending_imgs.clear()
+                pending_dims.clear()
 
             try:
                 while True:
@@ -347,9 +357,10 @@ class IndexerPipeline:
                     if item is _SENTINEL:
                         _flush()  # drain any partial batch
                         return
-                    p, img = item
+                    p, img, source_w, source_h = item
                     pending_paths.append(p)
                     pending_imgs.append(img)
+                    pending_dims.append((source_w, source_h))
                     if len(pending_imgs) >= embed_batch:
                         _flush()
             finally:
@@ -358,6 +369,7 @@ class IndexerPipeline:
         # -------- Producer 3: upsert (batches) --------
         def _upsert_consumer() -> None:
             from qdrant_client.http import models as _qmodels
+
             from indexer.upsert import build_payload, id_for
 
             batch: list = []
@@ -399,7 +411,7 @@ class IndexerPipeline:
                         if batch:
                             _flush()
                         return
-                    p, img, vec = item
+                    p, img, vec, source_w, source_h = item
                     try:
                         from indexer.blurhash import compute_blurhash as _bh
                         from indexer.fingerprints import compute_fingerprints as _fp
@@ -422,6 +434,10 @@ class IndexerPipeline:
                             model_dim=embedder_dim,
                             blurhash=_blurhash,
                             fingerprints=_fingerprints,
+                            # Round‑30: source dims (NOT the
+                            # letterboxed 256×256 input size).
+                            width=source_w,
+                            height=source_h,
                         )
                         payload["model_name"] = _resolve_active_model_name()
                         payload["model_revision"] = _resolve_active_model_revision()

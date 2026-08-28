@@ -1,0 +1,131 @@
+# .github/workflows/ci.yml
+#
+# Single CI workflow for image-search. Replaces the older
+# dev-build.yml (4 jobs, parallel backend/frontend, path filters)
+# with one job that runs the full test + lint suite.
+#
+# Why one job, not parallel:
+#   Backend is ~30s, frontend is ~30s. Parallel saves ~30s of wall
+#   time but doubles workflow complexity. For a personal repo the
+#   simpler shape wins.
+#
+# Why full lint, not --changed:
+#   `--changed` is git-aware and skips the 58 baseline errors that
+#   pre-date the per-file-ignore era. `ruff check .` runs in <1s
+#   on a clean tree and guarantees new debt can't land via a fast
+#   follow-up commit.
+#
+# Why this trigger set:
+#   - push:dev catches every commit on the default branch — your
+#     actual workflow per memory ("commit freely on dev").
+#   - push:main validates post-merge state (no test rot can sneak
+#     in via a fast follow-up merge to main).
+#   - pull_request:main covers the PR workflow when you open one.
+#   - workflow_dispatch for manual re-runs.
+#
+# Image builds go in image-build.yml. E2E (dispatch-only) in
+# nightly-e2e.yml. This file is just the fast inner loop.
+
+name: ci
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch — saves runner-minutes
+# when you push several commits in quick succession. Standard GHA
+# pattern; safe because each run sees the latest commit anyway.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Backend + frontend tests + full lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-local-prefix: .venv
+          python-version: "3.12"
+
+      - name: Sync Python deps
+        # uv sync --extra dev creates .venv and installs the [dev]
+        # extra (pytest, ruff, mypy, pytest-xdist, pytest-cov) in
+        # one resolver pass. Cached on pyproject.toml + uv.lock.
+        run: uv sync --extra dev
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      # ---------------- Backend ----------------
+      - name: Lint (ruff, full tree)
+        # Full tree — not --changed. Catches new debt immediately;
+        # baseline is 0 (post-ruff-amnesty) so this is just
+        # insurance against future regressions. ~1s on a clean tree.
+        run: uv run ruff check .
+
+      - name: Type check (mypy, kernel package only)
+        # image_search_kernel is the shared package imported by
+        # both search/ and indexer/. Strict-mode mypy there catches
+        # API contract drift before the runtime does.
+        run: uv run mypy image_search_kernel/
+
+      - name: Run pytest
+        # In-memory Qdrant fixture handles the side store so we
+        # don't need a service container. -n auto detects worker
+        # count on the runner (typically 2-4 on GitHub-hosted
+        # ubuntu-latest).
+        #
+        # --cov-fail-under=70 gates CI on coverage drift.
+        # --cov-report=xml produces coverage.xml for the artifact
+        # upload below; --cov-report=term-missing keeps the live
+        # log readable.
+        # --junitxml feeds the GHA Tests tab.
+        env:
+          QDRANT_URL: "http://localhost:6333"
+          SEARCH_TEST_MODE: "1"
+          LOG_LEVEL: "WARNING"
+        run: |
+          uv run pytest tests/ -q -n auto --tb=short \
+            --cov --cov-fail-under=70 \
+            --cov-report=xml --cov-report=term-missing \
+            --junitxml=pytest-junit.xml
+
+      # ---------------- Frontend ----------------
+      - name: svelte-check (type + a11y)
+        working-directory: frontend
+        run: npm run check
+
+      - name: Vitest (unit + contract)
+        working-directory: frontend
+        run: npm run test:unit
+
+      # ---------------- Artifacts ----------------
+      - name: Upload coverage report
+        # coverage.xml is browseable on raw GitHub and importable
+        # into Codecov/Coveralls if you ever want a coverage
+        # badge. 30-day retention.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 30

@@ -40,7 +40,7 @@ def build_for_you_router(
     index_db: Any,
     qdrant: Any,
     cfg: Any,
-    invalidate_favourites_centroid: Callable[[], None],
+    invalidate_likes_centroid: Callable[[], None],
     invalidate_for_you_signal: Callable[[], None],
 ) -> APIRouter:
     """Build the for-you router with the live dependencies.
@@ -50,7 +50,6 @@ def build_for_you_router(
     resolves the same way.
     """
     from search.for_you import build_state, rank
-    from search.diversity_config import Diversity
 
     _MODEL_NAME = cfg.model_name
     _DEFAULT_DIVERSITY = cfg.diversity
@@ -135,7 +134,7 @@ def build_for_you_router(
                 except (ConnectionError, OSError) as e:
                     logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
                     raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                         raise HTTPException(status_code=504, detail="Qdrant timeout") from e
                     logger.warning("Qdrant error for /api/for-you/feed: %s", e)
@@ -161,7 +160,7 @@ def build_for_you_router(
                 except (ConnectionError, OSError) as e:
                     logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
                     raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                         raise HTTPException(status_code=504, detail="Qdrant timeout") from e
                     logger.warning("Qdrant error for /api/for-you/feed: %s", e)
@@ -186,7 +185,7 @@ def build_for_you_router(
             except (ConnectionError, OSError) as e:
                 logger.warning("Qdrant unreachable for /api/for-you/feed: %s", e)
                 raise HTTPException(status_code=502, detail="Qdrant unreachable") from e
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                     raise HTTPException(status_code=504, detail="Qdrant timeout") from e
                 logger.warning("Qdrant error for /api/for-you/feed: %s", e)
@@ -226,6 +225,6 @@ def build_for_you_router(
         """Invalidate the cached user signal + favourites centroid."""
         await asyncio.to_thread(index_db.reset_feedback)
         invalidate_for_you_signal()
-        invalidate_favourites_centroid()
+        invalidate_likes_centroid()
 
     return router

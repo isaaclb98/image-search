@@ -51,7 +51,7 @@ def _build(fake_index_db, fake_cfg, invalidate):
     router = build_dislikes_router(
         index_db=fake_index_db,
         cfg=fake_cfg,
-        invalidate_favourites_centroid=invalidate,
+        invalidate_likes_centroid=invalidate,
         invalidate_for_you_signal=invalidate,
     )
     app = FastAPI()

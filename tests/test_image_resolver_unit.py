@@ -248,7 +248,7 @@ class TestResolveLocalErrors:
 
         monkeypatch.setattr(Path, "exists", raising_exists)
         # Should not crash
-        result = resolve_local("/some/path.jpg", base="/tmp")
+        result = resolve_local("/some/path.jpg", base="/tmp")  # noqa: S108 — fake path for exception-injection test, no tempfile created
         assert result is None
 
 
@@ -278,7 +278,7 @@ class TestGuessContentType:
 
     def test_directory_path_falls_back_to_octet_stream(self):
         """guess_type('foo') for a directory with no extension."""
-        assert guess_content_type(Path("/tmp")) == "application/octet-stream"
+        assert guess_content_type(Path("/tmp")) == "application/octet-stream"  # noqa: S108 — fake path for MIME-type test
 
     def test_jfif_extension_works(self):
         """JFIF is a JPEG variant — explicit mapping in fallback dict."""

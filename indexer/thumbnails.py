@@ -60,7 +60,11 @@ def compute_thumbnail(image: Image.Image, point_id: str) -> Path | None:
         thumb.save(out_path, "WEBP", quality=THUMBNAIL_QUALITY, method=4)
 
         return out_path
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
+        # Thumbnail decode/save can fail on corrupt images,
+        # missing files, or PIL/encoder issues. The caller expects
+        # None on any failure (no payload = no placeholder), but
+        # narrow to realistic failure modes rather than catch-all.
         logger.warning("Failed to generate thumbnail for %s: %s", point_id, e)
         return None
 

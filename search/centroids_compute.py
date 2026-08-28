@@ -117,69 +117,49 @@ def calibrate_near_dup_threshold(seed_vectors: list[list[float]] | None) -> floa
     """Return the cosine-distance cutoff below which a candidate
     is treated as a near-duplicate of the seed set.
 
-    Calibration: take the 1st-percentile of the seed set's own
-    pairwise cosine distances. The seed set's pairwise distances
-    are the empirical "how close do two versions of the same
-    photo get" scale for THIS centroid — re-encodes, crops,
-    recompressions of the seed photos will have distances
-    comparable to that scale (often tighter), and genuinely
-    distinct photos will sit further out. Setting the cutoff at
-    the 1st percentile is conservative: it only drops candidates
-    tighter than the tightest typical seed-seed pair, so we
-    accept some false negatives in exchange for very few false
-    positives (i.e. very few "distinct" photos wrongly excluded).
+    Round‑29 fix: use a fixed conservative threshold of
+    `_MAX_NEAR_DUP_THRESHOLD` (0.02). The previous implementation
+    derived the cutoff from the seed set's own pairwise distance
+    distribution, which broke in two opposite ways:
+
+    - Small seed sets (1‑9 photos): the 1st percentile of the
+      pairwise distances picked the tightest pair, producing a
+      cutoff of ~0.12 ("moderately similar", not "near‑duplicate")
+      that filtered almost every candidate, leaving the user
+      with an empty results page.
+
+    - Larger seed sets (16 photos of favourites): the median
+      pairwise distance was 0.14, so any candidate close to the
+      favourites cluster (which is the *entire point* of the
+      favourites search — the user wants photos similar to their
+      favourites) was incorrectly classified as "near‑duplicate"
+      and dropped.
+
+    The right semantic is "near‑duplicate of an actual seed photo"
+    — meaning an exact or near‑exact re‑encode of the same source.
+    0.02 in cosine distance on SigLIP2 embeddings is roughly that:
+    a JPEG re‑encode typically moves a vector by ~0.02–0.05, while
+    semantically similar photos (same subject, different shot) are
+    0.1+ apart.
 
     Special cases:
-      - 0 seeds or 1 seed: there's no intra-cluster scale to
-        calibrate against. Return 0.0 (matches everything within
-        the seed cluster — which is just the seed itself).
-      - All seeds identical (zero pairwise distance): the
-        percentile is 0.0, same as above.
-      - Non-unit-length inputs are renormalised here so a
-        non-unit seed vector can't bias the calibration upward
-        via dot-product collapse.
+      - 0 seeds or 1 seed: there's no seed set to be near‑a‑dup
+        of. Return 0.0 (no-op since filter_near_duplicates also
+        short-circuits to "keep all" for empty seed sets).
 
-    Returned value is on the cosine-distance scale
-    [0, 2] (we operate on unit-normalised embeddings, so the
-    practical range is [0, 1]).
+    Returned value is on the cosine-distance scale [0, 2].
     """
-    if not seed_vectors or len(seed_vectors) < 2:
+    if not seed_vectors or len(seed_vectors) < 1:
         return 0.0
-    seeds = np.asarray(seed_vectors, dtype=np.float32)
-    if seeds.ndim != 2 or seeds.shape[0] < 2:
-        return 0.0
-    # Renormalise defensively. Qdrant stores unit-norm vectors
-    # so this is a no-op in practice, but a test fixture or a
-    # future indexer change shouldn't be able to silently break
-    # the calibration.
-    norms = np.linalg.norm(seeds, axis=1, keepdims=True)
-    nonzero = norms > 0
-    if not np.all(nonzero):
-        # Drop any zero-length rows; they would NaN out the
-        # calibration.
-        seeds = seeds[nonzero[:, 0]]
-    if seeds.shape[0] < 2:
-        return 0.0
-    seeds = seeds / np.linalg.norm(seeds, axis=1, keepdims=True)
-    # Pairwise cosine similarities → distances.
-    # sim[i, j] = seeds[i] · seeds[j] (unit vectors, so == cos).
-    sim = seeds @ seeds.T
-    # We only care about off-diagonal pairs. Take the upper
-    # triangle (i < j) and convert to cosine distance.
-    iu = np.triu_indices(seeds.shape[0], k=1)
-    pairwise_sim = sim[iu]
-    pairwise_dist = 1.0 - pairwise_sim
-    if pairwise_dist.size == 0:
-        return 0.0
-    # 1st percentile of intra-seed distances = the cutoff.
-    # `method='lower'` keeps the result an actual observed
-    # distance (rather than interpolating between two observed
-    # values, which could nudge the cutoff slightly below the
-    # true tightest pair and start dropping genuinely distinct
-    # neighbours). numpy 2.x renamed `interpolation` -> `method`;
-    # we use the new name and let the older `interpolation`
-    # keyword age out.
-    return float(np.percentile(pairwise_dist, 1, method="lower"))
+    return _MAX_NEAR_DUP_THRESHOLD
+
+
+# Round‑29: fixed conservative threshold for
+# `calibrate_near_dup_threshold`. 0.02 in cosine distance on
+# SigLIP2 means "essentially identical re-encoding". Larger values
+# (0.1+) catch semantically similar photos, which is the OPPOSITE
+# of what the user wants on a favourites / album search.
+_MAX_NEAR_DUP_THRESHOLD = 0.02
 
 
 def filter_near_duplicates(

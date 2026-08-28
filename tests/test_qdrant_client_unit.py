@@ -7,7 +7,6 @@ which works as a drop-in for local verification.
 """
 from __future__ import annotations
 
-from typing import Any
 
 import uuid
 

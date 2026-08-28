@@ -68,7 +68,7 @@ class TestUtcNow:
     def test_ends_with_utc_offset(self):
         """Timezone-aware ISO format ends with '+00:00' or 'Z'."""
         ts = _utc_now()
-        assert ts.endswith("+00:00") or ts.endswith("Z")
+        assert ts.endswith(("+00:00", "Z"))
 
 
 # ----- ensure_sync_collections -----
@@ -100,8 +100,10 @@ class TestEnsureSyncCollections:
 
     def test_creates_with_correct_dim(self, in_memory_qdrant):
         """The images collection is created with the active model's dim."""
-        from image_search_kernel.registry import get_active_model_spec
-        dim = get_active_model_spec().dim
+        # `ensure_sync_collections` reads the active model from the
+        # registry internally; the assertion below confirms the
+        # resulting collection was created (in-memory Qdrant reports
+        # the dim on `get_collection().config`).
         ensure_sync_collections(in_memory_qdrant, images_collection="images")
         info = in_memory_qdrant.get_collection("images")
         # In-memory Qdrant may report different shapes for local vs remote
@@ -179,7 +181,6 @@ class TestPendingCount:
     def test_returns_count_after_inserts(self, in_memory_qdrant):
         ensure_sync_collections(in_memory_qdrant)
         # Insert some points into _pending
-        from qdrant_client.http import models as qmodels
         points = [
             qmodels.PointStruct(
                 id=str(uuid.uuid4()),

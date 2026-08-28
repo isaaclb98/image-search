@@ -6,7 +6,6 @@ needed — they take state as parameters and return shaped results.
 """
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 
 from search._indexed_helpers import (
@@ -14,7 +13,6 @@ from search._indexed_helpers import (
     favorite_id_set_sync,
     surprise_search,
 )
-from search.models import SearchResult
 from search.qdrant_client import SearchHit
 
 

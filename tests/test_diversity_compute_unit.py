@@ -396,8 +396,9 @@ class TestDiversityDataclasses:
 
     def test_diversity_stats_is_frozen(self):
         """Frozen dataclass → can't mutate fields."""
+        from dataclasses import FrozenInstanceError
         stats = DiversityStats()
-        with pytest.raises(Exception):  # FrozenInstanceError or AttributeError
+        with pytest.raises((FrozenInstanceError, AttributeError)):
             stats.mode = "changed"
 
 

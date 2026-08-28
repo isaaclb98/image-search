@@ -167,4 +167,52 @@ describe('search endpoint URL builder', () => {
     });
     expect(captured.url).toContain('/api/centroids/cool-shots/search');
   });
+
+  // Round‑29: album-card search buttons navigate to /?centroid=…
+  // and the home page calls search({ centroid: 'album:<id>' }) (or
+  // the system name 'likes' / 'dislikes'). These tests pin the
+  // wire shape so a rename on either side trips a test.
+  //
+  // The backend registers user-album centroids under
+  // `album:<id>` (colon) — see `_album_centroid_name` in
+  // search/app.py. Using `_` would 404 the search.
+  it('round‑29: album:<id> centroid reaches the centroid search endpoint', async () => {
+    const { search } = await import('./endpoints');
+    await search({ centroid: 'album:7' });
+    // The colon is URL-encoded by encodeURIComponent (album%3A7)
+    // — that's fine; qdrant + FastAPI decode it back. The wire
+    // shape must use a colon, NOT an underscore (which would
+    // 404 because the backend key is `album:<id>`).
+    expect(captured.url).toContain('/api/centroids/');
+    expect(captured.url).toMatch(/album(?:%3A|:)7/);
+    expect(captured.url).not.toContain('album_7');
+    // Should NOT carry any of the prompt-derived params; those
+    // would hit /api/search semantics on a centroid query.
+    const url = new URL(captured.url, 'http://test');
+    expect(url.searchParams.getAll('positives')).toEqual([]);
+    expect(url.searchParams.getAll('negatives')).toEqual([]);
+  });
+
+  it('round‑29b: likes / dislikes centroid names resolve', async () => {
+    const { search } = await import('./endpoints');
+    await search({ centroid: 'likes' });
+    expect(captured.url).toContain('/api/centroids/likes/search');
+    await search({ centroid: 'dislikes' });
+    expect(captured.url).toContain('/api/centroids/dislikes/search');
+  });
+
+  it('round‑29b: legacy favourites centroid name still resolves', async () => {
+    // Back-compat: old saved searches / shared links still work.
+    const { search } = await import('./endpoints');
+    await search({ centroid: 'favourites' });
+    expect(captured.url).toContain('/api/centroids/favourites/search');
+  });
+
+  it('round‑29: no centroid + empty prompts → /api/search (not centroid)', async () => {
+    const { search } = await import('./endpoints');
+    // captured.url is reset by the beforeEach hook on every fetch.
+    await search({ positives: [], negatives: [], filename: '' });
+    expect(captured.url).toContain('/api/search?');
+    expect(captured.url).not.toContain('/api/centroids/');
+  });
 });

@@ -43,7 +43,7 @@ class Diversity:
         self,
         mode: str | None = None,
         depth: str | None = None,
-    ) -> "Diversity":
+    ) -> Diversity:
         """Return a new Diversity with any non-None overrides applied."""
         return Diversity(
             mode=mode if mode is not None else self.mode,

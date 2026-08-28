@@ -62,6 +62,11 @@
   let error = $state<string | null>(null);
   let ctrl: AbortController | null = null;
   let hasSearched = $state(false);
+  // Round‑29: when set, the page treats this as a "search by album
+  // centroid" — the SearchComposer is hidden and reload() hits the
+  // centroid endpoint instead of /api/search. URL ?centroid=...
+  // sets this on mount; writing back to URL is suppressed.
+  let activeCentroid = $state<string | null>(null);
 
   function readFromUrl() {
     const q = $page.url.searchParams;
@@ -71,10 +76,15 @@
     diversityMode = q.get('diversity') ?? 'off';
     diversityDepth = q.get('diversity_depth') ?? 'auto';
     filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto';
+    activeCentroid = q.get('centroid');
   }
 
   function writeToUrl() {
     if (!browser) return;
+    // Round‑29: don't clobber the ?centroid= param while we're
+    // running a centroid search — that would cause the URL to
+    // flicker and could re-trigger reload via onMount.
+    if (activeCentroid) return;
     const qs = new URLSearchParams();
     positives.forEach((p) => qs.append('positives', p));
     negatives.forEach((n) => qs.append('negatives', n));
@@ -109,8 +119,15 @@
     error = null;
     hasMore = false;
 
+    // Round‑29: centroid search activates on `?centroid=` even if
+    // the composer is empty. Otherwise the user must fill a prompt
+    // before the search runs (which doesn't make sense — the
+    // centroid IS the query).
     const active =
-      positives.length || negatives.length || filename.trim();
+      activeCentroid ||
+      positives.length ||
+      negatives.length ||
+      filename.trim();
     if (!active) {
       loading = false;
       hasSearched = false;
@@ -128,6 +145,7 @@
           diversityDepth,
           limit: PAGE,
           offset: 0,
+          centroid: activeCentroid ?? undefined,
           signal: ctrl.signal
         }
       );
@@ -149,7 +167,8 @@
       const res = await search({
         positives, negatives, filename,
         diversityMode, diversityDepth,
-        limit: PAGE, offset
+        limit: PAGE, offset,
+        centroid: activeCentroid ?? undefined
       });
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
@@ -188,12 +207,17 @@
   }
 
   // Run on Search button (from composer) and on initial mount if
-  // URL has params (so deep links like /?positives=cat still load).
+  // URL has params (so deep links like /?positives=cat or
+  // /?centroid=album_2 still load).
   onMount(async () => {
     readFromUrl();
     await tick();
-    // Only fire a search automatically if the URL already had params.
-    if (positives.length || negatives.length || filename.trim()) {
+    if (
+      activeCentroid ||
+      positives.length ||
+      negatives.length ||
+      filename.trim()
+    ) {
       await reload();
     }
   });
@@ -217,38 +241,50 @@
 </svelte:head>
 
 <section class="hero">
-  <h1>Find photos by what they look like.</h1>
-  <p class="sub">
-    Type what you remember — colours, moods, subjects — and pick from the
-    results. Save the searches you love, like your favourites, discover
-    what's nearby.
-  </p>
-  <SearchComposer
-    {positives}
-    {negatives}
-    {input}
-    {mode}
-    {filename}
-    {diversityMode}
-    {diversityDepth}
-    {filtersOpen}
-    {loading}
-    onInput={(v) => (input = v)}
-    onMode={(m) => (mode = m)}
-    onAdd={addPrompt}
-    onRemovePositive={removePositive}
-    onRemoveNegative={removeNegative}
-    onFilename={(v) => (filename = v)}
-    onDiversityMode={(v) => (diversityMode = v)}
-    onDiversityDepth={(v) => (diversityDepth = v)}
-    onToggleFilters={() => (filtersOpen = !filtersOpen)}
-    onSearch={reload}
-    onPickSaved={(s: SavedSearch) => {
-      positives = [...s.positives];
-      negatives = [...s.negatives];
-      reload();
-    }}
-  />
+  {#if activeCentroid}
+    <!-- Round‑29: search-by-album mode hides the prompt composer.
+         The album's centroid IS the query; there's nothing to type. -->
+    <h1>Searching by album</h1>
+    <p class="sub">
+      Showing the photos closest to the average of <code>{activeCentroid}</code>.
+      <a href="/albums" class="back-link">← Back to albums</a>
+    </p>
+  {:else}
+    <h1>Find photos by what they look like.</h1>
+    <p class="sub">
+      Type what you remember — colours, moods, subjects — and pick from the
+      results. Save the searches you love, like your favourites, discover
+      what's nearby.
+    </p>
+  {/if}
+  {#if !activeCentroid}
+    <SearchComposer
+      {positives}
+      {negatives}
+      {input}
+      {mode}
+      {filename}
+      {diversityMode}
+      {diversityDepth}
+      {filtersOpen}
+      {loading}
+      onInput={(v) => (input = v)}
+      onMode={(m) => (mode = m)}
+      onAdd={addPrompt}
+      onRemovePositive={removePositive}
+      onRemoveNegative={removeNegative}
+      onFilename={(v) => (filename = v)}
+      onDiversityMode={(v) => (diversityMode = v)}
+      onDiversityDepth={(v) => (diversityDepth = v)}
+      onToggleFilters={() => (filtersOpen = !filtersOpen)}
+      onSearch={reload}
+      onPickSaved={(s: SavedSearch) => {
+        positives = [...s.positives];
+        negatives = [...s.negatives];
+        reload();
+      }}
+    />
+  {/if}
 </section>
 
 <section class="results">
@@ -290,6 +326,20 @@
     max-width: 56ch;
     line-height: var(--lh-prose);
   }
+  .hero .sub code {
+    background: var(--glass-1);
+    border: 1px solid var(--glass-edge);
+    border-radius: var(--r-1);
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  .back-link {
+    color: var(--fg-2);
+    text-decoration: none;
+    margin-left: 8px;
+    transition: color var(--t-fast);
+  }
+  .back-link:hover { color: var(--fg-1); }
   .results { margin-top: 8px; }
   .error {
     padding: 14px 18px;

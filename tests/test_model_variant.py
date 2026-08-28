@@ -10,7 +10,6 @@ at call time, not at import time).
 import json
 import pytest
 from search import config
-from indexer import upsert
 
 
 # ----- Variant lookup -----
@@ -225,4 +224,4 @@ class TestValidateVariantAgainstStored:
 
 def test_default_model_constant_resolves():
     """DEFAULT_MODEL should be the model name for the default variant."""
-    assert config.DEFAULT_MODEL == config.get_model_name_for_variant(config.DEFAULT_VARIANT)
+    assert config.get_model_name_for_variant(config.DEFAULT_VARIANT) == config.DEFAULT_MODEL

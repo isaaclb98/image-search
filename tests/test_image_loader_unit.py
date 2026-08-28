@@ -6,11 +6,13 @@ every indexed photo goes through this.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
+from image_search_kernel.registry import ModelNotFoundError
 from indexer.image_loader import (
     LoaderError,
     SIGLIP_MEAN,
@@ -95,15 +97,17 @@ class TestLoadImagePil:
         assert loaded.mode == "RGB"
 
     def test_missing_file_raises(self, tmp_path):
+        from indexer.image_loader import LoaderError
         missing = tmp_path / "nope.jpg"
-        with pytest.raises(Exception):  # FileNotFoundError or LoaderError
+        with pytest.raises(LoaderError):
             load_image_pil(missing)
 
     def test_corrupted_file_raises(self, tmp_path):
         """Corrupted image data should raise, not return garbage."""
+        from indexer.image_loader import LoaderError
         bad = tmp_path / "bad.jpg"
         bad.write_bytes(b"not an image")
-        with pytest.raises(Exception):
+        with pytest.raises(LoaderError):
             load_image_pil(bad)
 
 
@@ -171,15 +175,16 @@ class TestLoad:
     def test_basic_load(self, tmp_path):
         img_path = tmp_path / "test.jpg"
         Image.new("RGB", (300, 200), color="red").save(img_path, "JPEG")
-        loaded = load(img_path)
+        # Round‑30: load() returns (img, source_w, source_h).
+        loaded_img, _sw, _sh = load(img_path)
         # Should be letterboxed to model's resolution
-        assert loaded.size == (_default_resolution(), _default_resolution())
+        assert loaded_img.size == (_default_resolution(), _default_resolution())
 
     def test_load_returns_rgb(self, tmp_path):
         img_path = tmp_path / "test.png"
         Image.new("RGBA", (200, 200), color=(0, 0, 255, 255)).save(img_path, "PNG")
-        loaded = load(img_path)
-        assert loaded.mode == "RGB"
+        loaded_img, _sw, _sh = load(img_path)
+        assert loaded_img.mode == "RGB"
 
     def test_load_with_specific_model(self, tmp_path):
         """Loading with a different model name should use that model's resolution."""
@@ -189,16 +194,20 @@ class TestLoad:
         from image_search_kernel.registry import get as registry_get
         # Use a model that has a different resolution
         for model_name in ["ViT-L-16-SigLIP2-256", "ViT-B-16-SigLIP2-256"]:
+            _logger = logging.getLogger(__name__)
             try:
                 spec = registry_get(model_name)
-                loaded = load(img_path, model_name=model_name)
-                assert loaded.size == (spec.resolution, spec.resolution)
-            except Exception:
-                # Model not registered in test env — skip
-                pass
+                loaded_img, _sw, _sh = load(img_path, model_name=model_name)
+                assert loaded_img.size == (spec.resolution, spec.resolution)
+            except (KeyError, ModelNotFoundError) as exc:
+                # Model not registered in test env — skip. Logged
+                # at debug so a missing-model setup is easy to
+                # diagnose without spamming test output.
+                _logger.debug("skipping load test for unregistered model %s: %s", model_name, exc)
 
     def test_load_missing_file_raises(self, tmp_path):
-        with pytest.raises(Exception):
+        from indexer.image_loader import LoaderError
+        with pytest.raises(LoaderError):
             load(tmp_path / "missing.jpg")
 
 

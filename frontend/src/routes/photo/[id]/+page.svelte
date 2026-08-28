@@ -13,7 +13,6 @@
    *   - $lib/api/endpoints (photoUrl, likePoint, unlikePoint,
    *     dislikePoint, blurhash background)
    *   - $lib/components/Button (primary/secondary/ghost actions)
-   *   - $lib/components/Chip (collection/model badges)
    *   - $lib/components/Toaster (action feedback)
    *   - The existing TopBar from +layout.svelte
    *
@@ -21,6 +20,12 @@
    *   - Lightbox navigation (that's the click action on a tile)
    *   - Add-to-album picker (we link to the Lightbox for that)
    *   - In-place editing of any metadata (photos are immutable)
+   *
+   * Round‑31: the sidebar used to render indexing metadata
+   * (Indexed date, Indexed‑by model / dim / collection,
+   * Revision, ID). Those were implementation‑internal and not
+   * useful to the user; removed. The page now only shows
+   * Dimensions + Size.
    */
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
@@ -32,7 +37,6 @@
     dislikePoint
   } from '$lib/api/endpoints';
   import Button from '$lib/components/Button.svelte';
-  import Chip from '$lib/components/Chip.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
 
@@ -153,23 +157,6 @@
     return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 
-  function formatDate(iso: string | null): string {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      // Localized date + time, no seconds. Stable across runs.
-      return d.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return iso;
-    }
-  }
-
   function formatDimensions(w: number | null, h: number | null): string {
     if (w == null && h == null) return '—';
     return `${w ?? '?'} × ${h ?? '?'}`;
@@ -266,36 +253,6 @@
 
             <dt>Size</dt>
             <dd>{formatBytes(photo.size)}</dd>
-
-            <dt>Indexed</dt>
-            <dd>{formatDate(photo.indexed_at)}</dd>
-          </dl>
-        </section>
-
-        <!-- Indexing / model info -->
-        <section class="meta" aria-label="Indexing details">
-          <h3>Indexed by</h3>
-          <div class="chips">
-            {#if photo.model_name}
-              <Chip text={photo.model_name} title="Embedding model" />
-            {/if}
-            {#if photo.model_dim}
-              <Chip
-                text={`${photo.model_dim}-d`}
-                title="Vector dimensionality"
-              />
-            {/if}
-            {#if photo.collection}
-              <Chip text={photo.collection} title="Collection" />
-            {/if}
-          </div>
-          <dl>
-            {#if photo.model_revision}
-              <dt>Revision</dt>
-              <dd class="mono">{photo.model_revision}</dd>
-            {/if}
-            <dt>ID</dt>
-            <dd class="mono">{photo.id}</dd>
           </dl>
         </section>
       </aside>
@@ -447,17 +404,5 @@
   .meta dd {
     margin: 0;
     color: var(--fg, #eee);
-  }
-  .meta .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.78rem;
-    word-break: break-all;
-  }
-
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
   }
 </style>

@@ -1405,8 +1405,16 @@ class IndexDB:
                     "size": _optional_int(payload.get("size")),
                     "indexed_at": payload.get("indexed_at") or now,
                     "blurhash": str(payload.get("blurhash") or ""),
+                    # Round‑30: photo-page dimensions. None when the
+                    # source image couldn't be decoded.
+                    "width": _optional_int(payload.get("width")),
+                    "height": _optional_int(payload.get("height")),
                 })
-            except Exception:  # noqa: BLE001 — skip malformed points
+            except (KeyError, TypeError, ValueError):
+                # Payload schema drift or malformed point from an
+                # older index version. Skip this point rather than
+                # crash the whole hydrate; the rest of the batch is
+                # still useful.
                 continue
         if not rows:
             return 0
@@ -1414,8 +1422,8 @@ class IndexDB:
             try:
                 self._conn.executemany(
                     """
-                    INSERT INTO images (id, path, shard, collection, mtime, size, indexed_at, blurhash)
-                    VALUES (:id, :path, :shard, :collection, :mtime, :size, :indexed_at, :blurhash)
+                    INSERT INTO images (id, path, shard, collection, mtime, size, indexed_at, blurhash, width, height)
+                    VALUES (:id, :path, :shard, :collection, :mtime, :size, :indexed_at, :blurhash, :width, :height)
                     ON CONFLICT(id) DO UPDATE SET
                         path=excluded.path,
                         shard=excluded.shard,
@@ -1423,7 +1431,9 @@ class IndexDB:
                         mtime=excluded.mtime,
                         size=excluded.size,
                         indexed_at=excluded.indexed_at,
-                        blurhash=excluded.blurhash
+                        blurhash=excluded.blurhash,
+                        width=excluded.width,
+                        height=excluded.height
                     """,
                     rows,
                 )
