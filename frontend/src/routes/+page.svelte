@@ -52,6 +52,7 @@
   let filename = $state('');
   let diversityMode = $state('off');
   let diversityDepth = $state('auto');
+  let collections = $state<string[]>([]);
   let filtersOpen = $state(false);
 
   // Results state.
@@ -75,6 +76,7 @@
     filename = q.get('filename') ?? '';
     diversityMode = q.get('diversity') ?? 'off';
     diversityDepth = q.get('diversity_depth') ?? 'auto';
+    collections = q.getAll('collections');
     filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto';
     activeCentroid = q.get('centroid');
   }
@@ -91,6 +93,7 @@
     if (filename) qs.set('filename', filename);
     if (diversityMode !== 'off') qs.set('diversity', diversityMode);
     if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
+    collections.forEach((c) => qs.append('collections', c));
     const next = qs.toString();
     if ($page.url.search.replace(/^\?/, '') !== next) {
       history.replaceState(history.state, '', `/${next ? '?' + next : ''}`);
@@ -110,6 +113,11 @@
   function removeNegative(i: number) {
     negatives = negatives.filter((_, idx) => idx !== i);
   }
+  function toggleCollection(name: string) {
+    collections = collections.includes(name)
+      ? collections.filter((c) => c !== name)
+      : [...collections, name];
+  }
 
   async function reload() {
     if (ctrl) ctrl.abort();
@@ -123,11 +131,17 @@
     // the composer is empty. Otherwise the user must fill a prompt
     // before the search runs (which doesn't make sense — the
     // centroid IS the query).
+    //
+    // A collections-only filter is also a valid trigger: the user
+    // wants to scroll one specific library without typing any
+    // semantic prompt.
+    const hasCollectionFilter = collections.length > 0;
     const active =
       activeCentroid ||
       positives.length ||
       negatives.length ||
-      filename.trim();
+      filename.trim() ||
+      hasCollectionFilter;
     if (!active) {
       loading = false;
       hasSearched = false;
@@ -146,8 +160,9 @@
           limit: PAGE,
           offset: 0,
           centroid: activeCentroid ?? undefined,
-          signal: ctrl.signal
-        }
+          collections: collections.length ? collections : undefined
+        },
+        ctrl.signal
       );
       items = (res?.results ?? []) as Item[];
       offset = items.length;
@@ -266,6 +281,7 @@
       {filename}
       {diversityMode}
       {diversityDepth}
+      {collections}
       {filtersOpen}
       {loading}
       onInput={(v) => (input = v)}
@@ -276,6 +292,7 @@
       onFilename={(v) => (filename = v)}
       onDiversityMode={(v) => (diversityMode = v)}
       onDiversityDepth={(v) => (diversityDepth = v)}
+      onToggleCollection={toggleCollection}
       onToggleFilters={() => (filtersOpen = !filtersOpen)}
       onSearch={reload}
       onPickSaved={(s: SavedSearch) => {

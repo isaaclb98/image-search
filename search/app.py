@@ -1061,6 +1061,7 @@ def create_app(
         weights: list[float] | None = None,
         filename_pattern: str = "",
         centroid_specs: list[DynamicCentroidSpec] | None = None,
+        collections: list[str] | None = None,
     ) -> tuple[list[float], str | None, str | None]:
         """
         Resolve the query vector for a search request.
@@ -1133,6 +1134,16 @@ def create_app(
                     # Last-resort default for the SigLIP2 model the
                     # project uses. Tests run without a real config
                     # sometimes — this keeps the page rendering.
+                    dim = 768
+                return [0.0] * dim, None, None
+            if collections:
+                # Collections-only mode: same trick as filename-only.
+                # No prompt → zero vector, the `collections` MatchAny
+                # filter restricts candidates, Qdrant's id tie-breaker
+                # gives a stable browse order. Useful for "show me
+                # everything in <library>" without a semantic prompt.
+                dim = _cfg.centroid_expected_feature_dim if _cfg else None
+                if not dim:
                     dim = 768
                 return [0.0] * dim, None, None
             return [], "empty", "at least one positive prompt is required"

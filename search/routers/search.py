@@ -192,6 +192,7 @@ def build_search_router(
                 resolve_query_vector,
                 active_centroids, prompt_state, weights=active_weights,
                 filename_pattern=filename_pattern,
+                collections=collections,
             )
             if vec_err == "centroid_not_found":
                 return bad_request(vec_detail or f"centroid {active_centroid!r} not loaded")  # type: ignore[return-value]

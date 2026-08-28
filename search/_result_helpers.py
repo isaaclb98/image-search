@@ -52,16 +52,18 @@ def parse_filename(request: Request) -> str:
 
 def parse_collections(request: Request) -> list[str]:
     """
-    Read all `?collection=` query params from the request, in
+    Read all `?collections=` query params from the request, in
     stable order. The multi-value shape is what powers the
-    chip-style filter UI on the frontend.
+    chip-style filter UI on the frontend; the URL contract is
+    documented in `SearchParams.collections` and the OpenAPI
+    schema (`?collections=a&collections=b`).
 
     `getlist()` preserves order and skips duplicates the way
     the URL is written; we don't dedupe here because the user
     might paste a duplicate and the search behavior is the
     same.
     """
-    return [c for c in request.query_params.getlist("collection") if c]
+    return [c for c in request.query_params.getlist("collections") if c]
 
 
 def coerce_view(raw: str | None) -> str:

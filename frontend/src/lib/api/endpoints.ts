@@ -49,6 +49,8 @@ export type SearchParams = {
   offset?: number;
   /** When set, queries the centroid search endpoint. */
   centroid?: string;
+  /** Restrict to one or more `collection` payload values. Empty/undefined = whole library. */
+  collections?: string[];
 };
 
 export function search(params: SearchParams, signal?: AbortSignal) {
@@ -276,14 +278,18 @@ export async function removePhotoFromAlbum(albumId: number, pointId: string) {
 // ---------- Misc ----------
 
 export function listCollections() {
-  return apiGet<unknown>('/api/collections', {
+  return apiGet<{
+    collections: { name: string; count: number }[];
+  }>('/api/collections', {
     schema: Z.CollectionsList,
     schemaName: 'CollectionsList'
   });
 }
 
 export function listCentroids() {
-  return apiGet<unknown>('/api/centroids', {
+  return apiGet<{
+    centroids: { name: string; kind?: string; member_count?: number }[];
+  }>('/api/centroids', {
     schema: Z.CentroidList,
     schemaName: 'CentroidList'
   });

@@ -12,6 +12,7 @@
   import PromptChips from './PromptChips.svelte';
   import AdditionalFilters from './AdditionalFilters.svelte';
   import SavedSearchesMenu from './SavedSearchesMenu.svelte';
+  import CollectionsChips from './CollectionsChips.svelte';
   import type { SavedSearch } from '$lib/api/endpoints';
 
   export type SearchParams = {
@@ -31,6 +32,8 @@
     filename: string;
     diversityMode: string;
     diversityDepth?: string;
+    /** Selected collection (source) names. Empty = whole library. */
+    collections: string[];
     filtersOpen: boolean;
     loading?: boolean;
     // events
@@ -42,6 +45,7 @@
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
     onDiversityDepth?: (v: string) => void;
+    onToggleCollection?: (name: string) => void;
     onToggleFilters: () => void;
     onSearch: () => void;
     onPickSaved: (s: SavedSearch) => void;
@@ -58,6 +62,7 @@
     filename,
     diversityMode,
     diversityDepth = 'auto',
+    collections = [],
     filtersOpen,
     loading = false,
     onInput,
@@ -68,6 +73,7 @@
     onFilename,
     onDiversityMode,
     onDiversityDepth,
+    onToggleCollection,
     onToggleFilters,
     onSearch,
     onPickSaved,
@@ -89,6 +95,12 @@
     {onRemoveNegative}
     {onMode}
   />
+  {#if onToggleCollection}
+    <CollectionsChips
+      selected={collections}
+      onToggle={onToggleCollection}
+    />
+  {/if}
   {#if showFilters}
     <AdditionalFilters
       open={filtersOpen}
@@ -113,7 +125,7 @@
       type="button"
       class="primary"
       onclick={onSearch}
-      disabled={(!positives.length && !negatives.length && !filename.trim()) || loading}
+      disabled={(!positives.length && !negatives.length && !filename.trim() && !collections.length) || loading}
       title="Run search"
     >
       {searchButtonLabel}
