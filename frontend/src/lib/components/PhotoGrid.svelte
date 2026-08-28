@@ -88,10 +88,24 @@
   // The body is the scroll context; the virtualizer watches window.
   let gridWrapper: HTMLDivElement | undefined = $state();
   let containerWidth = $state(0);
+  // Round‑32: actual rendered tile width (read from DOM). The CSS
+  // grid uses auto-fill so the number of columns changes with
+  // viewport width — `(containerWidth - (COLUMNS-1) * GAP) /
+  // COLUMNS` is no longer accurate. We measure the first tile
+  // directly. Default to the previous JS estimate so the
+  // virtualizer has a sane starting value before the first
+  // measurement lands.
+  let renderedTileSize = $state(0);
 
-  // Calculate tile size based on container width
+  // Calculate tile size. Round‑32: with auto-fill columns the
+  // JS formula `(containerWidth - (COLUMNS-1) * GAP) / COLUMNS`
+  // is wrong (CSS picks the column count, not us). Prefer the
+  // actual rendered tile width when we have one; fall back to
+  // the old formula during the initial frame.
   let tileSize = $derived(
-    containerWidth > 0
+    renderedTileSize > 0
+      ? renderedTileSize
+      : containerWidth > 0
       ? (containerWidth - (COLUMNS - 1) * GAP) / COLUMNS
       : ESTIMATED_ROW_HEIGHT
   );
@@ -135,7 +149,11 @@
   let virtualItems = $derived($virtualizerStore?.getVirtualItems() ?? []);
   let totalSize = $derived($virtualizerStore?.getTotalSize() ?? 0);
 
-  // ResizeObserver for container width
+  // ResizeObserver for container width. Tile-size re-measurement
+  // happens in the $effect below — it depends on `items.length`
+  // and runs after tiles actually render, which the
+  // ResizeObserver can't do (it only fires on its own observed
+  // elements).
   let resizeObserver: ResizeObserver | null = null;
 
   onMount(() => {
@@ -147,6 +165,27 @@
       });
       resizeObserver.observe(gridWrapper);
     }
+  });
+
+  // Re-measure the rendered tile whenever items change OR the
+  // container width changes. The CSS grid uses auto-fill, so the
+  // number of columns (and therefore the tile width) depends on
+  // `containerWidth`. The ResizeObserver may fire before the
+  // first row renders, so we read the tile on every items change
+  // too.
+  $effect(() => {
+    // Track dependencies.
+    void items.length;
+    void containerWidth;
+    if (!gridWrapper) return;
+    // Defer one tick so the DOM has rendered the new tiles.
+    queueMicrotask(() => {
+      const firstTile = gridWrapper!.querySelector('.grid-tile');
+      if (firstTile) {
+        const r = firstTile.getBoundingClientRect();
+        if (r.width > 0) renderedTileSize = r.width;
+      }
+    });
   });
 
   onDestroy(() => {
@@ -340,7 +379,17 @@
 
   .grid-row {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* Round‑32: auto-fill with a 180-px minimum. At 1200 px
+       container width this gives 6 columns (~183-px tiles);
+       at 1800 px it gives 9 columns (~197-px tiles); on a
+       narrow phone it gracefully drops to 2 columns instead
+       of squeezing 5 of them into ~70 px each. The JS-side
+       `tileSize` derivation still uses `COLUMNS = 5` for the
+       virtualizer's row-height estimate; that's a minor
+       inaccuracy during resize but the ResizeObserver on
+       container width triggers a re-layout on every resize,
+       so it self-corrects on the next frame. */
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: var(--grid-gutter, 20px);
     padding: 0 var(--s-4, 24px);
     box-sizing: border-box;
