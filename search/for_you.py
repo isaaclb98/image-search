@@ -111,6 +111,7 @@ def _zero_vector() -> list[float]:
     pure computation lives in search/for_you_compute.py.
     """
     import os
+
     from image_search_kernel.registry import get as _registry_get
     from search.for_you_compute import zero_vector
     model_name = os.environ.get("MODEL_NAME", "ViT-L-16-SigLIP2-256")

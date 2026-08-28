@@ -161,6 +161,7 @@ def get_encoder(test_mode: bool | None = None) -> TextEncoder:
     global _encoder_singleton, _model_status, _model_error
     if _encoder_singleton is None:
         import os
+
         from search import config
 
         if test_mode is None:

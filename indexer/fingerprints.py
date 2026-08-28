@@ -53,10 +53,7 @@ def dhash(
     try:
         from PIL import Image, ImageOps
 
-        if isinstance(source, Image.Image):
-            image = source
-        else:
-            image = Image.open(source)
+        image = source if isinstance(source, Image.Image) else Image.open(source)
         image = ImageOps.exif_transpose(image).convert("L")
         resampling = getattr(Image, "Resampling", Image)
         image = image.resize(

@@ -30,6 +30,7 @@ Safety properties:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -127,7 +128,7 @@ class SyncManager:
             # Does the pending collection exist?
             try:
                 self.qdrant.get_collection(self.write_collection)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # 404 or "Not found" is fine — indexer hasn't created
                 # the collection yet.
                 if "Not found" in str(e) or "404" in str(e):
@@ -184,7 +185,7 @@ class SyncManager:
                     await asyncio.to_thread(
                         self.index_db.upsert_records, records,
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception("sqlite upsert during sync failed")
 
             # Delete from pending by id.
@@ -214,9 +215,11 @@ class SyncManager:
         while not self._stop.is_set():
             try:
                 await self.sync_once()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("sync loop crashed; will retry next interval")
-            try:
+            # wait_for raises TimeoutError when the interval elapses;
+            # suppress it so control returns to the top of the loop
+            # for the next cycle. The coroutine-completes case doesn't
+            # raise (it returns), so we only suppress the timeout.
+            with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._stop.wait(), timeout=self.interval_seconds)
-            except asyncio.TimeoutError:
-                pass  # interval elapsed, run another cycle

@@ -5,7 +5,6 @@ Request parsing and error response helpers used by the search API.
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock
 
 import pytest
 from starlette.requests import Request

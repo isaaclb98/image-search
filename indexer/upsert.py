@@ -23,9 +23,9 @@ from pathlib import Path
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
+from image_search_kernel.registry import get_active_model_spec
 from indexer.blurhash import compute_blurhash
 from indexer.fingerprints import compute_fingerprints
-from image_search_kernel.registry import get_active_model_spec
 
 logger = logging.getLogger(__name__)
 

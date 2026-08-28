@@ -10,7 +10,6 @@ Image fingerprints used by the search-side Diversity ranker:
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 
 import pytest
 from PIL import Image

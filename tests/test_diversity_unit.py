@@ -37,7 +37,7 @@ class TestModuleConstants:
 
     def test_strengths_in_valid_range(self):
         """Strength should be 0.0 to 1.0."""
-        for mode, strength in DIVERSITY_MODE_STRENGTHS.items():
+        for strength in DIVERSITY_MODE_STRENGTHS.values():
             assert 0.0 <= strength <= 1.0
 
     def test_off_mode_not_in_strengths_dict(self):
@@ -45,7 +45,7 @@ class TestModuleConstants:
         assert "off" not in DIVERSITY_MODE_STRENGTHS
 
     def test_depths_are_positive_integers(self):
-        for label, depth in DIVERSITY_DEPTHS.items():
+        for depth in DIVERSITY_DEPTHS.values():
             assert isinstance(depth, int)
             assert depth > 0
 

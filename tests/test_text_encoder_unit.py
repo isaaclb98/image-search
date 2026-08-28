@@ -10,7 +10,6 @@ Tests the pure-Python helpers (no actual ML model required):
 """
 from __future__ import annotations
 
-import pytest
 
 from search.text_encoder import (
     DEFAULT_MODEL_NAME,

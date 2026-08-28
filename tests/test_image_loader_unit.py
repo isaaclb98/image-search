@@ -6,11 +6,13 @@ every indexed photo goes through this.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
+from image_search_kernel.registry import ModelNotFoundError
 from indexer.image_loader import (
     LoaderError,
     SIGLIP_MEAN,
@@ -95,15 +97,17 @@ class TestLoadImagePil:
         assert loaded.mode == "RGB"
 
     def test_missing_file_raises(self, tmp_path):
+        from indexer.image_loader import LoaderError
         missing = tmp_path / "nope.jpg"
-        with pytest.raises(Exception):  # FileNotFoundError or LoaderError
+        with pytest.raises(LoaderError):
             load_image_pil(missing)
 
     def test_corrupted_file_raises(self, tmp_path):
         """Corrupted image data should raise, not return garbage."""
+        from indexer.image_loader import LoaderError
         bad = tmp_path / "bad.jpg"
         bad.write_bytes(b"not an image")
-        with pytest.raises(Exception):
+        with pytest.raises(LoaderError):
             load_image_pil(bad)
 
 
@@ -190,16 +194,20 @@ class TestLoad:
         from image_search_kernel.registry import get as registry_get
         # Use a model that has a different resolution
         for model_name in ["ViT-L-16-SigLIP2-256", "ViT-B-16-SigLIP2-256"]:
+            _logger = logging.getLogger(__name__)
             try:
                 spec = registry_get(model_name)
                 loaded_img, _sw, _sh = load(img_path, model_name=model_name)
                 assert loaded_img.size == (spec.resolution, spec.resolution)
-            except Exception:
-                # Model not registered in test env — skip
-                pass
+            except (KeyError, ModelNotFoundError) as exc:
+                # Model not registered in test env — skip. Logged
+                # at debug so a missing-model setup is easy to
+                # diagnose without spamming test output.
+                _logger.debug("skipping load test for unregistered model %s: %s", model_name, exc)
 
     def test_load_missing_file_raises(self, tmp_path):
-        with pytest.raises(Exception):
+        from indexer.image_loader import LoaderError
+        with pytest.raises(LoaderError):
             load(tmp_path / "missing.jpg")
 
 

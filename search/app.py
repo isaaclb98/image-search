@@ -22,11 +22,10 @@ import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from qdrant_client import QdrantClient
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
-from qdrant_client import QdrantClient
 from search import config, text_encoder
-from search.sync import SyncManager
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -47,6 +46,7 @@ from search.models import (
 )
 from search.qdrant_client import QdrantSearch
 from search.random import RandomPicker
+from search.sync import SyncManager
 
 logger = logging.getLogger(__name__)
 

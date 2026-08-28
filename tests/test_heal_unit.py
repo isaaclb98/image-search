@@ -11,11 +11,8 @@ The reconcile() integration is tested via the existing test_heal.py.
 """
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 
 from indexer.heal import (
     DiskFile,
@@ -253,11 +250,12 @@ class TestParseArgs:
         args = parse_args(["--collection", "my-collection"])
         assert args.collection == "my-collection"
 
-    def test_apply(self):
-        args = parse_args(["--dry-run"])
-        assert args.dry_run is True
-
-    def test_apply(self):
+    def test_apply_flag(self):
+        # `--apply` opts in to the destructive delete step; without
+        # it the script runs in dry-run mode (the default). argparse
+        # defaults `args.apply` to False, so we verify both states.
+        args = parse_args([])
+        assert args.apply is False
         args = parse_args(["--apply"])
         assert args.apply is True
 

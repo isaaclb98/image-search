@@ -22,8 +22,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    # The runtime import of Pillow is deferred to inside
+    # `compute_blurhash` (PIL isn't a hard dep — the [dev] extra
+    # installs it but the base package keeps the import lazy).
+    from PIL import Image
 
 # Components for the tiny thumbnail. 4×3 = ~30 bytes for typical
 # desktop content. Bigger components give a sharper placeholder at
@@ -38,7 +45,7 @@ _THUMB_MAX_EDGE = 32
 
 
 def compute_blurhash(
-    source: "Path | Image.Image",
+    source: Path | Image.Image,
     x_components: int = _DEFAULT_X_COMPONENTS,
     y_components: int = _DEFAULT_Y_COMPONENTS,
 ) -> str | None:

@@ -364,11 +364,16 @@ def main(argv=None):
             ):
                 # Generate thumbnail (best-effort, non-fatal)
                 try:
-                    point_id = upsert.id_for(path, "")
+                    upsert.id_for(path, "")
                     thumb_path = generate_thumbnail_for_path(img, path, "")
                     if thumb_path:
                         logger.debug(f"Generated thumbnail: {thumb_path}")
-                except Exception as e:
+                except (OSError, ValueError, RuntimeError) as e:
+                    # Thumbnail generation can fail on corrupt JPEGs,
+                    # PIL decode errors, or filesystem issues. The
+                    # caller wants the index to continue regardless;
+                    # narrow to the realistic failure modes rather
+                    # than a blind `Exception` catch.
                     logger.warning(f"Failed to generate thumbnail for {path}: {e}")
 
                 canon = canonical_payload_path(path, args.prefix, args.base)

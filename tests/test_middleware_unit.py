@@ -139,7 +139,7 @@ class TestStructuredLogPayload:
         ts = captured_logs.records[0].request_log["ts"]
         # ISO-8601 UTC: contains 'T', ends with 'Z' or '+00:00'
         assert "T" in ts
-        assert ts.endswith("Z") or ts.endswith("+00:00")
+        assert ts.endswith(("Z", "+00:00"))
 
     def test_duration_ms_is_numeric_and_nonneg(self, captured_logs):
         captured_logs.records.clear()

@@ -155,9 +155,8 @@ def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator
     wall‑clock time. The frontend fetches /api/thumbnails lazily on
     demand so an empty / missing thumbnail cache is fine.
     """
-    from indexer.thumbnails import generate_thumbnail_for_path
     import logging
-    logger = logging.getLogger(__name__)
+    logging.getLogger(__name__)
     batch_size = getattr(embedder, "embed_batch_size", 16)
 
     pending_paths: list[Path] = []
@@ -168,7 +167,7 @@ def _embed(items: Iterator[tuple[Path, Any]], *, embedder: Embedder) -> Iterator
         if not pending_imgs:
             return
         vecs = embedder.embed_images(pending_imgs)
-        for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims):
+        for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims, strict=False):
             # Thumbnail generation is intentionally skipped — see
             # the round‑15 note above. The failure path used to log a
             # warning per image; on a 2k‑photo ingest that was 2k
@@ -260,7 +259,7 @@ def _upsert(
         if not dry_run and len(batch) >= batch_size:
             try:
                 client.upsert(collection_name=collection, points=batch, wait=False)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 for pt in batch:
                     on_failure(pt.payload["path"], exc)  # type: ignore[index]
                 raise

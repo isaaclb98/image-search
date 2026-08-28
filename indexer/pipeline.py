@@ -299,8 +299,8 @@ class IndexerPipeline:
         # embed; embed_q holds embedded vectors waiting for upsert.
         # Cap is ~2× the consumer's batch size so producers can stay
         # one batch ahead without unbounded memory growth.
-        load_q: "_queue.Queue" = _queue.Queue(maxsize=embed_batch * 2)
-        embed_q: "_queue.Queue" = _queue.Queue(maxsize=config.batch_size * 4)
+        load_q: _queue.Queue = _queue.Queue(maxsize=embed_batch * 2)
+        embed_q: _queue.Queue = _queue.Queue(maxsize=config.batch_size * 4)
 
         # -------- Producer 1: scan + load --------
         def _scan_load_producer() -> None:
@@ -345,7 +345,7 @@ class IndexerPipeline:
                     pending_paths.clear()
                     pending_imgs.clear()
                     return
-                for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims):
+                for p, img, v, dim in zip(pending_paths, pending_imgs, vecs, pending_dims, strict=False):
                     embed_q.put((p, img, v, dim[0], dim[1]))  # blocks if embed_q is full
                 pending_paths.clear()
                 pending_imgs.clear()
@@ -369,6 +369,7 @@ class IndexerPipeline:
         # -------- Producer 3: upsert (batches) --------
         def _upsert_consumer() -> None:
             from qdrant_client.http import models as _qmodels
+
             from indexer.upsert import build_payload, id_for
 
             batch: list = []

@@ -11,10 +11,8 @@ generation-skip bug I found earlier (local_sync.py never called it).
 """
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 from PIL import Image
 
 from indexer.thumbnails import (

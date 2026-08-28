@@ -1410,7 +1410,11 @@ class IndexDB:
                     "width": _optional_int(payload.get("width")),
                     "height": _optional_int(payload.get("height")),
                 })
-            except Exception:  # noqa: BLE001 — skip malformed points
+            except (KeyError, TypeError, ValueError):
+                # Payload schema drift or malformed point from an
+                # older index version. Skip this point rather than
+                # crash the whole hydrate; the rest of the batch is
+                # still useful.
                 continue
         if not rows:
             return 0
