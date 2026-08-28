@@ -66,6 +66,16 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
+      - name: Install Playwright browsers
+        # The @playwright/test npm package doesn't ship the browser
+        # binaries — they're downloaded on first use into
+        # ~/.cache/ms-playwright/. CI runners don't have them cached
+        # by default, so install chromium explicitly. --with-deps
+        # pulls the apt deps too (libnss3, libatk, etc.) on
+        # debian-based images.
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
       - name: Build SPA
         # adapter-static output lands in frontend/build. The
         # backend's create_app() mounts this via FRONTEND_DIR
