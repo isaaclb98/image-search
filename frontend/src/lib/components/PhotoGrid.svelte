@@ -25,6 +25,7 @@
   import { pageTint } from '$lib/stores/tint';
   import { photoUrl } from '$lib/api/endpoints';
   import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
+  import type { SvelteVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
@@ -77,8 +78,17 @@
   }: Props = $props();
 
   // Grid config
+  // COLUMNS controls how items are sliced into virtualizer rows.
+  // Keep it in sync with `.grid-row`'s grid-template-columns count
+  // — if they disagree, the virtualizer lays out 5 columns per
+  // row but the DOM renders a different count.
   const COLUMNS = 5;
-  const GAP = 12; // px, matches --s-2
+  // GAP is the row-to-row vertical spacing used by the virtualizer
+  // (rowHeight = tileSize + GAP). It MUST match the CSS `gap` on
+  // `.grid-row` (--grid-gutter) so horizontal and vertical gutters
+  // read as the same thickness — otherwise tiles look balanced
+  // side-to-side but cramped top-to-bottom.
+  const GAP = 20; // px, matches --grid-gutter
   const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
 
   // State
@@ -88,7 +98,14 @@
   let gridWrapper: HTMLDivElement | undefined = $state();
   let containerWidth = $state(0);
 
-  // Calculate tile size based on container width
+  // tileSize drives the virtualizer's rowHeight (= tileSize + GAP).
+  // It MUST match the actual rendered tile width — the CSS grid
+  // decides the tile width via repeat(5, 1fr) inside a wrapper
+  // whose width is `main`'s content area. We compute that width
+  // from `containerWidth` (= wrapper width, set in onMount and by
+  // ResizeObserver). The constant fallback only kicks in for the
+  // single frame before onMount has run; once containerWidth is
+  // populated, the formula is exact.
   let tileSize = $derived(
     containerWidth > 0
       ? (containerWidth - (COLUMNS - 1) * GAP) / COLUMNS
@@ -115,8 +132,10 @@
   // Stable reference to the virtualizer instance. Don't use $derived
   // here — setOptions forces a store update, which would re-trigger
   // the $effect below and call setOptions again, creating a loop.
-  let theVirtualizer: ReturnType<typeof virtualizerStore.subscribe> extends (cb: (v: infer T) => any) => any ? T : never;
-  virtualizerStore.subscribe(v => { theVirtualizer = v; });
+  let theVirtualizer: SvelteVirtualizer<Window, Element> | undefined;
+  virtualizerStore.subscribe((v) => {
+    theVirtualizer = v;
+  });
 
   // Push reactive count/rowHeight into the virtualizer when they change.
   // Note: do NOT read `theVirtualizer` here — only rows.length and
@@ -128,6 +147,12 @@
       count: n,
       estimateSize: () => h
     });
+    // setOptions updates the estimate but doesn't always force the
+    // virtualizer to recompute cached row offsets. Call measure()
+    // explicitly so already-laid-out rows pick up the new rowHeight
+    // — without this, the first paint uses the initial fallback
+    // (280 + GAP) and rows visually touch each other on first load.
+    theVirtualizer?.measure?.();
   });
 
   // Read virtualItems/totalSize from the store (re-runs when store updates).
@@ -135,17 +160,27 @@
   let totalSize = $derived($virtualizerStore?.getTotalSize() ?? 0);
 
   // ResizeObserver for container width
+  // Sync initial width + ResizeObserver.
+  //
+  // Use $effect instead of onMount: in Svelte 5, bind:this on a
+  // {#if}-gated element only populates the variable once the branch
+  // renders, which happens AFTER onMount when items load async.
+  // The $effect re-runs whenever gridWrapper flips undefined → bound
+  // AND whenever containerWidth changes (so it can also stand in
+  // for the ResizeObserver's first async tick).
   let resizeObserver: ResizeObserver | null = null;
 
-  onMount(() => {
-    if (gridWrapper) {
-      resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          containerWidth = entry.contentRect.width;
-        }
-      });
-      resizeObserver.observe(gridWrapper);
-    }
+  $effect(() => {
+    if (!gridWrapper) return;
+    // Sync current width now that the wrapper is mounted.
+    containerWidth = gridWrapper.getBoundingClientRect().width;
+    if (resizeObserver) return;
+    resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        containerWidth = entry.contentRect.width;
+      }
+    });
+    resizeObserver.observe(gridWrapper);
   });
 
   onDestroy(() => {
