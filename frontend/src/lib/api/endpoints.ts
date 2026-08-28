@@ -66,6 +66,9 @@ export function search(params: SearchParams, signal?: AbortSignal) {
     qs.set('diversity_strength', String(params.diversityStrength));
   if (params.diversityDepth && params.diversityDepth !== 'auto')
     qs.set('diversity_depth', params.diversityDepth);
+  if (params.collections?.length) {
+    for (const c of params.collections) qs.append('collections', c);
+  }
   if (params.limit !== undefined) qs.set('limit', String(params.limit));
   if (params.offset !== undefined) qs.set('offset', String(params.offset));
   const base = params.centroid
