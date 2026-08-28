@@ -27,18 +27,14 @@
 name: nightly-e2e
 
 on:
-  schedule:
-    # 02:00 UTC every night. Stagger from image-build's on-push
-    # windows so we don't fight for GHCR bandwidth.
-    - cron: "0 2 * * *"
-  workflow_dispatch:
+  workflow_dispatch:  # manual trigger only — see commit history for
+                      # why the schedule was disabled.
 
-# Don't cancel scheduled runs — let them finish so we have a stable
-# green/red signal each morning. Manual dispatches still cancel each
-# other so you don't burn runner-minutes re-running.
+# Concurrency cancel on manual re-dispatches so you don't burn
+# runner-minutes re-running a stale job.
 concurrency:
   group: nightly-e2e
-  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+  cancel-in-progress: true
 
 jobs:
   e2e:
