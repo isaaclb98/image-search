@@ -16,14 +16,21 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    // The dev backend is managed by the test runner (see
-    // .github/workflows/nightly-e2e.yml and the local
-    // `scripts/dev-qdrant.sh` + `search.dev_server` flow), so
-    // playwright never needs to start one itself. `reuseExistingServer`
-    // + the placeholder command let the runner pick up the running
-    // server on `url` without forking one. The command is a no-op
-    // because Playwright short-circuits before invoking it.
-    command: 'echo "(dev server managed externally; see nightly-e2e.yml)"',
+    // The dev backend is managed externally — by the nightly-e2e
+    // workflow on CI, or by `scripts/dev-qdrant.sh` +
+    // `search.dev_server` locally. Playwright's webServer mode
+    // spawns a process itself, which we don't want; instead we just
+    // connect to whatever's already listening on `url`.
+    //
+    // To make this work without spawning anything, we use `command:
+    // tail -f /dev/null` — a never-exiting process. Combined with
+    // `reuseExistingServer: true`, Playwright probes `url` first,
+    // sees the dev server, and skips waiting on the tail process.
+    // If the dev server is NOT running, the tail process keeps
+    // Playwright alive until the 120s timeout, then fails with a
+    // clear "server didn't come up" error rather than a vague
+    // "webServer exited early".
+    command: 'tail -f /dev/null',
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000
