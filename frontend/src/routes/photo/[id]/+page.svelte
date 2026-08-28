@@ -39,6 +39,7 @@
   import Button from '$lib/components/Button.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
+  import { pageTint } from '$lib/stores/tint';
 
   type PhotoMeta = {
     id: string;
@@ -94,7 +95,13 @@
           .then((url) => {
             // Only apply if the photo hasn't changed (e.g. user
             // navigated to a different one during decode).
-            if (photo && photo.id === data.id) blurTint = url;
+            if (photo && photo.id === data.id) {
+              blurTint = url;
+              // Round‑31: also push to the global pageTint store
+              // so +layout.svelte's backdrop picks up the colour
+              // wash behind the dedicated photo page.
+              pageTint.set(url);
+            }
           })
           .catch(() => {
             /* leave blurTint null — the dark surface shows */

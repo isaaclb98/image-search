@@ -108,5 +108,43 @@ test.describe('backdrop tint (round‑31)', () => {
 
     await page.keyboard.press('Escape');
   });
+
+  test('/albums has a colour tint even without a PhotoGrid', async ({
+    page
+  }) => {
+    // Round‑31 follow-up: /albums doesn't render a PhotoGrid,
+    // so it doesn't trigger the grid‑tint effect. The page
+    // explicitly calls pushRandomTint() in onMount to give the
+    // backdrop a colour wash.
+    await page.goto(`${APP}/albums`);
+    await appReady(page);
+    // Allow the /api/random fetch + blurhash decode to settle.
+    await page.waitForTimeout(800);
+
+    const src = await backdropImgSrc(page);
+    expect(src).toBeTruthy();
+    expect(src).toMatch(/^data:image\/png/);
+  });
+
+  test('/photo/{id} has a colour tint derived from its own blurhash', async ({
+    page
+  }) => {
+    // The dedicated photo page pushes its own photo's blurhash
+    // to pageTint (more relevant than a random one).
+    await page.goto(`${APP}/random`);
+    await appReady(page);
+    const firstTile = page.locator('a.tile').first();
+    await firstTile.waitFor();
+    const href = await firstTile.getAttribute('href');
+    expect(href).toBeTruthy();
+    if (!href) return;
+    await page.goto(`${APP}${href}`);
+    await appReady(page);
+    await page.waitForTimeout(800);
+
+    const src = await backdropImgSrc(page);
+    expect(src).toBeTruthy();
+    expect(src).toMatch(/^data:image\/png/);
+  });
 });
 
