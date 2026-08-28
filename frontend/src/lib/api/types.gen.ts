@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_get"];
+        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
+        head: operations["album_download_zip_albums__album_id__download_zip_head"];
         patch?: never;
         trace?: never;
     };
@@ -586,13 +586,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_get"];
+        get: operations["favorites_download_zip_favorites_download_zip_head"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
         patch?: never;
         trace?: never;
     };
@@ -639,10 +639,14 @@ export interface paths {
         };
         /**
          * Get Thumbnail
-         * @description Serve a pre-generated WebP thumbnail.
+         * @description Serve a pre-generated WebP thumbnail, optionally sized.
          *
          *     Args:
          *         point_id: Qdrant point ID (32-char hex)
+         *         w: Optional target width in pixels. Looks for
+         *             `{THUMBNAIL_DIR}/{prefix}/{point_id}.w{w}.webp`.
+         *             Returns 404 if missing; the browser then loads the
+         *             canonical 256px file.
          *
          *     Returns:
          *         WebP file with immutable cache headers
@@ -1064,7 +1068,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_get: {
+    album_download_zip_albums__album_id__download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1093,7 +1097,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_get_1: {
+    album_download_zip_albums__album_id__download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -2186,7 +2190,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get: {
+    favorites_download_zip_favorites_download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -2204,7 +2208,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get_1: {
+    favorites_download_zip_favorites_download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2280,7 +2284,9 @@ export interface operations {
     };
     get_thumbnail_thumb__point_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                w?: number | null;
+            };
             header?: never;
             path: {
                 point_id: string;

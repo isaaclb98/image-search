@@ -336,13 +336,19 @@
       class="grid-virtual"
       style="height: {totalSize}px; position: relative;"
     >
-      {#each virtualItems as virtualRow (virtualRow.key)}
+      {#each virtualItems as virtualRow, vRowIdx (virtualRow.key)}
         <div
           class="grid-row"
           style="position: absolute; top: 0; left: 0; width: 100%; height: {virtualRow.size}px; transform: translateY({virtualRow.start}px);"
         >
           {#each rows[virtualRow.index] as item, colIndex}
             {@const itemIndex = virtualRow.index * columns + colIndex}
+            <!-- Tier 1 of 3 (perf round 1): tag the first three tiles
+                 of the first visible row as eager so the browser
+                 starts fetching them with the rest of the HTML. The
+                 virtualizer guarantees this row is in the viewport
+                 (overscan ≥ 5 covers the first row even when scrolled). -->
+            {@const eagerIndex = vRowIdx === 0 ? colIndex : null}
             <div class="grid-tile">
               <PhotoTile
                 pointId={item.id}
@@ -350,6 +356,7 @@
                 scoreStr={item.score_str}
                 isFavorite={item.is_favorite}
                 isDisliked={item.is_disliked}
+                {eagerIndex}
                 onOpen={onPhotoOpen ? () => onPhotoOpen(item) : () => openLightbox(itemIndex)}
                 onContextMenu={(id, e) => openContextMenu(item, e)}
               />
