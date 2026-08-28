@@ -141,3 +141,73 @@ jobs:
         # once. The image is already tagged with the full ghcr.io
         # path by `load: true` above, so this is just a `docker push`.
         run: docker push ${{ steps.meta.outputs.tags }}
+
+      # ---------------------------------------------------------------------
+      # Prune old :sha-* tags after a successful push
+      # ---------------------------------------------------------------------
+      # The GHCR free tier gives 0.5 GB of container storage. Without
+      # pruning, every successful push accumulates a new :sha-<7>
+      # tag and the package runs out of space in a few weeks of
+      # active development. This step keeps the 5 most recent
+      # :sha-* tags and the :latest tag (which ArgoCD watches),
+      # deleting anything older.
+      #
+      # Why 5: enough to roll back a few releases without rebuilding,
+      # small enough that a 100 MB-per-tag image stays under ~500 MB
+      # total storage. Tune by setting KEEP_TAGS.
+      #
+      # Tags are listed via the packages API (works inside an
+      # image-build run because GITHUB_TOKEN gets packages:read +
+      # packages:write by default for repo-scoped tokens — verify
+      # under Settings → Actions → General → Workflow permissions
+      # if this step starts 403'ing).
+      - name: Prune old :sha-* tags
+        if: success()
+        env:
+          PACKAGE_NAME: ${{ github.event.repository.name }}
+          PACKAGE_OWNER: ${{ github.repository_owner }}
+          KEEP_TAGS: "5"
+        run: |
+          set -euo pipefail
+
+          # List all versions for this container package. The
+          # endpoint returns the most recent first; we walk it in
+          # reverse because deleting the N oldest is idempotent if
+          # the run is re-triggered.
+          echo "Listing versions for ${PACKAGE_OWNER}/${PACKAGE_NAME}..."
+          mapfile -t VERSIONS < <(
+            gh api \
+              "/users/${PACKAGE_OWNER}/packages/container/${PACKAGE_NAME}/versions?per_page=100" \
+              --jq '.[] | "\(.id)\t\(.name)\t\(.tags | join(","))"'
+          )
+
+          # Filter to sha-* tags only; keep :latest unconditionally.
+          SHA_TAGS=()
+          for v in "${VERSIONS[@]}"; do
+            tags="${v##*$'\t'}"  # last field = tags
+            tags="${tags##*$'\t'}"  # safety: re-strip if multi-tab
+            if [[ "$tags" == *"sha-"* ]]; then
+              id="${v%%	*}"  # first field = id
+              SHA_TAGS+=("$id")
+            fi
+          done
+
+          echo "Found ${#SHA_TAGS[@]} sha-* tags (newest first)."
+
+          # Delete everything beyond the keep-window. Reverse so we
+          # delete oldest first (more predictable; if any delete
+          # fails we still keep the newest N).
+          TO_DELETE=$(printf '%s\n' "${SHA_TAGS[@]}" | tail -n +$((KEEP_TAGS + 1)))
+          if [[ -z "$TO_DELETE" ]]; then
+            echo "Nothing to delete (${#SHA_TAGS[@]} <= ${KEEP_TAGS})."
+            exit 0
+          fi
+
+          count=0
+          for id in $TO_DELETE; do
+            if gh api -X DELETE \
+              "/users/${PACKAGE_OWNER}/packages/container/${PACKAGE_NAME}/versions/${id}"; then
+              count=$((count + 1))
+            fi
+          done
+          echo "Pruned $count old sha-* tags (kept $KEEP_TAGS newest + :latest)."
