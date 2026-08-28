@@ -39,6 +39,7 @@
   import Button from '$lib/components/Button.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
+  import { pageTint } from '$lib/stores/tint';
 
   type PhotoMeta = {
     id: string;
@@ -94,7 +95,13 @@
           .then((url) => {
             // Only apply if the photo hasn't changed (e.g. user
             // navigated to a different one during decode).
-            if (photo && photo.id === data.id) blurTint = url;
+            if (photo && photo.id === data.id) {
+              blurTint = url;
+              // Round‑31: also push to the global pageTint store
+              // so +layout.svelte's backdrop picks up the colour
+              // wash behind the dedicated photo page.
+              pageTint.set(url);
+            }
           })
           .catch(() => {
             /* leave blurTint null — the dark surface shows */
@@ -313,10 +320,13 @@
   .blur {
     position: absolute;
     inset: 0;
-    /* blurhash-bg.ts returns a CSS background string; this div
-       paints the placeholder until the <img> loads over it. */
-    filter: blur(20px);
-    transform: scale(1.05); /* hide the blur edge */
+    /* blurhash data URL is already a low-res smooth tint. Stretch
+       it to fill the box (no tiling) so we don't get banding
+       artifacts on portrait photos where the frame is much wider
+       than the photo itself. No extra blur filter — it just
+       makes the blurhash look muddy. (Round‑31 fix.) */
+    background-size: cover;
+    background-position: center;
   }
 
   .hero {

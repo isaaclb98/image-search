@@ -15,19 +15,16 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure'
   },
-  webServer: {
-    // The dev backend is managed by the test runner (see
-    // .github/workflows/nightly-e2e.yml and the local
-    // `scripts/dev-qdrant.sh` + `search.dev_server` flow), so
-    // playwright never needs to start one itself. `reuseExistingServer`
-    // + the placeholder command let the runner pick up the running
-    // server on `url` without forking one. The command is a no-op
-    // because Playwright short-circuits before invoking it.
-    command: 'echo "(dev server managed externally; see nightly-e2e.yml)"',
-    url: BASE_URL,
-    reuseExistingServer: true,
-    timeout: 120_000
-  },
+  // The dev backend is managed by the workflow itself (or by
+  // scripts/dev-qdrant.sh + search.dev_server locally) — it
+  // runs as a long-lived process that the runner keeps alive
+  // for the duration of the e2e step. Playwright's webServer
+  // mode would either: (a) try to spawn the server itself
+  // (wrong — the workflow already does), or (b) wait for a
+  // placeholder command to "make the URL available", which
+  // doesn't happen with a no-op `tail -f` even when the URL
+  // is already up. Omit webServer entirely so Playwright just
+  // connects to whatever's listening on `baseURL`.
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
   ]

@@ -21,6 +21,7 @@
     deleteAlbum
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
+  import { pushRandomTint } from '$lib/components/blurhash-bg';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
   // Round‑29b: renamed from 'favourites' to 'likes' to match
@@ -122,6 +123,11 @@
     // so the page reaches a fully-populated state in max(t1, t2)
     // instead of t1 + t2. (Tier 1.5.)
     Promise.all([refresh(), refreshSystemCounts()]);
+    // Round‑31: /albums doesn't render a PhotoGrid so the
+    // backdrop-tint effect in PhotoGrid doesn't fire here.
+    // Push a random photo's blurhash-derived colour tint so the
+    // page has a colour wash instead of solid black.
+    void pushRandomTint();
   });
 </script>
 

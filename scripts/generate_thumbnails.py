@@ -13,17 +13,17 @@ from pathlib import Path
 THUMBNAIL_DIR = Path(os.environ.get("THUMBNAIL_DIR", "/app/data/thumbnails"))
 THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
 
-THUMB_MAX_EDGE = int(os.environ.get("THUMB_MAX_EDGE", "256"))
-THUMB_QUALITY = int(os.environ.get("THUMB_QUALITY", "78"))
+THUMB_MAX_EDGE = int(os.environ.get("THUMB_MAX_EDGE", "384"))
+THUMB_QUALITY = int(os.environ.get("THUMB_QUALITY", "80"))
 
 DB_PATH = os.environ.get("DB_PATH", "/app/data/images.db")
 
 
-def _generate_one(point_id: str, photo_path: str):
+def _generate_one(point_id: str, photo_path: str, *, force: bool = False):
     prefix = point_id[:2]
     out_dir = THUMBNAIL_DIR / prefix
     out_path = out_dir / f"{point_id}.webp"
-    if out_path.exists():
+    if out_path.exists() and not force:
         return (point_id, True, "exists")
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -42,11 +42,30 @@ def _generate_one(point_id: str, photo_path: str):
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Re-generate every thumbnail even if the file already exists. "
+            "Use this when you've changed THUMB_MAX_EDGE / THUMB_QUALITY "
+            "and want to bump all photos to the new size."
+        ),
+    )
+    args = parser.parse_args()
+
     db = sqlite3.connect(DB_PATH)
     rows = db.execute(
         "SELECT id, path FROM images WHERE path LIKE '/mnt/%' OR path LIKE '/tmp/%'"
     ).fetchall()
-    print(f"thumbnailing {len(rows)} photos (target dir: {THUMBNAIL_DIR})")
+    print(
+        f"thumbnailing {len(rows)} photos "
+        f"(target dir: {THUMBNAIL_DIR}, "
+        f"size={THUMB_MAX_EDGE}px long edge, "
+        f"q={THUMB_QUALITY}, force={args.force})"
+    )
 
     # Round‑21: rewrite paths from the host's mount (`/mnt/nas-main/...`,
     # `/tmp/...`) to whatever the search container actually sees.
@@ -73,7 +92,7 @@ def main():
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {
-            ex.submit(_generate_one, pid, _translate(p)): pid
+            ex.submit(_generate_one, pid, _translate(p), force=args.force): pid
             for pid, p in rows
         }
         for fut in as_completed(futs):

@@ -24,21 +24,19 @@
   import { onMount, onDestroy } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
   import { photoUrl } from '$lib/api/endpoints';
+  import type { SearchResult } from '$lib/api/endpoints';
+  import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
   import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
   import type { SvelteVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
 
-  type Item = {
-    id: string;
-    path?: string;
-    score?: number;
-    score_str?: string;
-    blurhash?: string | null;
-    is_favorite?: boolean;
-    is_disliked?: boolean;
-  };
+  // Use the generated SearchResult shape so `url`, `width`,
+  // `height`, `is_disliked` etc. stay in lockstep with the
+  // backend. Everything optional because some callers (ForYouRow)
+  // pass a strict subset and that's fine.
+  type Item = Partial<SearchResult> & { id: string };
 
   type Props = {
     items: Item[];
@@ -97,17 +95,25 @@
   // The body is the scroll context; the virtualizer watches window.
   let gridWrapper: HTMLDivElement | undefined = $state();
   let containerWidth = $state(0);
+  // Round‑32: actual rendered tile width (read from DOM). The CSS
+  // grid uses auto-fill so the number of columns changes with
+  // viewport width — `(containerWidth - (COLUMNS-1) * GAP) /
+  // COLUMNS` is no longer accurate. We measure the first tile
+  // directly. Default to the previous JS estimate so the
+  // virtualizer has a sane starting value before the first
+  // measurement lands.
+  let renderedTileSize = $state(0);
 
   // tileSize drives the virtualizer's rowHeight (= tileSize + GAP).
-  // It MUST match the actual rendered tile width — the CSS grid
-  // decides the tile width via repeat(5, 1fr) inside a wrapper
-  // whose width is `main`'s content area. We compute that width
-  // from `containerWidth` (= wrapper width, set in onMount and by
-  // ResizeObserver). The constant fallback only kicks in for the
-  // single frame before onMount has run; once containerWidth is
-  // populated, the formula is exact.
+  // The CSS grid decides the actual tile width, so we prefer reading
+  // it directly off a rendered `.grid-tile` (handles both repeat(5, 1fr)
+  // and auto-fill). `containerWidth` is the fallback for the first
+  // paint before any tile exists; ESTIMATED_ROW_HEIGHT is the last
+  // resort before onMount runs.
   let tileSize = $derived(
-    containerWidth > 0
+    renderedTileSize > 0
+      ? renderedTileSize
+      : containerWidth > 0
       ? (containerWidth - (COLUMNS - 1) * GAP) / COLUMNS
       : ESTIMATED_ROW_HEIGHT
   );
@@ -159,15 +165,17 @@
   let virtualItems = $derived($virtualizerStore?.getVirtualItems() ?? []);
   let totalSize = $derived($virtualizerStore?.getTotalSize() ?? 0);
 
-  // ResizeObserver for container width
-  // Sync initial width + ResizeObserver.
+  // ResizeObserver for container width.
   //
   // Use $effect instead of onMount: in Svelte 5, bind:this on a
   // {#if}-gated element only populates the variable once the branch
   // renders, which happens AFTER onMount when items load async.
-  // The $effect re-runs whenever gridWrapper flips undefined → bound
-  // AND whenever containerWidth changes (so it can also stand in
-  // for the ResizeObserver's first async tick).
+  // The $effect re-runs whenever gridWrapper flips undefined → bound.
+  //
+  // The second $effect (further down) re-measures the rendered tile
+  // whenever items.length changes — the ResizeObserver fires for
+  // the wrapper, but `.grid-tile` elements only exist once items
+  // load, so we read the tile width on every items change too.
   let resizeObserver: ResizeObserver | null = null;
 
   $effect(() => {
@@ -181,6 +189,27 @@
       }
     });
     resizeObserver.observe(gridWrapper);
+  });
+
+  // Re-measure the rendered tile whenever items change OR the
+  // container width changes. The CSS grid uses auto-fill, so the
+  // number of columns (and therefore the tile width) depends on
+  // `containerWidth`. The ResizeObserver may fire before the
+  // first row renders, so we read the tile on every items change
+  // too.
+  $effect(() => {
+    // Track dependencies.
+    void items.length;
+    void containerWidth;
+    if (!gridWrapper) return;
+    // Defer one tick so the DOM has rendered the new tiles.
+    queueMicrotask(() => {
+      const firstTile = gridWrapper!.querySelector('.grid-tile');
+      if (firstTile) {
+        const r = firstTile.getBoundingClientRect();
+        if (r.width > 0) renderedTileSize = r.width;
+      }
+    });
   });
 
   onDestroy(() => {
@@ -215,6 +244,66 @@
   function closeLightbox() {
     lightboxIndex = null;
   }
+
+  // Round‑31: push the most-recently-in-view tile's blurhash to
+  // the pageTint store. This gives every grid page (/, /random,
+  // /for-you, /albums/likes, /albums/dislikes, /similar/…) a
+  // colour wash even when no lightbox is open.
+  //
+  // The lightbox effect below overrides this with the full
+  // /photo/{id}/raw URL when a lightbox is open, so the backdrop
+  // shows the actual photo (heavily blurred) rather than a flat
+  // blurhash tint during interactive viewing.
+  //
+  // Implementation: debounce so we don't fire blurhashToDataUrl
+  // on every scroll. The output is a 64×40 PNG data URL — small
+  // enough to set on every "settled" position without cost.
+  $effect(() => {
+    // Track `virtualItems` so this re-runs when the row scrolls.
+    const vis = virtualItems;
+    if (vis.length === 0 || items.length === 0) return;
+    if (lightboxIndex !== null) return; // lightbox effect owns the tint
+    // First visible item — the anchor for the current view.
+    const firstVisRow = vis[0];
+    const topItem = items[firstVisRow.index];
+    const hash = topItem?.blurhash;
+    if (!hash) return;
+    // Debounce so we don't churn on every scroll frame.
+    let cancelled = false;
+    const id = setTimeout(() => {
+      blurhashToDataUrl(hash, 64, 40).then((url) => {
+        if (!cancelled && url) pageTint.set(url);
+      }).catch(() => {
+        // blurhash decode can throw on malformed hashes; safe to ignore.
+      });
+    }, 80);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  });
+
+  // Round‑31 fix: actually push the active photo's URL to the
+  // global pageTint store so +layout.svelte can paint a colour
+  // bleed behind the page. Previously the store was imported but
+  // never written to, so the backdrop stayed solid black.
+  //
+  // On lightbox open: set the URL of the active item.
+  // On lightbox close: the grid‑tint effect above re‑engages
+  // (it sees lightboxIndex === null and pushes a blurhash), so
+  // no separate clear is needed — that was the source of a
+  // race where the clear timer fired AFTER the grid tint and
+  // wiped it. Pages that use PhotoGrid with no items fall
+  // through to the default dark backdrop.
+  $effect(() => {
+    const i = lightboxIndex;
+    if (i !== null && i >= 0 && i < items.length) {
+      const it = items[i];
+      if (it?.url) {
+        pageTint.set(it.url);
+      }
+    }
+  });
 
   function openContextMenu(item: Item, e: MouseEvent) {
     e.preventDefault();
@@ -314,7 +403,17 @@
 
   .grid-row {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* Round‑32: auto-fill with a 180-px minimum. At 1200 px
+       container width this gives 6 columns (~183-px tiles);
+       at 1800 px it gives 9 columns (~197-px tiles); on a
+       narrow phone it gracefully drops to 2 columns instead
+       of squeezing 5 of them into ~70 px each. The JS-side
+       `tileSize` derivation still uses `COLUMNS = 5` for the
+       virtualizer's row-height estimate; that's a minor
+       inaccuracy during resize but the ResizeObserver on
+       container width triggers a re-layout on every resize,
+       so it self-corrects on the next frame. */
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: var(--grid-gutter, 20px);
     /* No horizontal padding here — `.app-main` already provides
        24px of side padding, and the row belongs to the wrapper

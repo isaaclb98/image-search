@@ -183,7 +183,8 @@
         positives, negatives, filename,
         diversityMode, diversityDepth,
         limit: PAGE, offset,
-        centroid: activeCentroid ?? undefined
+        centroid: activeCentroid ?? undefined,
+        collections: collections.length ? collections : undefined
       });
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];

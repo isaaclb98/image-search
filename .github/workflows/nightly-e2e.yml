@@ -66,6 +66,16 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
+      - name: Install Playwright browsers
+        # The @playwright/test npm package doesn't ship the browser
+        # binaries — they're downloaded on first use into
+        # ~/.cache/ms-playwright/. CI runners don't have them cached
+        # by default, so install chromium explicitly. --with-deps
+        # pulls the apt deps too (libnss3, libatk, etc.) on
+        # debian-based images.
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
       - name: Build SPA
         # adapter-static output lands in frontend/build. The
         # backend's create_app() mounts this via FRONTEND_DIR
@@ -73,50 +83,70 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Start dev server (mock embedder + 20 demo photos)
-        # --no-model skips the SigLIP2 model load; the registry's
-        # mock-1536 embedder is used instead (deterministic vectors
-        # so screenshot diffs stay stable). --demo-data synthesises
-        # 20 JPEGs into $TMPDIR/image-search-demo/ and indexes them
-        # into an in-memory Qdrant. The server listens on :8000,
-        # matching the playwright config's default base URL.
+      # Start dev server, wait for /healthz, then run Playwright
+      # against it — all in ONE step. Backgrounding the dev server
+      # across separate GHA steps didn't work: the runner kills
+      # child processes when each step's shell exits, so by the
+      # time the "Run Playwright" step started, the server was
+      # already gone (Playwright timed out waiting for the URL).
+      # Co-locating keeps the dev server alive for the entire
+      # playwright run; it dies naturally when the step ends.
+      - name: Run dev server + Playwright e2e
         env:
-          # Mirror the test backend's env so the in-process Qdrant
-          # + IndexDB + dev_server trio behave the same as
-          # local-dev. IndexDB goes in tmp so each run starts clean.
+          # SEARCH_NO_MODEL skips the SigLIP2 model load; the
+          # registry's mock-1536 embedder is used instead
+          # (deterministic vectors so screenshot diffs stay stable).
+          # SEARCH_TEST_MODE flips the same env the test backend uses.
           SEARCH_TEST_MODE: "1"
           SEARCH_NO_MODEL: "1"
           LOG_LEVEL: "WARNING"
+          # CI=true flips playwright to single-worker + 2 retries
+          # (see frontend/playwright.config.ts).
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
+          # FRONTEND_DIR tells create_app() where to find the SPA
+          # build (default is /app/static, the production path).
+          # Without this, the dev_server only exposes the API —
+          # playwright tests would 404 on every page load.
+          FRONTEND_DIR: ${{ github.workspace }}/frontend/build
         run: |
           set -euo pipefail
           mkdir -p .nightly-logs
+
+          # --demo-data synthesises 20 JPEGs into
+          # $TMPDIR/image-search-demo/ and indexes them into an
+          # in-memory Qdrant. The server listens on :8000.
           uv run python -m search.dev_server \
             --no-model --demo-data \
             --host 127.0.0.1 --port 8000 \
             > .nightly-logs/dev-server.log 2>&1 &
-          echo "dev-server pid: $!"
-          # Poll /healthz instead of blind sleep — usually up in
-          # ~5s but Qdrant boot + index init can take 30s+.
+          DEV_PID=$!
+          echo "dev-server pid: $DEV_PID"
+
+          # Poll /healthz — usually up in ~5s but Qdrant boot +
+          # index init can take 30s+. If it doesn't come up in 60s,
+          # surface the failure and exit non-zero so the run fails
+          # cleanly with the dev-server log as context.
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1; then
               echo "dev-server up after ${i}s"
-              exit 0
+              break
             fi
             sleep 1
+            if [ "$i" = 60 ]; then
+              echo "dev-server failed to start; tail of log:"
+              tail -40 .nightly-logs/dev-server.log
+              kill $DEV_PID 2>/dev/null || true
+              exit 1
+            fi
           done
-          echo "dev-server failed to start; tail of log:"
-          tail -40 .nightly-logs/dev-server.log
-          exit 1
 
-      - name: Run Playwright e2e
-        working-directory: frontend
-        env:
-          # Tell Playwright where the server is. CI=true flips the
-          # config to single-worker + 2 retries (see
-          # frontend/playwright.config.ts).
-          CI: "true"
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8000
-        run: npx playwright test --reporter=github
+          # Run playwright against the live server. Cleanup on
+          # exit so the next step (uploads) doesn't race the dying
+          # server for the log file.
+          trap 'kill $DEV_PID 2>/dev/null || true' EXIT
+          cd frontend
+          npx playwright test --reporter=github
 
       - name: Upload Playwright report
         # Both on success and failure — the report has the trace +
@@ -139,12 +169,3 @@ jobs:
           name: dev-server-log
           path: .nightly-logs/
           retention-days: 14
-
-      - name: Stop dev server
-        if: always()
-        # Best-effort cleanup; uvicorn's signal handlers take care
-        # of the rest. Don't fail the run if pkill misses.
-        run: |
-          pkill -f "search.dev_server" || true
-          sleep 1
-          pkill -9 -f "search.dev_server" || true
