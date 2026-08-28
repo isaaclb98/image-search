@@ -79,6 +79,25 @@ def load_image_pil(
     letterboxes to its registered resolution anyway, so decoding
     beyond ~2x the model's resolution is wasted work. Default cap
     comes from `INDEXER_DECODE_MAX` (0 = disabled, no cap).
+
+    ⚠️ **Source dims are NOT preserved in the returned image.**
+    `Image.draft()` mutates `img.size` to the *drafted* size — which
+    for a landscape JPEG + square draft target is **NOT** a
+    proportional shrink (PIL picks JPEG-MCU-aligned chunks). When
+    the caller needs the actual source dimensions (the photo page
+    shows them), read `Image.open(path).size` BEFORE calling this
+    function, or use `image_loader.peek_source_dims()` below.
+
+    The source-dims gotcha is the source of the round‑31 bug where
+    every photo showed up as 1000×1500 regardless of orientation
+    (6000×4000 landscape images were reported as 1000×1500
+    portrait, because PIL's draft box was non-proportional).
+
+    The higher‑level `load()` helper does the right thing for the
+    indexer: it captures `(source_w, source_h)` BEFORE calling
+    `load_image_pil`, so callers of `load()` never hit this trap.
+    Direct callers of `load_image_pil` should be aware of the
+    gotcha — that's why this comment is here.
     """
     # Suppress PIL's decompression bomb check. Several photos in the
     # collection exceed the default MAX_IMAGE_PIXELS (178956970) at
@@ -109,6 +128,32 @@ def load_image_pil(
         raise LoaderError(path, "file not found") from e
     except Exception as e:  # PIL raises a zoo of exceptions
         raise LoaderError(path, f"open failed: {type(e).__name__}: {e}") from e
+
+
+def peek_source_dims(path: Path) -> tuple[int | None, int | None]:
+    """Read just the JPEG header to get the source `(width, height)`
+    without decoding any pixels.
+
+    Fast: opens the file, reads the header (a few KB), closes the
+    file. Suitable for use in tests and CLI tooling that wants the
+    true source dims without paying the decode cost.
+
+    Returns `(None, None)` if the file can't be opened as an image
+    (e.g. it's a directory, a text file, or unreadable). Callers
+    that want to surface a hard error should catch the underlying
+    PIL exception themselves.
+
+    Round‑31: the photo page needs the source dims to display
+    "Dimensions: 6000 × 4000" instead of the draft‑cropped
+    1000 × 1500. After re‑ingest the indexer still has the
+    draft‑cropped dims in the payload, so this helper is the
+    escape hatch until a full re‑ingest lands.
+    """
+    try:
+        with Image.open(path) as img:
+            return img.size
+    except Exception:  # noqa: BLE001
+        return (None, None)
 
 
 def _default_resolution() -> int:
@@ -167,6 +212,13 @@ def load(
     (`formatDimensions()`) needs the source size, not the
     embedder's 256×256 input size.
 
+    Round‑31: source dims are now read via `peek_source_dims()`
+    BEFORE `load_image_pil()` calls `Image.draft()`. PIL's draft
+    box is non‑proportional for landscape JPEGs, so capturing
+    dims from the returned image (as round‑30 did) was
+    systematically wrong: a 6000×4000 image became "1000×1500"
+    after draft. Reading the header up front fixes it.
+
     `model_name` defaults to the web backend's current model
     (`ViT-gopt-16-SigLIP2-384`). The resolution is read from the model
     registry, not from a constant in this module.
@@ -177,6 +229,11 @@ def load(
     loop and logged as a per-file error; the indexer continues with
     the next file).
     """
+    # Capture source dims from the JPEG header BEFORE any decode.
+    # Reading the header is cheap (a few KB) and avoids the PIL
+    # draft-mode non-proportional shrink trap (see the comment on
+    # load_image_pil below).
+    source_w, source_h = peek_source_dims(path)
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         from image_search_kernel.registry import get as _registry_get
         size = _registry_get(model_name).resolution
@@ -195,8 +252,10 @@ def load(
                 f"slow/stalled network share; raise INDEXER_LOAD_TIMEOUT_S "
                 f"if your network is just consistently slow)",
             ) from err
-    # Capture source dims BEFORE the letterbox squashes the image.
-    source_w, source_h = img.width, img.height
+    # Resize to the registered model's resolution. NB: we don't
+    # re‑capture img.width / img.height here — those reflect the
+    # post‑draft size (see load_image_pil's warning), not the
+    # source. Source dims come from peek_source_dims above.
     return letterbox_resize(img, size=size), source_w, source_h
 
 
