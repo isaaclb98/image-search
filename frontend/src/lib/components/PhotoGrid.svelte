@@ -281,8 +281,12 @@
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: var(--grid-gutter, 20px);
-    padding: 0 var(--s-4, 24px);
-    box-sizing: border-box;
+    /* No horizontal padding here — `.app-main` already provides
+       24px of side padding, and the row belongs to the wrapper
+       which fills main's content area. Adding more here would
+       double-inset the grid (48px total side padding) and make
+       it look left-shifted on wide viewports where the wrapper
+       is narrower than the viewport. */
   }
 
   .grid-tile {
