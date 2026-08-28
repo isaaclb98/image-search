@@ -20,7 +20,7 @@ from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwarg
 from image_search_kernel.registry import get as _registry_get
 from indexer import scan as scan_mod
 from indexer import upsert
-from indexer.image_loader import letterbox_resize, load
+from indexer.image_loader import letterbox_resize, load_image_pil, peek_source_dims
 from indexer.thumbnails import generate_thumbnail_for_path
 from indexer.vision_encoder import VisionEncoder
 
@@ -336,9 +336,15 @@ def main(argv=None):
             loaded = []
             for p, _reason in to_embed:
                 try:
-                    # Round‑30: load() now returns
-                    # `(letterboxed_img, source_w, source_h)`.
-                    img, source_w, source_h = load(p)
+                    # Round-30: capture source dims from the JPEG header
+                    # (cheap; a few KB) and load the ORIGINAL image, not
+                    # the letterboxed one. The thumbnail generator needs
+                    # the original — passing it the letterboxed input
+                    # bakes the model's black padding bars into the
+                    # 256x256 WebP (see regression test in
+                    # tests/test_thumbnails_no_letterbox.py).
+                    source_w, source_h = peek_source_dims(p)
+                    img = load_image_pil(p)
                     loaded.append((p, img, source_w, source_h))
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("load error %s: %s", p, exc)
