@@ -55,6 +55,13 @@ on:
       - .dockerignore
       - .github/workflows/image-build.yml
 
+# Cancel any in-flight run on main so a fast follow-up push doesn't
+# race the previous build's3-5 min of layer pulls + SigLIP2 download.
+# Mirrors dev-build.yml's concurrency block.
+concurrency:
+  group: image-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -90,12 +97,18 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
 
-      - name: Build and push
+      - name: Build (load locally for smoke test)
+        # Build first, load into the local docker daemon so the
+        # smoke test below can `docker run` it without a registry
+        # round-trip. Push happens in a separate step after the
+        # smoke test passes — a broken image never reaches GHCR.
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.search
-          push: true
+          push: false
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # cache-from intentionally omitted on first build with the
@@ -104,3 +117,27 @@ jobs:
           # `/data` file that no longer exists. cache-to is still set
           # so subsequent rebuilds get the speedup.
           cache-to: type=gha,mode=max,scope=image-search-build
+
+      - name: Smoke test (gunicorn --check-config)
+        # Catches "forgot to import a module" / "syntax error inside
+        # the container" class of bug BEFORE pushing to GHCR.
+        # `--check-config` validates the module path + workers
+        # without forking workers, so it finishes in <2s. The
+        # SEARCH_TEST_MODE=1 skips the SigLIP2 model load.
+        run: |
+          docker run --rm \
+            -e SEARCH_TEST_MODE=1 \
+            -e PORT=8765 \
+            ${{ steps.meta.outputs.tags }} \
+            gunicorn --check-config \
+              search.app:app \
+              -b 0.0.0.0:8765 \
+              -k uvicorn.workers.UvicornWorker \
+              --workers 1 \
+              --timeout 120
+
+      - name: Push to ghcr.io
+        # Separate step so the build (and its cache-to write) happen
+        # once. The image is already tagged with the full ghcr.io
+        # path by `load: true` above, so this is just a `docker push`.
+        run: docker push ${{ steps.meta.outputs.tags }}
