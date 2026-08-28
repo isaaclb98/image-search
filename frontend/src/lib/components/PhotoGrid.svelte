@@ -76,11 +76,7 @@
   }: Props = $props();
 
   // Grid config
-  // COLUMNS controls how items are sliced into virtualizer rows.
-  // Keep it in sync with `.grid-row`'s grid-template-columns count
-  // — if they disagree, the virtualizer lays out 5 columns per
-  // row but the DOM renders a different count.
-  const COLUMNS = 5;
+  //
   // GAP is the row-to-row vertical spacing used by the virtualizer
   // (rowHeight = tileSize + GAP). It MUST match the CSS `gap` on
   // `.grid-row` (--grid-gutter) so horizontal and vertical gutters
@@ -88,6 +84,10 @@
   // side-to-side but cramped top-to-bottom.
   const GAP = 20; // px, matches --grid-gutter
   const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
+
+  // Sensible floor before we know the wrapper width — used on the
+  // very first render when both containerWidth and tileSize are 0.
+  const ESTIMATED_COLUMNS = 5;
 
   // State
   let contextMenu = $state<{ x: number; y: number; item: Item } | null>(null);
@@ -97,32 +97,40 @@
   let containerWidth = $state(0);
   // Round‑32: actual rendered tile width (read from DOM). The CSS
   // grid uses auto-fill so the number of columns changes with
-  // viewport width — `(containerWidth - (COLUMNS-1) * GAP) /
-  // COLUMNS` is no longer accurate. We measure the first tile
-  // directly. Default to the previous JS estimate so the
-  // virtualizer has a sane starting value before the first
-  // measurement lands.
+  // viewport width — we measure the first tile directly. Default
+  // to the previous JS estimate so the virtualizer has a sane
+  // starting value before the first measurement lands.
   let renderedTileSize = $state(0);
 
   // tileSize drives the virtualizer's rowHeight (= tileSize + GAP).
-  // The CSS grid decides the actual tile width, so we prefer reading
-  // it directly off a rendered `.grid-tile` (handles both repeat(5, 1fr)
-  // and auto-fill). `containerWidth` is the fallback for the first
-  // paint before any tile exists; ESTIMATED_ROW_HEIGHT is the last
-  // resort before onMount runs.
-  let tileSize = $derived(
-    renderedTileSize > 0
-      ? renderedTileSize
-      : containerWidth > 0
-      ? (containerWidth - (COLUMNS - 1) * GAP) / COLUMNS
-      : ESTIMATED_ROW_HEIGHT
-  );
+  // The CSS grid decides the actual tile width (auto-fill means it
+  // changes with viewport), so we read it directly off a rendered
+  // `.grid-tile`. Until the first tile mounts we fall back to the
+  // ESTIMATED_ROW_HEIGHT — the ResizeObserver fires within one
+  // frame and the $effect below re-measures.
+  let tileSize = $derived(renderedTileSize > 0 ? renderedTileSize : ESTIMATED_ROW_HEIGHT);
   let rowHeight = $derived(tileSize + GAP);
+
+  // Derive column count from the same math the CSS uses:
+  //   containerWidth = COLUMNS * tileSize + (COLUMNS - 1) * GAP
+  // Solving for COLUMNS:
+  //   COLUMNS = (containerWidth + GAP) / (tileSize + GAP)
+  // Falls back to ESTIMATED_COLUMNS on the first frame (before any
+  // measurement). Floors to 1 if the wrapper is narrower than a
+  // single min-width tile. Kept in sync with `.grid-row`'s
+  // `auto-fill minmax(COLUMN_MIN, 1fr)` so the virtualizer's row
+  // slicing matches the DOM's actual column count — otherwise the
+  // last columns of every row stay empty.
+  let columns = $derived(
+    tileSize > 0 && containerWidth > 0
+      ? Math.max(1, Math.floor((containerWidth + GAP) / (tileSize + GAP)))
+      : ESTIMATED_COLUMNS
+  );
 
   // Group items into rows
   let rows = $derived(
-    Array.from({ length: Math.ceil(items.length / COLUMNS) }, (_, i) =>
-      items.slice(i * COLUMNS, (i + 1) * COLUMNS)
+    Array.from({ length: Math.ceil(items.length / columns) }, (_, i) =>
+      items.slice(i * columns, (i + 1) * columns)
     )
   );
 
@@ -334,7 +342,7 @@
           style="position: absolute; top: 0; left: 0; width: 100%; height: {virtualRow.size}px; transform: translateY({virtualRow.start}px);"
         >
           {#each rows[virtualRow.index] as item, colIndex}
-            {@const itemIndex = virtualRow.index * COLUMNS + colIndex}
+            {@const itemIndex = virtualRow.index * columns + colIndex}
             <div class="grid-tile">
               <PhotoTile
                 pointId={item.id}

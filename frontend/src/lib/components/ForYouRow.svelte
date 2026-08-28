@@ -33,7 +33,28 @@
     loading = true;
     try {
       const poolSize = 800;
-      const want = 20;
+      // Target exactly 3 rows of tiles. Compute the column count
+      // the CSS grid will pick at this viewport and round the
+      // sample size to a multiple of it, so the last row is always
+      // full (no awkward partial-row of clustered tiles on the
+      // left).
+      //
+      // CSS: `grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))`
+      // with `gap: var(--grid-gutter, 20px)`. Column count =
+      //   floor((containerWidth + GAP) / (COLUMN_MIN + GAP))
+      // estimated from `window.innerWidth - main padding`. Note
+      // `.app-main` is capped at 1600px, so the wrapper width is
+      // min(viewport - 48, 1552).
+      const COL_MIN = 180;
+      const GAP = 20;
+      const MAIN_PAD = 48; // 24px each side, matches `.app-main`
+      const MAIN_MAX = 1552; // 1600px cap minus padding
+      const wrapperW = Math.min(window.innerWidth - MAIN_PAD, MAIN_MAX);
+      const cols = Math.max(
+        1,
+        Math.floor((wrapperW + GAP) / (COL_MIN + GAP))
+      );
+      const want = cols * 3;
       const res = await forYouFeed(poolSize);
       const pool = res?.results ?? [];
       // Pick `want` items uniformly without replacement, shuffle first.
@@ -136,7 +157,10 @@
 <style>
   .row-section {
     margin-top: var(--s-5);
-    padding: 0 var(--s-4, 24px);
+    /* No horizontal padding — `.app-main` already provides 24px
+       of side padding for the whole page. Adding it here too
+       double-insets this section (48px total) and makes it look
+       narrower than the search grid above it. */
   }
   .head {
     display: flex;

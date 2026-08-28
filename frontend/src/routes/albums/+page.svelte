@@ -18,7 +18,10 @@
   import {
     listAlbums,
     createAlbum,
-    deleteAlbum
+    deleteAlbum,
+    listFavorites,
+    listDislikes,
+    thumbUrl
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import { pushRandomTint } from '$lib/components/blurhash-bg';
@@ -46,6 +49,10 @@
   let loading = $state(true);
   let likesCount = $state(0);
   let dislikesCount = $state(0);
+  // First photo id in each built-in album — used as the card cover.
+  // Empty string while loading or when the album is empty.
+  let likesFirstId = $state('');
+  let dislikesFirstId = $state('');
 
   async function refresh() {
     loading = true;
@@ -72,6 +79,29 @@
     } catch {
       // Counts are decorative; a 502 on count fetch shouldn't
       // blank the whole page.
+    }
+    // Cover photo for each built-in album. Fire-and-forget — the
+    // card is already informative without a thumbnail.
+    Promise.all([
+      fetchCover(listFavorites).then((id) => (likesFirstId = id)),
+      fetchCover(listDislikes).then((id) => (dislikesFirstId = id))
+    ]).catch(() => {
+      /* non-fatal */
+    });
+  }
+
+  /** Fetch one SearchResult from the list endpoint and return its id.
+   * With `as_results=1` (which is what listFavorites / listDislikes
+   * set), the backend returns a SearchResponse envelope — the
+   * array lives under `results`, not `favorites` / `items`. */
+  async function fetchCover(
+    list: (limit?: number, offset?: number) => Promise<unknown>
+  ): Promise<string> {
+    try {
+      const res = (await list(1, 0)) as { results?: { id: string }[] };
+      return res.results?.[0]?.id ?? '';
+    } catch {
+      return '';
     }
   }
 
@@ -145,6 +175,11 @@
 
 <section class="system" aria-label="Built-in albums">
   <article class="card glass system-like">
+    {#if likesFirstId}
+      <img class="cover" src={thumbUrl(likesFirstId)} alt="" loading="lazy" />
+    {:else}
+      <div class="cover cover-empty" aria-hidden="true"></div>
+    {/if}
     <a class="title" href="/albums/likes">♥ Likes</a>
     <p class="desc">Photos you've liked. Built-in, always here.</p>
     <footer>
@@ -165,6 +200,11 @@
     >Search</button>
   </article>
   <article class="card glass system-dislike">
+    {#if dislikesFirstId}
+      <img class="cover" src={thumbUrl(dislikesFirstId)} alt="" loading="lazy" />
+    {:else}
+      <div class="cover cover-empty" aria-hidden="true"></div>
+    {/if}
     <a class="title" href="/albums/dislikes">− Dislikes</a>
     <p class="desc">Photos you've disliked. Built-in, always here.</p>
     <footer>
@@ -191,6 +231,11 @@
   <div class="grid">
     {#each albums as a (a.id)}
       <article class="card glass">
+        {#if a.first_member_id}
+          <img class="cover" src={thumbUrl(a.first_member_id)} alt="" loading="lazy" />
+        {:else}
+          <div class="cover cover-empty" aria-hidden="true"></div>
+        {/if}
         <a class="title" href="/albums/{a.id}">{a.name}</a>
         {#if a.description}<p class="desc">{a.description}</p>{/if}
         <footer>
@@ -288,15 +333,48 @@
     gap: var(--grid-gutter);
   }
   .card {
-    padding: 16px 18px;
+    /* No horizontal padding — the cover spans full width. Vertical
+       padding only sits between the cover and the title. */
+    padding: 0 0 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    overflow: hidden; /* rounded corners on the cover */
     transition: transform var(--t-fast), box-shadow var(--t-fast);
   }
   .card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-2);
+  }
+  /* Cover thumbnail — first photo added to the album. Sits flush
+     against the top of the card, full-bleed, fixed aspect ratio
+     so the cards in a row all line up regardless of which photo
+     the backend picked. */
+  .cover {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--glass-1);
+    border-bottom: 1px solid var(--glass-edge);
+  }
+  /* Placeholder when the album has no members yet — keeps the
+     card height the same as the others in its row. */
+  .cover-empty {
+    background: linear-gradient(
+      135deg,
+      var(--glass-1) 0%,
+      var(--glass-2) 100%
+    );
+  }
+  /* The card's existing horizontal padding was 16px 18px — pull
+     the title/desc/footer back to that left+right gutter. */
+  .card .title,
+  .card .desc,
+  .card footer,
+  .card .search-btn {
+    margin-left: 18px;
+    margin-right: 18px;
   }
   .title {
     font-size: var(--fs-lg);
