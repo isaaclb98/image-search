@@ -7,6 +7,11 @@ Falls back to 404 if thumbnail doesn't exist (frontend uses blurhash).
 Path pattern: {THUMBNAIL_DIR}/{prefix}/{point_id}.webp
   - prefix = first 2 chars of point_id (256 buckets)
   - ~8KB per image at 256px WebP q50
+
+Round-perf (issue #2): supports an optional ?w= query param so the
+frontend can ask for a sized variant for its srcset. Returns 404 if
+the sized variant doesn't exist on disk so the browser falls back to
+the canonical 256px file (which is always present).
 """
 
 from __future__ import annotations
@@ -14,7 +19,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from search.config import THUMBNAIL_DIR
@@ -27,12 +32,25 @@ def build_thumbnails_router() -> APIRouter:
     router = APIRouter()
 
     @router.get("/thumb/{point_id}")
-    async def get_thumbnail(point_id: str) -> FileResponse:
+    async def get_thumbnail(
+        point_id: str,
+        # Round-perf (issue #2): frontend srcset asks for a target width
+        # so the browser can pick the smallest variant that fits its
+        # current rendered size. We don't generate new variants on
+        # demand (that'd be a slow first-hit and burn disk) — instead
+        # we look for a pre-generated sibling and 404 if it doesn't
+        # exist so the browser falls back to the canonical 256px file.
+        w: int | None = Query(None, ge=64, le=256),
+    ) -> FileResponse:
         """
-        Serve a pre-generated WebP thumbnail.
+        Serve a pre-generated WebP thumbnail, optionally sized.
 
         Args:
             point_id: Qdrant point ID (32-char hex)
+            w: Optional target width in pixels. Looks for
+                `{THUMBNAIL_DIR}/{prefix}/{point_id}.w{w}.webp`.
+                Returns 404 if missing; the browser then loads the
+                canonical 256px file.
 
         Returns:
             WebP file with immutable cache headers
@@ -47,7 +65,15 @@ def build_thumbnails_router() -> APIRouter:
 
         # Compute thumbnail path using two-level prefix
         prefix = point_id[:2]
-        thumb_path = Path(THUMBNAIL_DIR) / prefix / f"{point_id}.webp"
+        thumb_path: Path
+        if w is not None:
+            sized = Path(THUMBNAIL_DIR) / prefix / f"{point_id}.w{w}.webp"
+            thumb_path = (
+                sized if sized.exists()
+                else Path(THUMBNAIL_DIR) / prefix / f"{point_id}.webp"
+            )
+        else:
+            thumb_path = Path(THUMBNAIL_DIR) / prefix / f"{point_id}.webp"
 
         if not thumb_path.exists():
             raise HTTPException(status_code=404, detail="Thumbnail not found")

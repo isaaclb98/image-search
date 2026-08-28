@@ -33,6 +33,38 @@ describe('photoUrl', () => {
   });
 });
 
+/**
+ * Round-perf (issue #2): thumbUrl() now takes an optional width so
+ * the frontend srcset can ask the backend for a pre-generated
+ * sibling instead of always fetching the canonical 256-px file.
+ * These tests pin the URL contract; the matching variant-on-disk
+ * behaviour is covered by tests/test_thumbnails_unit.py on the
+ * backend side.
+ */
+describe('thumbUrl', () => {
+  it('builds the canonical /thumb/{id} URL without a width', async () => {
+    const { thumbUrl } = await import('./client');
+    expect(thumbUrl('abc-123')).toBe('/thumb/abc-123');
+  });
+
+  it('appends ?w=N when a width is supplied', async () => {
+    const { thumbUrl } = await import('./client');
+    expect(thumbUrl('abc-123', 240)).toBe('/thumb/abc-123?w=240');
+    expect(thumbUrl('abc-123', 180)).toBe('/thumb/abc-123?w=180');
+  });
+
+  it('omits ?w= for non-positive widths', async () => {
+    const { thumbUrl } = await import('./client');
+    expect(thumbUrl('abc-123', 0)).toBe('/thumb/abc-123');
+    expect(thumbUrl('abc-123', -1)).toBe('/thumb/abc-123');
+  });
+
+  it('percent-encodes point IDs', async () => {
+    const { thumbUrl } = await import('./client');
+    expect(thumbUrl('a/b c', 240)).toBe('/thumb/a%2Fb%20c?w=240');
+  });
+});
+
 describe('ApiError', () => {
   it('captures status, body, message', async () => {
     const { ApiError } = await import('./client');

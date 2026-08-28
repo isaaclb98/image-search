@@ -28,6 +28,15 @@
     isFavorite?: boolean;
     isDisliked?: boolean;
     contextMenuOpen?: boolean;
+    /**
+     * Tier 1 of 3 (perf round 1): first-screen tiles should bypass
+     * the browser's lazy-loader so the initial grid paint isn't gated
+     * on the lazy-load heuristic. 0-indexed position in the visible
+     * items array; false/null → normal lazy behaviour. We pass this
+     * down from PhotoGrid because PhotoTile doesn't know whether it's
+     * in the first row of the visible virtualizer slice.
+     */
+    eagerIndex?: number | false | null;
     onOpen?: (id: string) => void;
     onContextMenu?: (id: string, e: MouseEvent) => void;
   };
@@ -39,6 +48,7 @@
     isFavorite,
     isDisliked,
     contextMenuOpen,
+    eagerIndex,
     onOpen,
     onContextMenu
   }: Props = $props();
@@ -66,6 +76,38 @@
     e.preventDefault();
     onContextMenu?.(pointId, e);
   }
+  // Best-effort tile-width hint for the first-screen srcset. We can't
+  // measure the tile itself from here (no DOM ref on the wrapping
+  // grid cell), so we approximate from window.innerWidth divided by
+  // the auto-fill column target. Falls back to 240 on SSR / dev
+  // edge cases. Cached per-tile via $derived so we only recompute
+  // when the breakpoint flips.
+  function tileSizeGuess(): number | undefined {
+    if (typeof window === 'undefined') return undefined;
+    const w = window.innerWidth;
+    // Mirror PhotoGrid's `auto-fill minmax(180px, 1fr)` heuristic.
+    const cols = Math.max(1, Math.floor((Math.min(w, 1600) + 20) / (180 + 20)));
+    return Math.floor((Math.min(w, 1600) - (cols - 1) * 20) / cols);
+  }
+  // True for the first three tiles of the first visible row. These
+  // are the tiles a user is staring at on first paint — we want them
+  // marked eager + high-priority so the browser starts fetching them
+  // alongside the HTML/CSS instead of waiting on its lazy heuristic.
+  let isEager = $derived(eagerIndex === 0 || eagerIndex === 1 || eagerIndex === 2);
+  // Rendered srcset width for the eager tiles. We round up the
+  // guessed tile size × 2 so the picked variant is at least 2× the
+  // CSS pixels (retina). 480 is the upper bound — anything bigger
+  // would be the canonical 256-px file upscaled and we already serve
+  // 480 from the backend.
+  let eagerSrcWidth = $derived(
+    Math.max(120, Math.min(240, Math.round((tileSizeGuess() ?? 240) * 1)))
+  );
+  let eagerSrcset = $derived(
+    `${thumbUrl(pointId, 120)} 120w, ${thumbUrl(pointId, 180)} 180w, ${thumbUrl(pointId, 240)} 240w`
+  );
+  let eagerSizes = $derived(
+    '(max-width: 600px) 120px, (max-width: 1200px) 180px, 240px'
+  );
 </script>
 
 <a
@@ -87,9 +129,12 @@
   <img
     bind:this={imgEl}
     class="full"
-    src={thumbUrl(pointId)}
+    src={isEager ? thumbUrl(pointId, eagerSrcWidth) : thumbUrl(pointId)}
+    srcset={isEager ? eagerSrcset : undefined}
+    sizes={isEager ? eagerSizes : undefined}
     alt=""
-    loading="lazy"
+    loading={isEager ? 'eager' : 'lazy'}
+    fetchpriority={eagerIndex === 0 ? 'high' : isEager ? 'auto' : 'low'}
     decoding="async"
     onload={() => (loaded = true)}
     onerror={() => (loaded = true)}

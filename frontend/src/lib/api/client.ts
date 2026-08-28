@@ -95,7 +95,16 @@ export function photoUrl(pointId: string, width?: number): string {
   return width && width > 0 ? `${base}?w=${width}` : base;
 }
 
-/** Build the thumbnail URL used by photo grid tiles. */
-export function thumbUrl(pointId: string): string {
-  return `/thumb/${encodeURIComponent(pointId)}`;
+/**
+ * Build the thumbnail URL used by photo grid tiles.
+ *
+ * Round-perf (issue #2): pass an optional `w` to ask the backend for a
+ * pre-generated sized variant (e.g. 240/360/480). The endpoint serves
+ * the smallest variant that fits the rendered tile, falls back to the
+ * canonical 256px file if the variant is missing, and 404s if neither
+ * is on disk (frontend already handles 404 → blurhash).
+ */
+export function thumbUrl(pointId: string, w?: number): string {
+  const base = `/thumb/${encodeURIComponent(pointId)}`;
+  return w && w > 0 ? `${base}?w=${w}` : base;
 }
