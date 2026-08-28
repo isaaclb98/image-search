@@ -40,23 +40,6 @@ on:
   # watches the :latest tag on main, so a dispatch build on any other
   # branch produces a :sha-* image that nothing rolls to automatically.
   workflow_dispatch:
-    inputs:
-      skip_smoke:
-        # Round-16: smoke test step (`gunicorn --check-config` inside
-        # the just-built image) hangs indefinitely on the GHA runner —
-        # 20+ minutes observed, zero log output until step timeout. We
-        # can't ship a `:latest` until this is bypassed. Default
-        # behaviour:
-        #   - push event      → smoke test SKIPPED (the gate below
-        #                       also blocks push)
-        #   - dispatch, true  → smoke test SKIPPED
-        #   - dispatch, false → smoke test RUNS (use this when you
-        #                       want the safety check on a one-off build)
-        # Re-enable for push once the underlying hang is diagnosed.
-        description: 'Skip the gunicorn smoke-test step'
-        type: boolean
-        required: false
-        default: false
   push:
     branches:
       - main
@@ -114,57 +97,25 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
 
-      - name: Build (load locally for smoke test)
-        # Build first, load into the local docker daemon so the
-        # smoke test below can `docker run` it without a registry
-        # round-trip. Push happens in a separate step after the
-        # smoke test passes — a broken image never reaches GHCR.
+      - name: Build and push
+        # Round-17: revert to single-step push. The smoke test split
+        # (push=false, load=true in 710d0b6) loaded the 3 GB image
+        # into the GHA runner's local docker daemon, then re-pushed
+        # from there — exhausting the ~7 GB runner and reliably
+        # killing `docker push` mid-stream with exit 127 / no logs.
+        # Direct buildx push streams layers to ghcr.io without ever
+        # materializing the image on the runner.
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.search
-          push: false
-          load: true
+          push: true
+          load: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # cache-from intentionally omitted on first build with the
-          # new single-container Dockerfile — the previous cache was
-          # keyed off a different build context and reports a phantom
-          # `/data` file that no longer exists. cache-to is still set
-          # so subsequent rebuilds get the speedup.
+          cache-from: type=gha,mode=max,scope=image-search-build
           cache-to: type=gha,mode=max,scope=image-search-build
-
-      - name: Smoke test (gunicorn --check-config)
-        # Catches "forgot to import a module" / "syntax error inside
-        # the container" class of bug BEFORE pushing to GHCR.
-        # `--check-config` validates the module path + workers
-        # without forking workers, so it finishes in <2s. The
-        # SEARCH_TEST_MODE=1 skips the SigLIP2 model load.
-        #
-        # Round-16: gated because `docker run` here hangs on the GHA
-        # runner (20+ min, no log output). Gate truth table:
-        #   - push event      → skip (builds without smoke)
-        #   - dispatch=true   → skip (workflow_dispatch input)
-        #   - dispatch=false  → run (the original safety check)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_smoke != true }}
-        run: |
-          docker run --rm \
-            -e SEARCH_TEST_MODE=1 \
-            -e PORT=8765 \
-            ${{ steps.meta.outputs.tags }} \
-            gunicorn --check-config \
-              search.app:app \
-              -b 0.0.0.0:8765 \
-              -k uvicorn.workers.UvicornWorker \
-              --workers 1 \
-              --timeout 120
-
-      - name: Push to ghcr.io
-        # Separate step so the build (and its cache-to write) happen
-        # once. The image is already tagged with the full ghcr.io
-        # path by `load: true` above, so this is just a `docker push`.
-        run: docker push ${{ steps.meta.outputs.tags }}
 
       # ---------------------------------------------------------------------
       # Prune old :sha-* tags after a successful push
