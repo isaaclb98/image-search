@@ -16,7 +16,14 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    // assume `npm run preview` is already running; do not auto-start
+    // The dev backend is managed by the test runner (see
+    // .github/workflows/nightly-e2e.yml and the local
+    // `scripts/dev-qdrant.sh` + `search.dev_server` flow), so
+    // playwright never needs to start one itself. `reuseExistingServer`
+    // + the placeholder command let the runner pick up the running
+    // server on `url` without forking one. The command is a no-op
+    // because Playwright short-circuits before invoking it.
+    command: 'echo "(dev server managed externally; see nightly-e2e.yml)"',
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000
