@@ -145,9 +145,9 @@
           diversityDepth,
           limit: PAGE,
           offset: 0,
-          centroid: activeCentroid ?? undefined,
-          signal: ctrl.signal
-        }
+          centroid: activeCentroid ?? undefined
+        },
+        ctrl.signal
       );
       items = (res?.results ?? []) as Item[];
       offset = items.length;

@@ -24,6 +24,7 @@ export type AlbumDetail = components['schemas']['AlbumDetailResponse'];
 // validator in dev mode for drift detection.
 export type ForYouFeedResponse = {
   results: SearchResult[];
+  has_more?: boolean;
   n_likes?: number;
   n_dislikes?: number;
   freshest_feedback_ts?: string | null;
@@ -232,7 +233,7 @@ export async function deleteSavedSearch(id: number) {
 // ---------- Albums ----------
 
 export function listAlbums() {
-  return apiGet<unknown>('/api/albums', {
+  return apiGet<{ albums: AlbumSummary[] }>('/api/albums', {
     schema: Z.AlbumsListResponse,
     schemaName: 'AlbumsListResponse'
   });

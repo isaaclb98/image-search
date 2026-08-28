@@ -498,6 +498,30 @@
             "title": "Results",
             "type": "array"
           },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque session id. For /api/random this identifies the shuffled deck; pass it back with an incremented `offset` to walk forward. None for non-session endpoints (search, similar, etc.) \u2014 those use offset/limit directly against Qdrant.",
+            "title": "Session Id"
+          },
+          "session_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total photos in the session deck. Only set for /api/random. Use this with `offset` to know when you've walked everything.",
+            "title": "Session Total"
+          },
           "surprise": {
             "default": false,
             "description": "True when results were randomly sampled from a deep pool (Surprise Me mode).",
@@ -569,6 +593,12 @@
             "description": "Qdrant point id (32-char hex prefix)",
             "title": "Id",
             "type": "string"
+          },
+          "is_disliked": {
+            "default": false,
+            "description": "True when the image is marked as a dislike (hides it from future recommendations)",
+            "title": "Is Disliked",
+            "type": "boolean"
           },
           "is_favorite": {
             "default": false,
@@ -670,7 +700,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get",
         "parameters": [
           {
             "in": "path",
@@ -701,7 +731,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
         "parameters": [
           {
             "in": "path",
@@ -1105,7 +1135,7 @@
     },
     "/api/centroids": {
       "get": {
-        "description": "List all centroids currently loaded from CENTROIDS_DIR.\nEach entry includes model/dim metadata so the UI can show\n\"expected vs loaded\" mismatches if a future debug view needs it.\n\nDynamic centroids (runtime-computed, currently just\n`favourites`) are returned alongside the static ones in a\nseparate `dynamic_centroids` list so the UI can render them\nin their own section.",
+        "description": "List static + dynamic centroids with metadata.",
         "operationId": "list_centroids_api_centroids_get",
         "responses": {
           "200": {
@@ -1126,7 +1156,6 @@
     },
     "/api/centroids/reload": {
       "post": {
-        "description": "Rescan CENTROIDS_DIR and rebuild the in-memory store.\n\nManual on purpose \u2014 the search side has no filesystem watcher.\nThe response includes the new count and the directory that\nwas scanned, so the caller can confirm what was reloaded.",
         "operationId": "reload_centroids_api_centroids_reload_post",
         "responses": {
           "200": {
@@ -1147,7 +1176,7 @@
     },
     "/api/centroids/{name}/search": {
       "get": {
-        "description": "Search using a loaded centroid as the query vector. Mutually\nexclusive with text prompts (the URL shape carries no prompt\nparams, so the only failure mode is an unknown centroid name).",
+        "description": "Search using a loaded centroid as the query vector.",
         "operationId": "search_by_centroid_api_centroids__name__search_get",
         "parameters": [
           {
@@ -1211,7 +1240,7 @@
     },
     "/api/collections": {
       "get": {
-        "description": "Return a list of distinct library (`collection` payload field)\nvalues with point counts. Drives the chip-style filter UI on\nthe frontend; one call per page load.",
+        "description": "List distinct library collections with point counts.",
         "operationId": "list_collections_api_collections_get",
         "responses": {
           "200": {
@@ -1495,39 +1524,92 @@
         "summary": "Mark Favorite"
       }
     },
+    "/api/for-you/diversity": {
+      "get": {
+        "description": "Expose the active Diversity defaults + valid choices to the UI.",
+        "operationId": "for_you_diversity_api_for_you_diversity_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response For You Diversity Api For You Diversity Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "For You Diversity"
+      }
+    },
     "/api/for-you/feed": {
       "get": {
-        "description": "Heavy path: rebuild signal + Qdrant recommend + diversity.",
+        "description": "Paginated, server-side for-you feed.\n\nDiversity is resolved against the app\u2011wide `cfg.diversity`\ndefault; `diversity_depth` is accepted for API parity but\nignored (only the discovery rabbithole uses depth today).\n\n`limit` is clamped to [1, 100] silently inside the handler\nso callers can ask for `limit=999` and get the largest valid\npage rather than a 422.",
         "operationId": "for_you_feed_api_for_you_feed_get",
         "parameters": [
           {
+            "description": "max recommendations per page",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "default": 30,
+              "description": "max recommendations per page",
+              "minimum": 1,
               "title": "Limit",
               "type": "integer"
             }
           },
           {
+            "description": "zero-based page index",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "zero-based page index",
+              "minimum": 0,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "diversity mode",
             "in": "query",
             "name": "diversity",
             "required": false,
             "schema": {
-              "default": "balanced",
-              "title": "Diversity",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "diversity mode",
+              "title": "Diversity"
             }
           },
           {
+            "description": "ignored on /for-you",
             "in": "query",
             "name": "diversity_depth",
             "required": false,
             "schema": {
-              "default": "auto",
-              "title": "Diversity Depth",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ignored on /for-you",
+              "title": "Diversity Depth"
             }
           }
         ],
@@ -1560,6 +1642,7 @@
     },
     "/api/for-you/reset": {
       "post": {
+        "description": "Invalidate the cached user signal + favourites centroid.",
         "operationId": "for_you_reset_api_for_you_reset_post",
         "responses": {
           "204": {
@@ -1590,6 +1673,44 @@
         "summary": "For You State"
       }
     },
+    "/api/photo/{point_id}": {
+      "get": {
+        "description": "Fetch metadata for a single photo by ID.\n\nUsed by the frontend's dedicated photo page to render the\nlarge photo + metadata sidebar. Returns everything the\nsidebar can show: identity, file info, indexing info,\nfavourite status. Does NOT return the vector \u2014 that's a\ndifferent concern, and `payload` carries enough for the UI.",
+        "operationId": "photo_metadata_api_photo__point_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Photo Metadata"
+      }
+    },
     "/api/random": {
       "get": {
         "operationId": "api_random_api_random_get",
@@ -1607,18 +1728,54 @@
             }
           },
           {
+            "description": "position in the shuffled deck",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "position in the shuffled deck",
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "session id from a previous /api/random response",
+            "in": "query",
+            "name": "session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "session id from a previous /api/random response",
+              "title": "Session"
+            }
+          },
+          {
             "description": "restrict to one or more collections; empty = whole set",
             "in": "query",
             "name": "collections",
             "required": false,
             "schema": {
-              "default": [],
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "description": "restrict to one or more collections; empty = whole set",
-              "items": {
-                "type": "string"
-              },
-              "title": "Collections",
-              "type": "array"
+              "title": "Collections"
             }
           },
           {
@@ -1968,9 +2125,139 @@
         "summary": "Api Search"
       }
     },
+    "/api/similar/{point_id}": {
+      "get": {
+        "description": "Most-similar photos: nearest neighbours of `point_id`.",
+        "operationId": "similar_photos_api_similar__point_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "max similar photos to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "max similar photos to return",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "offset into the result set",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "offset into the result set",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Similar Photos"
+      }
+    },
+    "/api/sync/pause": {
+      "post": {
+        "operationId": "sync_pause_api_sync_pause_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Pause"
+      }
+    },
+    "/api/sync/resume": {
+      "post": {
+        "operationId": "sync_resume_api_sync_resume_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Resume"
+      }
+    },
+    "/api/sync/status": {
+      "get": {
+        "operationId": "sync_status_api_sync_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Status Api Sync Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Status"
+      }
+    },
+    "/api/system/status": {
+      "get": {
+        "description": "System status with cache stats for the frontend dashboard.",
+        "operationId": "system_status_api_system_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response System Status Api System Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "System Status"
+      }
+    },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head",
+        "operationId": "favorites_download_zip_favorites_download_zip_get",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -1979,7 +2266,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2020,6 +2307,26 @@
               "title": "Point Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional target width in pixels. Server Lanczos-resizes if set.",
+            "in": "query",
+            "name": "w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 8192,
+                  "minimum": 64,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional target width in pixels. Server Lanczos-resizes if set.",
+              "title": "W"
+            }
           }
         ],
         "responses": {
@@ -2043,6 +2350,44 @@
           }
         },
         "summary": "Photo Raw"
+      }
+    },
+    "/thumb/{point_id}": {
+      "get": {
+        "description": "Serve a pre-generated WebP thumbnail.\n\nArgs:\n    point_id: Qdrant point ID (32-char hex)\n\nReturns:\n    WebP file with immutable cache headers\n\nRaises:\n    404 if thumbnail doesn't exist (frontend falls back to blurhash)",
+        "operationId": "get_thumbnail_thumb__point_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "title": "Point Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Thumbnail"
       }
     }
   }

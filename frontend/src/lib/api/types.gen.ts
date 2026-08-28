@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
+        get: operations["album_download_zip_albums__album_id__download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_head"];
+        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -165,14 +165,7 @@ export interface paths {
         };
         /**
          * List Centroids
-         * @description List all centroids currently loaded from CENTROIDS_DIR.
-         *     Each entry includes model/dim metadata so the UI can show
-         *     "expected vs loaded" mismatches if a future debug view needs it.
-         *
-         *     Dynamic centroids (runtime-computed, currently just
-         *     `favourites`) are returned alongside the static ones in a
-         *     separate `dynamic_centroids` list so the UI can render them
-         *     in their own section.
+         * @description List static + dynamic centroids with metadata.
          */
         get: operations["list_centroids_api_centroids_get"];
         put?: never;
@@ -192,14 +185,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Reload Centroids
-         * @description Rescan CENTROIDS_DIR and rebuild the in-memory store.
-         *
-         *     Manual on purpose — the search side has no filesystem watcher.
-         *     The response includes the new count and the directory that
-         *     was scanned, so the caller can confirm what was reloaded.
-         */
+        /** Reload Centroids */
         post: operations["reload_centroids_api_centroids_reload_post"];
         delete?: never;
         options?: never;
@@ -216,9 +202,7 @@ export interface paths {
         };
         /**
          * Search By Centroid
-         * @description Search using a loaded centroid as the query vector. Mutually
-         *     exclusive with text prompts (the URL shape carries no prompt
-         *     params, so the only failure mode is an unknown centroid name).
+         * @description Search using a loaded centroid as the query vector.
          */
         get: operations["search_by_centroid_api_centroids__name__search_get"];
         put?: never;
@@ -238,9 +222,7 @@ export interface paths {
         };
         /**
          * List Collections
-         * @description Return a list of distinct library (`collection` payload field)
-         *     values with point counts. Drives the chip-style filter UI on
-         *     the frontend; one call per page load.
+         * @description List distinct library collections with point counts.
          */
         get: operations["list_collections_api_collections_get"];
         put?: never;
@@ -321,6 +303,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/for-you/diversity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * For You Diversity
+         * @description Expose the active Diversity defaults + valid choices to the UI.
+         */
+        get: operations["for_you_diversity_api_for_you_diversity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/for-you/feed": {
         parameters: {
             query?: never;
@@ -330,7 +332,15 @@ export interface paths {
         };
         /**
          * For You Feed
-         * @description Heavy path: rebuild signal + Qdrant recommend + diversity.
+         * @description Paginated, server-side for-you feed.
+         *
+         *     Diversity is resolved against the app‑wide `cfg.diversity`
+         *     default; `diversity_depth` is accepted for API parity but
+         *     ignored (only the discovery rabbithole uses depth today).
+         *
+         *     `limit` is clamped to [1, 100] silently inside the handler
+         *     so callers can ask for `limit=999` and get the largest valid
+         *     page rather than a 422.
          */
         get: operations["for_you_feed_api_for_you_feed_get"];
         put?: never;
@@ -350,7 +360,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** For You Reset */
+        /**
+         * For You Reset
+         * @description Invalidate the cached user signal + favourites centroid.
+         */
         post: operations["for_you_reset_api_for_you_reset_post"];
         delete?: never;
         options?: never;
@@ -370,6 +383,32 @@ export interface paths {
          * @description Cheap signal snapshot for the header chip and empty-state.
          */
         get: operations["for_you_state_api_for_you_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/photo/{point_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Photo Metadata
+         * @description Fetch metadata for a single photo by ID.
+         *
+         *     Used by the frontend's dedicated photo page to render the
+         *     large photo + metadata sidebar. Returns everything the
+         *     sidebar can show: identity, file info, indexing info,
+         *     favourite status. Does NOT return the vector — that's a
+         *     different concern, and `payload` carries enough for the UI.
+         */
+        get: operations["photo_metadata_api_photo__point_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -448,6 +487,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/similar/{point_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Similar Photos
+         * @description Most-similar photos: nearest neighbours of `point_id`.
+         */
+        get: operations["similar_photos_api_similar__point_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sync/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync Pause */
+        post: operations["sync_pause_api_sync_pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sync/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync Resume */
+        post: operations["sync_resume_api_sync_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sync/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sync Status */
+        get: operations["sync_status_api_sync_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Status
+         * @description System status with cache stats for the frontend dashboard.
+         */
+        get: operations["system_status_api_system_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/favorites/download.zip": {
         parameters: {
             query?: never;
@@ -456,13 +586,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_head"];
+        get: operations["favorites_download_zip_favorites_download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -492,6 +622,35 @@ export interface paths {
         };
         /** Photo Raw */
         get: operations["photo_raw_photo__point_id__raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/thumb/{point_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Thumbnail
+         * @description Serve a pre-generated WebP thumbnail.
+         *
+         *     Args:
+         *         point_id: Qdrant point ID (32-char hex)
+         *
+         *     Returns:
+         *         WebP file with immutable cache headers
+         *
+         *     Raises:
+         *         404 if thumbnail doesn't exist (frontend falls back to blurhash)
+         */
+        get: operations["get_thumbnail_thumb__point_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -797,6 +956,16 @@ export interface components {
             /** Results */
             results: components["schemas"]["SearchResult"][];
             /**
+             * Session Id
+             * @description Opaque session id. For /api/random this identifies the shuffled deck; pass it back with an incremented `offset` to walk forward. None for non-session endpoints (search, similar, etc.) — those use offset/limit directly against Qdrant.
+             */
+            session_id?: string | null;
+            /**
+             * Session Total
+             * @description Total photos in the session deck. Only set for /api/random. Use this with `offset` to know when you've walked everything.
+             */
+            session_total?: number | null;
+            /**
              * Surprise
              * @description True when results were randomly sampled from a deep pool (Surprise Me mode).
              * @default false
@@ -833,6 +1002,12 @@ export interface components {
              * @description Qdrant point id (32-char hex prefix)
              */
             id: string;
+            /**
+             * Is Disliked
+             * @description True when the image is marked as a dislike (hides it from future recommendations)
+             * @default false
+             */
+            is_disliked: boolean;
             /**
              * Is Favorite
              * @description True when the image is marked as a favourite
@@ -889,7 +1064,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_head_1: {
+    album_download_zip_albums__album_id__download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -918,7 +1093,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_head: {
+    album_download_zip_albums__album_id__download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1547,12 +1722,39 @@ export interface operations {
             };
         };
     };
+    for_you_diversity_api_for_you_diversity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     for_you_feed_api_for_you_feed_get: {
         parameters: {
             query?: {
+                /** @description max recommendations per page */
                 limit?: number;
-                diversity?: string;
-                diversity_depth?: string;
+                /** @description zero-based page index */
+                page?: number;
+                /** @description diversity mode */
+                diversity?: string | null;
+                /** @description ignored on /for-you */
+                diversity_depth?: string | null;
             };
             header?: never;
             path?: never;
@@ -1622,13 +1824,48 @@ export interface operations {
             };
         };
     };
+    photo_metadata_api_photo__point_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_random_api_random_get: {
         parameters: {
             query?: {
                 /** @description max results */
                 limit?: number;
+                /** @description position in the shuffled deck */
+                offset?: number;
+                /** @description session id from a previous /api/random response */
+                session?: string | null;
                 /** @description restrict to one or more collections; empty = whole set */
-                collections?: string[];
+                collections?: string[] | null;
                 /** @description result view: 'grid' or 'feed' */
                 view?: string;
             };
@@ -1833,7 +2070,123 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head: {
+    similar_photos_api_similar__point_id__get: {
+        parameters: {
+            query?: {
+                /** @description max similar photos to return */
+                limit?: number;
+                /** @description offset into the result set */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_pause_api_sync_pause_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sync_resume_api_sync_resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sync_status_api_sync_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    system_status_api_system_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    favorites_download_zip_favorites_download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1851,7 +2204,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head_1: {
+    favorites_download_zip_favorites_download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1892,6 +2245,40 @@ export interface operations {
         };
     };
     photo_raw_photo__point_id__raw_get: {
+        parameters: {
+            query?: {
+                /** @description Optional target width in pixels. Server Lanczos-resizes if set. */
+                w?: number | null;
+            };
+            header?: never;
+            path: {
+                point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_thumbnail_thumb__point_id__get: {
         parameters: {
             query?: never;
             header?: never;

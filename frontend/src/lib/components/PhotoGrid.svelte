@@ -24,21 +24,19 @@
   import { onMount, onDestroy } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
   import { photoUrl } from '$lib/api/endpoints';
+  import type { SearchResult } from '$lib/api/endpoints';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
   import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
+  import type { SvelteVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
 
-  type Item = {
-    id: string;
-    path?: string;
-    score?: number;
-    score_str?: string;
-    blurhash?: string | null;
-    is_favorite?: boolean;
-    is_disliked?: boolean;
-  };
+  // Use the generated SearchResult shape so `url`, `width`,
+  // `height`, `is_disliked` etc. stay in lockstep with the
+  // backend. Everything optional because some callers (ForYouRow)
+  // pass a strict subset and that's fine.
+  type Item = Partial<SearchResult> & { id: string };
 
   type Props = {
     items: Item[];
@@ -130,8 +128,10 @@
   // Stable reference to the virtualizer instance. Don't use $derived
   // here — setOptions forces a store update, which would re-trigger
   // the $effect below and call setOptions again, creating a loop.
-  let theVirtualizer: ReturnType<typeof virtualizerStore.subscribe> extends (cb: (v: infer T) => any) => any ? T : never;
-  virtualizerStore.subscribe(v => { theVirtualizer = v; });
+  let theVirtualizer: SvelteVirtualizer<Window, Element> | undefined;
+  virtualizerStore.subscribe((v) => {
+    theVirtualizer = v;
+  });
 
   // Push reactive count/rowHeight into the virtualizer when they change.
   // Note: do NOT read `theVirtualizer` here — only rows.length and

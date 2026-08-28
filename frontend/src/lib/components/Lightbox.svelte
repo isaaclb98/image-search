@@ -286,7 +286,7 @@
           onclick={toggleAlbumMenu}
           title="Add this photo to an album"
           ariaHaspopup="menu"
-          aria-expanded={albumOpen}
+          ariaExpanded={albumOpen}
         >
           Add to album
         </ActionButton>
