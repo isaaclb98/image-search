@@ -19,8 +19,10 @@ from indexer.thumbnails import (
     THUMBNAIL_DIR,
     THUMBNAIL_QUALITY,
     THUMBNAIL_SIZE,
+    THUMBNAIL_SIZES,
     compute_thumbnail,
     generate_thumbnail_for_path,
+    sized_thumbnail_path,
     thumbnail_path,
 )
 
@@ -260,3 +262,66 @@ class TestThumbnailConstants:
         monkeypatch.delenv("THUMBNAIL_DIR", raising=False)
         # Default is /app/data/thumbnails (container path)
         assert THUMBNAIL_DIR == "/app/data/thumbnails" or "thumbnail" in THUMBNAIL_DIR
+
+
+# ----- Round-perf (issue #2): sized variants for the frontend srcset -----
+
+
+class TestSizedThumbnailPath:
+    """sized_thumbnail_path() mirrors the look-up the search router does
+    when the frontend asks for `?w={width}`. The path layout MUST stay
+    in sync or every srcset request 404s."""
+
+    def test_path_uses_prefix_bucket(self):
+        p = sized_thumbnail_path("abc123def456", 240)
+        assert p.parent.name == "ab"
+
+    def test_path_includes_width(self):
+        p = sized_thumbnail_path("abc123def456", 360)
+        assert p.name == "abc123def456.w360.webp"
+
+    def test_different_widths_produce_different_files(self):
+        a = sized_thumbnail_path("abc123", 240)
+        b = sized_thumbnail_path("abc123", 480)
+        assert a != b
+
+
+class TestComputeThumbnailWritesSizedVariants:
+    """compute_thumbnail() should write the downscaled siblings alongside
+    the canonical 256px file so the frontend srcset can pick the smallest
+    variant that fits the rendered tile."""
+
+    def test_writes_all_sized_variants(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (1024, 1024), color="purple")
+        compute_thumbnail(img, "varsize1")
+        for w in THUMBNAIL_SIZES:
+            assert sized_thumbnail_path("varsize1", w).exists(), f"missing w={w}"
+
+    def test_sized_variants_are_smaller_than_canonical(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (1024, 1024), color="orange")
+        compute_thumbnail(img, "sizechk1")
+        canonical = thumbnail_path("sizechk1")
+        with Image.open(canonical) as t:
+            canonical_size = t.size[0]
+        for w in THUMBNAIL_SIZES:
+            assert w < canonical_size, f"variant w={w} should be < canonical {canonical_size}"
+            with Image.open(sized_thumbnail_path("sizechk1", w)) as v:
+                assert v.size == (w, w)
+
+    def test_sized_variants_are_skipped_if_larger_than_source(self, tmp_path, monkeypatch):
+        """If the canonical 256px source is itself smaller than a sized
+        variant, we'd be upscaling — that's worse than the canonical
+        file. Skip those variants and the endpoint's 404-fallback serves
+        the canonical instead."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        # Patch the variant list to include an "impossible" 999-px variant
+        # alongside a small one, then check only the small one is written.
+        monkeypatch.setattr(
+            "indexer.thumbnails.THUMBNAIL_SIZES", (200, 999)
+        )
+        img = Image.new("RGB", (1024, 1024), color="blue")
+        compute_thumbnail(img, "skipbig1")
+        assert sized_thumbnail_path("skipbig1", 200).exists()
+        assert not sized_thumbnail_path("skipbig1", 999).exists()

@@ -700,7 +700,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
         "parameters": [
           {
             "in": "path",
@@ -731,7 +731,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
         "parameters": [
           {
             "in": "path",
@@ -2257,7 +2257,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get",
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2266,7 +2266,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2354,7 +2354,7 @@
     },
     "/thumb/{point_id}": {
       "get": {
-        "description": "Serve a pre-generated WebP thumbnail.\n\nArgs:\n    point_id: Qdrant point ID (32-char hex)\n\nReturns:\n    WebP file with immutable cache headers\n\nRaises:\n    404 if thumbnail doesn't exist (frontend falls back to blurhash)",
+        "description": "Serve a pre-generated WebP thumbnail, optionally sized.\n\nArgs:\n    point_id: Qdrant point ID (32-char hex)\n    w: Optional target width in pixels. Looks for\n        `{THUMBNAIL_DIR}/{prefix}/{point_id}.w{w}.webp`.\n        Returns 404 if missing; the browser then loads the\n        canonical 256px file.\n\nReturns:\n    WebP file with immutable cache headers\n\nRaises:\n    404 if thumbnail doesn't exist (frontend falls back to blurhash)",
         "operationId": "get_thumbnail_thumb__point_id__get",
         "parameters": [
           {
@@ -2364,6 +2364,24 @@
             "schema": {
               "title": "Point Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 256,
+                  "minimum": 64,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "W"
             }
           }
         ],
