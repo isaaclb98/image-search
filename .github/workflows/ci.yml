@@ -28,9 +28,17 @@
 
 name: ci
 
+# Per Isaac's request (Aug 2026): CI runs on main only.
+#
+# Rationale: with a single dev branch, every push-to-dev was a CI
+# run on the same code that was about to go to main anyway — the
+# dev run was redundant work. Push-to-main fires once when code
+# lands, and PR-to-main covers the rarer case of reviewing
+# something before merging. workflow_dispatch stays as an escape
+# hatch for manual re-runs.
 on:
   push:
-    branches: [dev, main]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
