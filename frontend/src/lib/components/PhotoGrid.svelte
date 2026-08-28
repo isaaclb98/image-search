@@ -24,6 +24,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { pageTint } from '$lib/stores/tint';
   import { photoUrl } from '$lib/api/endpoints';
+  import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
   import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
@@ -180,6 +181,66 @@
   function closeLightbox() {
     lightboxIndex = null;
   }
+
+  // Round‑31: push the most-recently-in-view tile's blurhash to
+  // the pageTint store. This gives every grid page (/, /random,
+  // /for-you, /albums/likes, /albums/dislikes, /similar/…) a
+  // colour wash even when no lightbox is open.
+  //
+  // The lightbox effect below overrides this with the full
+  // /photo/{id}/raw URL when a lightbox is open, so the backdrop
+  // shows the actual photo (heavily blurred) rather than a flat
+  // blurhash tint during interactive viewing.
+  //
+  // Implementation: debounce so we don't fire blurhashToDataUrl
+  // on every scroll. The output is a 64×40 PNG data URL — small
+  // enough to set on every "settled" position without cost.
+  $effect(() => {
+    // Track `virtualItems` so this re-runs when the row scrolls.
+    const vis = virtualItems;
+    if (vis.length === 0 || items.length === 0) return;
+    if (lightboxIndex !== null) return; // lightbox effect owns the tint
+    // First visible item — the anchor for the current view.
+    const firstVisRow = vis[0];
+    const topItem = items[firstVisRow.index];
+    const hash = topItem?.blurhash;
+    if (!hash) return;
+    // Debounce so we don't churn on every scroll frame.
+    let cancelled = false;
+    const id = setTimeout(() => {
+      blurhashToDataUrl(hash, 64, 40).then((url) => {
+        if (!cancelled && url) pageTint.set(url);
+      }).catch(() => {
+        // blurhash decode can throw on malformed hashes; safe to ignore.
+      });
+    }, 80);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  });
+
+  // Round‑31 fix: actually push the active photo's URL to the
+  // global pageTint store so +layout.svelte can paint a colour
+  // bleed behind the page. Previously the store was imported but
+  // never written to, so the backdrop stayed solid black.
+  //
+  // On lightbox open: set the URL of the active item.
+  // On lightbox close: the grid‑tint effect above re‑engages
+  // (it sees lightboxIndex === null and pushes a blurhash), so
+  // no separate clear is needed — that was the source of a
+  // race where the clear timer fired AFTER the grid tint and
+  // wiped it. Pages that use PhotoGrid with no items fall
+  // through to the default dark backdrop.
+  $effect(() => {
+    const i = lightboxIndex;
+    if (i !== null && i >= 0 && i < items.length) {
+      const it = items[i];
+      if (it?.url) {
+        pageTint.set(it.url);
+      }
+    }
+  });
 
   function openContextMenu(item: Item, e: MouseEvent) {
     e.preventDefault();
