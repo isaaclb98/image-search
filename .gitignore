@@ -75,3 +75,4 @@ frontend/build/
 frontend/.svelte-kit/
 data/
 .thumbnails/
+.thumbnails_dev/
