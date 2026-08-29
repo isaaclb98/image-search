@@ -63,6 +63,10 @@
   let error = $state<string | null>(null);
   let ctrl: AbortController | null = null;
   let hasSearched = $state(false);
+  // Round-31: show a one-time empty-index prompt when the user has
+  // never indexed anything. Detected on mount via /api/admin/index/status;
+  // disappears once any job has run successfully (last_run_at != null).
+  let indexIsEmpty = $state(false);
   // Round‑29: when set, the page treats this as a "search by album
   // centroid" — the SearchComposer is hidden and reload() hits the
   // centroid endpoint instead of /api/search. URL ?centroid=...
@@ -236,6 +240,19 @@
     ) {
       await reload();
     }
+    // Round-31: surface a one-time prompt when the user has never
+    // indexed anything. Fire-and-forget — never blocks the search.
+    try {
+      const s = await fetch('/api/admin/index/status', {
+        credentials: 'include'
+      });
+      if (s.ok) {
+        const body = await s.json();
+        if (!body.last_run_at) indexIsEmpty = true;
+      }
+    } catch {
+      // ignore — admin endpoint may be unavailable in tests
+    }
   });
 
   // Mirror composer state into the URL (no auto‑reload; only
@@ -257,6 +274,16 @@
 </svelte:head>
 
 <section class="hero">
+  {#if indexIsEmpty}
+    <!-- Round-31: empty-library discoverability. Shows once on a
+         fresh install where no job has ever run. The user dismisses
+         it by going to Settings → Index (or by closing it manually). -->
+    <div class="empty-prompt" role="status">
+      <span>No photos indexed yet.</span>
+      <a href="/settings">Go to Settings → Index</a>
+      <button class="dismiss" onclick={() => (indexIsEmpty = false)} aria-label="Dismiss">×</button>
+    </div>
+  {/if}
   {#if activeCentroid}
     <!-- Round‑29: search-by-album mode hides the prompt composer.
          The album's centroid IS the query; there's nothing to type. -->
@@ -330,6 +357,39 @@
     margin: 0 auto;
     padding: 32px 16px 12px;
     text-align: center;
+  }
+
+  .empty-prompt {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+    margin: 0 auto var(--s-3);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-pill);
+    color: var(--fg-1);
+    font-size: 14px;
+  }
+  .empty-prompt a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .empty-prompt a:hover {
+    text-decoration: underline;
+  }
+  .empty-prompt .dismiss {
+    background: none;
+    border: none;
+    color: var(--fg-2);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 var(--s-0);
+  }
+  .empty-prompt .dismiss:hover {
+    color: var(--fg-1);
   }
   .hero h1 {
     font-size: var(--fs-3xl);

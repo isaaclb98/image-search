@@ -288,6 +288,15 @@ class Config:
     # path fresh. 60s means a freshly-deleted file shows up as dead
     # within a minute; tune higher if you're on a slow NAS.
     path_liveness_ttl_seconds: int = 60
+    # ----- In-app indexer (admin Index button) --------------------------
+    # The search backend can spawn its own indexer subprocess via the
+    # admin Index API. These knobs configure that subprocess; they're
+    # independent of the search-side `model_name`/`device` so the
+    # read path (search) and write path (indexer) can be tuned
+    # separately (e.g. search on GPU, index on CPU).
+    indexer_sources: tuple[str, ...] = ()
+    indexer_device: str = "cpu"
+    indexer_batch_size: int = 8
     # (Single-user auth removed. Front the service with a reverse-proxy
     # auth if access control is needed: caddy, oauth2-proxy, tailscale, etc.)
 
@@ -401,6 +410,19 @@ def load() -> Config:
         filename_cardinality_guard=_float("FILENAME_CARDINALITY_GUARD", 0.5),
         index_db_refresh_interval_seconds=_int("INDEX_DB_REFRESH_INTERVAL_SECONDS", 21600),
         path_liveness_ttl_seconds=_int("PATH_LIVENESS_TTL_SECONDS", 60),
+        # In-app indexer (admin Index button). `INDEXER_SOURCES` is a
+        # comma-separated list; defaults to `NAS_IMAGES_PATH` so a
+        # single-source setup just sets the latter.
+        indexer_sources=tuple(
+            s.strip()
+            for s in os.environ.get(
+                "INDEXER_SOURCES",
+                os.environ.get("NAS_IMAGES_PATH", ""),
+            ).split(",")
+            if s.strip()
+        ),
+        indexer_device=os.environ.get("INDEXER_DEVICE", "cpu"),
+        indexer_batch_size=_int("INDEXER_BATCH_SIZE", 8),
         # Auth removed — no env vars to read here.
     )
 

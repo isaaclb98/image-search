@@ -322,6 +322,216 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IndexerLogResponse": {
+        "description": "Body for GET /api/admin/index/log.",
+        "properties": {
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "next_line": {
+            "title": "Next Line",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lines",
+          "next_line",
+          "total"
+        ],
+        "title": "IndexerLogResponse",
+        "type": "object"
+      },
+      "IndexerProgressModel": {
+        "properties": {
+          "errors": {
+            "title": "Errors",
+            "type": "integer"
+          },
+          "indexed": {
+            "title": "Indexed",
+            "type": "integer"
+          },
+          "reembedded": {
+            "title": "Reembedded",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "indexed",
+          "reembedded",
+          "skipped",
+          "errors"
+        ],
+        "title": "IndexerProgressModel",
+        "type": "object"
+      },
+      "IndexerRunRequest": {
+        "description": "Body for POST /api/admin/index.\n\n`mode` is the only user-visible knob: `incremental` (default)\nembeds only new/changed files; `rebuild` wipes the Qdrant\ncollection + SQLite side store first.",
+        "properties": {
+          "mode": {
+            "default": "incremental",
+            "enum": [
+              "incremental",
+              "rebuild"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "IndexerRunRequest",
+        "type": "object"
+      },
+      "IndexerStatusResponse": {
+        "description": "Body for GET /api/admin/index/status.",
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "incremental",
+                  "rebuild"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "enum": [
+                  "scanning",
+                  "warming_up",
+                  "embedding"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "points_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Count"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/IndexerProgressModel"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "idle",
+              "running",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "mode",
+          "job_id",
+          "pid",
+          "started_at",
+          "finished_at",
+          "last_run_at",
+          "last_error",
+          "progress",
+          "points_count"
+        ],
+        "title": "IndexerStatusResponse",
+        "type": "object"
+      },
       "SavedSearch": {
         "description": "One saved-search row, as returned by every saved-search\nendpoint. `positives` / `negatives` are always Python lists of\nstrings on the wire \u2014 the IndexDB serialises JSON on disk and\ndeserialises on read so callers don't need to think about the\non-disk shape.",
         "properties": {
@@ -700,7 +910,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get",
         "parameters": [
           {
             "in": "path",
@@ -731,7 +941,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
         "parameters": [
           {
             "in": "path",
@@ -759,6 +969,127 @@
           }
         },
         "summary": "Album Download Zip"
+      }
+    },
+    "/api/admin/index": {
+      "post": {
+        "description": "Start a new indexer job. Returns 202 with the initial status.\n\n409 if a job is already running. The runner rejects\nconcurrent starts \u2014 the UI must wait for IDLE before\ntriggering another.",
+        "operationId": "start_index_api_admin_index_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexerRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexerStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Index"
+      }
+    },
+    "/api/admin/index/cancel": {
+      "post": {
+        "description": "Send SIGTERM to the running job.\n\n200 with current status (now IDLE or FAILED). 400 if no\njob was running.",
+        "operationId": "cancel_index_api_admin_index_cancel_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexerStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel Index"
+      }
+    },
+    "/api/admin/index/log": {
+      "get": {
+        "description": "Tail the indexer's stdout/stderr. `next_line` is the cursor\nfor the next poll; pass it back as `since_line` to get\nonly newer lines.",
+        "operationId": "get_log_api_admin_index_log_get",
+        "parameters": [
+          {
+            "description": "Return only lines after this 0-based line index.",
+            "in": "query",
+            "name": "since_line",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Return only lines after this 0-based line index.",
+              "minimum": 0,
+              "title": "Since Line",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexerLogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Log"
+      }
+    },
+    "/api/admin/index/status": {
+      "get": {
+        "description": "Snapshot of the current job. The UI polls this every 1s\nwhile the job is RUNNING.",
+        "operationId": "get_status_api_admin_index_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexerStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Status"
       }
     },
     "/api/albums": {
@@ -2257,7 +2588,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head",
+        "operationId": "favorites_download_zip_favorites_download_zip_get",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2266,7 +2597,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
         "responses": {
           "200": {
             "description": "Successful Response"

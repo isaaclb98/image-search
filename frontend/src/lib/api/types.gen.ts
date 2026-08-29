@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
+        get: operations["album_download_zip_albums__album_id__download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,97 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_head"];
+        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Index
+         * @description Start a new indexer job. Returns 202 with the initial status.
+         *
+         *     409 if a job is already running. The runner rejects
+         *     concurrent starts — the UI must wait for IDLE before
+         *     triggering another.
+         */
+        post: operations["start_index_api_admin_index_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/index/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Index
+         * @description Send SIGTERM to the running job.
+         *
+         *     200 with current status (now IDLE or FAILED). 400 if no
+         *     job was running.
+         */
+        post: operations["cancel_index_api_admin_index_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/index/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Log
+         * @description Tail the indexer's stdout/stderr. `next_line` is the cursor
+         *     for the next poll; pass it back as `since_line` to get
+         *     only newer lines.
+         */
+        get: operations["get_log_api_admin_index_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/index/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description Snapshot of the current job. The UI polls this every 1s
+         *     while the job is RUNNING.
+         */
+        get: operations["get_status_api_admin_index_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -586,13 +676,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_head"];
+        get: operations["favorites_download_zip_favorites_download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -852,6 +942,75 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * IndexerLogResponse
+         * @description Body for GET /api/admin/index/log.
+         */
+        IndexerLogResponse: {
+            /** Lines */
+            lines: string[];
+            /** Next Line */
+            next_line: number;
+            /** Total */
+            total: number;
+        };
+        /** IndexerProgressModel */
+        IndexerProgressModel: {
+            /** Errors */
+            errors: number;
+            /** Indexed */
+            indexed: number;
+            /** Reembedded */
+            reembedded: number;
+            /** Skipped */
+            skipped: number;
+        };
+        /**
+         * IndexerRunRequest
+         * @description Body for POST /api/admin/index.
+         *
+         *     `mode` is the only user-visible knob: `incremental` (default)
+         *     embeds only new/changed files; `rebuild` wipes the Qdrant
+         *     collection + SQLite side store first.
+         */
+        IndexerRunRequest: {
+            /**
+             * Mode
+             * @default incremental
+             * @enum {string}
+             */
+            mode: "incremental" | "rebuild";
+        };
+        /**
+         * IndexerStatusResponse
+         * @description Body for GET /api/admin/index/status.
+         */
+        IndexerStatusResponse: {
+            /** Finished At */
+            finished_at: string | null;
+            /** Job Id */
+            job_id: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Mode */
+            mode: ("incremental" | "rebuild") | null;
+            /** Phase */
+            phase?: ("scanning" | "warming_up" | "embedding") | null;
+            /** Pid */
+            pid: number | null;
+            /** Points Count */
+            points_count: number | null;
+            progress: components["schemas"]["IndexerProgressModel"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "idle" | "running" | "failed";
+        };
+        /**
          * SavedSearch
          * @description One saved-search row, as returned by every saved-search
          *     endpoint. `positives` / `negatives` are always Python lists of
@@ -1068,7 +1227,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_head_1: {
+    album_download_zip_albums__album_id__download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1097,7 +1256,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_head: {
+    album_download_zip_albums__album_id__download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1122,6 +1281,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_index_api_admin_index_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_index_api_admin_index_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerStatusResponse"];
+                };
+            };
+        };
+    };
+    get_log_api_admin_index_log_get: {
+        parameters: {
+            query?: {
+                /** @description Return only lines after this 0-based line index. */
+                since_line?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_api_admin_index_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerStatusResponse"];
                 };
             };
         };
@@ -2190,7 +2454,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head: {
+    favorites_download_zip_favorites_download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2208,7 +2472,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head_1: {
+    favorites_download_zip_favorites_download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;

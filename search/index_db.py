@@ -860,6 +860,36 @@ class IndexDB:
             self._conn.execute("DELETE FROM feedback_events")
             self._conn.commit()
 
+    def reset_side_store(self) -> None:
+        """Wipe every user-mutable table for a "fresh install" reset.
+
+        Used by the admin Index rebuild mode BEFORE spawning the
+        indexer subprocess, so user data referencing soon-to-be-
+        replaced point IDs (favourites, dislikes, albums, saved
+        searches, feedback events) is cleared first. The images
+        cache is also wiped; init_from_qdrant will repopulate it
+        after the indexer finishes.
+
+        Does NOT touch schema_meta — the schema version persists
+        across resets so we don't accidentally trigger a migration
+        on the next startup.
+        """
+        with self._lock:
+            self._conn.executescript(
+                """
+                DELETE FROM favorites;
+                DELETE FROM dislikes;
+                DELETE FROM feedback_events;
+                DELETE FROM album_memberships;
+                DELETE FROM albums;
+                DELETE FROM saved_searches;
+                DELETE FROM images;
+                DELETE FROM images_fts;
+                """
+            )
+            self._conn.commit()
+            logger.info("reset_side_store: wiped all user-mutable tables")
+
     # ---------------------- Albums ----------------------
     #
     # User-curated collections of favourites. Membership is
