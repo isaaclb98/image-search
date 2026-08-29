@@ -47,10 +47,19 @@ services:
       dockerfile: docker/Dockerfile.search
     container_name: image-search
     restart: unless-stopped
+    # Round 31: GPU passthrough so the in-app indexer can actually
+    # use the RTX 3080. NVIDIA Container Runtime must be installed
+    # on the host. NVIDIA_VISIBLE_DEVICES=all is required — without
+    # it the runtime registers but doesn't inject /dev/nvidia* into
+    # the container, and torch.cuda.is_available() returns False
+    # even though torch is CUDA-compiled.
+    runtime: nvidia
     depends_on:
       qdrant:
         condition: service_healthy
     environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
       # Qdrant sidecar — defaults to the compose service name
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: images
