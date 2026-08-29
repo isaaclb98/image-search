@@ -51,7 +51,7 @@ test('photo page renders hero image and sidebar metadata', async ({ page }) => {
 
   // All four action buttons present. Use exact-name match for Like
   // because the regex /Like/i would also match "Dislike".
-  await expect(page.getByRole('button', { name: /^♡? Like/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Like', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Dislike/i })).toBeVisible();
   const similarBtn = page.getByRole('link', { name: /Most similar/i });
   await expect(similarBtn).toBeVisible();
@@ -123,22 +123,23 @@ test('photo page Like button toggles state', async ({ page }) => {
   await page.goto(`${APP}/photo/${id}`);
   await appReady(page);
 
-  // The Like button toggles between "♡ Like" and "♥ Liked". The
-  // accessible name includes the heart symbol, so the regex matches
-  // both states.
-  const likeBtn = page.getByRole('button', { name: /[♡♥] Like[ed]?/i });
+  // The Like button is a toggle. State is conveyed by aria-pressed
+  // (subtle darker fill via ActionButton — not a label flip). The
+  // label stays as "Like" in both states.
+  const likeBtn = page.getByRole('button', { name: /^Like$/ });
   await expect(likeBtn).toBeVisible();
-  // Initial label reflects current state.
-  const initialLabel = await likeBtn.textContent();
-  expect(initialLabel).toMatch(wasFav ? /Liked/i : /Like/i);
+  await expect(likeBtn).toHaveText('Like');
+  // Initial aria-pressed reflects current favorite state.
+  await expect(likeBtn).toHaveAttribute('aria-pressed', wasFav ? 'true' : 'false');
 
-  // Click and observe label flip.
+  // Click and observe aria-pressed flip.
   await likeBtn.click();
-  await expect(likeBtn).toHaveText(wasFav ? /Like/i : /Liked/i, { timeout: 5000 });
+  await expect(likeBtn).toHaveAttribute('aria-pressed', wasFav ? 'false' : 'true', { timeout: 5000 });
+  await expect(likeBtn).toHaveText('Like');
 
   // Restore so we don't pollute the next test's baseline.
   await likeBtn.click();
-  await expect(likeBtn).toHaveText(wasFav ? /Liked/i : /Like/i, { timeout: 5000 });
+  await expect(likeBtn).toHaveAttribute('aria-pressed', wasFav ? 'true' : 'false', { timeout: 5000 });
 });
 
 test('photo page is directly addressable: refresh keeps the same photo', async ({ page }) => {

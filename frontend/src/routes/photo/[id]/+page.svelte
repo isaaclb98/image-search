@@ -13,6 +13,9 @@
    *   - $lib/api/endpoints (photoUrl, likePoint, unlikePoint,
    *     dislikePoint, blurhash background)
    *   - $lib/components/Button (primary/secondary/ghost actions)
+   *   - $lib/components/ActionButton (toggle actions — Like, with
+   *     aria-pressed indicating the favorited state, matching the
+   *     Lightbox)
    *   - $lib/components/Toaster (action feedback)
    *   - The existing TopBar from +layout.svelte
    *
@@ -37,6 +40,7 @@
     dislikePoint
   } from '$lib/api/endpoints';
   import Button from '$lib/components/Button.svelte';
+  import ActionButton from '$lib/components/ActionButton.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
   import { pageTint } from '$lib/stores/tint';
@@ -220,36 +224,30 @@
 
         <!-- Actions: like, dislike, similar, open raw -->
         <section class="actions" aria-label="Actions">
-          <Button
-            variant={photo.is_favorite ? 'primary' : 'secondary'}
-            size="md"
-            disabled={actionInFlight}
+          <ActionButton
             onclick={toggleFavorite}
+            title="Like"
+            ariaPressed={photo.is_favorite ? 'true' : 'false'}
           >
-            {photo.is_favorite ? 'Liked' : 'Like'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            disabled={actionInFlight}
+            Like
+          </ActionButton>
+          <ActionButton
             onclick={onDislike}
+            title="Dislike"
           >
             Dislike
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
+          </ActionButton>
+          <ActionButton
             href={`/similar/${encodeURIComponent(photo.id)}`}
+            title="Open the dedicated most-similar page for this photo"
           >
             Most similar
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
+          </ActionButton>
+          <ActionButton
             href={photoUrl(photo.id)}
           >
             Open raw
-          </Button>
+          </ActionButton>
         </section>
 
         <!-- Photo facts -->
