@@ -36,6 +36,7 @@ from qdrant_client import QdrantClient
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from image_search_kernel.registry import get as _registry_get
 from indexer import scan as scan_mod
+from indexer.scan import ScanCancelled
 from indexer import upsert
 from indexer.image_loader import letterbox_resize, load_image_pil, peek_source_dims
 from indexer.retry import RetryExhausted, retry_with_backoff
@@ -328,7 +329,28 @@ def main(argv=None):
                 expected_total = int(cnt.count)
             except Exception as exc:  # noqa: BLE001
                 logger.debug("count for %s failed: %s", src_name, exc)
-        snap = scan_mod.snapshot(src_path, expected_total=expected_total)
+        try:
+            snap = scan_mod.snapshot(
+                src_path,
+                expected_total=expected_total,
+                should_cancel=_is_cancelled,
+            )
+        except ScanCancelled:
+            # Cancel during the filesystem walk itself. Without this
+            # handler, a cancel on a 1M-file library would wait
+            # minutes for the walk to complete before the next batch
+            # check fires — the user would think cancel is broken.
+            logger.info("cancel requested during scan of %s", src_path)
+            _emit_progress({
+                "event": "cancelled",
+                "stage": "scanning",
+                "indexed": total_indexed,
+                "reembedded": total_reembedded,
+                "skipped": total_skipped,
+                "errors": total_errors,
+                "duration_s": time.time() - t0,
+            })
+            return 130
         if args.limit:
             snap = snap[:args.limit]
         logger.info("found %d files in %s", len(snap), src_path)

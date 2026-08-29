@@ -17,6 +17,13 @@ Speed: uses `os.scandir` directly and filters on DirEntry attributes
 a redundant `os.stat` syscall. On a Windows + SMB mount, the naive
 `Path.rglob` + `Path.is_file()` approach is ~2x slower because of the
 extra stat call per file.
+
+Cooperative cancel (round 31): `snapshot()` accepts a `should_cancel`
+callback that's polled every `cancel_check_every` files. On True,
+the walk aborts with `ScanCancelled`. local_sync wires this to its
+SIGTERM-driven `_is_cancelled()` so cancel is responsive even during
+the filesystem walk — important for million-file libraries where the
+walk alone takes minutes.
 """
 
 from __future__ import annotations
@@ -24,9 +31,19 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+class ScanCancelled(Exception):
+    """Raised by `snapshot()` when its `should_cancel` callback returns True.
+
+    Lets the caller distinguish a user-driven abort from a normal
+    empty-walk return value. The indexer catches this and exits with
+    code 130 (SIGTERM convention) plus a "cancelled" progress event.
+    """
 
 # Image extensions we know how to embed.
 IMAGE_EXTENSIONS: frozenset[str] = frozenset(
@@ -75,6 +92,9 @@ def snapshot(
     source: Path,
     progress_every: int = 10_000,
     expected_total: int | None = None,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    cancel_check_every: int = 5_000,
 ) -> list[Path]:
     """
     Return a stable, sorted list of image paths under `source`.
@@ -90,6 +110,11 @@ def snapshot(
     estimate of the total image count (e.g. from Qdrant's per-source
     count) used to print a time-to-completion estimate alongside the
     running rate; without it the line shows elapsed time instead.
+
+    `should_cancel` (optional) is a zero-arg callable polled every
+    `cancel_check_every` files; if it returns True the walk aborts
+    with `ScanCancelled`. Defaults to None (no cancellation —
+    backwards compatible with all existing callers).
     """
     if not source.exists():
         raise FileNotFoundError(f"source path does not exist: {source}")
@@ -100,10 +125,28 @@ def snapshot(
     if expected_total is not None:
         logger.info("scan: expecting ~%d image files for this source", expected_total)
     results: list[Path] = []
-    state = {"count": 0, "next": progress_every, "t0": time.monotonic()}
-    _walk_into(source, results, state, progress_every, expected_total)
+    state = {
+        "count": 0,
+        "next": progress_every,
+        "t0": time.monotonic(),
+        "next_cancel": cancel_check_every,
+    }
+    try:
+        _walk_into(
+            source, results, state, progress_every, expected_total,
+            should_cancel, cancel_check_every,
+        )
+    except _ScanAbort:
+        # Translated here (not in _walk_into) so the cancel sentinel
+        # stays an internal detail.
+        raise ScanCancelled() from None
     results.sort()
     return results
+
+
+class _ScanAbort(Exception):
+    """Internal sentinel — raised inside _walk_into, translated to
+    `ScanCancelled` by `snapshot()`. Callers should never see this."""
 
 
 def _walk_into(
@@ -112,6 +155,8 @@ def _walk_into(
     state: dict,
     progress_every: int,
     expected_total: int | None,
+    should_cancel: Callable[[], bool] | None = None,
+    cancel_check_every: int = 5_000,
 ) -> None:
     """
     Recursive scandir-based walk. Appends matching Path objects to `out`.
@@ -122,6 +167,12 @@ def _walk_into(
     `state` carries the running file count, the next threshold to log
     at, and the walk start time; `progress_every` is the increment
     between thresholds; `expected_total` (optional) drives the ETA.
+
+    `should_cancel` (optional) is polled every `cancel_check_every`
+    files. On True, raises `_ScanAbort` which `snapshot()` translates
+    to `ScanCancelled`. Checks happen at the same place as progress
+    logging — once per `cancel_check_every` matched images — to avoid
+    the syscall overhead of a per-file poll.
     """
     try:
         with os.scandir(source) as it:
@@ -137,13 +188,31 @@ def _walk_into(
                             if state["count"] >= state["next"]:
                                 state["next"] += progress_every
                                 _log_scan_progress(state, source, expected_total)
+                            # Cooperative cancel: only check at the
+                            # same cadence as progress logging so
+                            # we're not adding per-file overhead.
+                            # cancel_check_every defaults to 5000
+                            # which gives ~1s responsiveness at the
+                            # observed ~5000 files/s SMB rate.
+                            if (
+                                should_cancel is not None
+                                and state["count"] >= state["next_cancel"]
+                            ):
+                                state["next_cancel"] += cancel_check_every
+                                if should_cancel():
+                                    raise _ScanAbort()
                     elif entry.is_dir(follow_symlinks=False):
                         # Recurse into subdirectories. Skip symlinks to
                         # avoid loops on weird NAS layouts.
-                        _walk_into(Path(entry.path), out, state, progress_every, expected_total)
+                        _walk_into(
+                            Path(entry.path), out, state, progress_every,
+                            expected_total, should_cancel, cancel_check_every,
+                        )
                 except OSError:
                     # Permission errors, broken links, etc. — skip silently.
                     continue
+                except _ScanAbort:
+                    raise
     except OSError:
         # Top-level source unreadable. surface via the FileNotFoundError
         # checks in snapshot() before we ever get here; if it does fail
