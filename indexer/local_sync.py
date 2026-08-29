@@ -42,8 +42,6 @@ def parse_args(argv=None):
     p.add_argument("--qdrant-api-key", type=str, default=os.environ.get("QDRANT_API_KEY") or None)
     p.add_argument("--qdrant-collection", type=str, default=os.environ.get("QDRANT_COLLECTION", "images"))
     p.add_argument("--qdrant-in-memory", action="store_true")
-    p.add_argument("--prefix", type=str, default=os.environ.get("PATH_PREFIX", ""))
-    p.add_argument("--base", type=str, default=os.environ.get("NAS_IMAGES_BASE", ""))
     p.add_argument(
         "--reblurhash",
         action="store_true",
@@ -81,27 +79,6 @@ def resolve_source_names(sources, names):
     if len(names) != len(sources):
         raise ValueError("source-name count mismatch")
     return names
-
-
-def canonical_payload_path(local_path: Path, prefix: str, base: str) -> str:
-    lp = local_path.resolve()
-    if prefix and base:
-        try:
-            base_path = Path(base).resolve()
-            try:
-                rel = lp.relative_to(base_path)
-                return str(Path(prefix) / rel)
-            except ValueError:
-                lp_s = str(lp)
-                base_s = str(base_path)
-                if lp_s.lower().startswith(base_s.lower()):
-                    rel_s = lp_s[len(base_s):].lstrip("/\\")
-                    return str(Path(prefix) / rel_s)
-                return str(lp)
-        except (OSError, ValueError):
-            return str(lp)
-    return str(lp)
-
 
 
 def _await_points_visible(client, name, ids, timeout_s=30.0, poll_s=0.2):
@@ -191,8 +168,6 @@ def main(argv=None):
             field="blurhash" if args.reblurhash else "fingerprint",
             sources=args.source,
             source_names=source_names,
-            prefix=args.prefix,
-            base=args.base,
             batch_size=args.batch_size,
             limit=args.limit,
         )
@@ -208,7 +183,6 @@ def main(argv=None):
         removed = upsert.prune_missing(
             client, args.qdrant_collection,
             source_dirs=args.source,
-            prefix=args.prefix, base=args.base,
             source_names=source_names,
         )
         logger.info("prune removed %d point(s)", removed)
@@ -376,7 +350,7 @@ def main(argv=None):
                     # than a blind `Exception` catch.
                     logger.warning(f"Failed to generate thumbnail for {path}: {e}")
 
-                canon = canonical_payload_path(path, args.prefix, args.base)
+                canon = path
                 # Round‑30: local_sync's full-sweep backfill still
                 # uses the simple `build_payload` signature — dims
                 # would require an extra PIL.Image.read() per file.
@@ -414,8 +388,6 @@ def main(argv=None):
             field="blurhash",
             sources=args.source,
             source_names=source_names,
-            prefix=args.prefix,
-            base=args.base,
             batch_size=args.batch_size,
             limit=0,
         )
@@ -426,8 +398,6 @@ def main(argv=None):
             field="fingerprint",
             sources=args.source,
             source_names=source_names,
-            prefix=args.prefix,
-            base=args.base,
             batch_size=args.batch_size,
             limit=0,
         )
@@ -436,7 +406,6 @@ def main(argv=None):
         removed = upsert.prune_missing(
             client, args.qdrant_collection,
             source_dirs=args.source,
-            prefix=args.prefix, base=args.base,
             source_names=source_names,
         )
         logger.info("full sweep: prune removed %d point(s)", removed)
@@ -459,8 +428,6 @@ def _backfill_payload_field(
     field: str,  # "blurhash" or "fingerprint"
     sources: list,
     source_names: list,
-    prefix: str,
-    base: str,
     batch_size: int,
     limit: int,
 ) -> int:
@@ -531,14 +498,10 @@ def _backfill_payload_field(
             break
 
         # Filter to points under one of the configured sources.
-        # The payload.path is the canonical UNC form; --base + --prefix
-        # translate a local file path back to its canonical form so we
-        # can match. But the simpler + robust path: take a point's
-        # payload.path and check whether it starts with any of our
-        # canonical source roots (which we know by --source-name mapping).
-        # The source-name field is already in the payload, so the
-        # simplest source-scoping is: points whose payload.collection is
-        # in source_names are the ones to backfill.
+        # The payload.path is the file path the indexer stored (absolute
+        # host path). Backfill just reads from that path directly — no
+        # translation needed because the indexer runs on the same host
+        # as the backfill.
         scoped = [p for p in points if (p.payload or {}).get("collection") in source_names]
         if not scoped:
             if next_offset is None:
@@ -553,15 +516,9 @@ def _backfill_payload_field(
                 total_failed += 1
                 continue
             try:
-                load_path = path_str
-                if prefix and base:
-                    mapped = canonical_payload_path(Path(path_str), prefix, base)
-                    if mapped is not None:
-                        load_path = mapped
-                # compute() is either (blurhash: str | None) or
-                # (fingerprint: dict). For blurhash we need to map the
-                # scalar value; for fingerprint we already have a dict.
-                computed = compute(Path(load_path))
+                # payload.path is the absolute host path the indexer
+                # stored; the backfill reads from it directly.
+                computed = compute(Path(path_str))
                 if field == "blurhash":
                     new_value = computed  # str | None
                 else:

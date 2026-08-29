@@ -300,8 +300,6 @@ def prune_missing(
     name: str,
     source_dirs: list[str] | None = None,
     batch_size: int = 1000,
-    prefix: str = "",
-    base: str = "",
     source_names: list[str] | None = None,
 ) -> int:
     """
@@ -314,15 +312,11 @@ def prune_missing(
     When `source_dirs` is None, the slower per-point check is used —
     fine for small collections but hours on a slow share at scale.
 
-    `prefix` / `base` make the walk canonical-aware, matching the
-    translation local_sync applies at upsert time. Stored payload
-    paths are canonical UNC (`\\192.168.250.108\files\\images\\...`)
-    while the filesystem walk produces local paths
-    (`Z:/images/kpop/...`); a raw string membership test between the
-    two would classify every point as dead and delete the whole
-    collection. With `base`+`prefix` set, each walked file is
-    translated to its canonical form before the check, so live points
-    survive and only genuinely-missing files get pruned.
+    Paths are compared verbatim — the indexer stores absolute host
+    paths, the filesystem walk produces the same absolute paths, so
+    the membership check works directly. (Round-17 dropped the old
+    `prefix`/`base` UNC-translation flags; indexer and backfill both
+    run on the same host now.)
 
     `source_names` scopes the deletion to points whose `source`
     payload field is in the list. Without it, a partial run (e.g. one
@@ -335,15 +329,14 @@ def prune_missing(
     """
     removed = 0
 
-    # Pre-walk: build a set of every existing path under the source
-    # dirs. One filesystem walk is dramatically faster than 1.5M
-    # individual stat() calls (which is what the no-arg path used to
-    # do). The walk is opt-in: callers that don't know their source
-    # dirs fall back to the per-point check.
+    # Pre-walk: build a set of every existing absolute path under the
+    # source dirs. One filesystem walk is dramatically faster than
+    # 1.5M individual stat() calls (which is what the no-arg path used
+    # to do). The walk is opt-in: callers that don't know their
+    # source dirs fall back to the per-point check.
     existing_paths: set[str] | None = None
     if source_dirs:
         existing_paths = set()
-        base_path = Path(base).resolve() if (prefix and base) else None
         for src in source_dirs:
             src_path = Path(src)
             if not src_path.exists() or not src_path.is_dir():
@@ -357,15 +350,7 @@ def prune_missing(
             for p in src_path.rglob("*"):
                 walked += 1
                 if p.is_file():
-                    lp = p.resolve()
-                    if base_path is not None:
-                        try:
-                            rel = lp.relative_to(base_path)
-                            existing_paths.add(str(Path(prefix) / rel))
-                            continue
-                        except ValueError:
-                            pass  # outside base — fall through to raw
-                    existing_paths.add(str(lp))
+                    existing_paths.add(str(p.resolve()))
                 if walked % 50_000 == 0:
                     elapsed = time.monotonic() - t0
                     rate = walked / elapsed if elapsed > 0 else 0.0
@@ -374,9 +359,8 @@ def prune_missing(
                         walked, rate, int(elapsed) // 60, int(elapsed) % 60, src_path,
                     )
         logger.info(
-            "prune: pre-walked %d files under %d source dir(s) "
-            "(prefix=%r base=%r)",
-            len(existing_paths), len(source_dirs), prefix, base,
+            "prune: pre-walked %d files under %d source dir(s)",
+            len(existing_paths), len(source_dirs),
         )
 
     def _is_alive(path_str: str) -> bool:
