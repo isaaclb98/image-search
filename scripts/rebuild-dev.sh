@@ -18,8 +18,8 @@ else
   (cd "$ROOT_DIR" && "${COMPOSE[@]}" up -d --build --wait search)
 fi
 
-printf '\nDev app: http://localhost:8000\n'
-if curl -fsS --max-time 10 http://127.0.0.1:8000/healthz >/dev/null; then
+printf '\nDev app: http://localhost:8001\n'
+if curl -fsS --max-time 10 http://127.0.0.1:8001/healthz >/dev/null; then
   echo 'Health: OK'
 else
   echo 'Health: unavailable' >&2
