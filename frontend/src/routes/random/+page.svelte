@@ -122,7 +122,7 @@
 
 <section class="head glass">
   <h1>Random</h1>
-  <p>A smattering of what's on the shelf. Scroll for more.</p>
+  <p>Random photos from your library. Scroll for more.</p>
 </section>
 
 <section class="grid-wrap">
