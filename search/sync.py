@@ -71,6 +71,68 @@ class SyncManager:
         self.stats = SyncStats()
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
+        # Round‑31: cache whether the read collection is known to
+        # exist. Avoids one `get_collection` round-trip per cycle
+        # after the first ensure. Reset to False if we ever see a
+        # 404 on the read collection again (manual delete, etc.).
+        self._read_collection_ensured = False
+
+    def _ensure_read_collection(self) -> bool:
+        """Make sure `self.read_collection` exists.
+
+        Returns True if the collection existed (or was created) and
+        is ready for upserts. Returns False if it can't be created
+        (write_collection missing, schema mismatch, etc.) — caller
+        should treat that as "skip this cycle".
+
+        Round‑31 bug fix: Qdrant v1.19's upsert returns 404 if the
+        target collection doesn't exist (older versions auto-
+        created). On a fresh install the write collection exists
+        (indexer created it) but the read one doesn't (no one has
+        searched yet). Without this method, sync_once logged
+        `points_moved=0` and a 404 every 5 seconds forever.
+        """
+        if self._read_collection_ensured:
+            return True
+        try:
+            self.qdrant.get_collection(self.read_collection)
+            self._read_collection_ensured = True
+            return True
+        except Exception as e:
+            # Match both the real server's "Not found" (from the
+            # JSON response) AND the in-memory client's lowercase
+            # "Collection X not found" ValueError. The "404" check
+            # catches the HTTP-status fallbacks too.
+            err = str(e).lower()
+            if "not found" not in err and "404" not in err:
+                raise
+            # Read collection is missing — create it from the write
+            # collection's schema so the upsert can succeed.
+            try:
+                write_info = self.qdrant.get_collection(self.write_collection)
+            except Exception:
+                # Write collection also missing — nothing to sync yet.
+                return False
+            vectors = getattr(write_info.config.params, "vectors", None)
+            if vectors is None:
+                # Sparse or unnamed vectors — fall back to recreating
+                # without explicit params and let Qdrant pick defaults.
+                self.qdrant.create_collection(self.read_collection)
+            else:
+                self.qdrant.create_collection(
+                    self.read_collection,
+                    vectors_config={
+                        "size": vectors.size,
+                        "distance": vectors.distance.value if hasattr(vectors.distance, "value") else vectors.distance,
+                    },
+                )
+            self._read_collection_ensured = True
+            logger.info(
+                "sync: created missing read collection %r from "
+                "write collection %r's schema",
+                self.read_collection, self.write_collection,
+            )
+            return True
 
     async def start(self) -> None:
         """Launch the background sync task."""
@@ -136,6 +198,15 @@ class SyncManager:
                     self.stats.last_cycle_ts = time.time()
                     return 0
                 raise
+
+            # Round‑31: make sure the read collection exists too.
+            # Without this, on a fresh install the upsert below
+            # returns 404 every cycle and points never move from
+            # pending → live.
+            if not self._ensure_read_collection():
+                self.stats.last_error = None
+                self.stats.last_cycle_ts = time.time()
+                return 0
 
             records = []
             offset = None
@@ -206,6 +277,13 @@ class SyncManager:
         except Exception as e:  # noqa: BLE001
             self.stats.last_error = repr(e)
             logger.warning("sync cycle failed: %s", e)
+            # Round‑31: if the read collection disappeared under us
+            # (manual delete, Qdrant restart, etc.), reset the cache
+            # flag so the next cycle re-creates it. Without this,
+            # the sync gets stuck in "404 forever" mode.
+            err = str(e).lower()
+            if "not found" in err or "404" in err:
+                self._read_collection_ensured = False
             return 0
         finally:
             self.stats.is_running = False
