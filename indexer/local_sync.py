@@ -3,13 +3,30 @@
 local_sync.py — Windows-friendly single-command sync+embed.
 Unified: walk source(s) -> diff vs Qdrant -> embed on local GPU -> upsert.
 No _pending queue. Tailscale-native.
+
+When invoked by the search backend (via the admin Index API), the
+runner spawns this module as a child process and reads its stdout for
+structured progress. Two flags wire that up:
+
+  --json-progress   emit one JSON line per progress event to stdout
+                    (alongside the human-readable logger output)
+  --rebuild         wipe the Qdrant collection first, then embed every
+                    source file (no change-detection skip)
+
+Cancel is cooperative: SIGTERM sets an internal cancellation flag that
+the main loop checks at every batch boundary. The process exits cleanly
+with code 130 and emits a {"event": "cancelled"} progress line.
 """  # noqa: EXE001
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
+import signal
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -21,11 +38,59 @@ from image_search_kernel.registry import get as _registry_get
 from indexer import scan as scan_mod
 from indexer import upsert
 from indexer.image_loader import letterbox_resize, load_image_pil, peek_source_dims
+from indexer.retry import RetryExhausted, retry_with_backoff
 from indexer.thumbnails import generate_thumbnail_for_path
 from indexer.vision_encoder import VisionEncoder
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+
+# --- Cancellation support ------------------------------------------------
+# SIGTERM sets `_cancel_event`; the main loop checks it at every batch
+# boundary and exits cleanly. Initialised lazily inside `main` so module
+# import has no side effects (tests import this file repeatedly).
+
+_cancel_event: threading.Event | None = None
+
+
+def _install_signal_handlers() -> None:
+    """Wire SIGTERM (and SIGINT, for dev Ctrl-C) to the cancel event."""
+    global _cancel_event
+    _cancel_event = threading.Event()
+
+    def _on_signal(signum, _frame):
+        if _cancel_event is not None:
+            _cancel_event.set()
+            logger.info("received signal %d; cancelling at next batch boundary", signum)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, _on_signal)
+        except (ValueError, OSError):
+            # Signal handlers can only be installed from the main thread.
+            # Spawned subprocess workers (rare) skip this silently.
+            pass
+
+
+def _is_cancelled() -> bool:
+    return _cancel_event is not None and _cancel_event.is_set()
+
+
+# --- JSON progress output ------------------------------------------------
+# When --json-progress is on, we emit ONE JSON object per line to stdout
+# for the runner to parse. Logger output is untouched (goes to stderr
+# in non-interactive runs) so the runner can split the streams cleanly.
+
+_json_progress: bool = False
+
+
+def _emit_progress(payload: dict) -> None:
+    """Write one JSON progress line to stdout if --json-progress is on."""
+    if not _json_progress:
+        return
+    sys.stdout.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
 
 
 def parse_args(argv=None):
@@ -61,6 +126,21 @@ def parse_args(argv=None):
         action="store_true",
         help="Full sweep: embed new/changed files, backfill missing "
         "blurhash+fingerprint on legacy points, prune dead points.",
+    )
+    p.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Wipe the Qdrant collection before indexing, then embed every "
+        "source file (no change-detection skip). Used by the in-app Index "
+        "Rebuild-from-scratch mode. Mutually exclusive with --reblurhash "
+        "and --refingerprint.",
+    )
+    p.add_argument(
+        "--json-progress",
+        action="store_true",
+        help="Emit one JSON object per progress event to stdout. Used by the "
+        "admin Index runner to track job state. Has no effect on the "
+        "human-readable logger output.",
     )
     return p.parse_args(argv)
 
@@ -110,6 +190,20 @@ def main(argv=None):
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args(argv)
 
+    # Wire subprocess-level concerns (cancel signals, JSON progress) BEFORE
+    # any work begins. Both are no-ops if their respective flags are off.
+    global _json_progress
+    _json_progress = bool(args.json_progress)
+    _install_signal_handlers()
+
+    # Mutual-exclusion checks (rebuild is the new entrant).
+    if args.rebuild and (args.reblurhash or args.refingerprint):
+        logger.error("--rebuild is mutually exclusive with --reblurhash/--refingerprint")
+        return 2
+    if args.rebuild and args.full:
+        logger.error("--rebuild implies a fresh index; do not combine with --full")
+        return 2
+
     try:
         source_names = resolve_source_names(args.source, args.source_names)
     except ValueError as exc:
@@ -131,6 +225,17 @@ def main(argv=None):
         # 1024-dim collection instead of upsert.ensure_collection's
         # hardcoded 1536 (the gopt default).
         model_dim = _registry_get(args.model).dim
+
+        if args.rebuild:
+            # Wipe-and-rebuild: drop the collection, then recreate via
+            # ensure_collection. Done BEFORE the progress "start" event so
+            # the runner's points_count reflects the post-wipe state (zero).
+            try:
+                client.delete_collection(collection_name=args.qdrant_collection)
+                logger.info("rebuild: deleted existing collection %r", args.qdrant_collection)
+            except Exception as exc:  # noqa: BLE001 — first run, collection may not exist
+                logger.info("rebuild: no existing collection to delete (%s)", exc)
+
         upsert.ensure_collection(client, args.qdrant_collection, dim=model_dim)
         upsert.ensure_payload_index(client, args.qdrant_collection, "collection", "keyword")
 
@@ -160,6 +265,18 @@ def main(argv=None):
     total_skipped = 0
     total_errors = 0
     t0 = time.time()
+
+    # Emit the "start" event for the runner. Doing it here (after the
+    # rebuild wipe + collection re-create) so the runner sees a fresh
+    # points_count from the very first status poll.
+    _emit_progress({
+        "event": "start",
+        "mode": "rebuild" if args.rebuild else "incremental",
+        "model": args.model,
+        "device": args.device,
+        "sources": [str(s) for s in args.source],
+        "batch_size": args.batch_size,
+    })
 
     if args.reblurhash or args.refingerprint:
         return _backfill_payload_field(
@@ -221,91 +338,97 @@ def main(argv=None):
         for i in range(0, len(snap), args.batch_size):
             batch = snap[i:i+args.batch_size]
 
-            ids = [upsert.id_for(p) for p in batch]
-            # Change detection: pull mtime/size for points that already
-            # exist. Point ids are deterministic (upsert.id_for), so a
-            # changed file re-embeds INTO its existing point — no
-            # duplicates, favourites/album membership preserved.
-            # Points lacking stored mtime/size (pre-change-detection
-            # index) are treated as changed so they heal on next run.
-            existing_meta: dict = {}
-            try:
-                points = client.retrieve(
-                    collection_name=args.qdrant_collection,
-                    ids=ids,
-                    with_payload=["mtime", "size"],
-                )
-                for pt in points:
-                    pl = pt.payload or {}
-                    if pl.get("mtime") is not None and pl.get("size") is not None:
-                        existing_meta[str(pt.id)] = (int(pl["mtime"]), int(pl["size"]))
-                    else:
-                        existing_meta[str(pt.id)] = None
-            except Exception:
-                if not args.dry_run:
-                    raise
-                logger.warning("dry-run: could not read existing points; assuming all new")
-                existing_meta = {}
-            
-            to_embed: list = []
-            n_new = 0
-            n_changed = 0
-            for path, pid in zip(batch, ids, strict=False):
-                if pid not in existing_meta:
-                    to_embed.append((path, "new"))
-                    n_new += 1
-                    continue
-                recorded = existing_meta[pid]
-                if recorded is None:
-                    to_embed.append((path, "changed"))
-                    n_changed += 1
-                    continue
+            # Cancel check at batch boundary. SIGTERM (from the runner)
+            # sets _cancel_event; we bail BEFORE loading or embedding
+            # another batch and emit a final "cancelled" event.
+            if _is_cancelled():
+                logger.info("cancel requested; stopping after %d indexed", total_indexed)
+                _emit_progress({
+                    "event": "cancelled",
+                    "indexed": total_indexed,
+                    "reembedded": total_reembedded,
+                    "skipped": total_skipped,
+                    "errors": total_errors,
+                    "duration_s": time.time() - t0,
+                })
+                return 130
+
+            # Skip the change-detection scroll entirely in --rebuild
+            # mode. We just wiped the collection, so every existing id
+            # lookup would fail anyway — and even if it didn't, we want
+            # to embed every file from scratch.
+            if args.rebuild:
+                to_embed = [(p, "new") for p in batch]
+                n_new = len(batch)
+                n_changed = 0
+            else:
+                ids = [upsert.id_for(p) for p in batch]
+                # Change detection: pull mtime/size for points that already
+                # exist. Point ids are deterministic (upsert.id_for), so a
+                # changed file re-embeds INTO its existing point — no
+                # duplicates, favourites/album membership preserved.
+                # Points lacking stored mtime/size (pre-change-detection
+                # index) are treated as changed so they heal on next run.
+                existing_meta: dict = {}
                 try:
-                    st = path.stat()
-                except OSError:
-                    total_errors += 1
-                    continue
-                if int(st.st_mtime) != recorded[0] or int(st.st_size) != recorded[1]:
-                    to_embed.append((path, "changed"))
-                    n_changed += 1
-                else:
-                    total_skipped += 1
-            
+                    points = client.retrieve(
+                        collection_name=args.qdrant_collection,
+                        ids=ids,
+                        with_payload=["mtime", "size"],
+                    )
+                    for pt in points:
+                        pl = pt.payload or {}
+                        if pl.get("mtime") is not None and pl.get("size") is not None:
+                            existing_meta[str(pt.id)] = (int(pl["mtime"]), int(pl["size"]))
+                        else:
+                            existing_meta[str(pt.id)] = None
+                except Exception:
+                    if not args.dry_run:
+                        raise
+                    logger.warning("dry-run: could not read existing points; assuming all new")
+                    existing_meta = {}
+
+                to_embed: list = []
+                n_new = 0
+                n_changed = 0
+                for path, pid in zip(batch, ids, strict=False):
+                    if pid not in existing_meta:
+                        to_embed.append((path, "new"))
+                        n_new += 1
+                        continue
+                    recorded = existing_meta[pid]
+                    if recorded is None:
+                        to_embed.append((path, "changed"))
+                        n_changed += 1
+                        continue
+                    try:
+                        st = path.stat()
+                    except OSError:
+                        total_errors += 1
+                        continue
+                    if int(st.st_mtime) != recorded[0] or int(st.st_size) != recorded[1]:
+                        to_embed.append((path, "changed"))
+                        n_changed += 1
+                    else:
+                        total_skipped += 1
+
             logger.info(
                 "batch %d: %d new, %d changed, %d up-to-date",
                 i // args.batch_size + 1, n_new, n_changed,
                 len(batch) - n_new - n_changed,
             )
-            
+
             if not to_embed:
                 continue
 
-            
-
             if args.dry_run:
-            
-
                 logger.info(
-            
-
                     "dry-run: would embed %d file(s) (%d new, %d changed)",
-            
-
                     len(to_embed), n_new, n_changed,
-            
-
                 )
-            
-
                 total_indexed += n_new
-            
-
                 total_reembedded += n_changed
-            
-
                 continue
-
-            
 
             loaded = []
             for p, _reason in to_embed:
@@ -329,7 +452,13 @@ def main(argv=None):
 
             try:
                 if encoder is None:
-
+                    # First-batch model load. Downloading the SigLIP2
+                    # weights from HF Hub takes 30-60s on a fresh
+                    # install; without this event the UI sits at
+                    # "Running · 0 indexed" the whole time and looks
+                    # frozen. Emitting "warming_up" before the load
+                    # starts gives the UI a clear state.
+                    _emit_progress({"event": "warming_up", "model": args.model})
                     encoder = VisionEncoder(arch=args.model, device=args.device)
 
                 vecs = encoder.embed_batch([letterbox_resize(img) for (_, img, _sw, _sh) in loaded])
@@ -352,8 +481,8 @@ def main(argv=None):
                     # Thumbnail generation can fail on corrupt JPEGs,
                     # PIL decode errors, or filesystem issues. The
                     # caller wants the index to continue regardless;
-                    # narrow to the realistic failure modes rather
-                    # than a blind `Exception` catch.
+                    # narrow to the realistic failure modes rather than
+                    # a blind `Exception` catch.
                     logger.warning(f"Failed to generate thumbnail for {path}: {e}")
 
                 canon = path
@@ -372,10 +501,48 @@ def main(argv=None):
                 items.append((upsert.id_for(path, ""), vec, payload))
 
             try:
-                upsert.upsert_batch(client, args.qdrant_collection, [(pid, v, pl) for pid, v, pl in items], wait=False)
+                # Wrap the upsert in retry-with-backoff. A single transient
+                # Qdrant failure (5xx, network blip) must not abort the
+                # whole job — 3 attempts, 2s/4s/8s between, then fail.
+                retry_with_backoff(
+                    lambda items=items: upsert.upsert_batch(
+                        client,
+                        args.qdrant_collection,
+                        [(pid, v, pl) for pid, v, pl in items],
+                        wait=False,
+                    ),
+                    max_attempts=3,
+                    base_delay_s=2.0,
+                )
                 total_indexed += sum(1 for (_p, r) in to_embed if r == "new")
                 total_reembedded += sum(1 for (_p, r) in to_embed if r == "changed")
                 last_written_ids = [iid for (iid, _v, _pl) in items]
+                # Emit per-batch progress so the runner can show live counts.
+                _emit_progress({
+                    "event": "batch",
+                    "batch_index": i // args.batch_size + 1,
+                    "indexed": total_indexed,
+                    "reembedded": total_reembedded,
+                    "skipped": total_skipped,
+                    "errors": total_errors,
+                })
+            except RetryExhausted as exc:
+                # All retries failed — surface to the runner via a final
+                # "failed" event and exit non-zero. The runner records
+                # `last_error` from the event payload.
+                logger.exception("upsert failed after retries")
+                total_errors += len(items)
+                _emit_progress({
+                    "event": "failed",
+                    "stage": "upsert",
+                    "error": f"{type(exc.last_exc).__name__}: {exc.last_exc}",
+                    "indexed": total_indexed,
+                    "reembedded": total_reembedded,
+                    "skipped": total_skipped,
+                    "errors": total_errors,
+                    "duration_s": time.time() - t0,
+                })
+                return 1
             except Exception:
                 logger.exception("upsert failed")
                 total_errors += len(items)
@@ -425,6 +592,14 @@ def main(argv=None):
 
     dt = time.time() - t0
     print(f"Done indexed={total_indexed} re-embedded={total_reembedded} skipped={total_skipped} errors={total_errors} ({dt:.1f}s)")
+    _emit_progress({
+        "event": "done",
+        "indexed": total_indexed,
+        "reembedded": total_reembedded,
+        "skipped": total_skipped,
+        "errors": total_errors,
+        "duration_s": dt,
+    })
     return 0
 
 

@@ -27,7 +27,8 @@
     { href: '/', label: 'Home', reset: true },
     { href: '/random', label: 'Random' },
     { href: '/for-you', label: 'For You' },
-    { href: '/albums', label: 'Albums' }
+    { href: '/albums', label: 'Albums' },
+    { href: '/settings', label: 'Settings' }
   ];
 
   let currentPath = $derived($page.url.pathname);

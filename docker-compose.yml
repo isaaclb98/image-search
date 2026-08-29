@@ -55,17 +55,24 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: images
       # QDRANT_API_KEY: ${QDRANT_API_KEY:-}  # Uncomment if you enabled Qdrant auth
-      
+
       # Photo library path — REQUIRED
       # Mount your NAS / image folder read-only at /nas
       NAS_IMAGES_BASE: /nas
-      
+
+      # In-app indexer (admin Index button). INDEXER_SOURCES is a
+      # comma-separated list of paths the spawned indexer should
+      # scan. Defaults to NAS_IMAGES_PATH if unset. The default here
+      # matches the bind-mounted library at /nas.
+      INDEXER_SOURCES: ${INDEXER_SOURCES:-/nas}
+      INDEXER_DEVICE: ${INDEXER_DEVICE:-cuda}
+
       # Frontend URL (for CORS and links)
       WEB_UI_URL: http://localhost:8000
-      
+
       # Logging
       LOG_LEVEL: INFO
-      
+
       # Thumbnail storage path (inside container)
       THUMBNAIL_DIR: /app/data/thumbnails
     ports:

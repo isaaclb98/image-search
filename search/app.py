@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
@@ -687,6 +688,25 @@ def create_app(
         max_entries=_cfg.diversity_cache_max_entries,
     )
 
+    # ---------------- In-app indexer (admin Index button) ----------------
+    # Spawned as a child subprocess via `indexer.local_sync --json-progress`.
+    # Same module the old host-side CLI invoked, but now owned by the
+    # search process so the Index button in the UI can drive it without
+    # SSH/host-side venv. Subprocess isolation = a torch deadlock or OOM
+    # in the indexer can never take down the search backend.
+    from search.indexer_runner import IndexerRunner, default_indexer_command_factory
+    indexer_cmd_factory = default_indexer_command_factory(
+        python=sys.executable,
+        sources=_cfg.indexer_sources,
+        model=_cfg.model_name,
+        device=_cfg.indexer_device,
+        qdrant_url=_cfg.qdrant_url,
+        qdrant_api_key=_cfg.qdrant_api_key,
+        qdrant_collection=_cfg.qdrant_write_collection,
+        batch_size=_cfg.indexer_batch_size,
+    )
+    indexer_runner = IndexerRunner(command_factory=indexer_cmd_factory)
+
     # ---------------- Dynamic centroids ----------------
     #
     # Runtime-computed centroids that complement the disk-loaded
@@ -900,6 +920,7 @@ def create_app(
     # self-contained one first). Inline duplicates will be removed
     # in follow-up commits as each router is verified.
     from search.routers.albums import build_albums_router
+    from search.routers.admin_index import build_admin_index_router
     from search.routers.centroids import build_centroids_reload_router
     from search.routers.centroids_list import build_centroids_list_router
     from search.routers.centroids_search import build_centroids_search_router
@@ -970,6 +991,10 @@ def create_app(
         path_liveness_cache_max=_PATH_LIVENESS_CACHE_MAX,
     ))
     app.include_router(build_thumbnails_router())
+    app.include_router(build_admin_index_router(
+        indexer_runner=indexer_runner,
+        index_db=index_db,
+    ))
 
     # Round‑14: sync status endpoint (read‑only counters).
     @app.get("/api/sync/status")

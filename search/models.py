@@ -5,6 +5,7 @@ search/models.py — Pydantic response models for /api/search.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -320,3 +321,53 @@ class PromptState:  # noqa: F811
     negatives: list[str]
     positive_chips: list[str]
     negative_chips: list[str]
+
+
+# --- Admin Index API ----------------------------------------------------
+# Surfaces the in-process indexer runner over HTTP. The runner is owned
+# by the search app and exposes its state via `to_dict()`. The router
+# translates those snapshots to Pydantic models for typed OpenAPI.
+
+
+class IndexerRunRequest(BaseModel):
+    """Body for POST /api/admin/index.
+
+    `mode` is the only user-visible knob: `incremental` (default)
+    embeds only new/changed files; `rebuild` wipes the Qdrant
+    collection + SQLite side store first.
+    """
+    mode: Literal["incremental", "rebuild"] = "incremental"
+
+
+class IndexerProgressModel(BaseModel):
+    indexed: int
+    reembedded: int
+    skipped: int
+    errors: int
+
+
+class IndexerStatusResponse(BaseModel):
+    """Body for GET /api/admin/index/status."""
+    state: Literal["idle", "running", "failed"]
+    mode: Literal["incremental", "rebuild"] | None
+    job_id: str | None
+    pid: int | None
+    started_at: str | None
+    finished_at: str | None
+    last_run_at: str | None
+    last_error: str | None
+    progress: IndexerProgressModel
+    points_count: int | None
+    # Sub-phase within `running`: "scanning" while walking the
+    # filesystem, "warming_up" while the encoder is being downloaded
+    # / loaded on first batch, "embedding" once we're actively
+    # upserting. None outside of `running`.
+    phase: Literal["scanning", "warming_up", "embedding"] | None = None
+
+
+class IndexerLogResponse(BaseModel):
+    """Body for GET /api/admin/index/log."""
+    lines: list[str]
+    next_line: int
+    total: int
+
