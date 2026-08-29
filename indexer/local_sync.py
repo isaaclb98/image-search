@@ -490,7 +490,7 @@ def main(argv=None):
                 continue
 
             items = []
-            for (path, img, _source_w, _source_h), vec in zip(
+            for (path, img, source_w, source_h), vec in zip(
                 loaded, vecs, strict=False,
             ):
                 # Generate thumbnail (best-effort, non-fatal)
@@ -507,19 +507,11 @@ def main(argv=None):
                     # a blind `Exception` catch.
                     logger.warning(f"Failed to generate thumbnail for {path}: {e}")
 
-                canon = path
-                # Round‑30: local_sync's full-sweep backfill still
-                # uses the simple `build_payload` signature — dims
-                # would require an extra PIL.Image.read() per file.
-                # Skip source dims here; the regular ingest pipeline
-                # populates them, and any photo indexed via
-                # local_sync will be re-embedded by the next
-                # run_pipeline_source call (which DOES populate
-                # dims). Trade-off: photos that were only ever
-                # touched by local_sync show "—" on the photo
-                # page until a regular ingest re-runs.
-                payload = upsert.build_payload(path, "", args.model, "", src_name)
-                payload["path"] = canon
+                payload = upsert.build_payload(
+                    path, "", args.model, "", src_name,
+                    width=source_w, height=source_h,
+                )
+                payload["path"] = path
                 items.append((upsert.id_for(path, ""), vec, payload))
 
             try:
