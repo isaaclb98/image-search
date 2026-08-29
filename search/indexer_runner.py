@@ -195,13 +195,28 @@ class IndexerRunner:
             argv = self._cmd_factory(mode)
             logger.info("spawning indexer: %s", " ".join(shlex.quote(a) for a in argv))
             try:
+                # Round‑31: OpenClipEmbedder reads `os.environ["DEVICE"]`
+                # to pick CPU vs CUDA, NOT a constructor arg. The parent
+                # container only has `INDEXER_DEVICE` set, so without
+                # this copy the subprocess falls back to CPU and the
+                # indexing job would take ~6 days instead of ~4 hours.
+                # Mirror INDEXER_DEVICE → DEVICE if the parent env has
+                # the former but not the latter (don't override an
+                # explicit DEVICE if both are set).
+                child_env = os.environ.copy()
+                child_env.setdefault("PYTHONUNBUFFERED", "1")
+                if (
+                    "DEVICE" not in child_env
+                    and "INDEXER_DEVICE" in child_env
+                ):
+                    child_env["DEVICE"] = child_env["INDEXER_DEVICE"]
                 self._proc = subprocess.Popen(
                     argv,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,  # merge stderr → stdout (single log stream)
                     text=True,
                     bufsize=1,  # line-buffered
-                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                    env=child_env,
                 )
             except OSError as exc:
                 self._state = IndexerState.FAILED
