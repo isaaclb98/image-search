@@ -1406,9 +1406,13 @@ def create_app(
         if hit is None:
             raise HTTPException(status_code=404, detail="Photo not found")
 
-        # Determine favourite status.
+        # Determine favourite + dislike status. The dedicated photo
+        # page needs both so its Like / Dislike buttons can mirror
+        # the Lightbox's pressed-state pattern (mutual exclusivity,
+        # un-toggle on second click).
         fav_ids = await _favorite_id_set([point_id])
         is_fav = point_id in fav_ids
+        is_disliked = await asyncio.to_thread(index_db.is_disliked, point_id)
 
         # Pull the Qdrant payload — every indexed field lives here.
         # Default everything to None so the response is always
@@ -1420,6 +1424,7 @@ def create_app(
             "path": hit.path,
             "score": hit.score,
             "is_favorite": is_fav,
+            "is_disliked": is_disliked,
             "url": f"/photo/{point_id}/raw",
             # Image dimensions
             "width": p.get("width"),

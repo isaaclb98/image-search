@@ -11,11 +11,12 @@
    *
    * What this page reuses:
    *   - $lib/api/endpoints (photoUrl, likePoint, unlikePoint,
-   *     dislikePoint, blurhash background)
+   *     dislikePoint, undislikePoint, blurhash background)
    *   - $lib/components/Button (primary/secondary/ghost actions)
-   *   - $lib/components/ActionButton (toggle actions — Like, with
-   *     aria-pressed indicating the favorited state, matching the
-   *     Lightbox)
+   *   - $lib/components/ActionButton (toggle actions — Like AND
+   *     Dislike both expose aria-pressed indicating the current
+   *     state, with mutual exclusivity between the two, matching
+   *     the Lightbox)
    *   - $lib/components/Toaster (action feedback)
    *   - The existing TopBar from +layout.svelte
    *
@@ -37,7 +38,8 @@
     thumbUrl,
     likePoint,
     unlikePoint,
-    dislikePoint
+    dislikePoint,
+    undislikePoint
   } from '$lib/api/endpoints';
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
@@ -50,6 +52,7 @@
     path: string;
     score: number;
     is_favorite: boolean;
+    is_disliked: boolean;
     url: string;
     width: number | null;
     height: number | null;
@@ -123,27 +126,54 @@
     if (!photo || actionInFlight) return;
     actionInFlight = true;
     const wasFav = photo.is_favorite;
-    // Optimistic toggle — the Lightbox does the same.
-    photo = { ...photo, is_favorite: !wasFav };
+    const wasDisliked = photo.is_disliked;
+    // Optimistic toggle — the Lightbox does the same. Pressing Like
+    // clears any active Dislike (mutual exclusivity: a photo can be
+    // liked or disliked, not both). Mirrors Lightbox.toggleFavorite.
+    photo = { ...photo, is_favorite: !wasFav, is_disliked: false };
     try {
-      if (wasFav) await unlikePoint(photo.id);
-      else await likePoint(photo.id);
+      if (wasFav) {
+        await unlikePoint(photo.id);
+      } else {
+        await likePoint(photo.id);
+        // Lightbox only toggles the favourite flag; the server-side
+        // dislike row (if any) was implicitly cleared by the like.
+        // For the dedicated photo page we own the dislike endpoint
+        // directly, so explicitly unmark so the row actually goes
+        // away on the server too.
+        if (wasDisliked) await undislikePoint(photo.id);
+      }
     } catch {
       // Roll back on failure.
-      photo = { ...photo, is_favorite: wasFav };
+      photo = { ...photo, is_favorite: wasFav, is_disliked: wasDisliked };
       toast.show('Failed to update like.', { kind: 'error' });
     } finally {
       actionInFlight = false;
     }
   }
 
-  async function onDislike() {
+  async function toggleDislike() {
     if (!photo || actionInFlight) return;
     actionInFlight = true;
+    const wasDisliked = photo.is_disliked;
+    const wasFav = photo.is_favorite;
+    // Optimistic toggle — the Lightbox does the same. Pressing
+    // Dislike clears any active Like (mutual exclusivity). Mirrors
+    // Lightbox.toggleDislike.
+    photo = { ...photo, is_disliked: !wasDisliked, is_favorite: false };
     try {
-      await dislikePoint(photo.id);
-      toast.show('Photo marked as disliked.', { kind: 'info' });
+      if (wasDisliked) {
+        await undislikePoint(photo.id);
+      } else {
+        await dislikePoint(photo.id);
+        // Explicitly clear the like server-side too (the Lightbox
+        // relies on the parent to do this; here we own the endpoints
+        // directly, so do it ourselves).
+        if (wasFav) await unlikePoint(photo.id);
+      }
     } catch {
+      // Roll back on failure.
+      photo = { ...photo, is_disliked: wasDisliked, is_favorite: wasFav };
       toast.show('Failed to dislike.', { kind: 'error' });
     } finally {
       actionInFlight = false;
@@ -232,8 +262,9 @@
             Like
           </ActionButton>
           <ActionButton
-            onclick={onDislike}
+            onclick={toggleDislike}
             title="Dislike"
+            ariaPressed={photo.is_disliked ? 'true' : 'false'}
           >
             Dislike
           </ActionButton>
