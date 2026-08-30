@@ -21,6 +21,7 @@ with code 130 and emits a {"event": "cancelled"} progress line.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -36,10 +37,10 @@ from qdrant_client import QdrantClient
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from image_search_kernel.registry import get as _registry_get
 from indexer import scan as scan_mod
-from indexer.scan import ScanCancelled
 from indexer import upsert
 from indexer.image_loader import letterbox_resize, load_image_pil, peek_source_dims
 from indexer.retry import RetryExhausted, retry_with_backoff
+from indexer.scan import ScanCancelled
 from indexer.thumbnails import generate_thumbnail_for_path
 from indexer.vision_encoder import VisionEncoder
 
@@ -65,13 +66,11 @@ def _install_signal_handlers() -> None:
             _cancel_event.set()
             logger.info("received signal %d; cancelling at next batch boundary", signum)
 
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            signal.signal(sig, _on_signal)
-        except (ValueError, OSError):
-            # Signal handlers can only be installed from the main thread.
-            # Spawned subprocess workers (rare) skip this silently.
-            pass
+    # Signal handlers can only be installed from the main thread.
+    # Spawned subprocess workers (rare) skip this silently.
+    with contextlib.suppress(ValueError, OSError):
+        signal.signal(signal.SIGTERM, _on_signal)
+        signal.signal(signal.SIGINT, _on_signal)
 
 
 def _is_cancelled() -> bool:

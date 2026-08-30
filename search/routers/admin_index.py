@@ -21,8 +21,6 @@ local_sync --rebuild subprocess.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -30,7 +28,6 @@ from search.index_db import IndexDB
 from search.indexer_runner import (
     IndexConflictError,
     IndexerRunner,
-    IndexerState,
 )
 from search.models import (
     IndexerLogResponse,

@@ -25,6 +25,7 @@ router translates them to JSON responses.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -37,10 +38,9 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
 from typing import IO
 
 logger = logging.getLogger(__name__)
@@ -210,7 +210,11 @@ class IndexerRunner:
                     and "INDEXER_DEVICE" in child_env
                 ):
                     child_env["DEVICE"] = child_env["INDEXER_DEVICE"]
-                self._proc = subprocess.Popen(
+                # argv is built by the module-level _factory() above
+                # from hardcoded sources (CLI arg defaults, env vars
+                # the operator controls, and `extra_args` which only
+                # the test suite passes). No untrusted input.
+                self._proc = subprocess.Popen(  # noqa: S603 — argv is operator-controlled, see _factory()
                     argv,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,  # merge stderr → stdout (single log stream)
@@ -240,10 +244,16 @@ class IndexerRunner:
 
             # Reader thread: consumes stdout, pushes to ring buffer,
             # parses JSON progress events, and detects process exit.
-            assert self._proc.stdout is not None
+            # stdout is the union[IO[bytes], None]; if Popen didn't
+            # capture stdout (capture_output=False) this is None and
+            # we can't run a reader — surface that as a startup error
+            # rather than crashing the reader thread with AttributeError.
+            reader_pipe = self._proc.stdout
+            if reader_pipe is None:
+                raise RuntimeError("indexer process has no captured stdout (capture_output=False?)")
             self._reader_thread = threading.Thread(
                 target=self._reader_loop,
-                args=(self._proc.stdout,),
+                args=(reader_pipe,),
                 name="indexer-reader",
                 daemon=True,
             )
@@ -311,13 +321,11 @@ class IndexerRunner:
         """
         with self._lock:
             total = self._log_total
-            if since_line < 0:
-                since_line = 0
+            since_line = max(since_line, 0)
             # The ring buffer may have evicted older lines, so
             # `since_line` past the eviction point returns nothing.
             oldest_kept = total - len(self._log_buffer)
-            if since_line < oldest_kept:
-                since_line = oldest_kept
+            since_line = max(since_line, oldest_kept)
             offset = since_line - oldest_kept
             lines = list(self._log_buffer)[offset:]
             return {
@@ -348,14 +356,12 @@ class IndexerRunner:
                     self._log_buffer.append(line)
                     self._log_total += 1
                     if line.startswith("{"):
-                        try:
+                        # Not a progress event we care about — keep
+                        # the line in the log buffer, but don't
+                        # mutate state.
+                        with contextlib.suppress(ValueError, KeyError, TypeError):
                             self._handle_event(json.loads(line))
-                        except (ValueError, KeyError, TypeError):
-                            # Not a progress event we care about — keep
-                            # the line in the log buffer, but don't
-                            # mutate state.
-                            pass
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("indexer reader loop crashed")
 
     def _handle_event(self, event: dict) -> None:
@@ -392,7 +398,7 @@ class IndexerRunner:
             return
         try:
             rc = proc.wait()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("indexer wait crashed")
             return
 
@@ -405,13 +411,7 @@ class IndexerRunner:
             #           (race: signal landed before handler installed).
             #           Treat as cancel IF we sent the SIGTERM.
             #   anything else = failed
-            if rc == 0:
-                self._state = IndexerState.IDLE
-                self._last_error = None
-            elif rc == 130:
-                self._state = IndexerState.IDLE
-                self._last_error = None
-            elif rc == -15 and self._cancel_requested:
+            if rc == 0 or rc == 130 or rc == -15 and self._cancel_requested:
                 self._state = IndexerState.IDLE
                 self._last_error = None
             else:

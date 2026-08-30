@@ -81,5 +81,12 @@ def retry_with_backoff(
                 break
             _sleep(base_delay_s * (2 ** (attempt - 1)))
 
-    assert last_exc is not None  # always true when we reach here
+    # last_exc is always set by the time the loop completes (every
+    # iteration that didn't break/return assigned it from a caught
+    # exception). The assert used to live here as a runtime check
+    # but ruff flagged S101; this `if None` keeps the type checker
+    # happy and produces a clearer error than `TypeError` would if
+    # the invariant ever broke.
+    if last_exc is None:
+        raise RetryExhausted(max_attempts, RuntimeError("retry loop exited without recording an exception"))
     raise RetryExhausted(max_attempts, last_exc)

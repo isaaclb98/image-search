@@ -110,7 +110,7 @@ class SyncManager:
             # collection's schema so the upsert can succeed.
             try:
                 write_info = self.qdrant.get_collection(self.write_collection)
-            except Exception:
+            except Exception:  # noqa: BLE001 — any Qdrant error here means "can't sync right now, bail"; covered by the return below
                 # Write collection also missing — nothing to sync yet.
                 return False
             vectors = getattr(write_info.config.params, "vectors", None)
