@@ -926,8 +926,8 @@ def create_app(
     # extraction is incremental — this commit wires the smallest
     # self-contained one first). Inline duplicates will be removed
     # in follow-up commits as each router is verified.
-    from search.routers.albums import build_albums_router
     from search.routers.admin_index import build_admin_index_router
+    from search.routers.albums import build_albums_router
     from search.routers.centroids import build_centroids_reload_router
     from search.routers.centroids_list import build_centroids_list_router
     from search.routers.centroids_search import build_centroids_search_router

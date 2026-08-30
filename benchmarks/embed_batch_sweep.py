@@ -95,7 +95,7 @@ def _load_real_images(
                 im = im.convert("RGB")
                 im = im.resize((target_resolution, target_resolution), Image.Resampling.LANCZOS)
                 images.append(im.copy())
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — benchmark skips unreadable files; any error is logged and skipped
             logger.warning("skip %s: %s", p, exc)
         if len(images) >= n:
             break

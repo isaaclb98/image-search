@@ -1,3 +1,6 @@
+/**
+ * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
+ */
 import { test, expect, type Page } from '@playwright/test';
 
 /**
@@ -27,8 +30,10 @@ async function appReady(page: Page) {
 }
 
 async function gotoSearch(page: Page, positives: string[] = []) {
+  // / IS the search route now (the /search route was removed).
+  // URL params (positives) drive the search bar.
   const qs = positives.flatMap((p) => `positives=${encodeURIComponent(p)}`).join('&');
-  await page.goto(`/search${qs ? '?' + qs : ''}`);
+  await page.goto(`/${qs ? '?' + qs : ''}`);
   await appReady(page);
 }
 
@@ -161,11 +166,13 @@ test.describe('Direct photo URL navigation', () => {
     const photoImg = page.locator(`img[src*="/photo/${pointId}/raw"]`);
     await expect(photoImg).toBeVisible({ timeout: 10000 });
 
+    // Photo page actions: Like, Dislike, Add to album (Dropdown
+    // primitive), Most similar, Open raw — five in total.
     const photoActions = page.locator('.actions button, .actions a');
-    await expect(photoActions).toHaveCount(4);
+    await expect(photoActions).toHaveCount(5);
     const photoActionText = await photoActions.allTextContents();
     expect(photoActionText[0]).toMatch(/^(Like|Liked)$/);
-    expect(photoActionText.slice(1)).toEqual(['Dislike', 'Most similar', 'Open raw']);
+    expect(photoActionText.slice(1)).toEqual(['Dislike', 'Add to album', 'Most similar', 'Open raw']);
     expect(photoActionText.every((text) => !/[♥♡−⟳↗←×‹›]/.test(text))).toBe(true);
   });
 });
@@ -178,7 +185,7 @@ test.describe('Search composer', () => {
     const reqPromise = page.waitForRequest(
       (r) => r.url().includes('/api/search') && r.url().includes('negatives=')
     );
-    await page.goto('/search?positives=photo&negatives=blurry');
+    await page.goto('/?positives=photo&negatives=blurry');
     await appReady(page);
     // Both chips should render
     await expect(page.locator('.chip').filter({ hasText: 'photo' })).toBeVisible({ timeout: 5000 });

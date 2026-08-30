@@ -345,10 +345,8 @@ def prune_missing(
                 )
                 continue
             logger.info("prune: walking %s ...", src_path)
-            walked = 0
             t0 = time.monotonic()
-            for p in src_path.rglob("*"):
-                walked += 1
+            for walked, p in enumerate(src_path.rglob("*"), start=1):
                 if p.is_file():
                     existing_paths.add(str(p.resolve()))
                 if walked % 50_000 == 0:

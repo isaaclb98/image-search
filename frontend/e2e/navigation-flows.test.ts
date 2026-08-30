@@ -1,4 +1,13 @@
+/**
+ * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
+ */
 import { test, expect, type Page } from '@playwright/test';
+
+// Tests run against the dev stack (PLAYWRIGHT_BASE_URL is set by
+// the wrapper or the CI workflow). Falls back to the dev port so a
+// bare `node_modules/.bin/playwright test` from a developer's machine
+// still works against their local dev stack.
+const APP = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:18000';
 
 /**
  * navigation-flows.test.ts — Browser navigation, deep linking,
@@ -11,16 +20,17 @@ async function appReady(page: Page) {
 
 test.describe('Browser navigation', () => {
   test('browser back button navigates between pages', async ({ page }) => {
-    // Start at home
-    await page.goto('http://127.0.0.1:8000/');
+    // Start at home (test base URL comes from APP).
+    await page.goto(`${APP}/`);
     await appReady(page);
 
-    // Go to search
-    await page.goto('http://127.0.0.1:8000/search');
+    // Go to /?positives=beach (the search route — /search no longer
+    // exists; / IS the search route now).
+    await page.goto(`${APP}/?positives=beach`);
     await appReady(page);
 
     // Go to random
-    await page.goto('http://127.0.0.1:8000/random');
+    await page.goto(`${APP}/random`);
     await appReady(page);
 
     // Back to search
@@ -110,7 +120,7 @@ test.describe('Deep linking', () => {
 
 test.describe('URL state persistence', () => {
   test('search URL params persist after page refresh', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search?positives=beach&negatives=ocean');
+    await page.goto('http://127.0.0.1:8000/?positives=beach&negatives=ocean');
     await appReady(page);
     await expect(page.locator('.chip').filter({ hasText: 'beach' })).toBeVisible();
     await expect(page.locator('.chip').filter({ hasText: 'ocean' })).toBeVisible();
@@ -125,7 +135,8 @@ test.describe('URL state persistence', () => {
   });
 
   test('adding a prompt updates the URL', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search');
+    // / IS the search route now (the /search route was removed).
+    await page.goto(`${APP}/`);
     await appReady(page);
 
     const input = page.getByPlaceholder(/Add a positive/);
@@ -141,7 +152,7 @@ test.describe('URL state persistence', () => {
   });
 
   test('removing a prompt updates the URL', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search?positives=removeme');
+    await page.goto('http://127.0.0.1:8000/?positives=removeme');
     await appReady(page);
     await expect(page.locator('.chip').filter({ hasText: 'removeme' })).toBeVisible();
 
@@ -189,27 +200,35 @@ test.describe('Page transitions', () => {
   });
 
   test('header navigation is consistent across all pages', async ({ page }) => {
-    const paths = ['/', '/search', '/random', '/for-you', '/albums'];
+    // The set of routes that have a real page (not 404 shells). /search
+    // was removed when / became the home/search route; we test the
+    // routes that actually exist. The base URL also uses the live
+    // dev port (:18000) — the old hardcoded :8000 worked when tests
+    // ran against prod but the project now uses a dev stack.
+    const base = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:18000';
+    const paths = ['/', '/random', '/for-you', '/albums'];
     for (const path of paths) {
-      await page.goto(`http://127.0.0.1:8000${path}`);
+      await page.goto(`${base}${path}`);
       await appReady(page);
-      // Same nav links should be present
+      // Same nav links should be present on every page. Current
+      // topbar has Home, Random, For You, Albums, Settings (the
+      // old 'Search' tab no longer exists; / IS search).
       await expect(page.getByRole('navigation').getByRole('link', { name: 'Home' })).toBeVisible();
-      await expect(page.getByRole('navigation').getByRole('link', { name: 'Search' })).toBeVisible();
       await expect(page.getByRole('navigation').getByRole('link', { name: 'Random' })).toBeVisible();
+      await expect(page.getByRole('navigation').getByRole('link', { name: 'For You' })).toBeVisible();
     }
   });
 });
 
 test.describe('URL encoding', () => {
   test('prompts with spaces work in URL', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search?positives=hello%20world');
+    await page.goto('http://127.0.0.1:8000/?positives=hello%20world');
     await appReady(page);
     await expect(page.locator('.chip').filter({ hasText: /hello.*world/ })).toBeVisible({ timeout: 5000 });
   });
 
   test('prompts with unicode work in URL', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search?positives=%E2%9C%93'); // ✓ checkmark
+    await page.goto('http://127.0.0.1:8000/?positives=%E2%9C%93'); // ✓ checkmark
     await appReady(page);
     // Should render the chip without crashing
     const chips = await page.locator('.chip').count();
@@ -219,7 +238,7 @@ test.describe('URL encoding', () => {
 
 test.describe('Page refresh on every route', () => {
   test('refresh on /search keeps state', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search?positives=photo');
+    await page.goto('http://127.0.0.1:8000/?positives=photo');
     await appReady(page);
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10000 });
     await page.reload();

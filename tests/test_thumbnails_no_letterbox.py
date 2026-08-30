@@ -25,7 +25,7 @@ from PIL import Image
 
 # Use a tempdir for THUMBNAIL_DIR so the test doesn't need /app/data
 # permissions and doesn't pollute the prod thumbnails volume.
-TEST_THUMB_DIR = Path(os.environ.get("TEST_THUMBNAIL_DIR", "/tmp/test-thumb-round30"))
+TEST_THUMB_DIR = Path(os.environ.get("TEST_THUMBNAIL_DIR", "/tmp/test-thumb-round30"))  # noqa: S108 — intentional scratch dir for test isolation; override via env if needed
 
 
 @pytest.fixture(autouse=True)

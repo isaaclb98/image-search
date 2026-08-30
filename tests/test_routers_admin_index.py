@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import sys
 import textwrap
-import time
 from pathlib import Path
 
 import pytest
@@ -71,7 +70,7 @@ def _write_fake_indexer(tmp_path: Path, *, seconds: int) -> Path:
 @pytest.fixture
 def client(tmp_path: Path):
     script = _write_fake_indexer(tmp_path, seconds=0)
-    factory = lambda mode: [sys.executable, str(script)]  # noqa: E731
+    factory = lambda mode: [sys.executable, str(script)]
     runner = IndexerRunner(command_factory=factory)
 
     # In-memory IndexDB so reset_side_store has somewhere to wipe.
@@ -114,7 +113,7 @@ def test_post_rebuild_wipes_sqlite_side_store(client):
     # the wipe cleared them.
     db._conn.execute(
         "INSERT INTO images (id, path) VALUES (?, ?)",
-        ("deadbeef", "/tmp/fake.jpg"),
+        ("deadbeef", "/tmp/fake.jpg"),  # noqa: S108 — fake path inserted into the test DB; never read
     )
     db._conn.commit()
     db.mark_favorite("deadbeef")
@@ -130,9 +129,6 @@ def test_post_rebuild_wipes_sqlite_side_store(client):
 
 def test_concurrent_start_returns_409(client):
     http, runner, _db = client
-    # Use a long-running script so we have time to fire a second request.
-    long_script = _write_fake_indexer(Path("/tmp"), seconds=10) \
-        if Path("/tmp").exists() else None
     # Easier: start with the short fixture, but the job finishes too
     # fast. We'll instead check the IndexConflictError by directly
     # faking the runner — the route-level test is below.
@@ -148,7 +144,7 @@ def test_concurrent_start_returns_409(client):
 
 def test_cancel_running_job(client):
     http, runner, _db = client
-    long_script_path = Path("/tmp") / "admin_test_long_indexer.py"
+    long_script_path = Path("/tmp") / "admin_test_long_indexer.py"  # noqa: S108 — test scratch dir
     long_script_path.write_text(SCRIPT_TEMPLATE.format(seconds=30))
     runner_long = IndexerRunner(
         command_factory=lambda mode: [sys.executable, str(long_script_path)],

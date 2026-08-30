@@ -17,13 +17,8 @@ What we pin:
 
 from __future__ import annotations
 
-import json
-import os
-import signal
-import subprocess
 import sys
 import textwrap
-import threading
 import time
 from pathlib import Path
 
@@ -89,7 +84,7 @@ def _write_fake_indexer(tmp_path: Path, *, seconds: int, exit_code: int = 0) -> 
 def _make_runner(tmp_path: Path, *, seconds: int, exit_code: int = 0) -> IndexerRunner:
     """Build an IndexerRunner whose command factory spawns the fake script."""
     script = _write_fake_indexer(tmp_path, seconds=seconds, exit_code=exit_code)
-    factory = lambda mode: [sys.executable, str(script)]  # noqa: E731
+    factory = lambda mode: [sys.executable, str(script)]
     return IndexerRunner(command_factory=factory)
 
 
@@ -217,7 +212,7 @@ def test_status_serializable_to_dict(tmp_path: Path):
 
 def test_spawn_failure_marks_failed(tmp_path: Path):
     # Command factory returns a nonexistent binary.
-    factory = lambda mode: ["/nonexistent/binary"]  # noqa: E731
+    factory = lambda mode: ["/nonexistent/binary"]
     runner = IndexerRunner(command_factory=factory)
     with pytest.raises(FileNotFoundError):
         runner.start("incremental")

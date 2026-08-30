@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
  * Round‑31: dedicated photo page must NOT show indexing metadata.
  *
  * Removed: "Indexed …", "Indexed by" / model name, vector dim,

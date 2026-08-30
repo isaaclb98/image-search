@@ -10,7 +10,6 @@ isolation; the indexer wires it around its single upsert call.
 from __future__ import annotations
 
 import time
-from unittest.mock import patch
 
 import pytest
 
@@ -101,7 +100,6 @@ def test_propagates_only_last_exception_in_message():
         raise ValueError("final")
 
     # Simulate the failure pattern: op raises once, op2 raises once.
-    seq = iter([op, op2])
     attempt = {"n": 0}
 
     def pick_op():

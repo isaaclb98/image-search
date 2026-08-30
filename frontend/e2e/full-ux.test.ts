@@ -1,3 +1,6 @@
+/**
+ * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
+ */
 import { test, expect, type Page } from '@playwright/test';
 
 /**
@@ -18,8 +21,10 @@ async function appReady(page: Page) {
 }
 
 async function gotoSearch(page: Page, positives: string[] = []) {
+  // / IS the search route now (the /search route was removed).
+  // URL params (positives) drive the search bar.
   const qs = positives.flatMap((p) => `positives=${encodeURIComponent(p)}`).join('&');
-  await page.goto(`/search${qs ? '?' + qs : ''}`);
+  await page.goto(`/${qs ? '?' + qs : ''}`);
   await appReady(page);
 }
 
@@ -39,7 +44,10 @@ test.describe('Full User Experience E2E Tests', () => {
     await appReady(page);
     await expect(page).toHaveTitle(/image-search/);
     await expect(page.locator('.composer-input').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: /Search/i }).first()).toBeVisible();
+    // Current topbar tabs: Home, Random, For You, Albums, Settings.
+    // (The earlier 'Search' tab was removed when /search became the
+    // home route — there's no longer a dedicated 'Search' link.)
+    await expect(page.getByRole('link', { name: /Home/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /Random/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /For You/i }).first()).toBeVisible();
   });
@@ -108,7 +116,10 @@ test.describe('Full User Experience E2E Tests', () => {
   test('Albums page loads', async ({ page }) => {
     await page.goto('/albums');
     await appReady(page);
-    await expect(page.getByRole('heading', { name: /Albums/i })).toBeVisible();
+    // h1 is exactly 'Albums'; the page also has an h2 'Your albums'
+    // for the album grid section. Scope to h1 (exact) so we don't
+    // match the h2 in strict mode.
+    await expect(page.getByRole('heading', { name: 'Albums', exact: true })).toBeVisible();
   });
 
   test('Navigation: all main routes render without server error', async ({ page }) => {
@@ -120,21 +131,30 @@ test.describe('Full User Experience E2E Tests', () => {
     }
   });
 
-  test('Search with no prompts shows empty state, not crash', async ({ page }) => {
+  test('Search page with no prompts renders the For You row (default), no crash', async ({ page }) => {
+    // / IS the search route. With no prompts in the URL, the page
+    // shows the "For you" recommendations row rather than crashing
+    // or showing a blank screen. The earlier expectation of an
+    // `.empty` element was based on a now-removed empty-state UI;
+    // For You is the current landing default.
     await gotoSearch(page);
-    // No prompts added; grid should show its empty state
-    const empty = page.locator('.empty, .grid-tile').first();
-    await expect(empty).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10_000 });
+    // The "For you" section heading should be visible.
+    await expect(page.getByRole('heading', { name: /For you/i })).toBeVisible();
   });
 
   test('Image raw endpoint serves JPEG bytes for a search result', async ({ page }) => {
     await gotoSearch(page);
     await searchFor(page, ['cat']);
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10_000 });
-    // Grab a tile's link href (PhotoTile renders <a href=photoUrl>)
-    const href = await page.locator('.tile').first().getAttribute('href');
-    expect(href).toBeTruthy();
-    const resp = await page.request.get(href!);
+    // Grab the first photo id (the tile's <a> links to the SPA photo
+    // page, not the raw image). The raw image endpoint is
+    // /photo/<id>/raw (see photoUrl() in lib/api/client.ts).
+    const photoHref = await page.locator('.tile').first().getAttribute('href');
+    expect(photoHref).toBeTruthy();
+    const id = photoHref!.split('/').pop();
+    const rawUrl = `/photo/${encodeURIComponent(id!)}/raw`;
+    const resp = await page.request.get(rawUrl);
     expect(resp.status()).toBe(200);
     const ct = resp.headers()['content-type'] || '';
     expect(ct).toMatch(/image\/(jpeg|png|webp)/);

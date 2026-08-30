@@ -51,16 +51,19 @@ def test_subprocess_inherits_parent_env_with_device_set(tmp_path):
     # Simulate the parent's env: has INDEXER_DEVICE=cuda, no DEVICE.
     parent_env = {
         "PATH": os.environ.get("PATH", ""),
-        "HOME": os.environ.get("HOME", "/tmp"),
+        "HOME": os.environ.get("HOME", "/tmp"),  # noqa: S108 — test default for HOME in an isolated subprocess
         "PYTHONUNBUFFERED": "1",
         "INDEXER_DEVICE": "cuda",
     }
 
     # What we WANT to happen (the fix):
     child_env = {**parent_env, "DEVICE": parent_env["INDEXER_DEVICE"]}
-    proc = subprocess.run(
+    # argv is fully controlled ([sys.executable, <test script>]); the
+    # subprocess is short-lived and we only inspect stdout, so
+    # `check=False` is intentional.
+    proc = subprocess.run(  # noqa: S603 — test subprocess; argv is operator-controlled
         [sys.executable, script],
-        capture_output=True, text=True, env=child_env,
+        capture_output=True, text=True, env=child_env, check=False,
     )
     import json as _json
     body = _json.loads(proc.stdout.strip())
@@ -71,7 +74,6 @@ def test_runner_subprocess_has_device_set(tmp_path, monkeypatch):
     """End-to-end: IndexerRunner.start() spawns a subprocess whose
     env contains DEVICE matching INDEXER_DEVICE. Uses a fake
     command_factory whose handler exposes its own env."""
-    import threading
     script = _write_capture_script(tmp_path)
     # The factory hands back a command that runs the capture script.
     factory = lambda mode: [sys.executable, script]

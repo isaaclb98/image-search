@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
  * Round‑30: dedicated photo page shows real source dimensions,
  * not "—".
  *

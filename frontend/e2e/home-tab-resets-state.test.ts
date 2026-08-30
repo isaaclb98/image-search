@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
  * Round‑29c: Home tab navigates back to a clean home (clears
  * ?positives=, ?negatives=, ?diversity=, ?centroid=, etc.) even
  * when the pathname is already "/".

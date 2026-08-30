@@ -1,3 +1,6 @@
+/**
+ * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
+ */
 import { test, expect, type Page } from '@playwright/test';
 
 /**
@@ -35,7 +38,7 @@ test.describe('Keyboard navigation', () => {
   });
 
   test('Search input receives keyboard focus via Tab', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // Focus the search input directly
@@ -46,7 +49,7 @@ test.describe('Keyboard navigation', () => {
   });
 
   test('Enter on search input commits the prompt as a chip', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     const input = page.getByPlaceholder(/Add a positive/);
@@ -75,7 +78,7 @@ test.describe('Keyboard navigation', () => {
   });
 
   test('Search button is keyboard-accessible (Enter activates)', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Wait for initial results to load
@@ -104,15 +107,18 @@ test.describe('ARIA labels and semantic markup', () => {
     await page.goto('/');
     await appReady(page);
 
-    // Scope to the navigation element to avoid matching the brand link
+    // Scope to the navigation element to avoid matching the brand link.
+    // Current topbar tabs: Home, Random, For You, Albums, Settings.
+    // (The earlier 'Search' tab was removed when /search became the
+    // home route — there's no longer a dedicated 'Search' link.)
     const nav = page.getByRole('navigation');
-    for (const label of ['Home', 'Search', 'Random', 'For You', 'Albums']) {
+    for (const label of ['Home', 'Random', 'For You', 'Albums', 'Settings']) {
       await expect(nav.getByRole('link', { name: label })).toBeVisible();
     }
   });
 
   test('Search input has accessible name (placeholder or label)', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // The input should have a placeholder that serves as its accessible name
@@ -148,7 +154,7 @@ test.describe('ARIA labels and semantic markup', () => {
   });
 
   test('Saved searches popover has role="menu"', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     await page.getByTitle('Saved searches').click();
@@ -156,7 +162,7 @@ test.describe('ARIA labels and semantic markup', () => {
   });
 
   test('Buttons have accessible names', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // All buttons should have accessible names (text content or aria-label)
@@ -173,7 +179,7 @@ test.describe('ARIA labels and semantic markup', () => {
 
 test.describe('Screen reader announcements', () => {
   test('Toaster region has aria-label="Notifications"', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // The toaster region should exist in the DOM (even if empty)
@@ -183,7 +189,7 @@ test.describe('Screen reader announcements', () => {
   });
 
   test('Search results load without announcing errors', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Wait for results
@@ -210,18 +216,22 @@ test.describe('Focus management', () => {
   });
 
   test('Removing a chip returns focus to the input', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
-    // Wait for initial load
-    await expect(page.locator('.chip').first()).toBeVisible({ timeout: 5000 });
+    // Wait for initial load. Scope to .chip.pos (the prompt chip)
+    // because .chip is shared with CollectionsChips which renders
+    // its own chip elements (e.g. "nas 182" for the selected
+    // collection) that shouldn't be removed by the × button here.
+    await expect(page.locator('.chip.pos').first()).toBeVisible({ timeout: 5000 });
 
-    // Click the × on the chip
-    const removeBtn = page.locator('.chip').first().locator('button').first();
+    // Click the × on the prompt chip
+    const removeBtn = page.locator('.chip.pos').first().locator('button').first();
     await removeBtn.click();
 
-    // Wait for chip to disappear
-    await expect(page.locator('.chip')).toHaveCount(0, { timeout: 3000 });
+    // Wait for the prompt chip to disappear (collection chips
+    // remain).
+    await expect(page.locator('.chip.pos')).toHaveCount(0, { timeout: 3000 });
   });
 });
 
@@ -247,7 +257,7 @@ test.describe('Color contrast and visual accessibility', () => {
 
 test.describe('Form accessibility', () => {
   test('Search input can be filled and submitted via keyboard only', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // Focus the input directly
