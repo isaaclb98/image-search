@@ -178,7 +178,7 @@ test.describe('Search composer', () => {
     const reqPromise = page.waitForRequest(
       (r) => r.url().includes('/api/search') && r.url().includes('negatives=')
     );
-    await page.goto('/search?positives=photo&negatives=blurry');
+    await page.goto('/?positives=photo&negatives=blurry');
     await appReady(page);
     // Both chips should render
     await expect(page.locator('.chip').filter({ hasText: 'photo' })).toBeVisible({ timeout: 5000 });

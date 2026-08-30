@@ -47,7 +47,7 @@ test.describe('Journey: First-time visitor explores the library', () => {
 
     // 6. Go back to search page via direct navigation
     // (browser back-nav with the SPA can be flaky in headless tests)
-    await page.goto('http://127.0.0.1:8000/search?positives=landscape', { waitUntil: 'domcontentloaded' });
+    await page.goto('http://127.0.0.1:8000/?positives=landscape', { waitUntil: 'domcontentloaded' });
     await appReady(page);
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10000 });
   });
@@ -89,7 +89,7 @@ test.describe('Journey: First-time visitor explores the library', () => {
 test.describe('Journey: Power user builds an album from search', () => {
   test('search → like multiple → create album → add favorites → verify', async ({ page }) => {
     // 1. Search for something
-    await page.goto('/search?positives=photo');
+    await page.goto('/?positives=photo');
     await appReady(page);
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10000 });
 
@@ -128,7 +128,7 @@ test.describe('Journey: Power user builds an album from search', () => {
 
 test.describe('Journey: Cross-page state persistence', () => {
   test('search with URL params → refresh → params preserved', async ({ page }) => {
-    await page.goto('/search?positives=beach&negatives=ocean');
+    await page.goto('/?positives=beach&negatives=ocean');
     await appReady(page);
 
     // Both chips should render
@@ -145,7 +145,7 @@ test.describe('Journey: Cross-page state persistence', () => {
   });
 
   test('search → modify → back button → original state restored', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
     await expect(page.locator('.chip').filter({ hasText: 'beach' })).toBeVisible();
 
@@ -227,7 +227,7 @@ test.describe('Journey: Deep linking to specific photos', () => {
 test.describe('Journey: Mobile-like viewport', () => {
   test('search page renders without overflow at narrow viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 }); // iPhone X
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // The page should render without horizontal scroll
@@ -271,7 +271,7 @@ test.describe('Journey: Error recovery', () => {
       }
     });
 
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // First search fails

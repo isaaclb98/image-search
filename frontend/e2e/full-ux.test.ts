@@ -39,7 +39,10 @@ test.describe('Full User Experience E2E Tests', () => {
     await appReady(page);
     await expect(page).toHaveTitle(/image-search/);
     await expect(page.locator('.composer-input').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: /Search/i }).first()).toBeVisible();
+    // Current topbar tabs: Home, Random, For You, Albums, Settings.
+    // (The earlier 'Search' tab was removed when /search became the
+    // home route — there's no longer a dedicated 'Search' link.)
+    await expect(page.getByRole('link', { name: /Home/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /Random/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /For You/i }).first()).toBeVisible();
   });

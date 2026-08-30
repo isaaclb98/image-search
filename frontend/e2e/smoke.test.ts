@@ -58,11 +58,16 @@ test('Home renders with composer + For-you row', async ({ page }) => {
 });
 
 test('Search renders chips from URL + shows the grid', async ({ page }) => {
-  await page.goto(APP + '/search?positives=beach&positives=ocean');
+  // / IS the search route now (the /search route was removed).
+  // URL params (positives/negatives) drive the search bar.
+  await page.goto(APP + '/?positives=beach&positives=ocean');
   await appReady(page);
-  await waitFor(page, '.chip', 15000);
-  await expect(page.locator('.chip').filter({ hasText: 'beach' })).toBeVisible();
-  await expect(page.locator('.chip').filter({ hasText: 'ocean' })).toBeVisible();
+  // Scope to .chip.pos (prompt chip) — .chip is shared with the
+  // collection chips component, which renders its own chip for the
+  // currently selected collection.
+  await waitFor(page, '.chip.pos', 15000);
+  await expect(page.locator('.chip.pos').filter({ hasText: 'beach' })).toBeVisible();
+  await expect(page.locator('.chip.pos').filter({ hasText: 'ocean' })).toBeVisible();
   await waitFor(page, '.grid-tile, .empty', 8000);
 });
 
@@ -76,7 +81,10 @@ test('Random renders a grid', async ({ page }) => {
 test('Albums renders list or empty state', async ({ page }) => {
   await page.goto(APP + '/albums');
   await appReady(page);
-  await expect(page.getByRole('heading', { name: /Albums/i })).toBeVisible();
+  // h1 is exactly 'Albums'; the page also has an h2 'Your albums'
+  // for the album grid section. Scope to h1 (exact) so we don't
+  // match the h2 in strict mode.
+  await expect(page.getByRole('heading', { name: 'Albums', exact: true })).toBeVisible();
   await waitFor(page, '.card, .placeholder', 8000);
 });
 
@@ -88,16 +96,25 @@ test('For You renders header + body', async ({ page }) => {
 });
 
 test('Top bar tabs are interactive', async ({ page }) => {
+  // Topbar tabs: Home, Random, For You, Albums, Settings. We test
+  // a few — clicking Random should navigate to /random and activate
+  // that tab visually. (The older 'Search' tab test was removed
+  // when /search became the home route.)
   await page.goto(APP + '/');
   await appReady(page);
-  const searchTab = page.getByRole('link', { name: 'Search' });
-  await searchTab.click();
-  await page.waitForURL(/\/search$/);
-  await expect(page.getByRole('button', { name: /^Search$/ })).toBeVisible();
+  const randomTab = page.getByRole('link', { name: 'Random' });
+  await randomTab.click();
+  await page.waitForURL(/\/random$/);
+  // The Random page doesn't have the Search button (composer lives
+  // on the home / search page). Verify the random grid is loaded
+  // instead — that's the destination page's primary content.
+  await expect(page.getByRole('heading', { name: /Random/i })).toBeVisible();
+  await waitFor(page, '.grid-tile, .empty', 8000);
 });
 
 test('Adding a positive prompt renders a chip', async ({ page }) => {
-  await page.goto(APP + '/search');
+  // / IS the search route now (the /search route was removed).
+  await page.goto(APP + '/');
   await searchPageReady(page);
 
   const input = page.getByPlaceholder(/Add a positive/);
@@ -105,8 +122,10 @@ test('Adding a positive prompt renders a chip', async ({ page }) => {
   await input.fill('beach');
   await input.press('Enter');
 
-  await waitFor(page, '.chip', 10000);
-  await expect(page.locator('.chip').filter({ hasText: 'beach' })).toBeVisible();
+  // Scope to .chip.pos — .chip matches both the prompt chip and
+  // the collection chip ("nas 182"); the test is about the prompt.
+  await waitFor(page, '.chip.pos', 10000);
+  await expect(page.locator('.chip.pos').filter({ hasText: 'beach' })).toBeVisible();
 });
 
 /**
@@ -147,8 +166,9 @@ test('Lightbox opens, navigates with arrow keys, closes with Esc', async ({ page
  * End-to-end exercise of the SavedSearchesMenu + backend roundtrip.
  */
 test('Saved searches: save, pick reapplies prompts, delete removes', async ({ page }) => {
-  // Start fresh — go to /search with no params so we control state.
-  await page.goto(APP + '/search');
+  // Start fresh — go to / with no params so we control state. / IS
+  // the search route now (the /search route was removed).
+  await page.goto(APP + '/');
   await searchPageReady(page);
 
   const input = page.getByPlaceholder(/Add a positive/);
@@ -157,7 +177,8 @@ test('Saved searches: save, pick reapplies prompts, delete removes', async ({ pa
   await input.press('Enter');
   await input.fill('sunset');
   await input.press('Enter');
-  await waitFor(page, '.chip', 8000);
+  // Scope to prompt chips (.chip.pos); .chip matches collection too.
+  await waitFor(page, '.chip.pos', 8000);
 
   // Use a unique name so we don't collide with saved searches from
   // other tests, then locate our entry by that name.
@@ -188,14 +209,16 @@ test('Saved searches: save, pick reapplies prompts, delete removes', async ({ pa
  * Guards the spec line "picking one re-applies … and runs the search".
  */
 test('Search state round-trips through the URL', async ({ page }) => {
-  await page.goto(APP + '/search');
+  // / IS the search route now (the /search route was removed).
+  await page.goto(APP + '/');
   await searchPageReady(page);
 
   const input = page.getByPlaceholder(/Add a positive/);
   await input.click();
   await input.fill('round-trip-keyword');
   await input.press('Enter');
-  await waitFor(page, '.chip', 8000);
+  // Scope to prompt chips (.chip.pos); .chip matches collection too.
+  await waitFor(page, '.chip.pos', 8000);
 
   // After the 180ms debounce + write the URL should carry the prompt.
   await page.waitForTimeout(500);
@@ -350,13 +373,19 @@ test('Random page walks through the full session without duplicates', async ({ p
 });
 
 test('Search page infinite-scrolls: scrolls append a second page', async ({ page }) => {
-  await page.goto(APP + '/search?positives=beach');
+  // / IS the search route now (the /search route was removed).
+  // Initial page size is 28 (see GRID_PAGE_SIZE constant; was 20
+  // before the centralisation). Scope the tile count to the search
+  // results section so the home page's For You row tiles don't
+  // contaminate the count. Use a generic prompt that's likely to
+  // match many photos — "photo" matches all images in the dev
+  // library of 182 K-pop photos, so the second page will load.
+  await page.goto(APP + '/?positives=photo');
   await searchPageReady(page);
-  await waitFor(page, '.grid-tile', 10000);
+  await waitFor(page, 'section.results .grid-tile', 10000);
 
-  // Initial 20 tiles (spec)
-  const initial = await page.locator('.grid-tile').count();
-  expect(initial).toBe(20);
+  const initial = await page.locator('section.results .grid-tile').count();
+  expect(initial).toBe(28);
 
   // Body is the scroll container — scroll window to reach the sentinel.
   for (let i = 0; i < 3; i++) {
@@ -366,6 +395,6 @@ test('Search page infinite-scrolls: scrolls append a second page', async ({ page
     await page.waitForTimeout(800);
   }
 
-  const final = await page.locator('.grid-tile').count();
-  expect(final).toBeGreaterThan(20);
+  const final = await page.locator('section.results .grid-tile').count();
+  expect(final).toBeGreaterThan(28);
 });

@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 async function appReady(page: any) {
-  await page.waitForSelector('input[placeholder*="Add a positive prompt"]', { timeout: 5000 });
+  // The composer is on every page that has a search bar; the topbar
+  // header is the most reliable "app is hydrated" signal because it's
+  // rendered server-side and survives SvelteKit hydration. (Match
+  // what smoke.test.ts, ui-flows.test.ts, etc. use.)
+  await page.waitForSelector('header.topbar', { timeout: 10000 });
 }
 
 test.describe('Search edge cases', () => {
   test('search with special characters in prompts', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     const input = page.getByRole('textbox', { name: /add prompt/i });
@@ -14,7 +18,7 @@ test.describe('Search edge cases', () => {
     await input.press('Enter');
 
     // Should render the chip without crashing
-    await expect(page.locator('.chip')).toHaveCount(1);
+    await expect(page.locator('.chip.pos')).toHaveCount(1);
     
     // Click Search
     await page.getByRole('button', { name: /^Search$/ }).click();
@@ -25,7 +29,7 @@ test.describe('Search edge cases', () => {
   });
 
   test('search with very long prompt (>100 chars)', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     const longPrompt = 'a'.repeat(150);
@@ -34,7 +38,7 @@ test.describe('Search edge cases', () => {
     await input.press('Enter');
 
     // Should render the chip (truncated visually if needed)
-    await expect(page.locator('.chip')).toHaveCount(1);
+    await expect(page.locator('.chip.pos')).toHaveCount(1);
     
     // Click Search - should work without error
     await page.getByRole('button', { name: /^Search$/ }).click();
@@ -43,7 +47,7 @@ test.describe('Search edge cases', () => {
   });
 
   test('search with only filename filter (no prompts)', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // Open the "Additional options" panel first
@@ -62,7 +66,7 @@ test.describe('Search edge cases', () => {
   });
 
   test('multiple positive prompts (5+)', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     const input = page.getByRole('textbox', { name: /add prompt/i });
@@ -75,7 +79,7 @@ test.describe('Search edge cases', () => {
     }
 
     // All chips should render
-    const chips = page.locator('.chip');
+    const chips = page.locator('.chip.pos');
     await expect(chips).toHaveCount(6, { timeout: 5000 });
 
     // Click Search
@@ -88,14 +92,14 @@ test.describe('Search edge cases', () => {
   });
 
   test('remove all chips → Search button disabled', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Wait for initial load
     await page.waitForTimeout(500);
 
     // Remove the chip
-    await page.locator('.chip').locator('button').first().click();
+    await page.locator('.chip.pos').locator('button').first().click();
 
     // Search button should be disabled
     const searchBtn = page.getByRole('button', { name: /^Search$/ });
@@ -213,7 +217,7 @@ test.describe('Empty states', () => {
 
 test.describe('Filters and diversity', () => {
   test('diversity mode selector changes the search query', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Wait for initial search to fire
@@ -234,7 +238,7 @@ test.describe('Filters and diversity', () => {
   });
 
   test('filename filter with regex-like pattern', async ({ page }) => {
-    await page.goto('/search');
+    await page.goto('/');
     await appReady(page);
 
     // Open "Additional options" panel first
@@ -263,7 +267,7 @@ test.describe('Toast messages', () => {
       });
     });
 
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Click search to trigger the error
@@ -277,7 +281,7 @@ test.describe('Toast messages', () => {
   });
 
   test('success toast appears on save', async ({ page }) => {
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Wait for search to complete
@@ -309,7 +313,7 @@ test.describe('Loading states', () => {
       await route.fulfill({ response });
     });
 
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Click search to trigger the delayed request
@@ -338,7 +342,7 @@ test.describe('Loading states', () => {
       await route.fulfill({ response });
     });
 
-    await page.goto('/search?positives=beach');
+    await page.goto('/?positives=beach');
     await appReady(page);
 
     // Click search to trigger the delayed request
