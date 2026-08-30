@@ -302,7 +302,7 @@
               await addPhotoToAlbumAction(it.id as number, it.label);
             }}
             label="Add this photo to an album"
-            align="down"
+            align="up"
             emptyMessage="No albums yet — create one from the Albums page."
           >
             {#snippet trigger({ open, toggle })}

@@ -10,6 +10,13 @@
    *   - Glass surface + caret so the menu reads as a sibling of the
    *     trigger, not a disconnected bubble.
    *   - ARIA + keyboard (Esc closes) so it's usable without a mouse.
+   *   - **Portal** the menu and caret to document.body so they
+   *     escape any ancestor's `backdrop-filter`/`transform`/
+   *     `filter`/`contain` containing block (any of these would
+   *     otherwise pin `position: fixed` to that ancestor and clip
+   *     the menu). This is the bug that bit the first version when
+   *     the trigger lived inside a `.glass`/`.glass-strong`
+   *     element with `backdrop-filter`.
    *
    * The trigger is provided as a snippet. It is expected to be an
    * interactive element (typically a button) — the wrapper itself is
@@ -59,15 +66,52 @@
   let open = $state(false);
   let wrapperEl: HTMLDivElement | undefined = $state();
   let menuEl: HTMLDivElement | undefined = $state();
+  let caretEl: HTMLDivElement | undefined = $state();
 
   /** Coordinates for `position: fixed` placement, recomputed each open. */
   let pos = $state<{ top: number; left: number }>({ top: 0, left: 0 });
 
-  /** Caret offset from the menu's left edge, in px. */
+  /** Caret horizontal offset from the menu's left edge, in px. */
   let caretOffset = $state(0);
+
+  /**
+   * Caret vertical position. For `align="up"` the menu sits above
+   * the trigger and the caret's tip points down toward the trigger —
+   * so the caret's top is just below the menu's bottom edge. For
+   * `align="down"` the menu sits below the trigger and the caret's
+   * tip points up toward the trigger — so the caret's top is just
+   * above the menu's top edge.
+   */
+  let caretTop = $state(0);
 
   /** Gap between the trigger edge and the menu (px). */
   const GAP = 8;
+
+  /**
+   * Svelte `use:` action that portals a node to document.body for
+   * the lifetime of the component. The node is restored to its
+   * original parent on destroy so SSR / unmount doesn't leak it.
+   *
+   * We portal the menu + caret because `backdrop-filter` (used by
+   * `.glass`/`.glass-strong`) creates a new containing block that
+   * traps `position: fixed` — without this, the menu would be
+   * positioned and clipped relative to the trigger's glass ancestor
+   * instead of the viewport.
+   */
+  function portal(node: HTMLElement) {
+    const originalParent = node.parentElement!;
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        if (node.parentElement === document.body) {
+          document.body.removeChild(node);
+        } else if (originalParent && node.parentElement) {
+          // If Svelte moved it during teardown, drop it cleanly.
+          node.remove();
+        }
+      }
+    };
+  }
 
   function computePosition() {
     if (!wrapperEl) return;
@@ -93,6 +137,11 @@
       computePosition();
       await tick();
       // After mount, clamp to viewport and re-center caret.
+      // IMPORTANT: getBoundingClientRect() returns viewport-relative
+      // coords. After the portal moves the nodes to document.body,
+      // that's still true (the elements are no longer nested, but
+      // their rect is still measured against the viewport). So the
+      // math works.
       if (menuEl && wrapperEl) {
         const menuRect = menuEl.getBoundingClientRect();
         const wrapperRect = wrapperEl.getBoundingClientRect();
@@ -112,6 +161,15 @@
         // Recompute caret offset so it stays centered under the
         // trigger even after horizontal clamping.
         caretOffset = wrapperRect.left + wrapperRect.width / 2 - left;
+        // Vertical caret position: align-up caret sits just below
+        // the menu's bottom edge (tip pointing down at trigger);
+        // align-down caret sits just above the menu's top edge
+        // (tip pointing up at trigger). Caret's intrinsic height
+        // is 8px (CSS border). No gap — the tip touches the
+        // menu/caret edge so the visual reads as one shape.
+        caretTop = align === 'up'
+          ? pos.top + menuRect.height - 8
+          : pos.top;
       }
       // Focus first item for keyboard users.
       menuEl?.querySelector<HTMLButtonElement>('button.item:not(:disabled)')?.focus();
@@ -125,7 +183,14 @@
   function onDocPointer(e: MouseEvent | TouchEvent) {
     if (!open) return;
     const target = e.target as Node;
-    if (!menuEl?.contains(target) && !wrapperEl?.contains(target)) {
+    // The menu + caret are portaled to document.body, so they're
+    // no longer descendants of wrapperEl — check both the wrapper
+    // (for the trigger) and the menu/caret (for the popover).
+    if (
+      !menuEl?.contains(target) &&
+      !caretEl?.contains(target) &&
+      !wrapperEl?.contains(target)
+    ) {
       close();
     }
   }
@@ -156,69 +221,95 @@
      inside renders the actual interactive trigger. -->
 <div class="dropdown" bind:this={wrapperEl}>
   {@render trigger({ open, toggle })}
-
-  {#if open}
-    {#if align === 'up'}
-      <div class="caret caret-up" style:left="{caretOffset}px" aria-hidden="true"></div>
-    {:else}
-      <div class="caret caret-down" style:left="{caretOffset}px" aria-hidden="true"></div>
-    {/if}
-    <div
-      bind:this={menuEl}
-      class="menu glass-strong"
-      role="menu"
-      aria-label={label}
-      style:top="{pos.top}px"
-      style:left="{pos.left}px"
-      style:min-width={minWidth}
-    >
-      {#if items.length === 0}
-        <div class="empty">{emptyMessage}</div>
-      {:else}
-        {#each items as it (it.id)}
-          <button
-            type="button"
-            class="item"
-            role="menuitem"
-            disabled={it.disabled}
-            onclick={async () => {
-              await onPick(it);
-              close();
-            }}
-          >
-            {it.label}
-          </button>
-        {/each}
-      {/if}
-    </div>
-  {/if}
 </div>
+
+{#if open}
+  {#if align === 'up'}
+    <div
+      bind:this={caretEl}
+      class="caret caret-up"
+      style:left="{pos.left + caretOffset}px"
+      style:top="{caretTop}px"
+      aria-hidden="true"
+      use:portal
+    ></div>
+  {:else}
+    <div
+      bind:this={caretEl}
+      class="caret caret-down"
+      style:left="{pos.left + caretOffset}px"
+      style:top="{caretTop}px"
+      aria-hidden="true"
+      use:portal
+    ></div>
+  {/if}
+  <div
+    bind:this={menuEl}
+    class="menu glass-strong"
+    role="menu"
+    aria-label={label}
+    style:top="{pos.top}px"
+    style:left="{pos.left}px"
+    style:min-width={minWidth}
+    use:portal
+  >
+    {#if items.length === 0}
+      <div class="empty">{emptyMessage}</div>
+    {:else}
+      {#each items as it (it.id)}
+        <button
+          type="button"
+          class="item"
+          role="menuitem"
+          disabled={it.disabled}
+          onclick={async () => {
+            await onPick(it);
+            close();
+          }}
+        >
+          {it.label}
+        </button>
+      {/each}
+    {/if}
+  </div>
+{/if}
 
 <style>
   .dropdown {
     position: relative;
     display: inline-flex;
   }
-  /* Caret + menu use fixed positioning so they escape the wrapper's
-     stacking context (otherwise nested z-indices / overflow-hidden
-     ancestors could clip them). */
+  /* Caret + menu live at document.body via the portal action. CSS
+     `position: fixed` is still correct there because no ancestor
+     between the portal root and the menu has transform / filter /
+     contain / backdrop-filter (the whole point of the portal).
+
+     Caret's intrinsic size is 16×8 px (8px border on left/right
+     + top for caret-down, or top for caret-up — the visible
+     triangle is the visible border side). The `left` value passed
+     to the inline style is the caret's CENTER (computed from the
+     menu's left + the trigger-center offset), so no transform
+     needed. */
   .caret {
     position: fixed;
     width: 0;
     height: 0;
     pointer-events: none;
     z-index: 511; /* above the menu */
-    transform: translateX(-50%);
   }
+  /* Caret uses the same solid edge color as .glass-strong itself so
+     the triangle reads as part of the menu's outline, not a ghost.
+     50% white opacity is visible on dark backgrounds without being
+     harsh. */
   .caret-up {
     border-left: 8px solid transparent;
     border-right: 8px solid transparent;
-    border-top: 8px solid var(--glass-edge-strong);
+    border-top: 8px solid rgba(255, 255, 255, 0.5);
   }
   .caret-down {
     border-left: 8px solid transparent;
     border-right: 8px solid transparent;
-    border-bottom: 8px solid var(--glass-edge-strong);
+    border-bottom: 8px solid rgba(255, 255, 255, 0.5);
   }
   .menu {
     position: fixed;
