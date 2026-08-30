@@ -15,9 +15,7 @@ returns True. local_sync translates this to exit code 130 and a
 
 from __future__ import annotations
 
-import signal
 import threading
-import time
 from pathlib import Path
 
 import pytest
