@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
  * Playwright smoke tests — one happy-path per page.
  *
  * Per docs/image-search-v2-testing.md Layer 4:

@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
  * Round‑29: album-card search button e2e.
  *
  * Verifies the Option A feature end-to-end:

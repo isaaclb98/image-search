@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
  * Round‑31: backdrop colour bleed.
  *
  * Two layers:

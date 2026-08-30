@@ -1,4 +1,6 @@
 /**
+
+ * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
  * settings-index.test.ts — E2E coverage for the in-app Indexer
  * (Settings → Index button + admin API).
  *

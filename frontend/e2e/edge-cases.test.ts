@@ -1,3 +1,6 @@
+/**
+ * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
+ */
 import { test, expect } from '@playwright/test';
 
 async function appReady(page: any) {
