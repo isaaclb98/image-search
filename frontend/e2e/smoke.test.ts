@@ -384,15 +384,23 @@ test('Search page infinite-scrolls: scrolls append a second page', async ({ page
   await searchPageReady(page);
   await waitFor(page, 'section.results .grid-tile', 10000);
 
+  // Wait for the first page of results to fully render before
+  // counting — without this, the count can include stale tiles
+  // from a previous render cycle.
+  await page.waitForTimeout(1500);
+
   const initial = await page.locator('section.results .grid-tile').count();
   expect(initial).toBe(28);
 
-  // Body is the scroll container — scroll window to reach the sentinel.
-  for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => {
-      window.scrollTo({ top: document.body.scrollHeight });
-    });
-    await page.waitForTimeout(800);
+  // Scroll the sentinel into view to trigger the next-page load.
+// The sentinel lives inside section.results; the page has other
+// sections below (For You, etc.) so scrolling to document.body
+// scrollHeight skips past the sentinel without triggering it. We
+// scroll the sentinel element itself into view, then wait for the
+// append to land.
+  for (let i = 0; i < 5; i++) {
+    await page.locator('section.results .sentinel').first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(2000);
   }
 
   const final = await page.locator('section.results .grid-tile').count();

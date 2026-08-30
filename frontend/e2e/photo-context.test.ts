@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Tests run against the dev stack (PLAYWRIGHT_BASE_URL is set by
+// the wrapper or the CI workflow). Falls back to the dev port so a
+// bare `node_modules/.bin/playwright test` from a developer's machine
+// still works against their local dev stack.
+const APP = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:18000';
+
 /**
  * photo-context.test.ts — Right-click context menu actions and
  * photo detail page interactions. These are the deeper photo-level
@@ -165,7 +171,7 @@ test.describe('Photo detail page (/photo/<id>)', () => {
     const pointId = apiJson.results?.[0]?.id;
     if (!pointId) test.skip(true, 'No search results');
 
-    const resp = await page.goto(`http://127.0.0.1:8000/photo/${pointId}`, { waitUntil: 'domcontentloaded' });
+    const resp = await page.goto(`${APP}/photo/${pointId}`, { waitUntil: 'domcontentloaded' });
     expect(resp?.status()).toBe(200);
     await appReady(page);
 
@@ -180,7 +186,7 @@ test.describe('Photo detail page (/photo/<id>)', () => {
     const pointId = apiJson.results?.[0]?.id;
     if (!pointId) test.skip(true, 'No search results');
 
-    await page.goto(`http://127.0.0.1:8000/photo/${pointId}`);
+    await page.goto(`${APP}/photo/${pointId}`);
     await appReady(page);
 
     // There should be some navigation element (back button, breadcrumb, or nav)
@@ -196,7 +202,7 @@ test.describe('Similar photos page (/similar/<id>)', () => {
     const pointId = apiJson.results?.[0]?.id;
     if (!pointId) test.skip(true, 'No search results');
 
-    const resp = await page.goto(`http://127.0.0.1:8000/similar/${pointId}`, { waitUntil: 'domcontentloaded' });
+    const resp = await page.goto(`${APP}/similar/${pointId}`, { waitUntil: 'domcontentloaded' });
     expect(resp?.status()).toBe(200);
     await appReady(page);
 
@@ -209,7 +215,7 @@ test.describe('Similar photos page (/similar/<id>)', () => {
     const pointId = apiJson.results?.[0]?.id;
     if (!pointId) test.skip(true, 'No search results');
 
-    await page.goto(`http://127.0.0.1:8000/similar/${pointId}`);
+    await page.goto(`${APP}/similar/${pointId}`);
     await appReady(page);
 
     // Should show at least one similar photo tile (or an empty state)
@@ -221,14 +227,14 @@ test.describe('Similar photos page (/similar/<id>)', () => {
 
 test.describe('For You feed', () => {
   test('For You page renders with heading', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/for-you');
+    await page.goto(`${APP}/for-you`);
     await appReady(page);
 
     await expect(page.getByRole('heading', { name: /for you/i })).toBeVisible();
   });
 
   test('For You page has a Diversity control', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/for-you');
+    await page.goto(`${APP}/for-you`);
     await appReady(page);
 
     // The Diversity select should be accessible
@@ -246,7 +252,7 @@ test.describe('Albums page interactions', () => {
     const createRes = await page.request.post('/api/albums', { data: { name: albumName } });
     const album = await createRes.json();
 
-    await page.goto('http://127.0.0.1:8000/albums');
+    await page.goto(`${APP}/albums`);
     await appReady(page);
 
     // Click the album name link
@@ -281,7 +287,7 @@ test.describe('Albums page interactions', () => {
       }
     }
 
-    await page.goto(`http://127.0.0.1:8000/albums/${albumId}`);
+    await page.goto(`${APP}/albums/${albumId}`);
     await appReady(page);
 
     // Page should show the album name and at least 1 member

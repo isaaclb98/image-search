@@ -43,12 +43,16 @@ test.describe('Rapid clicks', () => {
     await page.waitForTimeout(2000);
 
     // Should NOT have fired 5 additional searches. The button is
-    // disabled during the in-flight request (UX fix), but the
-    // first click may land before the disabled state is committed
-    // by the framework. Allow up to 4 (1 immediate + 3 from the
-    // initial search retry chain) — the test value is that we
-    // DON'T see all 5 requests fire.
-    expect(requestCount - initialCount).toBeLessThanOrEqual(4);
+    // disabled during the in-flight request (UX fix), but clicks
+    // that race ahead of the disabled state can still fire. The
+    // key invariant is that dedupe is working: at most 2 of the
+    // 5 rapid clicks should land as separate searches. The
+    // previous threshold of 4 was found to be flaky under suite
+    // load (it'd intermittently allow 4 of 5 through, suggesting
+    // dedupe only sometimes engaged). Threshold of 3 catches real
+    // regressions in the dedupe path without flaking on
+    // slow-network races.
+    expect(requestCount - initialCount).toBeLessThan(3);
   });
 
   test('clicking the same tile rapidly does not open multiple lightboxes', async ({ page }) => {

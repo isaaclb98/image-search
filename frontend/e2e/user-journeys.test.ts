@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Tests run against the dev stack (PLAYWRIGHT_BASE_URL is set by
+// the wrapper or the CI workflow). Falls back to the dev port so a
+// bare `node_modules/.bin/playwright test` from a developer's machine
+// still works against their local dev stack.
+const APP = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:18000';
+
 /**
  * user-journeys.test.ts — End-to-end user stories that cross multiple
  * pages and exercise the full app flow. These are the tests that
@@ -28,7 +34,7 @@ test.describe('Journey: First-time visitor explores the library', () => {
     // 2. Navigate to Search. Use page.goto with a fresh full URL
     // — the SvelteKit SPA's client router can swallow relative
     // navigation under headless Chromium.
-    await page.goto('http://127.0.0.1:8000/search', { waitUntil: 'domcontentloaded' });
+    await page.goto(`${APP}/`, { waitUntil: 'domcontentloaded' });
     await appReady(page);
     await expect(page.getByPlaceholder(/Add a positive/)).toBeVisible();
 

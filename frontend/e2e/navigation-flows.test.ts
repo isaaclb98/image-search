@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Tests run against the dev stack (PLAYWRIGHT_BASE_URL is set by
+// the wrapper or the CI workflow). Falls back to the dev port so a
+// bare `node_modules/.bin/playwright test` from a developer's machine
+// still works against their local dev stack.
+const APP = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:18000';
+
 /**
  * navigation-flows.test.ts — Browser navigation, deep linking,
  * URL state persistence, and error pages.
@@ -11,16 +17,17 @@ async function appReady(page: Page) {
 
 test.describe('Browser navigation', () => {
   test('browser back button navigates between pages', async ({ page }) => {
-    // Start at home
-    await page.goto('http://127.0.0.1:8000/');
+    // Start at home (test base URL comes from APP).
+    await page.goto(`${APP}/`);
     await appReady(page);
 
-    // Go to search
-    await page.goto('http://127.0.0.1:8000/search');
+    // Go to /?positives=beach (the search route — /search no longer
+    // exists; / IS the search route now).
+    await page.goto(`${APP}/?positives=beach`);
     await appReady(page);
 
     // Go to random
-    await page.goto('http://127.0.0.1:8000/random');
+    await page.goto(`${APP}/random`);
     await appReady(page);
 
     // Back to search
@@ -125,7 +132,8 @@ test.describe('URL state persistence', () => {
   });
 
   test('adding a prompt updates the URL', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8000/search');
+    // / IS the search route now (the /search route was removed).
+    await page.goto(`${APP}/`);
     await appReady(page);
 
     const input = page.getByPlaceholder(/Add a positive/);

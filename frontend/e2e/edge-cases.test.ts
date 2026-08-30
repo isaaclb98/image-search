@@ -189,9 +189,11 @@ test.describe('Empty states', () => {
     await page.goto('/albums');
     await page.waitForSelector('h1', { timeout: 5000 });
 
-    // Should show empty state message
-    const body = await page.textContent('body');
-    expect(body).toMatch(/no.*album|create/i);
+    // The empty-state message reads "No custom albums yet — create
+    // one to group your photos." Wait for it specifically rather
+    // than reading body text immediately, because the albums API
+    // fetch can still be in flight after h1 mounts.
+    await expect(page.getByText(/No custom albums yet/i)).toBeVisible({ timeout: 10_000 });
   });
 
   test('Random page when library is empty (edge case)', async ({ page }) => {
@@ -323,15 +325,23 @@ test.describe('Loading states', () => {
     const loadingState = page.locator('.empty.loading');
     await expect(loadingState).toBeVisible({ timeout: 2000 });
     await expect(loadingState).toContainText('Searching');
-    
+
     // Verify the spinner is visible
     await expect(loadingState.locator('.spinner')).toBeVisible({ timeout: 500 });
-    
-    // After the delayed response, results should appear
-    await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 5000 });
-    
-    // Loading state should be gone
-    await expect(loadingState).not.toBeVisible({ timeout: 1000 });
+
+    // After the delayed response, results should appear. Scope to
+    // section.results because .grid-tile also matches the home
+    // page's always-on "For you" row tiles — without scoping,
+    // the wait would succeed on For You tiles BEFORE the search
+    // finishes, and the loading-state assertion below would race
+    // against the still-in-flight search.
+    await expect(page.locator('section.results .grid-tile').first()).toBeVisible({ timeout: 5000 });
+
+    // Loading state should be gone. Give it a moment to clear after
+    // the delayed response lands (the test routes the request with
+    // a 1s delay, so loading state may stay visible briefly past
+    // the grid-tile assertion).
+    await expect(loadingState).not.toBeVisible({ timeout: 5000 });
   });
 
   test('search button shows loading state', async ({ page }) => {
