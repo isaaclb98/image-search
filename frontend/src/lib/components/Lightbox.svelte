@@ -15,11 +15,12 @@
    * index of the currently shown item, plus a way to toggle
    * favourite.
    */
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { photoUrl, addPhotoToAlbum, listAlbums } from '$lib/api/endpoints';
   import { blurhashToDataUrl } from './blurhash-bg';
   import ActionButton from './ActionButton.svelte';
+  import Dropdown from './Dropdown.svelte';
   import { toast } from './Toaster.svelte';
 
   function goSimilar(id: string) {
@@ -74,17 +75,6 @@
 
   let tint = $state<string | null>(null);
 
-  // Round-6 issue #2 — Add to albums in the lightbox action bar.
-  // The right-click menu has had this since round-4, but the lightbox
-  // is the prominent view of a photo, so the action bar needs the
-  // entry point too. Dropdown opens UP (the action bar is at the
-  // bottom of the screen, so the menu must grow upward to stay in
-  // view) and reuses the same `albums` prop already passed in.
-  let albumOpen = $state(false);
-  let albumBusy = $state(false);
-  let albumMenuEl: HTMLDivElement | undefined = $state();
-  let albumAnchorEl: HTMLSpanElement | undefined = $state();
-
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
      to a different photo — re-syncing after every server response
@@ -128,63 +118,28 @@
     onDislike?.(it.id);
   }
 
-  async function toggleAlbumMenu() {
-    albumOpen = !albumOpen;
-    if (albumOpen) {
-      // Lazy-load albums if the caller didn't pass any. Use the
-      // shared `albums` prop first; fall back to a fresh fetch.
-      // listAlbums() returns {albums: [...]}, so unwrap it before
-      // assigning to the local prop.
-      if (!albums || albums.length === 0) {
-        try {
-          const res = (await listAlbums()) as { albums?: { id: number; name: string }[] };
-          albums = res.albums ?? [];
-        } catch {
-          // List endpoint not available — render an empty menu.
-          albums = [];
-        }
-      }
-      // Focus the first item for keyboard navigation.
-      await tick();
-      albumMenuEl?.querySelector<HTMLButtonElement>('button.album-item')
-        ?.focus();
+  // Round-6 — Add to album dropdown logic. Now lives in <Dropdown>;
+  // this handler is just the API glue + lazy album loading.
+  async function ensureAlbumsLoaded() {
+    if (albums && albums.length > 0) return;
+    try {
+      const res = (await listAlbums()) as { albums?: { id: number; name: string }[] };
+      albums = res.albums ?? [];
+    } catch {
+      albums = [];
     }
   }
 
-  async function pickAlbum(albumId: number, albumName: string) {
+  async function addToAlbum(albumId: number, albumName: string) {
     const it = current();
-    if (!it || albumBusy) return;
-    albumBusy = true;
+    if (!it) return;
     try {
       await addPhotoToAlbum(albumId, it.id);
       toast.show(`Added to "${albumName}"`, { kind: 'success' });
-      albumOpen = false;
     } catch {
       toast.show(`Could not add to "${albumName}"`, { kind: 'error' });
-    } finally {
-      albumBusy = false;
     }
   }
-
-  function onDocClick(e: MouseEvent) {
-    if (!albumOpen) return;
-    const target = e.target as Node;
-    if (
-      !albumMenuEl?.contains(target) &&
-      !albumAnchorEl?.contains(target)
-    ) {
-      albumOpen = false;
-    }
-  }
-
-  $effect(() => {
-    if (albumOpen) {
-      // Close on outside click. The mousedown listener lives on the
-      // document so it catches clicks anywhere outside the menu.
-      document.addEventListener('mousedown', onDocClick);
-      return () => document.removeEventListener('mousedown', onDocClick);
-    }
-  });
 
   function current(): Item | null {
     return items[idx] ?? null;
@@ -281,39 +236,29 @@
       >
         Most similar
       </ActionButton>
-      <span bind:this={albumAnchorEl} class="album-anchor">
-        <ActionButton
-          onclick={toggleAlbumMenu}
-          title="Add this photo to an album"
-          ariaHaspopup="menu"
-          ariaExpanded={albumOpen}
-        >
-          Add to album
-        </ActionButton>
-        {#if albumOpen}
-          <div
-            bind:this={albumMenuEl}
-            class="album-menu glass-strong"
-            role="menu"
+      <Dropdown
+        items={(albums ?? []).map((a) => ({ id: a.id, label: a.name }))}
+        onPick={async (it) => {
+          await addToAlbum(it.id as number, it.label);
+        }}
+        label="Add this photo to an album"
+        align="up"
+        emptyMessage="No albums yet — create one from the Albums page."
+      >
+        {#snippet trigger({ open, toggle })}
+          <ActionButton
+            onclick={async () => {
+              if (!open) await ensureAlbumsLoaded();
+              toggle();
+            }}
+            title="Add this photo to an album"
+            ariaHaspopup="menu"
+            ariaExpanded={open}
           >
-            {#if !albums || albums.length === 0}
-              <div class="album-empty">No albums yet — create one from the Albums page.</div>
-            {:else}
-              {#each albums as a (a.id)}
-                <button
-                  type="button"
-                  class="album-item"
-                  role="menuitem"
-                  disabled={albumBusy}
-                  onclick={() => pickAlbum(a.id, a.name)}
-                >
-                  {a.name}
-                </button>
-              {/each}
-            {/if}
-          </div>
-        {/if}
-      </span>
+            Add to album
+          </ActionButton>
+        {/snippet}
+      </Dropdown>
       <ActionButton
         href={current() ? photoUrl(current()!.id) : '#'}
         target="_blank"
@@ -443,61 +388,5 @@
     font-size: var(--fs-sm);
     padding: 0 6px;
   }
-  /* Round-6 — Add to album dropdown. Anchored to the action button
-     so it stays aligned; grows UP because the action bar sits at
-     the bottom of the viewport. Glass-strong matches the bar so it
-     reads as a sibling surface, not a separate popover. */
-  .album-anchor {
-    position: relative;
-    display: inline-flex;
-  }
-  .album-menu {
-    position: absolute;
-    right: 0;
-    /* Position ABOVE the action bar (which is ~64 px tall plus its
-       18 px bottom margin). Without the +64px offset the dropdown
-       bottom clips into the toolbar's glass-strong pill behind
-       it. */
-    bottom: calc(100% + 64px);
-    min-width: 200px;
-    max-height: 280px;
-    overflow-y: auto;
-    border-radius: var(--r-2);
-    border: 1px solid var(--glass-edge);
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    z-index: 510; /* above the lightbox overlay (z=500) */
-    box-shadow: var(--shadow-2);
-  }
-  .album-item {
-    appearance: none;
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--fg-1);
-    padding: 8px 12px;
-    border-radius: var(--r-1);
-    text-align: left;
-    font: inherit;
-    font-size: var(--fs-sm);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease-out);
-  }
-  .album-item:hover,
-  .album-item:focus-visible {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--glass-edge);
-    outline: none;
-  }
-  .album-item:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .album-empty {
-    padding: 12px;
-    font-size: var(--fs-sm);
-    color: var(--fg-3);
-    text-align: center;
-  }
+
 </style>
