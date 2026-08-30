@@ -225,22 +225,21 @@
 <style>
   .dropdown {
     position: relative;
-    /* Fill the grid cell (or any flex parent) so the inner trigger
-     * button stretches to match the other action buttons around it.
-     * The wrapper itself is invisible (no background/border) — it's
-     * just a positioning context for the menu portal. The button
-     * inside is what the user sees; making the wrapper full-width
-     * is what makes that button full-width. */
-    display: flex;
-    width: 100%;
+    /* Size to the trigger's natural width. The wrapper is just a
+     * positioning context for the menu portal; the button inside
+     * is what the user sees. Stretched wrappers (width: 100%) used
+     * to make "Add to album" look out-of-place inside the lightbox
+     * bar, where sibling buttons all size by content. Callers that
+     * actually want the trigger to fill its parent can wrap it
+     * themselves. */
+    display: inline-block;
   }
   /* The trigger inside the wrapper is whatever the caller passes
-   * (typically an ActionButton). It needs to fill the wrapper so
-   * it visually matches bare ActionButton siblings in a grid. The
-   * `.action` class is ActionButton's; the unscoped `button` rule
-   * covers the anchor-element variant (e.g. `<a class="action">`). */
+   * (typically an ActionButton). It keeps its intrinsic width —
+   * same as a bare ActionButton sibling — so a Dropdown in a flex
+   * row blends in instead of consuming all remaining space. */
   .dropdown :global(.action) {
-    width: 100%;
+    width: auto;
   }
   /* Menu lives at document.body via the portal action. CSS
      `position: fixed` is still correct there because no ancestor

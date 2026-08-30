@@ -92,6 +92,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    /* Keep every label on one line. In the lightbox bar,
+       "Most similar" / "Add to album" / "Open raw" used to wrap
+       to two lines, producing uneven button heights. Each label
+       should stay a single line; if the bar ever grows too wide
+       the container scrolls horizontally instead. */
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .action:hover { background: var(--glass-2); }
   .action:disabled { cursor: not-allowed; opacity: 0.5; }
