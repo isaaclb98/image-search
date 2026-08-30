@@ -632,6 +632,13 @@ def create_app(
             timeout_ms=_cfg.query_timeout_ms,
             recommend_timeout_ms=_cfg.recommend_timeout_ms,
         )
+        # Ensure the payload indexes the search API needs exist on
+        # the read collection. The indexer creates them on the write
+        # collection, but the SyncManager that copies points across
+        # doesn't propagate indexes — so a fresh collection (dev,
+        # fresh prod, after `--rebuild`) needs this bootstrap call.
+        # Idempotent; safe to call on every startup.
+        qdrant.ensure_payload_index("collection")
     _qdrant = qdrant
 
     # Build the centroid store from config and load it now so the

@@ -653,3 +653,38 @@ class QdrantSearch:
         except Exception as e:  # noqa: BLE001
             logger.warning("Qdrant healthz failed: %s", e)
             return False
+
+    def ensure_payload_index(self, field: str, field_type: str = "keyword") -> None:
+        """
+        Idempotently create a payload index on `field` for the read
+        collection if it doesn't already exist. Called at app startup
+        so the read collection always has the indexes the search API
+        needs (e.g. `collection` keyword index for `list_collections_with_counts`
+        via `client.facet()`).
+
+        The indexer also creates the same index on the write
+        collection, but the SyncManager that copies points from the
+        write collection to the read collection does NOT propagate
+        indexes — so without this call, fresh instances (and any
+        environment where the indexer hasn't been re-run since the
+        collection was created) hit `/api/collections` 500s with
+        "No appropriate index for faceting: `collection`".
+
+        Safe to call repeatedly — Qdrant treats existing indexes as
+        no-ops on duplicate create.
+        """
+        try:
+            from qdrant_client.http import models as qmodels
+            self.client.create_payload_index(
+                collection_name=self.collection,
+                field_name=field,
+                field_schema=qmodels.PayloadSchemaType.KEYWORD,
+            )
+            logger.info("ensured payload index on %s.%s", self.collection, field)
+        except Exception as e:  # noqa: BLE001
+            # Qdrant returns an "already exists" error variant on
+            # duplicate create; swallow ALL errors here so the app
+            # still starts if Qdrant is being weird. The facet()
+            # call below will surface a real index problem clearly.
+            logger.debug("payload index ensure on %s.%s failed (likely already exists): %s",
+                         self.collection, field, e)

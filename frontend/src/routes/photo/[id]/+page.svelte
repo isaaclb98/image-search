@@ -39,10 +39,13 @@
     likePoint,
     unlikePoint,
     dislikePoint,
-    undislikePoint
+    undislikePoint,
+    addPhotoToAlbum,
+    listAlbums
   } from '$lib/api/endpoints';
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
+  import Dropdown from '$lib/components/Dropdown.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
   import { pageTint } from '$lib/stores/tint';
@@ -74,6 +77,10 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let actionInFlight = $state(false);
+  // Albums for the "Add to album" dropdown. Lazy-loaded on first
+  // open so pages that never use the dropdown don't pay for the
+  // fetch. Same pattern the Lightbox uses.
+  let albums = $state<{ id: number; name: string }[] | null>(null);
   // Blurhash placeholder — async-decoded from the photo's blurhash
   // field after the metadata loads. Falls back to a dark surface
   // if decoding fails (no blurhash, malformed, etc.).
@@ -180,6 +187,27 @@
     }
   }
 
+  // Add-to-album handlers — same shape as Lightbox.addToAlbum.
+  async function ensureAlbumsLoaded() {
+    if (albums !== null) return;
+    try {
+      const res = (await listAlbums()) as { albums?: { id: number; name: string }[] };
+      albums = res.albums ?? [];
+    } catch {
+      albums = [];
+    }
+  }
+
+  async function addPhotoToAlbumAction(albumId: number, albumName: string) {
+    if (!photo) return;
+    try {
+      await addPhotoToAlbum(albumId, photo.id);
+      toast.show(`Added to "${albumName}"`, { kind: 'success' });
+    } catch {
+      toast.show(`Could not add to "${albumName}"`, { kind: 'error' });
+    }
+  }
+
   async function copyText(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -252,7 +280,7 @@
           </button>
         </header>
 
-        <!-- Actions: like, dislike, similar, open raw -->
+        <!-- Actions: like, dislike, add to album, similar, open raw -->
         <section class="actions" aria-label="Actions">
           <ActionButton
             onclick={toggleFavorite}
@@ -268,6 +296,29 @@
           >
             Dislike
           </ActionButton>
+          <Dropdown
+            items={(albums ?? []).map((a) => ({ id: a.id, label: a.name }))}
+            onPick={async (it) => {
+              await addPhotoToAlbumAction(it.id as number, it.label);
+            }}
+            label="Add this photo to an album"
+            align="up"
+            emptyMessage="No albums yet — create one from the Albums page."
+          >
+            {#snippet trigger({ open, toggle })}
+              <ActionButton
+                onclick={async () => {
+                  if (!open) await ensureAlbumsLoaded();
+                  toggle();
+                }}
+                title="Add this photo to an album"
+                ariaHaspopup="menu"
+                ariaExpanded={open}
+              >
+                Add to album
+              </ActionButton>
+            {/snippet}
+          </Dropdown>
           <ActionButton
             href={`/similar/${encodeURIComponent(photo.id)}`}
             title="Open the dedicated most-similar page for this photo"
