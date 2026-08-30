@@ -22,6 +22,7 @@
     unlikePoint,
     dislikePoint
   } from '$lib/api/endpoints';
+  import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
@@ -35,7 +36,7 @@
     is_disliked?: boolean;
   };
 
-  const PAGE = 20;
+  const PAGE = GRID_PAGE_SIZE;
   let items = $state<Item[]>([]);
   let loading = $state(false);
   let hasMore = $state(true);

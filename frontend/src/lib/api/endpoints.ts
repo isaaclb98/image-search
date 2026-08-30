@@ -12,6 +12,7 @@
 import { apiGet, apiPost, apiDelete, apiPatch, photoUrl, thumbUrl } from './client';
 import { Z } from './schemas';
 import type { components } from './types.gen';
+import { GRID_PAGE_SIZE } from './limits';
 
 export type SearchResult = components['schemas']['SearchResult'];
 export type SearchResponse = components['schemas']['SearchResponse'];
@@ -126,11 +127,11 @@ export function random(params: RandomParams | number = {}, signal?: AbortSignal)
  * Most-similar photos for a given point ID — nearest neighbours in
  * the SigLIP2 embedding space. Reached by clicking "Most similar"
  * in the Lightbox; navigates to /similar/{id} which renders up to
- * MAX (100) results in a dedicated page.
+ * GRID_PAGE_SIZE results in a dedicated page.
  */
 export function similarPhotos(
   pointId: string,
-  limit = 100,
+  limit = GRID_PAGE_SIZE,
   signal?: AbortSignal
 ) {
   return apiGet<SearchResponse>(
@@ -140,7 +141,7 @@ export function similarPhotos(
 }
 
 export function forYouFeed(
-  limit = 20,
+  limit = GRID_PAGE_SIZE,
   diversity = 'balanced',
   diversityDepth = 'auto',
   signal?: AbortSignal,
@@ -196,7 +197,7 @@ export async function unlikePoint(pointId: string) {
 }
 
 /** Lightweight list — the Likes album view uses this. */
-export function listFavorites(limit = 60, offset = 0, signal?: AbortSignal) {
+export function listFavorites(limit = GRID_PAGE_SIZE, offset = 0, signal?: AbortSignal) {
   return apiGet<unknown>(
     `/api/favorites?limit=${limit}&offset=${offset}&as_results=1`,
     { signal, schemaName: 'favorites-list' }
@@ -204,7 +205,7 @@ export function listFavorites(limit = 60, offset = 0, signal?: AbortSignal) {
 }
 
 /** Lightweight list — the Dislikes album view uses this. */
-export function listDislikes(limit = 60, offset = 0, signal?: AbortSignal) {
+export function listDislikes(limit = GRID_PAGE_SIZE, offset = 0, signal?: AbortSignal) {
   return apiGet<unknown>(
     `/api/dislikes?limit=${limit}&offset=${offset}&as_results=1`,
     { signal, schemaName: 'dislikes-list' }

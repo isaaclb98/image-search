@@ -30,6 +30,7 @@
     dislikePoint
   } from '$lib/api/endpoints';
   import type { SavedSearch } from '$lib/api/endpoints';
+  import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -42,7 +43,7 @@
     is_disliked?: boolean;
   };
 
-  const PAGE = 20;
+  const PAGE = GRID_PAGE_SIZE;
 
   // Composer state (hoisted from SearchComposer).
   let positives = $state<string[]>([]);

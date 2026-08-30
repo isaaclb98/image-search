@@ -142,7 +142,7 @@ DEFAULT_COLLECTION: str = "images"
 DEFAULT_WRITE_COLLECTION: str = "images_pending"
 SYNC_BATCH_SIZE: int = 100
 SYNC_INTERVAL_SECONDS: float = 5.0
-DEFAULT_RESULT_LIMIT: int = 20
+DEFAULT_RESULT_LIMIT: int = 28
 
 # Mapping from open_clip arch tag → (centroid-file `model` string).
 # The expected feature dim is read from the model registry at lookup
