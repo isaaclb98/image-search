@@ -52,18 +52,24 @@ def parse_filename(request: Request) -> str:
 
 def parse_collections(request: Request) -> list[str]:
     """
-    Read all `?collections=` query params from the request, in
+    Read all `?collection=` query params from the request, in
     stable order. The multi-value shape is what powers the
-    chip-style filter UI on the frontend; the URL contract is
-    documented in `SearchParams.collections` and the OpenAPI
-    schema (`?collections=a&collections=b`).
+    chip-style filter UI on the frontend.
+
+    The query param is the singular `collection` (NOT the plural
+    `collections`) — matches the canonical implementation in
+    search/app.py and the frontend's URL builder. An earlier
+    version of this helper read the plural, which silently
+    no-op'd the collection filter (queries with `?collection=kpop`
+    would parse to an empty list, so every photo was returned).
+    This is a real-world bug, not a test fixture mismatch.
 
     `getlist()` preserves order and skips duplicates the way
     the URL is written; we don't dedupe here because the user
     might paste a duplicate and the search behavior is the
     same.
     """
-    return [c for c in request.query_params.getlist("collections") if c]
+    return [c for c in request.query_params.getlist("collection") if c]
 
 
 def coerce_view(raw: str | None) -> str:

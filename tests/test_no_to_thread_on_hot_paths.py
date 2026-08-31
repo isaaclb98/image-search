@@ -31,6 +31,7 @@ ROUTERS_DIR = Path("search/routers")
 # table. The point of the table is to surface the regression at
 # review time, not to forbid the pattern outright.
 BASELINE: dict[str, int] = {
+    "admin_index.py": 0,
     "albums.py": 15,
     "collections.py": 0,
     "centroids.py": 0,
