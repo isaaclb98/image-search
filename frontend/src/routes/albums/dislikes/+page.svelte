@@ -76,7 +76,14 @@
   </div>
 {:else}
   <section>
-    <PhotoGrid {items} loading={false} hasMore={false} {onDislike} />
+    <PhotoGrid
+      {items}
+      loading={false}
+      hasMore={false}
+      {onDislike}
+      onRemove={onDislike}
+      removeLabel="Remove dislike"
+    />
   </section>
 {/if}
 

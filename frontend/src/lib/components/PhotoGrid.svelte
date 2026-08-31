@@ -45,6 +45,15 @@
     onLoadMore?: () => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
+    /**
+     * Optional remove affordance shown as a small − button in the
+     * top-right corner of every tile (revealed on hover, or always
+     * on touch). Forwarded to PhotoTile. See PhotoTile's docs for
+     * the rationale (curating sets: likes, dislikes, albums).
+     */
+    onRemove?: (id: string) => void;
+    /** Tooltip / aria-label for the remove button. */
+    removeLabel?: string;
     albums?: { id: number; name: string }[];
     /**
      * Optional override for the default left-click behaviour
@@ -70,6 +79,8 @@
     onLoadMore,
     onToggleFavorite,
     onDislike,
+    onRemove,
+    removeLabel,
     albums,
     onPhotoOpen,
     lightboxIndex = $bindable<number | null>(null)
@@ -359,6 +370,8 @@
                 {eagerIndex}
                 onOpen={onPhotoOpen ? () => onPhotoOpen(item) : () => openLightbox(itemIndex)}
                 onContextMenu={(id, e) => openContextMenu(item, e)}
+                onRemove={onRemove}
+                removeLabel={removeLabel}
               />
             </div>
           {/each}

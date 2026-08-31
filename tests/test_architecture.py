@@ -151,6 +151,19 @@ ML_RUNTIME_ALLOWED_FILES: frozenset[Path] = frozenset({
     SEARCH_DIR / "centroids.py",
     TESTS_DIR / "_centroid_fixture.py",
     TESTS_DIR / "test_centroids.py",
+    # Why an exception here, against the rule:
+    # This is a stand-alone benchmark — not part of the runtime
+    # code path, not imported by any production module. It
+    # measures the encoder hot path directly: it needs torch
+    # to allocate tensors and trigger CUDA kernel autotuning,
+    # which is the whole point of the sweep. Routing it through
+    # the kernel would defeat the measurement (you'd be
+    # measuring the kernel indirection, not the encoder). The
+    # architecture rule's intent is to prevent runtime ML imports
+    # leaking past the abstraction; a measurement tool that
+    # exercises the abstraction from the outside is a legitimate
+    # exception.
+    BENCH_DIR / "embed_batch_sweep.py",
 })
 
 # The actual model dims currently in use. Add to this set when adding
