@@ -99,9 +99,20 @@
     };
   }
 
+  function triggerRect(): DOMRect | null {
+    // The wrapper has display: contents (no layout box), so its
+    // bounding rect is 0×0 at origin. Anchor to the trigger
+    // element itself — firstElementChild is the button the caller
+    // rendered into the snippet slot. Falls back to wrapperEl if
+    // the wrapper has no rendered child for any reason.
+    const t = wrapperEl?.firstElementChild;
+    if (t) return t.getBoundingClientRect();
+    return wrapperEl?.getBoundingClientRect() ?? null;
+  }
+
   function computePosition() {
-    if (!wrapperEl) return;
-    const rect = wrapperEl.getBoundingClientRect();
+    const rect = triggerRect();
+    if (!rect) return;
     if (align === 'up') {
       // Default: menu's bottom edge sits GAP above the trigger's top
       // edge. We anchor via `top` (the menu's top edge) — but we
@@ -125,17 +136,18 @@
       // that's still true (the elements are no longer nested, but
       // their rect is still measured against the viewport). So the
       // math works.
-      if (menuEl && wrapperEl) {
+      const trigger = wrapperEl?.firstElementChild ?? null;
+      const triggerR = trigger?.getBoundingClientRect() ?? null;
+      if (menuEl && triggerR) {
         const menuRect = menuEl.getBoundingClientRect();
-        const wrapperRect = wrapperEl.getBoundingClientRect();
         if (align === 'up') {
           // Menu's top edge = trigger.top - GAP - menu.height.
-          pos = { ...pos, top: wrapperRect.top - GAP - menuRect.height };
+          pos = { ...pos, top: triggerR.top - GAP - menuRect.height };
         }
         // Keep menu within the viewport horizontally. Default
         // alignment is right-edge flush with trigger's right; shift
         // left if it would overflow, or right if it would clip.
-        let left = wrapperRect.right - menuRect.width;
+        let left = triggerR.right - menuRect.width;
         if (left < GAP) left = GAP;
         if (left + menuRect.width > window.innerWidth - GAP) {
           left = window.innerWidth - GAP - menuRect.width;
