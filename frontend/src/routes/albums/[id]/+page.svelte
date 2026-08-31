@@ -6,8 +6,9 @@
    */
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { getAlbum } from '$lib/api/endpoints';
+  import { getAlbum, removePhotoFromAlbum } from '$lib/api/endpoints';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+  import { toast } from '$lib/components/Toaster.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
 
   type Member = {
@@ -52,6 +53,43 @@
       is_favorite: m.is_favorite ?? true
     }));
   }
+
+  /**
+   * Remove a photo from THIS album. Optimistic: drop from the local
+   * list immediately so the grid animates the tile out, then call
+   * the DELETE endpoint. On failure, re-add + toast so the user
+   * doesn't lose the action.
+   *
+   * The album id comes from $page.params; capture it in the closure
+   * so the handler stays a one-argument fn the PhotoGrid can call
+   * with just the photo id.
+   */
+  async function onRemoveFromAlbum(pointId: string) {
+    const albumId = String($page.params.id);
+    const before = detail;
+    if (!before) return;
+    // Optimistic remove.
+    detail = {
+      ...before,
+      members: (before.members ?? []).filter(
+        (m: Member) => (m.point_id ?? m.id) !== pointId,
+      ),
+      member_total: Math.max(
+        0,
+        (before.member_total ?? before.members?.length ?? 1) - 1,
+      ),
+    };
+    try {
+      await removePhotoFromAlbum(Number(albumId), pointId);
+      toast.show('Removed from album.', { kind: 'success' });
+    } catch (e: any) {
+      // Restore the previous state.
+      detail = before;
+      toast.show(`Failed to remove: ${e?.message ?? 'unknown error'}`, {
+        kind: 'error',
+      });
+    }
+  }
 </script>
 
 <svelte:head>
@@ -78,7 +116,13 @@
     {/if}
   </section>
   <section>
-    <PhotoGrid items={items()} loading={false} hasMore={false} />
+    <PhotoGrid
+      items={items()}
+      loading={false}
+      hasMore={false}
+      onRemove={onRemoveFromAlbum}
+      removeLabel="Remove from album"
+    />
   </section>
 {/if}
 

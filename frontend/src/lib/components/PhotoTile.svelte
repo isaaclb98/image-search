@@ -39,6 +39,25 @@
     eagerIndex?: number | false | null;
     onOpen?: (id: string) => void;
     onContextMenu?: (id: string, e: MouseEvent) => void;
+    /**
+     * Optional remove affordance. When provided, a small circular
+     * button appears at the top-right of the tile (replacing the
+     * corner spot the persistent fav/dislike badges use, so the
+     * remove badge takes precedence visually when both apply).
+     * Used by the album detail page, the Likes grid, and the
+     * Dislikes grid — i.e. anywhere the user is curating a set of
+     * photos and removing one is the primary action.
+     *
+     * The remove button is invisible by default and fades in on
+     * hover/focus so it doesn't visually clutter the tile grid;
+     * on touch / coarse-pointer devices where there's no hover, it
+     * stays visible (the typical mobile pattern: action chips are
+     * always present). Uses data-no-open so the click doesn't open
+     * the photo lightbox.
+     */
+    onRemove?: (id: string) => void;
+    /** Visible label on the remove button + its title attribute. */
+    removeLabel?: string;
   };
   let {
     pointId,
@@ -50,7 +69,9 @@
     contextMenuOpen,
     eagerIndex,
     onOpen,
-    onContextMenu
+    onContextMenu,
+    onRemove,
+    removeLabel = 'Remove'
   }: Props = $props();
 
   // Pre-computed data URL takes priority (caller already decoded
@@ -147,6 +168,22 @@
   {/if}
   {#if isDisliked}
     <span class="neg-badge" data-no-open title="Dislike">−</span>
+  {/if}
+  {#if onRemove}
+    <button
+      type="button"
+      class="remove-btn"
+      data-no-open
+      title={removeLabel}
+      aria-label={removeLabel}
+      onclick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onRemove?.(pointId);
+      }}
+    >
+      −
+    </button>
   {/if}
 </a>
 
@@ -284,5 +321,61 @@
     justify-content: center;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+  }
+  /* Remove-from-set button — same corner slot as the persistent
+   * fav/dislike badges, but interactive and only revealed on
+   * hover so it doesn't add noise to the static grid. On
+   * coarse-pointer (touch) devices it stays visible; the
+   * (hover: none) media query handles that automatically.
+   *
+   * Click handler calls preventDefault + stopPropagation so the
+   * surrounding <a class="tile"> doesn't navigate. data-no-open
+   * is belt-and-braces for the same purpose.
+   *
+   * z-index: 2 (above .full which is z:1) so the button is hit-
+   * testable even when the thumbnail fully covers the tile. */
+  .remove-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(14, 15, 20, 0.65);
+    border: 1px solid var(--glass-edge-strong);
+    color: var(--fg-1);
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    z-index: 2;
+    transition:
+      opacity var(--t-fast) var(--ease-out),
+      background var(--t-fast) var(--ease-out),
+      border-color var(--t-fast) var(--ease-out),
+      transform var(--t-fast) var(--ease-out);
+  }
+  .tile:hover .remove-btn,
+  .tile:focus-within .remove-btn,
+  .remove-btn:focus-visible {
+    opacity: 1;
+  }
+  .remove-btn:hover {
+    background: rgba(255, 122, 138, 0.18);
+    border-color: rgba(255, 122, 138, 0.65);
+  }
+  .remove-btn:active {
+    transform: scale(0.92);
+  }
+  /* Mobile / touch: hover doesn't exist, so the chip is always
+   * present so the user can see the affordance. */
+  @media (hover: none) {
+    .remove-btn { opacity: 1; }
   }
 </style>

@@ -75,7 +75,14 @@
   </div>
 {:else}
   <section>
-    <PhotoGrid {items} loading={false} hasMore={false} {onToggleFavorite} />
+    <PhotoGrid
+      {items}
+      loading={false}
+      hasMore={false}
+      {onToggleFavorite}
+      onRemove={onToggleFavorite}
+      removeLabel="Unlike"
+    />
   </section>
 {/if}
 
