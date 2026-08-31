@@ -22,7 +22,6 @@
   import { browser } from '$app/environment';
   import SearchComposer from '$lib/components/SearchComposer.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
-  import ForYouRow from '$lib/components/ForYouRow.svelte';
   import {
     search,
     likePoint,
@@ -349,8 +348,6 @@
     {/if}
   {/if}
 </section>
-
-<ForYouRow />
 
 <style>
   .hero {
