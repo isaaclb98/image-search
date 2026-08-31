@@ -223,24 +223,31 @@
 {/if}
 
 <style>
-  .dropdown {
+.dropdown {
     position: relative;
-    /* Size to the trigger's natural width. The wrapper is just a
-     * positioning context for the menu portal; the button inside
-     * is what the user sees. Stretched wrappers (width: 100%) used
-     * to make "Add to album" look out-of-place inside the lightbox
-     * bar, where sibling buttons all size by content. Callers that
-     * actually want the trigger to fill its parent can wrap it
-     * themselves. */
-    display: inline-block;
+    /* The Dropdown wrapper is just a positioning context for the
+     * portal menu — sizing the trigger is the caller's job, and
+     * the wrapper should NOT contribute its own box to layout.
+     *
+     * Use display: contents so the wrapper disappears from the
+     * layout tree: the inner trigger acts as if it were a direct
+     * child of the wrapper's parent. This works in BOTH cases:
+     *   - the photo page's `<section class="actions">` is a 2-col
+     *     grid; the trigger fills the cell (matches siblings);
+     *   - the lightbox's `<div class="bar">` is a flex row; the
+     *     trigger sizes to its intrinsic text width (also matches).
+     *
+     * Previous attempts (display:flex + width:100% then
+     * display:inline-block + width:auto) only fixed one consumer
+     * and broke the other. display:contents fixes both because
+     * the wrapper stops participating in layout entirely. */
+    display: contents;
   }
-  /* The trigger inside the wrapper is whatever the caller passes
-   * (typically an ActionButton). It keeps its intrinsic width —
-   * same as a bare ActionButton sibling — so a Dropdown in a flex
-   * row blends in instead of consuming all remaining space. */
-  .dropdown :global(.action) {
-    width: auto;
-  }
+  /* No `.dropdown :global(.action) { width: … }` rule. The wrapper
+   * has no box (display:contents), so the selector never matches,
+   * and constraining the trigger's width would over-constrain it
+   * (e.g. force the lightbox button to a fixed width, fighting
+   * its flex siblings). */
   /* Menu lives at document.body via the portal action. CSS
      `position: fixed` is still correct there because no ancestor
      between the portal root and the menu has transform / filter /
