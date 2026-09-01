@@ -54,7 +54,7 @@
 </script>
 
 <svelte:head>
-  <title>Dislikes · image-search</title>
+  <title>Dislikes · Image Search</title>
 </svelte:head>
 
 <a class="back" href="/albums">← All albums</a>

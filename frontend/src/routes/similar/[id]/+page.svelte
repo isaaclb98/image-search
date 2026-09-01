@@ -93,7 +93,7 @@
 </script>
 
 <svelte:head>
-  <title>Most similar · image-search</title>
+  <title>Most similar · Image Search</title>
 </svelte:head>
 
 <button

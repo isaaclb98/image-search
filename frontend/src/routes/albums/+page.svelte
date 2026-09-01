@@ -163,7 +163,7 @@
 </script>
 
 <svelte:head>
-  <title>Albums · image-search</title>
+  <title>Albums · Image Search</title>
 </svelte:head>
 
 <section class="head">

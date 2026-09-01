@@ -110,7 +110,7 @@
 </script>
 
 <svelte:head>
-  <title>Settings · image-search</title>
+  <title>Settings · Image Search</title>
 </svelte:head>
 
 <div class="settings-page">

@@ -93,7 +93,7 @@
 </script>
 
 <svelte:head>
-  <title>{detail?.name ?? 'Album'} · image-search</title>
+  <title>{detail?.name ?? 'Album'} · Image Search</title>
 </svelte:head>
 
 <a class="back" href="/albums">← All albums</a>

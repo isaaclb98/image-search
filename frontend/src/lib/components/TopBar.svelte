@@ -56,7 +56,7 @@
   <div class="bar">
     <a class="brand" href="/" aria-label="Home">
       <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-text">image-search</span>
+      <span class="brand-text">Image Search</span>
     </a>
     <nav class="tabs" aria-label="Main">
       {#each tabs as t (t.href)}

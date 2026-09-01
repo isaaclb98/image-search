@@ -118,7 +118,7 @@
 </script>
 
 <svelte:head>
-  <title>Random · image-search</title>
+  <title>Random · Image Search</title>
 </svelte:head>
 
 <section class="head glass">
