@@ -41,7 +41,9 @@
     dislikePoint,
     undislikePoint,
     addPhotoToAlbum,
-    listAlbums
+    removePhotoFromAlbum,
+    listAlbums,
+    listAlbumsForFavorite
   } from '$lib/api/endpoints';
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
@@ -81,6 +83,11 @@
   // open so pages that never use the dropdown don't pay for the
   // fetch. Same pattern the Lightbox uses.
   let albums = $state<{ id: number; name: string }[] | null>(null);
+  // Membership set: which of those albums the current photo is
+  // already in. Loaded lazily on first dropdown open; refreshed
+  // every time the dropdown opens so the indicator stays in
+  // sync with the server.
+  let memberOf = $state<Set<number>>(new Set());
   // Blurhash placeholder — async-decoded from the photo's blurhash
   // field after the metadata loads. Falls back to a dark surface
   // if decoding fails (no blurhash, malformed, etc.).
@@ -200,11 +207,37 @@
 
   async function addPhotoToAlbumAction(albumId: number, albumName: string) {
     if (!photo) return;
+    const inThisAlbum = memberOf.has(albumId);
+    // Optimistic toggle: flip the Set locally so the
+    // checkmark updates instantly, then call the API. On
+    // failure, restore the previous Set.
+    const before = memberOf;
+    const next = new Set(memberOf);
+    if (inThisAlbum) next.delete(albumId);
+    else next.add(albumId);
+    memberOf = next;
     try {
-      await addPhotoToAlbum(albumId, photo.id);
-      toast.show(`Added to "${albumName}"`, { kind: 'success' });
+      if (inThisAlbum) {
+        await removePhotoFromAlbum(albumId, photo.id);
+        toast.show(`Removed from "${albumName}"`, { kind: 'success' });
+      } else {
+        await addPhotoToAlbum(albumId, photo.id);
+        toast.show(`Added to "${albumName}"`, { kind: 'success' });
+      }
     } catch {
-      toast.show(`Could not add to "${albumName}"`, { kind: 'error' });
+      memberOf = before;
+      toast.show(`Could not update "${albumName}"`, { kind: 'error' });
+    }
+  }
+
+  async function refreshMembership() {
+    if (!photo) return;
+    try {
+      const albumsForPhoto = await listAlbumsForFavorite(photo.id);
+      memberOf = new Set(albumsForPhoto.map((a) => a.id));
+    } catch {
+      // Leave the previous Set — a transient failure shouldn't
+      // blank out the indicator.
     }
   }
 
@@ -298,17 +331,21 @@
           </ActionButton>
           <Dropdown
             items={(albums ?? []).map((a) => ({ id: a.id, label: a.name }))}
-            onPick={async (it) => {
+            onPick={async (it, _isMember) => {
               await addPhotoToAlbumAction(it.id as number, it.label);
             }}
             label="Add this photo to an album"
             align="up"
             emptyMessage="No albums yet — create one from the Albums page."
+            memberOf={memberOf}
           >
             {#snippet trigger({ open, toggle })}
               <ActionButton
                 onclick={async () => {
-                  if (!open) await ensureAlbumsLoaded();
+                  if (!open) {
+                    await ensureAlbumsLoaded();
+                    await refreshMembership();
+                  }
                   toggle();
                 }}
                 title="Add this photo to an album"

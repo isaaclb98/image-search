@@ -280,6 +280,25 @@ export async function removePhotoFromAlbum(albumId: number, pointId: string) {
   await apiDelete(`/api/albums/${albumId}/members/${encodeURIComponent(pointId)}`);
 }
 
+/**
+ * List every album a given photo belongs to.
+ *
+ * Used by the per-photo "Add to album" dropdown so the menu can
+ * render an "already in this album" indicator on each row and
+ * toggle on click instead of always-adding. Returns the album
+ * summaries directly; the consumer can read `.id` from each.
+ *
+ * Returns an empty `albums: []` (never throws) if the photo is in
+ * no albums or the backend rejects the query — callers can
+ * render an "empty membership" UI without a try/catch.
+ */
+export async function listAlbumsForFavorite(pointId: string): Promise<AlbumSummary[]> {
+  const r = await apiGet<{ favorite_id: string; albums: AlbumSummary[] }>(
+    `/api/albums/by-favorite/${encodeURIComponent(pointId)}`,
+  );
+  return r?.albums ?? [];
+}
+
 // ---------- Misc ----------
 
 export function listCollections() {
