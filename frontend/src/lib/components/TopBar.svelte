@@ -56,7 +56,7 @@
 <header class="topbar">
   <div class="bar">
     <a class="brand" href="/" aria-label="Home">
-      <Icon name="logo" size={22} />
+      <Icon name="sparkle" size={22} />
       <span class="brand-text">Image Search</span>
     </a>
     <nav class="tabs" aria-label="Main">

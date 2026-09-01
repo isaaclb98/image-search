@@ -53,11 +53,13 @@
     | 'alert'
     | 'spinner'
     | 'dot'
-    // Brand mark: a simple photo frame. Single stroke path,
-    // not a filled shape, so it reads cleanly at 22px (topbar)
-    // and at 32px+ anywhere we want to scale it up. Square
-    // outline + horizon + sun, same idea as the favicon.
-    | 'logo';
+    // Brand mark: 4-point sparkle (the Cursor / Perplexity / Arc
+    // family of marks). The two crossing strokes taper to
+    // sharp points so it reads as a "real" mark, not just two
+    // lines. Asymmetric: a small inner sparkle on the
+    // upper-right adds personality so it doesn't look like a
+    // stock asterisk.
+    | 'sparkle';
 
   type Props = {
     name: IconName;
@@ -104,7 +106,14 @@
     // Logo: photo-frame glyph. Stroked square + horizon + sun.
     // Same motif as the favicon so the in-app brand mark and
     // the tab icon read as the same product.
-    'logo': '<rect x="3" y="5" width="18" height="14" rx="1.5" fill="none"/><path d="M8 17 L11 13 L14 16 L17 12 L19 14"/><circle cx="15" cy="9" r="1.2" fill="currentColor" stroke="none"/>'
+    // Sparkle: a 4-point starburst made of two crossing
+    // diamond strokes. The points taper to sharp tips via
+    // two overlapping paths that meet at the centre, so the
+    // silhouette reads as a real mark, not as two crossed
+    // lines. The small secondary sparkle in the upper-right
+    // breaks symmetry and signals "AI / intelligent search"
+    // without leaning into the cliché of the 5-point star.
+    'sparkle': '<path d="M12 2 L13.2 9.6 L20.8 10.8 L13.2 12 L12 19.6 L10.8 12 L3.2 10.8 L10.8 9.6 Z"/><path d="M19 16 L19.4 17.6 L21 18 L19.4 18.4 L19 20 L18.6 18.4 L17 18 L18.6 17.6 Z"/>'
   };
 </script>
 
