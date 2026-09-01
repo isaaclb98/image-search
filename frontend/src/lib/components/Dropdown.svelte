@@ -99,9 +99,20 @@
     };
   }
 
+  function triggerRect(): DOMRect | null {
+    // The wrapper has display: contents (no layout box), so its
+    // bounding rect is 0×0 at origin. Anchor to the trigger
+    // element itself — firstElementChild is the button the caller
+    // rendered into the snippet slot. Falls back to wrapperEl if
+    // the wrapper has no rendered child for any reason.
+    const t = wrapperEl?.firstElementChild;
+    if (t) return t.getBoundingClientRect();
+    return wrapperEl?.getBoundingClientRect() ?? null;
+  }
+
   function computePosition() {
-    if (!wrapperEl) return;
-    const rect = wrapperEl.getBoundingClientRect();
+    const rect = triggerRect();
+    if (!rect) return;
     if (align === 'up') {
       // Default: menu's bottom edge sits GAP above the trigger's top
       // edge. We anchor via `top` (the menu's top edge) — but we
@@ -125,17 +136,18 @@
       // that's still true (the elements are no longer nested, but
       // their rect is still measured against the viewport). So the
       // math works.
-      if (menuEl && wrapperEl) {
+      const trigger = wrapperEl?.firstElementChild ?? null;
+      const triggerR = trigger?.getBoundingClientRect() ?? null;
+      if (menuEl && triggerR) {
         const menuRect = menuEl.getBoundingClientRect();
-        const wrapperRect = wrapperEl.getBoundingClientRect();
         if (align === 'up') {
           // Menu's top edge = trigger.top - GAP - menu.height.
-          pos = { ...pos, top: wrapperRect.top - GAP - menuRect.height };
+          pos = { ...pos, top: triggerR.top - GAP - menuRect.height };
         }
         // Keep menu within the viewport horizontally. Default
         // alignment is right-edge flush with trigger's right; shift
         // left if it would overflow, or right if it would clip.
-        let left = wrapperRect.right - menuRect.width;
+        let left = triggerR.right - menuRect.width;
         if (left < GAP) left = GAP;
         if (left + menuRect.width > window.innerWidth - GAP) {
           left = window.innerWidth - GAP - menuRect.width;
@@ -225,23 +237,29 @@
 <style>
   .dropdown {
     position: relative;
-    /* Fill the grid cell (or any flex parent) so the inner trigger
-     * button stretches to match the other action buttons around it.
-     * The wrapper itself is invisible (no background/border) — it's
-     * just a positioning context for the menu portal. The button
-     * inside is what the user sees; making the wrapper full-width
-     * is what makes that button full-width. */
-    display: flex;
-    width: 100%;
+    /* The Dropdown wrapper is just a positioning context for the
+     * portal menu — sizing the trigger is the caller's job, and
+     * the wrapper should NOT contribute its own box to layout.
+     *
+     * Use display: contents so the wrapper disappears from the
+     * layout tree: the inner trigger acts as if it were a direct
+     * child of the wrapper's parent. This works in BOTH cases:
+     *   - the photo page's `<section class="actions">` is a 2-col
+     *     grid; the trigger fills the cell (matches siblings);
+     *   - the lightbox's `<div class="bar">` is a flex row; the
+     *     trigger sizes to its intrinsic text width (also matches).
+     *
+     * Previous attempts (display:flex + width:100% then
+     * display:inline-block + width:auto) only fixed one consumer
+     * and broke the other. display:contents fixes both because
+     * the wrapper stops participating in layout entirely. */
+    display: contents;
   }
-  /* The trigger inside the wrapper is whatever the caller passes
-   * (typically an ActionButton). It needs to fill the wrapper so
-   * it visually matches bare ActionButton siblings in a grid. The
-   * `.action` class is ActionButton's; the unscoped `button` rule
-   * covers the anchor-element variant (e.g. `<a class="action">`). */
-  .dropdown :global(.action) {
-    width: 100%;
-  }
+  /* No `.dropdown :global(.action) { width: … }` rule. The wrapper
+   * has no box (display:contents), so the selector never matches,
+   * and constraining the trigger's width would over-constrain it
+   * (e.g. force the lightbox button to a fixed width, fighting
+   * its flex siblings). */
   /* Menu lives at document.body via the portal action. CSS
      `position: fixed` is still correct there because no ancestor
      between the portal root and the menu has transform / filter /
