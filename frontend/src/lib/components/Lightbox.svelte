@@ -17,7 +17,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { photoUrl, addPhotoToAlbum, listAlbums } from '$lib/api/endpoints';
+  import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
   import ActionButton from './ActionButton.svelte';
@@ -121,6 +121,11 @@
 
   // Round-6 — Add to album dropdown logic. Now lives in <Dropdown>;
   // this handler is just the API glue + lazy album loading.
+  //
+  // The Dropdown shows membership state via the `memberOf` Set,
+  // and `onPick` carries the isMember boolean so we can decide
+  // add-vs-remove. Both the photo page and the right-click menu
+  // use the same pattern.
   async function ensureAlbumsLoaded() {
     if (albums && albums.length > 0) return;
     try {
@@ -131,14 +136,51 @@
     }
   }
 
-  async function addToAlbum(albumId: number, albumName: string) {
+  // Membership set for the current photo: which albums it
+  // already belongs to. Loaded lazily when the user opens the
+  // dropdown; reloaded after every add/remove so the visual
+  // indicator stays in sync with the server.
+  let memberOf = $state<Set<number>>(new Set());
+  let membershipLoading = $state(false);
+
+  async function refreshMembership() {
     const it = current();
     if (!it) return;
+    membershipLoading = true;
     try {
-      await addPhotoToAlbum(albumId, it.id);
-      toast.show(`Added to "${albumName}"`, { kind: 'success' });
+      const albumsForPhoto = await listAlbumsForFavorite(it.id);
+      memberOf = new Set(albumsForPhoto.map((a) => a.id));
     } catch {
-      toast.show(`Could not add to "${albumName}"`, { kind: 'error' });
+      // Leave the previous Set in place — a transient failure
+      // shouldn't blank out the indicator.
+    } finally {
+      membershipLoading = false;
+    }
+  }
+
+  async function toggleMembership(albumId: number, albumName: string) {
+    const it = current();
+    if (!it) return;
+    const inThisAlbum = memberOf.has(albumId);
+    // Optimistic toggle: flip the Set locally first so the
+    // checkmark updates instantly, then call the API. On
+    // failure, restore the previous Set.
+    const before = memberOf;
+    const next = new Set(memberOf);
+    if (inThisAlbum) next.delete(albumId);
+    else next.add(albumId);
+    memberOf = next;
+    try {
+      if (inThisAlbum) {
+        await removePhotoFromAlbum(albumId, it.id);
+        toast.show(`Removed from "${albumName}"`, { kind: 'success' });
+      } else {
+        await addPhotoToAlbum(albumId, it.id);
+        toast.show(`Added to "${albumName}"`, { kind: 'success' });
+      }
+    } catch {
+      memberOf = before;
+      toast.show(`Could not update "${albumName}"`, { kind: 'error' });
     }
   }
 
@@ -146,6 +188,10 @@
     return items[idx] ?? null;
   }
 
+  // Re-run the photo-dependent effects whenever the current photo
+  // changes (lightbox navigation, photo prop change). Tint is the
+  // ambient background blur; memberOf is the add-to-album
+  // membership indicator on the dropdown.
   $effect(() => {
     const it = current();
     if (!it || !it.blurhash) {
@@ -153,6 +199,10 @@
       return;
     }
     blurhashToDataUrl(it.blurhash, 80, 50).then((u) => (tint = u));
+    // Refresh the membership indicator for the new photo. Done
+    // in the same effect so a single `idx` change triggers both
+    // (one round trip, no flicker between the two updates).
+    void refreshMembership();
   });
 
   function prev() {
@@ -245,17 +295,26 @@
       </ActionButton>
       <Dropdown
         items={(albums ?? []).map((a) => ({ id: a.id, label: a.name }))}
-        onPick={async (it) => {
-          await addToAlbum(it.id as number, it.label);
+        onPick={async (it, isMember) => {
+          await toggleMembership(it.id as number, it.label);
+          // `isMember` is now passed for callers that want to
+          // branch on it, but toggleMembership already read the
+          // canonical `memberOf` Set before the click so it
+          // always flips the right way.
+          void isMember;
         }}
         label="Add this photo to an album"
         align="up"
         emptyMessage="No albums yet — create one from the Albums page."
+        memberOf={memberOf}
       >
         {#snippet trigger({ open, toggle })}
           <ActionButton
             onclick={async () => {
-              if (!open) await ensureAlbumsLoaded();
+              if (!open) {
+                await ensureAlbumsLoaded();
+                await refreshMembership();
+              }
               toggle();
             }}
             title="Add this photo to an album"

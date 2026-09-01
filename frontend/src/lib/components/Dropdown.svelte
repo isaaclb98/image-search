@@ -34,6 +34,15 @@
     id: string | number;
     label: string;
     disabled?: boolean;
+    /**
+     * Optional membership flag. When set (via the
+     * `memberOf` prop on the Dropdown), the item renders a
+     * checked indicator on the right and the click handler
+     * treats it as a toggle rather than a plain pick. Used by
+     * the Add-to-album dropdown to render "already in this
+     * album" rows in a distinct style.
+     */
+    isMember?: boolean;
   };
 
   type Props = {
@@ -43,14 +52,29 @@
     items: Item[];
     /** Direction the menu opens relative to the trigger. */
     align?: 'up' | 'down';
-    /** Called when the user picks an item. */
-    onPick: (item: Item) => void | Promise<void>;
+    /**
+     * Called when the user picks an item.
+     *
+     * When `memberOf` is provided, this is called with the
+     * `(item, isMember)` tuple so the consumer can decide
+     * whether the click is an add or a remove. Otherwise only
+     * the item is passed (existing behaviour).
+     */
+    onPick: ((item: Item, isMember: boolean) => void | Promise<void>) | ((item: Item) => void | Promise<void>);
     /** Accessible label for the menu (referenced by trigger's aria-label or aria-controls). */
     label: string;
     /** Minimum width of the popover. */
     minWidth?: string;
     /** Optional message rendered when items is empty. */
     emptyMessage?: string;
+    /**
+     * Album IDs that the photo currently belongs to. When this
+     * Set is non-empty, each item with `id in memberOf` gets
+     * `isMember = true` set automatically and is rendered with
+     * the membership indicator. The Dropdown itself stays
+     * stateless — membership is supplied, never owned.
+     */
+    memberOf?: Set<string | number>;
   };
 
   let {
@@ -60,7 +84,8 @@
     onPick,
     label,
     minWidth = '200px',
-    emptyMessage = 'No options available.'
+    emptyMessage = 'No options available.',
+    memberOf
   }: Props = $props();
 
   let open = $state(false);
@@ -69,6 +94,19 @@
 
   /** Coordinates for `position: fixed` placement, recomputed each open. */
   let pos = $state<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  /**
+   * Items rendered in the menu, with the `isMember` flag merged
+   * from the `memberOf` Set (when supplied). Computed once per
+   * render via $derived so Svelte only re-runs the menu loop
+   * when items or memberOf actually change.
+   */
+  let displayItems = $derived(
+    items.map((it) => ({
+      ...it,
+      isMember: it.isMember ?? (memberOf ? memberOf.has(it.id) : false)
+    }))
+  );
 
   /** Gap between the trigger edge and the menu (px). */
   const GAP = 8;
@@ -216,18 +254,26 @@
     {#if items.length === 0}
       <div class="empty">{emptyMessage}</div>
     {:else}
-      {#each items as it (it.id)}
+      {#each displayItems as it (it.id)}
         <button
           type="button"
           class="item"
+          class:member={it.isMember}
           role="menuitem"
           disabled={it.disabled}
           onclick={async () => {
-            await onPick(it);
+            await onPick(it, it.isMember ?? false);
             close();
           }}
         >
-          {it.label}
+          <span class="label">{it.label}</span>
+          {#if it.isMember}
+            <span class="check" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8.5 L6.5 12 L13 5" />
+              </svg>
+            </span>
+          {/if}
         </button>
       {/each}
     {/if}
@@ -293,6 +339,10 @@
     transition:
       background var(--t-fast) var(--ease-out),
       border-color var(--t-fast) var(--ease-out);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
   }
   .item:hover,
   .item:focus-visible {
@@ -303,6 +353,28 @@
   .item:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  /* Membership state: photo is already in this album. The
+   * indicator is a soft glass-2 fill plus a check glyph on the
+   * right, so the user can see at a glance which albums the
+   * photo is in. Hover deepens the accent slightly but keeps
+   * the same hue so the row still reads as "member" rather than
+   * "available to add". Clicking toggles off (handled in the
+   * consumer's onPick — the Dropdown itself is stateless). */
+  .item.member {
+    background: rgba(108, 198, 255, 0.10);
+    color: var(--fg-1);
+  }
+  .item.member:hover,
+  .item.member:focus-visible {
+    background: rgba(108, 198, 255, 0.16);
+  }
+  .check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    flex-shrink: 0;
   }
   .empty {
     padding: 12px;
