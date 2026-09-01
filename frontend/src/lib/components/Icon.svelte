@@ -52,7 +52,12 @@
     | 'info'
     | 'alert'
     | 'spinner'
-    | 'dot';
+    | 'dot'
+    // Brand mark: a simple photo frame. Single stroke path,
+    // not a filled shape, so it reads cleanly at 22px (topbar)
+    // and at 32px+ anywhere we want to scale it up. Square
+    // outline + horizon + sun, same idea as the favicon.
+    | 'logo';
 
   type Props = {
     name: IconName;
@@ -95,7 +100,11 @@
     // 8-stroke spinner — pass an animated wrapper if you want
     // motion; the static glyph renders as a sun-burst icon.
     'spinner': '<circle cx="12" cy="12" r="8" stroke-dasharray="6 32" stroke-linecap="round"/>',
-    'dot': '<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>'
+    'dot': '<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+    // Logo: photo-frame glyph. Stroked square + horizon + sun.
+    // Same motif as the favicon so the in-app brand mark and
+    // the tab icon read as the same product.
+    'logo': '<rect x="3" y="5" width="18" height="14" rx="1.5" fill="none"/><path d="M8 17 L11 13 L14 16 L17 12 L19 14"/><circle cx="15" cy="9" r="1.2" fill="currentColor" stroke="none"/>'
   };
 </script>
 
