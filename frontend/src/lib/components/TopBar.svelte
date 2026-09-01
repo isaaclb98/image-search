@@ -21,6 +21,7 @@
    * which is exactly what we want for "reset to default home".
    */
   import { page } from '$app/stores';
+  import Icon from './Icon.svelte';
 
   type Tab = { href: string; label: string; reset?: boolean };
   const tabs: Tab[] = [
@@ -55,8 +56,8 @@
 <header class="topbar">
   <div class="bar">
     <a class="brand" href="/" aria-label="Home">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-text">image-search</span>
+      <Icon name="sparkle" size={22} />
+      <span class="brand-text">Image Search</span>
     </a>
     <nav class="tabs" aria-label="Main">
       {#each tabs as t (t.href)}
@@ -108,16 +109,10 @@
     letter-spacing: 0.02em;
   }
   .brand:hover { color: var(--fg-1); }
-  .brand-mark {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background:
-      radial-gradient(circle at 30% 30%, var(--accent) 0%, transparent 60%),
-      radial-gradient(circle at 70% 70%, var(--negative) 0%, transparent 60%),
-      var(--glass-2);
-    border: 1px solid var(--glass-edge-strong);
-  }
+  /* The brand mark is an SVG Icon — no CSS needed here. The
+   * Icon's stroke uses currentColor so the surrounding .brand
+   * color drives it; alignment with the text comes from the
+   * Icon's own viewBox + the .brand flex layout. */
   .tabs {
     display: flex;
     gap: var(--s-1);

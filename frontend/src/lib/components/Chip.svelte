@@ -7,6 +7,8 @@
 </script>
 
 <script lang="ts">
+  import Icon from './Icon.svelte';
+
   type Props = {
     text: string;
     negative?: boolean;
@@ -17,10 +19,12 @@
 </script>
 
 <span class="chip {negative ? 'neg' : 'pos'}" {title}>
-  {#if negative}<span class="minus" aria-hidden="true">−</span>{/if}
+  {#if negative}<span class="minus" aria-hidden="true"><Icon name="minus" size={12} /></span>{/if}
   <span class="text">{text}</span>
   {#if onRemove}
-    <button class="x" onclick={onRemove} aria-label="Remove {text}">×</button>
+    <button class="x" onclick={onRemove} aria-label="Remove {text}">
+      <Icon name="close" size={12} />
+    </button>
   {/if}
 </span>
 

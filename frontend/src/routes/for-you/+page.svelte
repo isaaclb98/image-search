@@ -126,7 +126,7 @@
 </script>
 
 <svelte:head>
-  <title>For You · image-search</title>
+  <title>For You · Image Search</title>
 </svelte:head>
 
 <section class="head glass">

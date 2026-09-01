@@ -270,7 +270,7 @@
 </script>
 
 <svelte:head>
-  <title>image-search</title>
+  <title>Image Search</title>
 </svelte:head>
 
 <section class="hero">

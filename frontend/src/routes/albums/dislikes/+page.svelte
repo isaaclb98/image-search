@@ -15,6 +15,7 @@
   } from '$lib/api/endpoints';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   type Item = {
     id: string;
@@ -53,14 +54,17 @@
 </script>
 
 <svelte:head>
-  <title>Dislikes · image-search</title>
+  <title>Dislikes · Image Search</title>
 </svelte:head>
 
 <a class="back" href="/albums">← All albums</a>
 
 <section class="head glass">
   <div>
-    <h1>− Dislikes</h1>
+    <h1>
+      <Icon name="minus" size={24} />
+      <span>Dislikes</span>
+    </h1>
     <p>Photos you've marked as not interested. Built-in, always here.</p>
     <p class="meta">{items.length} photo{items.length === 1 ? '' : 's'}</p>
   </div>
@@ -106,6 +110,11 @@
     margin: 0;
     font-size: var(--fs-2xl);
     font-weight: 600;
+    /* Icon + label on one row, vertically aligned. The icon's
+       own viewBox keeps it optically centered. */
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
   }
   .head p {
     margin: 4px 0 0;

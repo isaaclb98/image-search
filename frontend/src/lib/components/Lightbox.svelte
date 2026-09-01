@@ -18,6 +18,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { photoUrl, addPhotoToAlbum, listAlbums } from '$lib/api/endpoints';
+  import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
   import ActionButton from './ActionButton.svelte';
   import Dropdown from './Dropdown.svelte';
@@ -191,14 +192,18 @@
 >
   {#if tint}<div class="tint" style:background="var(--glass-tint) no-repeat center/cover" aria-hidden="true"></div>{/if}
   <div class="content" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
-    <button class="nav close" type="button" onclick={onClose} aria-label="Close">×</button>
+    <button class="nav close" type="button" onclick={onClose} aria-label="Close">
+      <Icon name="close" size={20} />
+    </button>
     <button
       class="nav prev"
       type="button"
       onclick={prev}
       disabled={idx === 0}
       aria-label="Previous"
-    >‹</button>
+    >
+      <Icon name="chevron-left" size={22} />
+    </button>
     {#if current()}
       {@const it = current()!}
       {#key it.id}
@@ -211,7 +216,9 @@
       onclick={next}
       disabled={idx === items.length - 1}
       aria-label="Next"
-    >›</button>
+    >
+      <Icon name="chevron-right" size={22} />
+    </button>
   </div>
 
   <div class="bar glass-strong" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
