@@ -25,6 +25,7 @@
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import { pushRandomTint } from '$lib/components/blurhash-bg';
+  import Icon from '$lib/components/Icon.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
   // Round‑29b: renamed from 'favourites' to 'likes' to match
@@ -180,7 +181,10 @@
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
-    <a class="title" href="/albums/likes">♥ Likes</a>
+    <a class="title" href="/albums/likes">
+      <Icon name="heart-filled" size={18} />
+      <span>Likes</span>
+    </a>
     <p class="desc">Photos you've liked. Built-in, always here.</p>
     <footer>
       <span class="count">{likesCount} photo{likesCount === 1 ? '' : 's'}</span>
@@ -205,7 +209,10 @@
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
-    <a class="title" href="/albums/dislikes">− Dislikes</a>
+    <a class="title" href="/albums/dislikes">
+      <Icon name="minus" size={18} />
+      <span>Dislikes</span>
+    </a>
     <p class="desc">Photos you've disliked. Built-in, always here.</p>
     <footer>
       <span class="count">{dislikesCount} photo{dislikesCount === 1 ? '' : 's'}</span>
@@ -380,6 +387,12 @@
     font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--fg-1);
+    /* Icon + label side by side; the icon is inline-block via
+       the Icon component's default rendering and the span
+       keeps the text on one line. */
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
   .desc {
     margin: 0;

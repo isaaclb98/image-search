@@ -17,6 +17,7 @@
   import { onMount } from 'svelte';
   import { thumbUrl } from '../api/endpoints';
   import { blurhashToDataUrl } from './blurhash-bg';
+  import Icon from './Icon.svelte';
 
   type Props = {
     pointId: string;
@@ -164,10 +165,14 @@
     <span class="score">{scoreStr}</span>
   {/if}
   {#if isFavorite}
-    <span class="fav" data-no-open title="Like">♥</span>
+    <span class="fav" data-no-open title="Like">
+      <Icon name="heart-filled" size={14} />
+    </span>
   {/if}
   {#if isDisliked}
-    <span class="neg-badge" data-no-open title="Dislike">−</span>
+    <span class="neg-badge" data-no-open title="Dislike">
+      <Icon name="minus" size={14} />
+    </span>
   {/if}
   {#if onRemove}
     <button
@@ -182,7 +187,7 @@
         onRemove?.(pointId);
       }}
     >
-      −
+      <Icon name="minus" size={16} />
     </button>
   {/if}
 </a>
