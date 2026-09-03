@@ -53,6 +53,8 @@
     | 'alert'
     | 'spinner'
     | 'dot'
+    | 'play'
+    | 'pause'
     // Brand mark: 4-point sparkle (the Cursor / Perplexity / Arc
     // family of marks). The two crossing strokes taper to
     // sharp points so it reads as a "real" mark, not just two
@@ -103,6 +105,13 @@
     // motion; the static glyph renders as a sun-burst icon.
     'spinner': '<circle cx="12" cy="12" r="8" stroke-dasharray="6 32" stroke-linecap="round"/>',
     'dot': '<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+    // Play / pause: classic media-control glyphs. The play triangle
+    // is shifted right by ~2 so it reads optically centred (a
+    // geometrically-centred triangle looks left-heavy at small
+    // sizes). Pause uses two equal vertical strokes — same width as
+    // the triangle base so toggling between the two feels even.
+    'play': '<path d="M8 5 L19 12 L8 19 Z" fill="currentColor" stroke="none"/>',
+    'pause': '<path d="M9 5 L9 19 M15 5 L15 19"/>',
     // Logo: photo-frame glyph. Stroked square + horizon + sun.
     // Same motif as the favicon so the in-app brand mark and
     // the tab icon read as the same product.

@@ -13,6 +13,11 @@
   import { apiGet, apiPost, ApiError } from '$lib/api/client';
   import type { components } from '$lib/api/types.gen';
   import Button from '$lib/components/Button.svelte';
+  import {
+    preferences,
+    SLIDESHOW_PRESETS,
+    setSlideshowInterval
+  } from '$lib/stores/preferences';
 
   type IndexerStatusResponse = components['schemas']['IndexerStatusResponse'];
   type IndexerLogResponse = components['schemas']['IndexerLogResponse'];
@@ -205,6 +210,34 @@
       {/if}
     {/if}
   </section>
+
+  <section class="card">
+    <h2 class="card-title">Slideshow</h2>
+    <p class="card-desc">
+      How long each photo stays up during Lightbox auto-advance
+      (press Play inside any lightbox with multiple images to start
+      a slideshow). The setting applies the next time you press
+      Play, even mid-playback.
+    </p>
+    <div
+      class="preset-row"
+      role="radiogroup"
+      aria-label="Slideshow photo duration"
+    >
+      {#each SLIDESHOW_PRESETS as preset (preset.ms)}
+        <button
+          type="button"
+          class="preset"
+          role="radio"
+          aria-checked={$preferences.slideshowIntervalMs === preset.ms}
+          data-active={$preferences.slideshowIntervalMs === preset.ms}
+          onclick={() => setSlideshowInterval(preset.ms)}
+        >
+          {preset.label}
+        </button>
+      {/each}
+    </div>
+  </section>
 </div>
 
 <script module lang="ts">
@@ -390,5 +423,47 @@
   .muted {
     color: var(--fg-3);
     font-size: 14px;
+  }
+
+  /* Slideshow preset row. Five pill buttons in a single horizontal
+     line; the active preset swaps to a darker glass-2 fill so
+     the current duration is unambiguous at a glance. Uses
+     aria-checked + data-active so the same visual state is
+     reachable from both the accessibility tree (screen readers
+     announce the selected radio) and pure CSS (no JS toggle
+     bookkeeping). */
+  .preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+  }
+  .preset {
+    appearance: none;
+    background: var(--glass-1);
+    color: var(--fg-1);
+    border: 1px solid var(--glass-edge);
+    border-radius: var(--r-pill);
+    padding: 0 16px;
+    height: 32px;
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition:
+      background var(--t-fast),
+      border-color var(--t-fast),
+      color var(--t-fast);
+  }
+  .preset:hover {
+    background: var(--glass-2);
+    color: var(--fg-0);
+  }
+  .preset:focus-visible {
+    outline: 2px solid var(--accent, #6ab7ff);
+    outline-offset: 2px;
+  }
+  .preset[data-active='true'] {
+    background: var(--glass-3);
+    border-color: var(--accent, #6ab7ff);
+    color: var(--fg-0);
   }
 </style>
