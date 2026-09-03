@@ -281,7 +281,7 @@
 {/if}
 
 <style>
-  .dropdown {
+.dropdown {
     position: relative;
     /* The Dropdown wrapper is just a positioning context for the
      * portal menu — sizing the trigger is the caller's job, and
