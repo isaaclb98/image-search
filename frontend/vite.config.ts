@@ -59,6 +59,17 @@ export default defineConfig({
         target: API_PROXY_TARGET,
         changeOrigin: true
       },
+      // Round-11: thumbnail proxy. Without this, every grid
+      // tile's <img src> in dev mode 404'd (Vite SPA's index.html
+      // would be served instead of the WebP bytes), so tiles
+      // rendered as blurhash placeholders with no photo ever
+      // appearing. Prod is unaffected (Caddy proxies
+      // /thumb/{id} unconditionally); this only matters for
+      // local vite dev.
+      '^/thumb/[^/]+(?:$|\\?)': {
+        target: API_PROXY_TARGET,
+        changeOrigin: true
+      },
       // Zip downloads for the Albums page buttons
       '^/albums/[^/]+/download\\.zip$': {
         target: API_PROXY_TARGET,
