@@ -101,9 +101,14 @@
   // Best-effort tile-width hint for the first-screen srcset. We can't
   // measure the tile itself from here (no DOM ref on the wrapping
   // grid cell), so we approximate from window.innerWidth divided by
-  // the auto-fill column target. Falls back to 240 on SSR / dev
+  // the auto-fill column target. Falls back to 384 on SSR / dev
   // edge cases. Cached per-tile via $derived so we only recompute
   // when the breakpoint flips.
+  //
+  // Post the model-variant migration plan: the only thumbnail variant
+  // served is 384×384 (matches so400m model input resolution). So
+  // `eagerSrcWidth` and `eagerSrcset` reflect that single asset —
+  // no srcset ladder needed, just a single src.
   function tileSizeGuess(): number | undefined {
     if (typeof window === 'undefined') return undefined;
     const w = window.innerWidth;
@@ -116,17 +121,12 @@
   // marked eager + high-priority so the browser starts fetching them
   // alongside the HTML/CSS instead of waiting on its lazy heuristic.
   let isEager = $derived(eagerIndex === 0 || eagerIndex === 1 || eagerIndex === 2);
-  // Rendered srcset width for the eager tiles. We round up the
-  // guessed tile size × 2 so the picked variant is at least 2× the
-  // CSS pixels (retina). 480 is the upper bound — anything bigger
-  // would be the canonical 256-px file upscaled and we already serve
-  // 480 from the backend.
-  let eagerSrcWidth = $derived(
-    Math.max(120, Math.min(240, Math.round((tileSizeGuess() ?? 240) * 1)))
-  );
-  let eagerSrcset = $derived(
-    `${thumbUrl(pointId, 120)} 120w, ${thumbUrl(pointId, 180)} 180w, ${thumbUrl(pointId, 240)} 240w`
-  );
+  // Rendered srcset width for the eager tiles. The single-variant
+  // pipeline serves 384×384; the rounded-up × 2 calculation would
+  // be 480, but the backend only generates 384 (no 480), so just
+  // pin to 384.
+  let eagerSrcWidth = $derived(384);
+  let eagerSrcset = $derived(`${thumbUrl(pointId, 384)} 384w`);
   // Sizes attribute must reflect the actual rendered tile width
   // so the browser picks the right srcset entry. Without this,
   // `sizes` was hardcoded to "240px" on every viewport, so the
@@ -135,18 +135,19 @@
   // under-fetching on big monitors (a 480px-wide tile got only
   // 240w of pixels, blurry at 2x DPR).
   //
-  // We round the guessed tile size *up* to the nearest variant
-  // so the browser never picks a smaller variant than the
-  // advertised size — DPR-2 needs 2x source pixels for sharp
-  // rendering.
+  // Post the model-variant migration plan, the only thumbnail
+  // variant served is 384×384 — the srcset is a single 384w entry,
+  // so the `sizes` attribute just needs to advertise the tile's
+  // rendered CSS pixels at each breakpoint.
   let eagerSizes = $derived.by(() => {
-    const w = tileSizeGuess() ?? 240;
+    const w = tileSizeGuess() ?? 384;
     // Pick the smallest variant >= w so the browser has enough
-    // pixels to render crisply at this DPR.
-    const variant = w <= 120 ? 120 : w <= 180 ? 180 : 240;
+    // pixels to render crisply at this DPR. With a single 384w
+    // variant, this is just `w` for any w <= 384.
+    const variant = w <= 120 ? 120 : w <= 180 ? 180 : w <= 240 ? 240 : 384;
     // Re-derive the breakpoint from `w`: below 600px viewport the
     // tiles are ~120-180px, above that they're ~240px, above
-    // 1200px they grow further (capped at our 240 variant).
+    // 1200px they grow further (capped at our 384 variant).
     return `(max-width: 600px) ${Math.min(variant, 120)}px, (max-width: 1200px) ${Math.min(variant, 180)}px, ${variant}px`;
   });
 </script>
@@ -170,7 +171,7 @@
   <img
     bind:this={imgEl}
     class="full"
-    src={isEager ? thumbUrl(pointId, eagerSrcWidth) : thumbUrl(pointId)}
+    src={isEager ? thumbUrl(pointId, eagerSrcWidth) : thumbUrl(pointId, 384)}
     srcset={isEager ? eagerSrcset : undefined}
     sizes={isEager ? eagerSizes : undefined}
     alt=""

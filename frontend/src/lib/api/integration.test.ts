@@ -49,8 +49,11 @@ describe('thumbUrl', () => {
 
   it('appends ?w=N when a width is supplied', async () => {
     const { thumbUrl } = await import('./client');
-    expect(thumbUrl('abc-123', 240)).toBe('/thumb/abc-123?w=240');
-    expect(thumbUrl('abc-123', 180)).toBe('/thumb/abc-123?w=180');
+    // Post the model-variant migration plan, the indexer serves
+    // a single 384px thumbnail. Pre-migration this asserted the
+    // 240 and 180 ladder; the URL contract is the same (just a
+    // different concrete size).
+    expect(thumbUrl('abc-123', 384)).toBe('/thumb/abc-123?w=384');
   });
 
   it('omits ?w= for non-positive widths', async () => {
@@ -61,7 +64,7 @@ describe('thumbUrl', () => {
 
   it('percent-encodes point IDs', async () => {
     const { thumbUrl } = await import('./client');
-    expect(thumbUrl('a/b c', 240)).toBe('/thumb/a%2Fb%20c?w=240');
+    expect(thumbUrl('a/b c', 384)).toBe('/thumb/a%2Fb%20c?w=384');
   });
 });
 

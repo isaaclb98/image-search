@@ -317,19 +317,20 @@
   //
   // Round‑10: use the thumbnail URL instead of the raw
   // photo URL. The backdrop is rendered at 100vw × 100vh
-  // and blurred 60 px in CSS — a 240 px source upscaled
+  // and blurred 60 px in CSS — a 384 px source upscaled
   // and blurred is perceptually identical to the full-res
   // version for ambient atmosphere, but cuts the transfer
-  // size from a typical 3-5 MB JPEG down to a ~30 KB
+  // size from a typical 3-5 MB JPEG down to a ~20 KB
   // WebP. Big win on the user-perceived lightbox open
-  // latency. (Backend only generates up to 240 px variants;
-  // w=480 would 422 — see Round 5 comment in PhotoTile.)
+  // latency. Post the model-variant migration plan, 384
+  // is the single thumbnail size served by the indexer
+  // (matches the so400m model input resolution).
   $effect(() => {
     const i = lightboxIndex;
     if (i !== null && i >= 0 && i < items.length) {
       const it = items[i];
       if (it?.id) {
-        pageTint.set(thumbUrl(it.id, 240));
+        pageTint.set(thumbUrl(it.id, 384));
       }
     }
   });
