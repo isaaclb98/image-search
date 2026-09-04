@@ -96,6 +96,30 @@
   });
 
   let tint = $state<string | null>(null);
+  // Crossfade gate for the .tint backdrop layer. See the template
+  // note above for why this needs to be rAF-deferred — without
+  // the gate the browser batches the style change and the
+  // transition never fires.
+  let tintReady = $state(false);
+
+  // Photo-load state for crossfade. The lightbox used to flash on
+  // every navigation because the `<img>` was inside `{#key it.id}`,
+  // which unmounted the old image and mounted a new one — the dark
+  // backdrop showed through until the new fetch resolved. Now we
+  // reuse the same `<img>` element across navigations (its `src`
+  // updates reactively when `idx` changes) and gate its visibility
+  // on `naturalWidth > 0` via a CSS transition. While the new src
+  // is loading, the blurhash backdrop (`tint`) stays visible so
+  // there's never a fully-blank frame.
+  //
+  // `photoReady` flips to false whenever the displayed src changes
+  // and back to true when the next `load` event lands. We track the
+  // src we last saw so a duplicate `load` event for the same photo
+  // (browsers fire these on cache hits too) doesn't toggle state
+  // twice.
+  let photoReady = $state(false);
+  let lastLoadedSrc = $state('');
+  let photoSrc = $state('');
 
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
@@ -259,11 +283,41 @@
   // membership indicator on the dropdown.
   $effect(() => {
     const it = current();
+    // Compute the next src. `lightboxWidth()` is called fresh so
+    // a window resize between navigations picks up the new width
+    // without us needing a separate resize listener.
+    const nextSrc = it ? photoUrl(it.id, lightboxWidth()) : '';
+    if (nextSrc !== photoSrc) {
+      photoSrc = nextSrc;
+      // Mark the photo as not-ready until the new `<img>` fires
+      // its `load` event. If the browser serves this from cache
+      // the load fires synchronously-ish, but the $effect below
+      // still sees it and flips photoReady back on.
+      photoReady = false;
+    }
     if (!it || !it.blurhash) {
       tint = null;
+      tintReady = false;
       return;
     }
-    blurhashToDataUrl(it.blurhash, 80, 50).then((u) => (tint = u));
+    // Crossfade the backdrop. Drop tintReady immediately so the
+    // existing layer animates OUT (opacity 0.65 → 0), then on the
+    // next animation frame after the new blurhash resolves, flip
+    // tintReady back to true so the new layer animates IN.
+    //
+    // Without the rAF we get a hard cut: Svelte updates the inline
+    // `background-image` style synchronously, and the browser
+    // composites both the old class and the new bg in a single
+    // paint, skipping the transition entirely. The rAF forces a
+    // paint at opacity 0 first so the next state change has a
+    // transition to run.
+    tintReady = false;
+    blurhashToDataUrl(it.blurhash, 80, 50).then((u) => {
+      tint = u;
+      requestAnimationFrame(() => {
+        tintReady = true;
+      });
+    });
     // Refresh the membership indicator for the new photo. Done
     // in the same effect so a single `idx` change triggers both
     // (one round trip, no flicker between the two updates).
@@ -351,7 +405,23 @@
   role="dialog"
   aria-modal="true"
 >
-  {#if tint}<div class="tint" style:background="var(--glass-tint) no-repeat center/cover" aria-hidden="true"></div>{/if}
+  {#if tint}
+    <!-- Crossfade the tint layer when its background-image swaps.
+         The opacity transition runs on the same axis as the photo
+         crossfade (both 150 ms), so the user perceives a single
+         coordinated swap rather than two distinct layer changes.
+         `.tint-ready` is set on the next animation frame after
+         the bg-url changes — without the rAF gate, the browser
+         would batch the style change and never run the transition
+         (it has to first paint the old URL at full opacity, then
+         paint the new one and animate down/up). -->
+    <div
+      class="tint"
+      class:tint-ready={tintReady}
+      style:background-image="var(--glass-tint)"
+      aria-hidden="true"
+    ></div>
+  {/if}
   <div class="content" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
     <button class="nav close" type="button" onclick={onClose} aria-label="Close">
       <Icon name="close" size={20} />
@@ -367,9 +437,29 @@
     </button>
     {#if current()}
       {@const it = current()!}
-      {#key it.id}
-        <img class="photo" src={photoUrl(it.id, lightboxWidth())} alt="" />
-      {/key}
+      <!-- Single reusable <img>; src updates reactively when idx
+           changes. Crossfade via .photo { opacity } tied to
+           photoReady so the new image only fades in once the
+           browser has decoded it. No {#key} — tearing down the
+           element on every nav caused the old flash because the
+           browser would briefly render the dark backdrop until
+           the new fetch resolved. -->
+      <img
+        class="photo"
+        class:photo-ready={photoReady}
+        src={photoSrc}
+        alt=""
+        onload={() => {
+          // Guard against cache-hit replays for the same src.
+          // The browser may also fire `load` after the src has
+          // already changed to a different photo; we only flip
+          // photoReady when the loaded src matches what we're
+          // currently showing.
+          if (photoSrc && photoSrc === lastLoadedSrc) return;
+          lastLoadedSrc = photoSrc;
+          photoReady = true;
+        }}
+      />
     {/if}
     <button
       class="nav next"
@@ -487,11 +577,23 @@
 .tint {
     position: absolute;
     inset: -40px;
-    background: var(--glass-tint, none) no-repeat center / cover;
+    /* background-image is set via inline style from the JS blurhash
+       decode; the rest of the shorthand stays here so the inline
+       style only has to ship the data-URL, not repeat the layout
+       commands. Default opacity 0 forces the layer to animate in
+       when `.tint-ready` is applied (see the template note above
+       for why the rAF gate matters). */
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
     filter: blur(60px) saturate(1.5) brightness(0.55);
-    opacity: 0.65;
+    opacity: 0;
+    transition: opacity 150ms var(--ease-out);
     pointer-events: none;
     z-index: -1;
+  }
+  .tint.tint-ready {
+    opacity: 0.65;
   }
   .content {
     /* Fill the first (1fr) row of the overlay grid. The grid
@@ -527,6 +629,21 @@
     object-fit: contain;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
+    /* Crossfade between photos. Default opacity 0 keeps the dark
+       backdrop visible until the <img> fires its `load` event,
+       at which point .photo-ready is applied and the transition
+       fades the new image in over ~150 ms. The old `{#key}`
+       approach unmounted and remounted the element on every nav,
+       so the user briefly saw the bare backdrop — this is the
+       fix. Tuned to 150 ms: long enough to mask the decode
+       jank, short enough that fast slideshow ticks don't smear
+       into a blur. The transition is opacity-only so the
+       gallery geometry stays stable across swaps. */
+    opacity: 0;
+    transition: opacity 150ms var(--ease-out);
+  }
+  .photo.photo-ready {
+    opacity: 1;
   }
   .nav {
     position: absolute;
