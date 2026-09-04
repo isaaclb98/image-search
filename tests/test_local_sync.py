@@ -65,13 +65,22 @@ def test_build_payload_uses_source_name(tmp_path: Path) -> None:
 
 
 def test_vector_dim_matches_siglip2() -> None:
-    """The vector dim is shared between the embedder (writes 1536-dim
-    vectors) and the Qdrant collection config. If either side drifts,
-    the in-memory Qdrant backend will reject upserts with a shape
-    error. Pin both at the same constant.
+    """The vector dim is shared between the embedder and the Qdrant
+    collection config. If either side drifts, the in-memory Qdrant
+    backend will reject upserts with a shape error.
+
+    Post-migration: VECTOR_DIM is sourced from the model registry
+    keyed on DEFAULT_MODEL (so400m-patch16-384). This test now
+    pins the *contract* (dim matches the registry) rather than a
+    specific literal — any future variant change will update
+    VECTOR_DIM automatically, and this assertion stays correct.
     """
-    assert VECTOR_DIM == 1536, (
-        f"VECTOR_DIM should match SigLIP2 output (1536); got {VECTOR_DIM}"
+    from image_search_kernel.registry import get as _registry_get
+    from search.config import DEFAULT_MODEL
+    expected_dim = _registry_get(DEFAULT_MODEL).dim
+    assert VECTOR_DIM == expected_dim, (
+        f"VECTOR_DIM={VECTOR_DIM} should match registry dim for "
+        f"{DEFAULT_MODEL} ({expected_dim})"
     )
 
 

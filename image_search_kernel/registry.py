@@ -159,8 +159,13 @@ def get_default_registry() -> Registry:
     global _DEFAULT_REGISTRY
     if _DEFAULT_REGISTRY is None:
         _DEFAULT_REGISTRY = Registry()
-        _DEFAULT_REGISTRY.register(_MOCK_1536_SPEC)
+        # Order matters: real models MUST be registered before
+        # `_patch_mock_dim` runs, because the provider callback
+        # queries `registry.get(DEFAULT_MODEL).dim` and that
+        # raises ModelNotFoundError if the real spec isn't there.
         _try_register_real_models(_DEFAULT_REGISTRY)
+        _patch_mock_dim()
+        _DEFAULT_REGISTRY.register(_MOCK_1536_SPEC)
     return _DEFAULT_REGISTRY
 
 
@@ -188,9 +193,13 @@ VARIANT_TO_MODEL: dict[str, str] = {
     "B/16-256": "ViT-B-16-SigLIP2-256",
     "L/16-256": "ViT-L-16-SigLIP2-256",
     "gopt/16-384": "ViT-gopt-16-SigLIP2-384",
+    # so400m/16-384 — shape-optimised attention variant; 1152-dim.
+    # 384 input resolution matches the SigLIP2 family default. The
+    # model-variant migration plan adds this as the new prod default.
+    "so400m/16-384": "ViT-so400m-patch16-384",
 }
 
-DEFAULT_VARIANT = "L/16-256"
+DEFAULT_VARIANT = "so400m/16-384"
 
 
 def resolve_model_name(variant: str) -> str:
@@ -285,14 +294,111 @@ def _deterministic_vector(seed: object, dim: int) -> list[float]:
 
 import math  # placed after the function defs that use it; ruff is fine
 
+# The mock spec's dim used to be hardcoded at 1536 to match gopt-16.
+# After the model-variant migration plan, the prod variant is
+# so400m/16-384 (1152-dim) — but the mock exists to mimic the
+# prod model's vector space so tests can encode queries + store
+# vectors at the same dim. Hardcoding 1536 here would force every
+# test that uses the mock embedder to also build a 1536-dim
+# collection, which would diverge from the production collection
+# dim.
+#
+# The mock dim is patched lazily by `_patch_mock_dim()`, which is
+# invoked from `get_default_registry()`. The patcher reads the
+# active dim from `_get_active_mock_dim`, a callable that the
+# application (search package) registers at import time. This
+# keeps the kernel pure of any `search` / `indexer` imports
+# (enforced by `tests/test_architecture.py`).
 _MOCK_1536_SPEC = ModelSpec(
     name="mock-1536",
-    dim=1536,
+    dim=1536,  # patched below via _patch_mock_dim()
     resolution=384,
     revision="mock-1",
     text=MockEmbedder(dim=1536, resolution=384),
     vision=MockEmbedder(dim=1536, resolution=384),
 )
+
+
+# Callable injected by the application to tell the kernel which
+# dim the mock should mimic. Returns the active variant's vector
+# dimension (1152 for so400m/16-384 today). Defaults to 1536
+# (gopt's dim) if not registered — so the kernel is usable in
+# isolation for tests that don't care about the active variant.
+_active_mock_dim_provider: "callable[[], int] | None" = None
+
+# Re-entry guard for `_resolve_mock_dim`. Set True while the
+# resolver is in flight (so `_try_register_real_models` →
+# `get_default_registry()` → `_patch_mock_dim` → `_resolve_mock_dim`
+# chain doesn't recurse infinitely if the chain loops back).
+# Process-global — tests don't share threads across boundaries
+# that matter here.
+_RESOLVE_IN_PROGRESS: bool = False
+
+
+def register_mock_dim_provider(provider: "callable[[], int]") -> None:
+    """Install a callable that returns the active mock dim.
+
+    The application (`search/__init__.py`) registers its
+    `get_active_mock_dim()` here on import. The kernel uses it
+    during `_patch_mock_dim()` to align the mock spec with the
+    prod variant. Tests that want to override the dim for a
+    single process can call this directly with a custom callable.
+    """
+    global _active_mock_dim_provider
+    _active_mock_dim_provider = provider
+
+
+def _resolve_mock_dim() -> int:
+    """Resolve the mock spec's dim via the registered provider.
+
+    Falls back to 1536 if no provider is registered — that's the
+    pre-migration default and stays correct for any test that
+    doesn't care about the prod variant.
+
+    Order of operations in `get_default_registry`: real-model
+    specs are registered first, then `_patch_mock_dim` runs and
+    calls `_resolve_mock_dim` to read the active dim. So by the
+    time we're called, the real-model spec is in the registry
+    and the provider's `registry.get(DEFAULT_MODEL).dim`
+    succeeds.
+    """
+    global _RESOLVE_IN_PROGRESS
+    if _active_mock_dim_provider is None:
+        return 1536
+    if _RESOLVE_IN_PROGRESS:
+        return 1536
+    try:
+        _RESOLVE_IN_PROGRESS = True
+        result = _active_mock_dim_provider()
+        if not result:
+            raise ValueError("provider returned falsy dim")
+        return int(result)
+    except Exception as e:
+        print(f"[kernel] _resolve_mock_dim fallback to 1536: {type(e).__name__}: {e}")
+        return 1536
+    finally:
+        _RESOLVE_IN_PROGRESS = False
+
+
+def _patch_mock_dim() -> None:
+    """Rewrite the dim in `_MOCK_1536_SPEC` and its MockEmbedder
+    children to match the active prod variant.
+
+    Called from `get_default_registry` immediately before
+    registering the mock spec. ModelSpec is frozen, so we use
+    `object.__setattr__` to bypass the freeze.
+    """
+    dim = _resolve_mock_dim()
+    fresh = MockEmbedder(dim=dim, resolution=384)
+    object.__setattr__(_MOCK_1536_SPEC, "dim", dim)
+    object.__setattr__(_MOCK_1536_SPEC, "text", fresh)
+    object.__setattr__(_MOCK_1536_SPEC, "vision", fresh)
+
+# Public name for the mock registry entry. Exposed at module
+# level so `search/text_encoder.py` can refer to the same name
+# without duplicating the literal (which would drift if we ever
+# rename the mock spec).
+_MOCK_REGISTRY_NAME: str = _MOCK_1536_SPEC.name
 
 
 def mock_embedder() -> MockEmbedder:

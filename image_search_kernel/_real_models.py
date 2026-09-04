@@ -145,13 +145,39 @@ class OpenClipEmbedder:
 
 
 def register_into(registry: Registry) -> None:
-    """Register the real-model entries shipped with the kernel.
-
-    Today: ViT-gopt-16-SigLIP2-384 (web backend) plus
-    ViT-L-16-SigLIP2-256 (desktop). Each uses the same adapter; both
-    register the same `text`/`vision` instances because the model is
-    shared between text and image in the SigLIP-2 family.
     """
+    Register the real-model entries shipped with the kernel.
+
+    As of the model-variant plan (so400m migration), we ship three
+    SigLIP2 variants:
+
+      - ViT-so400m-patch16-384 (1152-dim, web prod) — the new default.
+        Shape-Optimized attention variant; 384 input resolution;
+        ~400M params. Replaces gopt-16-384 for better retrieval on
+        fine-grained text queries.
+      - ViT-gopt-16-SigLIP2-384 (1536-dim) — kept registered so the
+        rollback path (`SIGLIP_VARIANT=gopt/16-384`) still works
+        without re-installing model weights.
+      - ViT-L-16-SigLIP2-256 (1024-dim) — desktop / dev.
+
+    Each entry uses the same `text`/`vision` adapter because the
+    SigLIP-2 family shares weights across modalities.
+    """
+
+    so400m_embedder = OpenClipEmbedder(
+        arch_tag="timm/ViT-so400m-patch16-384",
+        pretrained="webli",
+        dim=1152,
+        resolution=384,
+    )
+    registry.register(ModelSpec(
+        name="ViT-so400m-patch16-384",
+        dim=1152,
+        resolution=384,
+        revision="webli",
+        text=so400m_embedder,
+        vision=so400m_embedder,
+    ))
 
     gopt_embedder = OpenClipEmbedder(
         arch_tag="timm/ViT-gopt-16-SigLIP2-384",

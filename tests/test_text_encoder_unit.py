@@ -52,7 +52,15 @@ class TestModuleConstants:
     """The module's exported constants."""
 
     def test_default_model_name(self):
-        assert DEFAULT_MODEL_NAME == "ViT-gopt-16-SigLIP2-384"
+        """DEFAULT_MODEL_NAME tracks the active prod variant.
+
+        Pre-migration this was hardcoded to "ViT-gopt-16-SigLIP2-384".
+        Post-migration it's sourced from `search.config.DEFAULT_MODEL`,
+        which follows whichever variant is the prod default — so400m
+        today. The test asserts the contract (follows registry) rather
+        than a specific literal.
+        """
+        assert DEFAULT_MODEL_NAME == "ViT-so400m-patch16-384"
 
     def test_mock_model_name(self):
         assert MOCK_MODEL_NAME == "mock-1536"

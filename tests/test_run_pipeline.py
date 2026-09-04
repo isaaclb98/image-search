@@ -51,10 +51,10 @@ def test_run_pipeline_source_end_to_end(synth_corpus, qdrant_in_memory):
         FIELD_MODEL_REVISION,
         FIELD_PATH,
     )
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     set_active_model("mock-1536", "test-r0")
-    ensure_collection(qdrant_in_memory, "images_run_pipe", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_run_pipe", dim=VECTOR_DIM)
 
     report = run_pipeline_source(
         source=synth_corpus,
@@ -75,7 +75,7 @@ def test_run_pipeline_source_end_to_end(synth_corpus, qdrant_in_memory):
     assert len(points) == 10
     for p in points:
         pl = p.payload or {}
-        assert pl.get(FIELD_MODEL_DIM) == 1536
+        assert pl.get(FIELD_MODEL_DIM) == VECTOR_DIM
         assert pl.get(FIELD_MODEL_NAME) == "mock-1536"
         assert pl.get(FIELD_MODEL_REVISION) == "test-r0"
         assert pl.get(FIELD_PATH)  # absolute path string
@@ -101,12 +101,12 @@ def test_run_pipeline_source_dry_run(synth_corpus, qdrant_in_memory):
 
 def test_run_pipeline_source_handles_corrupt_files(synth_corpus, qdrant_in_memory):
     """Corrupt files don't abort the pipeline; they're reported."""
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     (synth_corpus / "corrupt.jpg").write_bytes(b"\xff\xff not a real jpeg")
 
     set_active_model("mock-1536", "test-r0")
-    ensure_collection(qdrant_in_memory, "images_corrupt", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_corrupt", dim=VECTOR_DIM)
 
     report = run_pipeline_source(
         source=synth_corpus,
@@ -124,10 +124,10 @@ def test_run_pipeline_source_handles_corrupt_files(synth_corpus, qdrant_in_memor
 def test_run_pipeline_source_emits_progress(synth_corpus, qdrant_in_memory):
     """`on_progress` is invoked when supplied."""
     from indexer.pipeline import ProgressEvent
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     set_active_model("mock-1536", "test-r0")
-    ensure_collection(qdrant_in_memory, "images_progress", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_progress", dim=VECTOR_DIM)
 
     events: list[ProgressEvent] = []
     run_pipeline_source(
@@ -144,10 +144,10 @@ def test_run_pipeline_source_emits_progress(synth_corpus, qdrant_in_memory):
 
 def test_run_pipeline_source_cancellation(synth_corpus, qdrant_in_memory):
     """Setting the cancel_event mid-run returns a partial report."""
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     set_active_model("mock-1536", "test-r0")
-    ensure_collection(qdrant_in_memory, "images_cancel", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_cancel", dim=VECTOR_DIM)
 
     cancel = threading.Event()
     cancel.set()  # cancel before the run starts
@@ -169,12 +169,12 @@ def test_run_pipeline_source_empty_source(qdrant_in_memory):
     """An empty source directory produces a zero-count report, not an error."""
     import tempfile
 
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     with tempfile.TemporaryDirectory() as tmp:
         empty = Path(tmp)
         set_active_model("mock-1536", "test-r0")
-        ensure_collection(qdrant_in_memory, "images_empty", dim=1536)
+        ensure_collection(qdrant_in_memory, "images_empty", dim=VECTOR_DIM)
 
         report = run_pipeline_source(
             source=empty,
@@ -189,9 +189,9 @@ def test_run_pipeline_source_empty_source(qdrant_in_memory):
 def test_set_active_model_persists_across_calls(synth_corpus, qdrant_in_memory):
     """`set_active_model` once is enough; subsequent runs use the pinned values."""
     from image_search_kernel.payload_schema import FIELD_MODEL_NAME, FIELD_MODEL_REVISION
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
-    ensure_collection(qdrant_in_memory, "images_pinned", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_pinned", dim=VECTOR_DIM)
 
     set_active_model("mock-1536", "pinned-rev-7")
     run_pipeline_source(
@@ -218,10 +218,10 @@ def test_set_active_model_persists_across_calls(synth_corpus, qdrant_in_memory):
 
 def test_concurrent_load_completes_for_each_path(synth_corpus, qdrant_in_memory):
     """Concurrent decode processes every image exactly once."""
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     set_active_model("mock-1536", "test-r0")
-    ensure_collection(qdrant_in_memory, "images_concurrent", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_concurrent", dim=VECTOR_DIM)
     report = run_pipeline_source(
         source=synth_corpus,
         qdrant_client=qdrant_in_memory,
@@ -236,11 +236,11 @@ def test_concurrent_load_completes_for_each_path(synth_corpus, qdrant_in_memory)
 
 def test_concurrent_load_preserves_failure_aggregation(synth_corpus, qdrant_in_memory):
     """Concurrent decode: corrupt files reported via on_failure, not raised."""
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     (synth_corpus / "corrupt.jpg").write_bytes(b"\xff\xff not a real jpeg")
     set_active_model("mock-1536", "test-r0")
-    ensure_collection(qdrant_in_memory, "images_concurrent_fail", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_concurrent_fail", dim=VECTOR_DIM)
     report = run_pipeline_source(
         source=synth_corpus,
         qdrant_client=qdrant_in_memory,

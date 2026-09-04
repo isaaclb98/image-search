@@ -81,9 +81,20 @@ class TestVisionEncoderProperties:
         assert encoder.resolution > 0
 
     def test_dim_with_mock_is_1536(self):
-        """Mock-1536 has dim=1536."""
+        """Mock-1536's dim tracks the active prod variant.
+
+        Pre-migration this asserted a literal 1536. Post-migration
+        the mock spec's dim is resolved from `DEFAULT_MODEL` so the
+        mock matches whichever variant is the prod default —
+        so400m/16-384 today, 1152-dim. The test now asserts the
+        contract ("mock dim equals registry dim") rather than a
+        specific literal.
+        """
+        from image_search_kernel.registry import get as _registry_get
+        from search.config import DEFAULT_MODEL
+        expected_dim = _registry_get(DEFAULT_MODEL).dim
         encoder = VisionEncoder(test_mode=True)
-        assert encoder.dim == 1536
+        assert encoder.dim == expected_dim
 
 
 # ----- embed_one -----

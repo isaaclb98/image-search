@@ -42,7 +42,7 @@ def _fake_cfg():
 def test_similar_returns_neighbours_excluding_source():
     qdrant = MagicMock()
     qdrant.retrieve_with_vector.return_value = (
-        [0.1] * 1536, _hit("source", score=1.0),
+        [0.1] * 1152, _hit("source", score=1.0),
     )
     qdrant.search.return_value = (
         [_hit("a", 0.9), _hit("b", 0.85), _hit("c", 0.8)],
@@ -90,7 +90,7 @@ def test_similar_qdrant_retrieve_error_returns_502():
 def test_similar_qdrant_search_error_returns_502():
     qdrant = MagicMock()
     qdrant.retrieve_with_vector.return_value = (
-        [0.1] * 1536, _hit("source", score=1.0),
+        [0.1] * 1152, _hit("source", score=1.0),
     )
     qdrant.search.side_effect = OSError("qdrant down")
     index_db = MagicMock()
@@ -104,7 +104,7 @@ def test_similar_trims_to_requested_limit():
     """The over-fetched +1 row gets trimmed so we return at most `limit`."""
     qdrant = MagicMock()
     qdrant.retrieve_with_vector.return_value = (
-        [0.1] * 1536, _hit("source", score=1.0),
+        [0.1] * 1152, _hit("source", score=1.0),
     )
     # Source slipped through the server-side exclude for some reason;
     # the trim must drop it.
@@ -147,7 +147,7 @@ def test_similar_score_format_is_3dp():
     """score_str is formatted to 3 decimals — SSR + JS render identically."""
     qdrant = MagicMock()
     qdrant.retrieve_with_vector.return_value = (
-        [0.1] * 1536, _hit("source", score=1.0),
+        [0.1] * 1152, _hit("source", score=1.0),
     )
     qdrant.search.return_value = (
         [_hit("a", 0.87654), _hit("b", 0.5)],

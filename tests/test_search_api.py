@@ -57,7 +57,7 @@ def app_with_qdrant(qdrant_in_memory, nas_base, monkeypatch):
     upsert.ensure_collection(client, qdrant_in_memory.collection, dim=VECTOR_DIM)
 
     # Use the deterministic mock embedder so we can pick what we put in.
-    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=VECTOR_DIM, resolution=384).embed_text
 
     # Three test "images": cat, dog, car.
     q_cat = _mock_embed("cat")
@@ -793,7 +793,7 @@ def test_api_search_multi_collection_filter(qdrant_in_memory, nas_base):
     """
     from search import app as app_mod
     from search.config import Config
-    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=VECTOR_DIM, resolution=384).embed_text
 
     # Re-create the app with a payload that has points in two
     # different collections.
@@ -841,7 +841,7 @@ def test_api_collections_endpoint_distinct_counts(
     """/api/collections returns per-library counts when more than one is populated."""
     from search import app as app_mod
     from search.config import Config
-    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=VECTOR_DIM, resolution=384).embed_text
 
     q_cat = _mock_embed("cat")
     items = [
@@ -889,7 +889,7 @@ def test_api_collections_endpoint_uses_facet_aggregation(
     """
     from search import app as app_mod
     from search.config import Config
-    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=VECTOR_DIM, resolution=384).embed_text
 
     q_cat = _mock_embed("cat")
     items = [
@@ -952,7 +952,7 @@ def test_api_collections_endpoint_skips_empty_collection_values(
     """
     from search import app as app_mod
     from search.config import Config
-    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=1536, resolution=384).embed_text
+    from image_search_kernel.registry import MockEmbedder; _mock_embed = MockEmbedder(dim=VECTOR_DIM, resolution=384).embed_text
 
     q_cat = _mock_embed("cat")
     items = [
