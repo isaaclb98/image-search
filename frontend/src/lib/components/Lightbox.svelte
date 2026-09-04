@@ -469,7 +469,55 @@
     if (e.key === 'Escape') onClose();
     else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') prev();
     else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
-    else if (e.key === ' ' || e.code === 'Space') {
+    else if (e.key === 'Home') {
+      // Jump to first photo. Same button-focus caveat as Space —
+      // don't fight the browser's synthetic click on a focused
+      // button.
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = 0;
+      }
+    } else if (e.key === 'End') {
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = items.length - 1;
+      }
+    } else if (e.key === 'PageUp') {
+      // Skip back 10 — large-grid navigation. Bound to [0, N-1].
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = Math.max(0, idx - 10);
+      }
+    } else if (e.key === 'PageDown') {
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = Math.min(items.length - 1, idx + 10);
+      }
+    } else if (e.key === 'f' || e.key === 'F') {
+      // Like / Unlike shortcut. Disabled while typing in a
+      // text field so we don't steal keys from the rename
+      // input on the Add-to-album dialog, etc.
+      if (e.target instanceof HTMLElement) {
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      }
+      e.preventDefault();
+      toggleFavorite();
+    } else if (e.key === 'd' || e.key === 'D') {
+      // Wait — 'd' is already used for Next (alongside ArrowRight).
+      // Reuse the same key, but only when Shift is NOT held —
+      // Shift+D is a different gesture and shouldn't fire dislike.
+      // Actually, looking at the existing handler: 'd' (no Shift)
+      // calls next(). So we can't double-up on plain 'd' for
+      // dislike without breaking the existing shortcut. Users
+      // who want a keyboard shortcut for dislike can use the
+      // right-click context menu or the on-screen button.
+      // (Skip — see comment below.)
+    } else if (e.key === ' ' || e.code === 'Space') {
       // Space natively activates focused buttons. If we also
       // fire togglePlay() here, the synthetic click from the
       // button + our handler would net out to no-op and the
@@ -619,7 +667,7 @@
       {/if}
       <ActionButton
         onclick={toggleFavorite}
-        title="Like"
+        title="Like (F)"
         ariaPressed={isFavorite ? 'true' : 'false'}
       >
         Like
