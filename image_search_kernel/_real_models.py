@@ -165,7 +165,14 @@ def register_into(registry: Registry) -> None:
     """
 
     so400m_embedder = OpenClipEmbedder(
-        arch_tag="timm/ViT-so400m-patch16-384",
+        # open_clip's pretrained registry spells this model as
+        # "ViT-SO400M-14-SigLIP2-378" — the 378 is a resolution
+        # tweak that uses the 384 weights (see
+        # mlfoundations/open_clip pretrained.py NOTE). The HF
+        # repo under the hood is timm/ViT-SO400M-14-SigLIP2-378.
+        # The OpenClipEmbedder prepends `timm/` automatically
+        # because it knows it's looking up a timm-style model.
+        arch_tag="ViT-SO400M-14-SigLIP2-378",
         pretrained="webli",
         dim=1152,
         resolution=384,
