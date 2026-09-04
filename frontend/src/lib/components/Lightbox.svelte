@@ -121,6 +121,31 @@
   let lastLoadedSrc = $state('');
   let photoSrc = $state('');
 
+  // Adjacent-photo preloader. Hidden `<img>` elements whose `src`
+  // is set to the next/previous photo's URL. The browser shares
+  // the HTTP cache with the visible `<img>` and reuses the
+  // decoded bitmap on navigation, so prev/next feel instant.
+  //
+  // Why a Set instead of just rendering all of `items.slice(idx-2,
+  // idx+3)`: preloading the same URL twice would create two <img>
+  // nodes holding the same data — wasteful when the user lingers
+  // on a photo and `idx` stays put. The Set ensures we only mount
+  // each preloader once; subsequent effect runs (caused by
+  // blurhash decode, memberOf refresh, etc.) are no-ops.
+  //
+  // Distance: ±1 by default. The 1s slideshow preset only gives
+  // the user 1000 ms between ticks — `playing` bumps that to ±3
+  // so the auto-advance doesn't race the network. Single-photo
+  // lightbox (`items.length <= 1`) skips preloading entirely.
+  //
+  // Bandwidth respect: skip preloading when the user has
+  // declared save-data via the Network Information API or the
+  // `prefers-reduced-data` media query. Both are
+  // feature-detected; old browsers that lack them get the
+  // default ±1 preload (a strict-power-user setting, but that's
+  // the conservative default for a desktop-class lightbox).
+  let preloadedSrcs = $state<Set<string>>(new Set());
+
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
      to a different photo — re-syncing after every server response
@@ -324,6 +349,92 @@
     void refreshMembership();
   });
 
+  // Adjacent-photo preloader. Runs on every `idx` change so the
+  // preload window tracks the cursor. Reactive deps: `idx` (the
+  // cursor) and `playing` (window expands during slideshow). We
+  // deliberately do NOT track `photoUrl`'s width argument —
+  // `lightboxWidth()` reads `window.innerWidth`, which is reactive
+  // in Svelte 5 only via the `if (browser)` guard, so a resize
+  // mid-lightbox may briefly leave a stale preload at the old
+  // width until the next navigation; that's fine — the cache
+  // entry is shared across widths via the `?w=...` query.
+  $effect(() => {
+    // Touch the deps so Svelte tracks them.
+    const cursor = idx;
+    const isPlaying = playing;
+    void items.length;
+
+    // Skip on single-photo lightbox or when the user opted into
+    // data-saver mode. `saveData` is the Network Information API
+    // flag; `prefers-reduced-data: reduce` is the OS-level setting
+    // we honour via matchMedia. Both are optional — old browsers
+    // simply lack them and we fall back to the default preload.
+    if (items.length <= 1) {
+      // Evict any leftover preload entries from a previous
+      // multi-photo session. The Set is the source of truth that
+      // the hidden <img> nodes mirror, so clearing it tells the
+      // template to remove them on the next render.
+      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
+      return;
+    }
+    const conn =
+      typeof navigator !== 'undefined'
+        ? (navigator as Navigator & {
+            connection?: { saveData?: boolean };
+          }).connection
+        : undefined;
+    const saveData =
+      !!conn?.saveData ||
+      (typeof window !== 'undefined' &&
+        !!window.matchMedia?.('(prefers-reduced-data: reduce)').matches);
+    if (saveData) {
+      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
+      return;
+    }
+
+    // Distance: ±3 during slideshow so a 1s cadence doesn't
+    // race the network; ±1 otherwise.
+    const distance = isPlaying ? 3 : 1;
+    const want = new Set<string>();
+    for (let d = 1; d <= distance; d++) {
+      // Wrap-around only while the slideshow is running —
+      // manual prev at the first photo and next at the last
+      // are intentionally disabled, so preloading the wrap
+      // would be wasted bandwidth.
+      if (isPlaying) {
+        const nextIdx = (cursor + d) % items.length;
+        const prevIdx = (cursor - d + items.length) % items.length;
+        const nextIt = items[nextIdx];
+        const prevIt = items[prevIdx];
+        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
+        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
+      } else {
+        const nextIt = items[cursor + d];
+        const prevIt = items[cursor - d];
+        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
+        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
+      }
+    }
+
+    // Evict entries that fell out of the window. Without this,
+    // a fast scrub through a 1000-photo grid would mount 1000
+    // hidden <img> nodes; the browser would keep them all
+    // cached and we'd hold 1000 decoded bitmaps in memory.
+    let changed = false;
+    const next = new Set<string>();
+    for (const src of want) {
+      if (preloadedSrcs.has(src) || src === photoSrc) next.add(src);
+      else {
+        next.add(src);
+        changed = true;
+      }
+    }
+    for (const src of preloadedSrcs) {
+      if (!next.has(src)) changed = true;
+    }
+    if (changed) preloadedSrcs = next;
+  });
+
   function prev() {
     // Snapshot the playing flag before mutating it. We want
     // wrap-around in two cases: (a) the slideshow is currently
@@ -461,6 +572,29 @@
         }}
       />
     {/if}
+    <!-- Adjacent-photo preloaders. Hidden, off-screen, no
+         interaction — they exist only so the browser's image
+         cache + decoded bitmap are warm when the user
+         navigates. `fetchpriority="low"` keeps them from
+         competing with the visible <img>; `loading="eager"`
+         overrides the default lazy-loading because we
+         explicitly want the fetch now (not "when the
+         IntersectionObserver notices this offscreen node").
+         The Set is the source of truth — additions/removals
+         drive mount/unmount. aria-hidden + tabindex=-1 so
+         screen readers and keyboard focus skip them. -->
+    {#each [...preloadedSrcs] as preloadSrc (preloadSrc)}
+      <img
+        class="preload"
+        aria-hidden="true"
+        tabindex="-1"
+        alt=""
+        src={preloadSrc}
+        loading="eager"
+        decoding="async"
+        fetchpriority="low"
+      />
+    {/each}
     <button
       class="nav next"
       type="button"
@@ -644,6 +778,24 @@
   }
   .photo.photo-ready {
     opacity: 1;
+  }
+  /* Adjacent-photo preloaders. Visually inert — the browser
+     still renders the image into its image cache, but we hide
+     the element from the user. Zero-size off-screen positioning
+     is the lightest way to do this: `display: none` would
+     cancel the fetch in some browsers, `visibility: hidden`
+     leaves the decoded bitmap off the compositor. `position:
+     fixed` with a far-offscreen top keeps them in the layout
+     tree (so the browser considers them "visible enough" to
+     fetch + decode) but out of any viewport. */
+  .preload {
+    position: fixed;
+    top: -10000px;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
   }
   .nav {
     position: absolute;
