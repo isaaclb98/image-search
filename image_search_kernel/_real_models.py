@@ -169,10 +169,11 @@ def register_into(registry: Registry) -> None:
         # "ViT-SO400M-14-SigLIP2-378" — the 378 is a resolution
         # tweak that uses the 384 weights (see
         # mlfoundations/open_clip pretrained.py NOTE). The HF
-        # repo under the hood is timm/ViT-SO400M-14-SigLIP2-378.
-        # The OpenClipEmbedder prepends `timm/` automatically
-        # because it knows it's looking up a timm-style model.
-        arch_tag="ViT-SO400M-14-SigLIP2-378",
+        # repo path is `timm/ViT-SO400M-14-SigLIP2-378` and
+        # open_clip's hf-hub: schema passes the identifier
+        # straight through to hf_hub_download as `repo_id`, so
+        # we need to include the `timm/` namespace prefix.
+        arch_tag="timm/ViT-SO400M-14-SigLIP2-378",
         pretrained="webli",
         dim=1152,
         resolution=384,

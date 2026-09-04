@@ -34,9 +34,14 @@ def _build(thumb_dir: Path):
     return app
 
 
-def _write_thumbnail(thumb_dir: Path, point_id: str, width: int = 256) -> Path:
+def _write_thumbnail(thumb_dir: Path, point_id: str, width: int = 384) -> Path:
     """Materialise a WebP thumbnail (and optionally a sized sibling)
-    for the given point_id. Returns the canonical path."""
+    for the given point_id. Returns the canonical path.
+
+    Post the model-variant migration plan, the canonical thumbnail
+    is 384×384 (matches so400m input resolution). Tests that
+    explicitly want the pre-migration 256 can pass `width=256`.
+    """
     prefix = point_id[:2]
     (thumb_dir / prefix).mkdir(parents=True, exist_ok=True)
     canonical = thumb_dir / prefix / f"{point_id}.webp"
@@ -86,19 +91,22 @@ class TestCanonicalThumbnail:
 class TestSizedVariants:
     def test_sized_variant_returned_when_present(self, thumb_dir):
         point_id = "11111111111111111111111111111111"
-        _write_thumbnail(thumb_dir, point_id, 256)
-        # Drop a 240-px sibling alongside.
-        Image.new("RGB", (240, 240), color="blue").save(
-            thumb_dir / point_id[:2] / f"{point_id}.w240.webp", "WEBP", quality=50
+        _write_thumbnail(thumb_dir, point_id, 384)
+        # Drop a 384-px sibling alongside. Post the model-variant
+        # migration plan, the only pre-generated variant is 384
+        # (matching so400m input resolution); pre-migration this
+        # wrote a 240 sibling.
+        Image.new("RGB", (384, 384), color="blue").save(
+            thumb_dir / point_id[:2] / f"{point_id}.w384.webp", "WEBP", quality=50
         )
         app = _build(thumb_dir)
         with TestClient(app) as client:
-            resp = client.get(f"/thumb/{point_id}?w=240")
+            resp = client.get(f"/thumb/{point_id}?w=384")
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "image/webp"
         # Verify we got the *sized* file, not the canonical — the body
         # bytes should differ.
-        sized_bytes = (thumb_dir / point_id[:2] / f"{point_id}.w240.webp").read_bytes()
+        sized_bytes = (thumb_dir / point_id[:2] / f"{point_id}.w384.webp").read_bytes()
         canonical_bytes = (thumb_dir / point_id[:2] / f"{point_id}.webp").read_bytes()
         assert resp.content == sized_bytes
         assert resp.content != canonical_bytes
