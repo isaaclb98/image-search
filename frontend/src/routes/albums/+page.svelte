@@ -46,6 +46,20 @@
     searchByAlbum(`album:${albumId}`);
   }
 
+  // Round‑34: Surprise-me entry point. Same destination as
+  // searchByAlbum, but appends `&mode=sample` so the home page
+  // uses the K-of-N sample-centroid path. Each request re-rolls
+  // the random subset, so refreshing surfaces a different
+  // cluster. Disabled when the album is empty for the same
+  // reason the regular Search button is — sample mode is a
+  // no-op for empty source sets.
+  function searchByAlbumSurprise(centroidName: string) {
+    goto(`/?centroid=${encodeURIComponent(centroidName)}&mode=sample`);
+  }
+  function searchByUserAlbumSurprise(albumId: number) {
+    searchByAlbumSurprise(`album:${albumId}`);
+  }
+
   let albums = $state<AlbumSummary[]>([]);
   let loading = $state(true);
   let likesCount = $state(0);
@@ -193,15 +207,30 @@
     <!-- Round‑29: search button on every album card. The Likes
          centroid is named "likes" on the backend (round‑29b);
          "favourites" is a back‑compat alias. Clicking either
-         takes the user to the home page with results. -->
-    <button
-      class="search-btn"
-      type="button"
-      data-centroid={LIKES_CENTROID}
-      onclick={() => searchByAlbum(LIKES_CENTROID)}
-      disabled={likesCount === 0}
-      aria-label="Search by Likes centroid"
-    >Search</button>
+         takes the user to the home page with results.
+         Round‑34: a sibling "Surprise" button lands on the same
+         destination with `&mode=sample` so the home page uses
+         the K-of-N sample-centroid path. -->
+    <div class="search-row">
+      <button
+        class="search-btn"
+        type="button"
+        data-centroid={LIKES_CENTROID}
+        onclick={() => searchByAlbum(LIKES_CENTROID)}
+        disabled={likesCount === 0}
+        aria-label="Search by Likes centroid"
+      >Search</button>
+      <button
+        class="search-btn surprise"
+        type="button"
+        data-centroid={LIKES_CENTROID}
+        data-mode="sample"
+        onclick={() => searchByAlbumSurprise(LIKES_CENTROID)}
+        disabled={likesCount === 0}
+        aria-label="Surprise me: search by a random sample of Likes"
+        title="Search by a random sample of your Likes"
+      >Surprise</button>
+    </div>
   </article>
   <article class="card glass system-dislike">
     {#if dislikesFirstId}
@@ -218,14 +247,26 @@
       <span class="count">{dislikesCount} photo{dislikesCount === 1 ? '' : 's'}</span>
       <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
     </footer>
-    <button
-      class="search-btn"
-      type="button"
-      data-centroid={DISLIKES_CENTROID}
-      onclick={() => searchByAlbum(DISLIKES_CENTROID)}
-      disabled={dislikesCount === 0}
-      aria-label="Search by Dislikes centroid"
-    >Search</button>
+    <div class="search-row">
+      <button
+        class="search-btn"
+        type="button"
+        data-centroid={DISLIKES_CENTROID}
+        onclick={() => searchByAlbum(DISLIKES_CENTROID)}
+        disabled={dislikesCount === 0}
+        aria-label="Search by Dislikes centroid"
+      >Search</button>
+      <button
+        class="search-btn surprise"
+        type="button"
+        data-centroid={DISLIKES_CENTROID}
+        data-mode="sample"
+        onclick={() => searchByAlbumSurprise(DISLIKES_CENTROID)}
+        disabled={dislikesCount === 0}
+        aria-label="Surprise me: search by a random sample of Dislikes"
+        title="Search by a random sample of your Dislikes"
+      >Surprise</button>
+    </div>
   </article>
 </section>
 
@@ -254,14 +295,26 @@
             aria-label="Delete {a.name}"
           >Delete</button>
         </footer>
-        <button
-          class="search-btn"
-          type="button"
-          data-centroid="album:{a.id}"
-          onclick={() => searchByUserAlbum(a.id)}
-          disabled={(a.member_count ?? 0) === 0}
-          aria-label="Search by {a.name} centroid"
-        >Search</button>
+        <div class="search-row">
+          <button
+            class="search-btn"
+            type="button"
+            data-centroid="album:{a.id}"
+            onclick={() => searchByUserAlbum(a.id)}
+            disabled={(a.member_count ?? 0) === 0}
+            aria-label="Search by {a.name} centroid"
+          >Search</button>
+          <button
+            class="search-btn surprise"
+            type="button"
+            data-centroid="album:{a.id}"
+            data-mode="sample"
+            onclick={() => searchByUserAlbumSurprise(a.id)}
+            disabled={(a.member_count ?? 0) === 0}
+            aria-label="Surprise me: search by a random sample of {a.name}"
+            title="Search by a random sample of {a.name}"
+          >Surprise</button>
+        </div>
       </article>
     {/each}
   </div>
@@ -318,6 +371,34 @@
   .search-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  /* Round‑34: side-by-side Search + Surprise row. The two
+     buttons share a horizontal flex container; the first one
+     stretches to fill the row and the second one stays
+     intrinsic-width so the layout reads as "[ Search… | Surp ]"
+     instead of two equal-width buttons. The "Surprise" variant
+     uses a softer glass-2 fill so the two read as related but
+     distinct actions — Search is the primary, Surprise is a
+     different retrieval mode on the same data. */
+  .search-row {
+    margin-top: auto;
+    display: flex;
+    gap: 8px;
+    align-self: stretch;
+  }
+  .search-row .search-btn:first-child {
+    flex: 1 1 auto;
+  }
+  .search-btn.surprise {
+    flex: 0 0 auto;
+    background: var(--glass-2);
+    color: var(--fg-2);
+  }
+  .search-btn.surprise:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--fg-on-accent);
+    border-color: var(--accent);
   }
 
   /* System albums — pinned to the top, never deletable. */
@@ -379,9 +460,16 @@
   .card .title,
   .card .desc,
   .card footer,
-  .card .search-btn {
+  .card .search-row {
     margin-left: 18px;
     margin-right: 18px;
+  }
+  /* Individual buttons inside .search-row don't need the side
+     margin — the row already has it, and a second layer of
+     gutter would create a visible indent. */
+  .card .search-row .search-btn {
+    margin-left: 0;
+    margin-right: 0;
   }
   .title {
     font-size: var(--fs-lg);

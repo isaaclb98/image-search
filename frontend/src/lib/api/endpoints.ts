@@ -40,6 +40,8 @@ export type ForYouState = {
 
 // ---------- Search ----------
 
+export type CentroidMode = 'centroid' | 'sample';
+
 export type SearchParams = {
   positives?: string[];
   negatives?: string[];
@@ -51,6 +53,14 @@ export type SearchParams = {
   offset?: number;
   /** When set, queries the centroid search endpoint. */
   centroid?: string;
+  /**
+   * Retrieval mode for centroid searches. Only meaningful when
+   * `centroid` is also set. `centroid` (default) uses the full
+   * mean of the seed set; `sample` picks a random K-subset and
+   * uses the mean of THAT subset, re-rolled per request. The
+   * backend's static .pt centroids reject `sample` with 400.
+   */
+  centroidMode?: CentroidMode;
   /** Restrict to one or more `collection` payload values. Empty/undefined = whole library. */
   collections?: string[];
 };
@@ -72,6 +82,11 @@ export function search(params: SearchParams, signal?: AbortSignal) {
   }
   if (params.limit !== undefined) qs.set('limit', String(params.limit));
   if (params.offset !== undefined) qs.set('offset', String(params.offset));
+  if (params.centroid && params.centroidMode) {
+    // Only attach `mode=` for centroid searches — /api/search
+    // doesn't accept it, and a stray `?mode=` there would 400.
+    qs.set('mode', params.centroidMode);
+  }
   const base = params.centroid
     ? `/api/centroids/${encodeURIComponent(params.centroid)}/search`
     : '/api/search';

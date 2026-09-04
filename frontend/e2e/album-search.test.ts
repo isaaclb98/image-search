@@ -29,13 +29,22 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
     await expect(page.locator('h1', { hasText: 'Albums' })).toBeVisible();
 
-    // Every system card AND every user album card has a Search button.
+    // Every system card AND every user album card has a Search
+    // AND a Surprise button (round-34). Both share the
+    // .search-btn class — the data-mode attribute is the
+    // discriminator: Search has none, Surprise is data-mode="sample".
     const cards = page.locator('article.card');
     const cardCount = await cards.count();
     expect(cardCount).toBeGreaterThan(0);
 
-    const searchButtons = page.locator('article.card button.search-btn');
+    const searchButtons = page.locator(
+      'article.card button.search-btn:not([data-mode])'
+    );
+    const surpriseButtons = page.locator(
+      'article.card button.search-btn[data-mode="sample"]'
+    );
     await expect(searchButtons).toHaveCount(cardCount);
+    await expect(surpriseButtons).toHaveCount(cardCount);
 
     // Every Search button has a data-centroid attribute so the
     // wire shape is visible to the test harness (and to humans
@@ -56,7 +65,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const likesButton = page.locator(
-      'article.system-like button.search-btn[data-centroid="likes"]'
+      'article.system-like button.search-btn:not([data-mode])[data-centroid="likes"]'
     );
     // Skip when Likes is empty — button is disabled.
     if (await likesButton.isDisabled()) {
@@ -95,7 +104,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const btn = page.locator(
-      'article.system-dislike button.search-btn[data-centroid="dislikes"]'
+      'article.system-dislike button.search-btn:not([data-mode])[data-centroid="dislikes"]'
     );
     if (await btn.isDisabled()) {
       test.skip(true, 'Dislikes album is empty');
@@ -124,7 +133,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const btn = page.locator(
-      'article.system-dislike button.search-btn[data-centroid="dislikes"]'
+      'article.system-dislike button.search-btn:not([data-mode])[data-centroid="dislikes"]'
     );
     if (await btn.isDisabled()) {
       test.skip(true, 'Dislikes album is empty');
@@ -199,7 +208,7 @@ test.describe('album card Search button (round‑29)', () => {
 
     // Find any non-system album card whose Search button is enabled.
     const userBtn = page
-      .locator('article.card:not(.system-like):not(.system-dislike) button.search-btn[data-centroid^="album:"]:not([disabled])')
+      .locator('article.card:not(.system-like):not(.system-dislike) button.search-btn:not([data-mode])[data-centroid^="album:"]:not([disabled])')
       .first();
 
     if (await userBtn.count() === 0) {

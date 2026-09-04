@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_get"];
+        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
+        head: operations["album_download_zip_albums__album_id__download_zip_head"];
         patch?: never;
         trace?: never;
     };
@@ -676,13 +676,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_get"];
+        get: operations["favorites_download_zip_favorites_download_zip_head"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
         patch?: never;
         trace?: never;
     };
@@ -1227,7 +1227,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_get: {
+    album_download_zip_albums__album_id__download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1256,7 +1256,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_get_1: {
+    album_download_zip_albums__album_id__download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -1749,6 +1749,10 @@ export interface operations {
                 limit?: number;
                 /** @description offset into the full result set */
                 offset?: number;
+                /** @description Retrieval mode. 'centroid' (default) uses the full mean of the seed set. 'sample' picks a random K-subset of the seeds and uses the mean of THAT subset. Each request re-rolls, so refreshing surfaces a different cluster. */
+                mode?: string;
+                /** @description K for sample mode. Defaults to 10. Only used when mode=sample. */
+                sample_k?: number;
             };
             header?: never;
             path: {
@@ -2454,7 +2458,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get: {
+    favorites_download_zip_favorites_download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -2472,7 +2476,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get_1: {
+    favorites_download_zip_favorites_download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;
