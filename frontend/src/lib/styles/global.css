@@ -77,13 +77,11 @@ input, textarea {
   box-shadow: var(--shadow-glass-strong);
 }
 
-/* For dialog/dropdown content. Bumped opacity to 0.88 so the menu
-   stays legible over light/bright photo backdrops (round-32 UX
-   feedback: a 0.55 wash over a white photo was unreadable). The
-   backdrop-filter is still in play for ambient atmosphere but the
-   fill is now solid enough that the text always reads. */
+/* For dialog/dropdown content. Lighter blur than .glass-strong
+   because dropdowns sit on more visual content; the blur budget
+   per pixel is lower. */
 .glass-dialog {
-  background: rgba(14, 15, 20, 0.88);
+  background: rgba(14, 15, 20, 0.55);
   backdrop-filter: var(--glass-dialog);
   -webkit-backdrop-filter: var(--glass-dialog);
   border: 1px solid var(--glass-edge);
