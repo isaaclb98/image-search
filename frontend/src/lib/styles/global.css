@@ -81,6 +81,26 @@ input, textarea {
   outline-offset: 2px;
   border-radius: var(--r-1);
 }
+
+/* Round-6: View Transitions API crossfade between routes.
+   Activated when SvelteKit's `viewTransition: true` is set
+   in svelte.config.js. The browser's default crossfade is
+   hard-cut with no easing — we add easing + a shorter duration
+   so navigation feels like a native app swap, not a flash.
+
+   ::view-transition-old(root) — the outgoing page's root
+   ::view-transition-new(root) — the incoming page's root
+
+   Both default to a 250 ms crossfade. We shave that to 200 ms
+   for snappiness; the user has already seen "loading…" by the
+   time the transition fires (preload-data="hover" pre-fetches
+   the next route). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 @layer components {
   .glass-tint {
     position: relative;

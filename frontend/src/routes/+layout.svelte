@@ -6,11 +6,47 @@
   import ScrollToTop from '$lib/components/ScrollToTop.svelte';
   import Dialog from '$lib/components/Dialog.svelte';
   import { pageTint } from '$lib/stores/tint';
+  import { onNavigate } from '$app/navigation';
 
   let { children } = $props();
   // Svelte 5 reactive store binding: $pageTint tracks the writable value.
   // The store carries a photo URL (relative path) which the backdrop
   // element renders behind everything as a heavily blurred colour wash.
+
+  // Round-6: View Transitions API crossfade between routes.
+  // Wraps `goto()` and `<a>` navigations in
+  // `document.startViewTransition` so the browser paints the
+  // outgoing snapshot, runs the new route's render, then
+  // crossfades between them. Falls back to plain navigation
+  // on browsers without the API (Safari < 18.4, Firefox
+  // < 137).
+  //
+  // The transition only fires for same-origin navigations —
+  // external links and form submits skip it. The CSS rules
+  // for ::view-transition-old(root) / ::view-transition-new(root)
+  // in global.css drive the actual animation.
+  onNavigate((navigation) => {
+    if (
+      typeof document === 'undefined' ||
+      typeof document.startViewTransition !== 'function'
+    ) {
+      return; // Browser doesn't support View Transitions.
+    }
+    // Returning a Promise makes SvelteKit wait for it before
+    // completing the navigation — this lets us wrap the
+    // transition around the actual route swap.
+    return new Promise((resolve) => {
+      // Fire the transition. The browser snapshots the
+      // current DOM, then swaps to the new route's DOM once
+      // SvelteKit completes the navigation.
+      document.startViewTransition!(async () => {
+        resolve();
+        // Wait for SvelteKit to finish the navigation
+        // (it does this when our promise resolves).
+        await navigation.complete;
+      });
+    });
+  });
 </script>
 
 <div class="app-shell" class:has-tint={$pageTint}>
