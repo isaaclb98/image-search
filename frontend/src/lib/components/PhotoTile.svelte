@@ -127,9 +127,28 @@
   let eagerSrcset = $derived(
     `${thumbUrl(pointId, 120)} 120w, ${thumbUrl(pointId, 180)} 180w, ${thumbUrl(pointId, 240)} 240w`
   );
-  let eagerSizes = $derived(
-    '(max-width: 600px) 120px, (max-width: 1200px) 180px, 240px'
-  );
+  // Sizes attribute must reflect the actual rendered tile width
+  // so the browser picks the right srcset entry. Without this,
+  // `sizes` was hardcoded to "240px" on every viewport, so the
+  // browser always picked the 240w variant — over-fetching on
+  // mobile (a 120px-wide tile still pulled 240w of pixels) and
+  // under-fetching on big monitors (a 480px-wide tile got only
+  // 240w of pixels, blurry at 2x DPR).
+  //
+  // We round the guessed tile size *up* to the nearest variant
+  // so the browser never picks a smaller variant than the
+  // advertised size — DPR-2 needs 2x source pixels for sharp
+  // rendering.
+  let eagerSizes = $derived.by(() => {
+    const w = tileSizeGuess() ?? 240;
+    // Pick the smallest variant >= w so the browser has enough
+    // pixels to render crisply at this DPR.
+    const variant = w <= 120 ? 120 : w <= 180 ? 180 : 240;
+    // Re-derive the breakpoint from `w`: below 600px viewport the
+    // tiles are ~120-180px, above that they're ~240px, above
+    // 1200px they grow further (capped at our 240 variant).
+    return `(max-width: 600px) ${Math.min(variant, 120)}px, (max-width: 1200px) ${Math.min(variant, 180)}px, ${variant}px`;
+  });
 </script>
 
 <a
