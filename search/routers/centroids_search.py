@@ -32,6 +32,23 @@ behaviours:
    rare edge (the alternative — refetching with a larger limit
    until we have enough — introduces its own failure mode).
 
+3. **Sample-centroid mode (round-34, `?mode=sample`).** When
+   `mode=sample` is set on a dynamic centroid, the route picks
+   a fresh random K-subset of the seed set and searches
+   against the mean of THAT subset, instead of the full mean.
+   Each request gets a fresh sample — there's no per-user
+   cache, so refreshing the home page or re-issuing the query
+   surfaces a different cluster centroid each time. This is
+   how the "Surprise me" button on /albums avoids the stuck
+   feel of the deterministic centroid.
+
+   Static `.pt` centroids reject `mode=sample` with 400 — they
+   have no source population to sample from (a `.pt` file is
+   already a single precomputed vector). The mode param is
+   silently ignored for the static case if the request would
+   otherwise succeed; the route's 400 path is reserved for
+   the explicit-ask case where a static centroid was named.
+
 Tests pin:
 - 404 for unknown centroid names.
 - 404 for "loaded but empty" dynamic centroids (the empty-state
@@ -64,9 +81,21 @@ from search.centroids import (
     calibrate_near_dup_threshold,
     filter_near_duplicates,
 )
+from search.centroids_compute import (
+    DEFAULT_SAMPLE_K,
+    sample_centroid,
+)
 from search.models import SearchResponse, SearchResult
 
 logger = logging.getLogger(__name__)
+
+
+# Round‑34: ?mode= discriminator for the search route. Static
+# `.pt` centroids have no source population to sample from, so
+# they 400 on `mode=sample` rather than silently doing the same
+# thing as `mode=centroid`. Dynamic centroids (likes, dislikes,
+# album:{id}) accept both.
+_VALID_MODES = frozenset({"centroid", "sample"})
 
 
 def build_centroids_search_router(
@@ -94,12 +123,37 @@ def build_centroids_search_router(
         request: Request,
         limit: int = Query(cfg.top_k_default, description="max results"),
         offset: int = Query(0, description="offset into the full result set"),
+        mode: str = Query(
+            "centroid",
+            description=(
+                "Retrieval mode. 'centroid' (default) uses the full mean "
+                "of the seed set. 'sample' picks a random K-subset of the "
+                "seeds and uses the mean of THAT subset. Each request "
+                "re-rolls, so refreshing surfaces a different cluster."
+            ),
+        ),
+        sample_k: int = Query(
+            DEFAULT_SAMPLE_K,
+            description=(
+                "K for sample mode. Defaults to "
+                f"{DEFAULT_SAMPLE_K}. Only used when mode=sample."
+            ),
+        ),
     ) -> SearchResponse:
         """Search using a loaded centroid as the query vector."""
         if centroid_store is None:
             raise HTTPException(
                 status_code=503, detail="centroid store not initialized",
             )
+        # Validate the mode param up-front so a typo doesn't silently
+        # behave like the default. The centroid source check below
+        # narrows the rejection further (static .pt rejects sample).
+        if mode not in _VALID_MODES:
+            return bad_request(
+                f"mode must be one of {sorted(_VALID_MODES)}, got {mode!r}"
+            )  # type: ignore[return-value]
+        if sample_k <= 0:
+            return bad_request("sample_k must be > 0")  # type: ignore[return-value]
         # Look up static first; fall back to dynamic (registry does
         # lazy compute + cache). This keeps the route's contract
         # the same regardless of which backend the centroid came from.
@@ -118,15 +172,67 @@ def build_centroids_search_router(
         seed_ids: list[str] = []
         static_spec = centroid_store.get(name)
         if static_spec is not None:
+            # Sample mode requires a source population. A static
+            # `.pt` centroid is a single precomputed vector — the
+            # "subset" would be the same as the whole, and a 400
+            # is clearer than silently behaving like centroid mode.
+            if mode == "sample":
+                return bad_request(  # type: ignore[return-value]
+                    f"mode=sample is not available for static centroid "
+                    f"{name!r}; only dynamic (album/likes/dislikes) "
+                    f"centroids have a source population to sample from"
+                )
             vector = static_spec.vector
             centroid_name = static_spec.name
         elif dynamic_centroids is not None:
             dyn = dynamic_centroids.get_vector(name)
             dyn_spec = dynamic_centroids.get_spec(name)
             if dyn is not None:
-                vector, _, seed_ids = dyn
+                full_vector, _n_images, full_seed_ids = dyn
                 if dyn_spec is not None:
                     centroid_name = dyn_spec.name
+                if mode == "sample":
+                    # Round-34: re-pick a fresh K-subset and search
+                    # against the mean of THAT subset, instead of the
+                    # full mean. We pull the seed vectors from Qdrant
+                    # (the registry stored ids but not vectors, since
+                    # the existing centroid path doesn't need them
+                    # after compute). No per-request cache: each call
+                    # re-rolls, so refreshing the home page surfaces a
+                    # different cluster each time.
+                    if not full_seed_ids:
+                        return bad_request(  # type: ignore[return-value]
+                            f"centroid {name!r} has no seed ids; "
+                            f"sample mode requires a non-empty source set"
+                        )
+                    seed_pairs = qdrant.retrieve_batch_with_vectors(
+                        full_seed_ids,
+                    )
+                    picked_ids: list[str] = []
+                    picked_vecs: list[list[float]] = []
+                    for pid, vec in seed_pairs:
+                        if not vec:
+                            continue
+                        picked_ids.append(pid)
+                        picked_vecs.append(vec)
+                    if not picked_vecs:
+                        return bad_request(  # type: ignore[return-value]
+                            f"could not retrieve seed vectors for "
+                            f"centroid {name!r}"
+                        )
+                    vector, picked_count, picked_seed_ids = sample_centroid(
+                        picked_ids, picked_vecs, k=sample_k,
+                    )
+                    # Use the picked subset as the exclude list so
+                    # the results don't echo back the sample itself.
+                    # (The full centroid path excludes the FULL seed
+                    # set; here the picked set IS what the centroid
+                    # is "about", so excluding it is the analogous
+                    # behaviour.)
+                    seed_ids = picked_seed_ids
+                else:
+                    vector = full_vector
+                    seed_ids = full_seed_ids
             else:
                 # Distinguish "unknown name" from "known but empty":
                 # the empty case surfaces a 404 too (treated as

@@ -44,6 +44,13 @@
 
   const PAGE = GRID_PAGE_SIZE;
 
+  // Round‑34: sample-centroid K. Mirrors the backend default
+  // (`DEFAULT_SAMPLE_K` in `search/centroids_compute.py`).
+  // Surface this constant in the home-page header so the
+  // "Sample mode — based on a random N photos" copy stays
+  // honest if the backend default ever changes.
+  const SAMPLE_K = 10;
+
   // Composer state (hoisted from SearchComposer).
   let positives = $state<string[]>([]);
   let negatives = $state<string[]>([]);
@@ -73,6 +80,14 @@
   // sets this on mount; writing back to URL is suppressed.
   let activeCentroid = $state<string | null>(null);
 
+  // Round‑34: sample-centroid mode flag. Only meaningful when
+  // `activeCentroid` is also set — the home page reads `?mode=`
+  // alongside `?centroid=` and forwards it to /api/centroids/...
+  // /search. The "Surprise me" button on /albums writes both
+  // params; the album-detail page or other callers don't
+  // currently set this.
+  let centroidMode = $state<'centroid' | 'sample'>('centroid');
+
   function readFromUrl() {
     const q = $page.url.searchParams;
     positives = q.getAll('positives');
@@ -83,6 +98,14 @@
     collections = q.getAll('collections');
     filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto';
     activeCentroid = q.get('centroid');
+    // Validate the mode param — anything other than the two
+    // known values is treated as the default so a stale or
+    // hand-edited URL doesn't 400 the page. The backend
+    // validates again, but tolerating bad input here keeps the
+    // UX forgiving.
+    const rawMode = q.get('mode');
+    centroidMode =
+      rawMode === 'sample' || rawMode === 'centroid' ? rawMode : 'centroid';
   }
 
   function writeToUrl() {
@@ -164,6 +187,15 @@
           limit: PAGE,
           offset: 0,
           centroid: activeCentroid ?? undefined,
+          // Only forward `centroidMode` when actually in a
+          // centroid search — the bare /api/search endpoint
+          // doesn't accept `mode=` and would 400. The endpoint
+          // also defaults to 'centroid' when omitted, so omitting
+          // is the safe choice for non-centroid paths.
+          centroidMode:
+            activeCentroid && centroidMode === 'sample'
+              ? 'sample'
+              : 'centroid',
           collections: collections.length ? collections : undefined
         },
         ctrl.signal
@@ -188,6 +220,8 @@
         diversityMode, diversityDepth,
         limit: PAGE, offset,
         centroid: activeCentroid ?? undefined,
+        centroidMode:
+          activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
         collections: collections.length ? collections : undefined
       });
       const more = (res?.results ?? []) as Item[];
@@ -286,11 +320,24 @@
   {/if}
   {#if activeCentroid}
     <!-- Round‑29: search-by-album mode hides the prompt composer.
-         The album's centroid IS the query; there's nothing to type. -->
+         The album's centroid IS the query; there's nothing to type.
+         Round‑34: when in sample mode (from /albums "Surprise me"
+         button), surface the active mode so the user knows why
+         results are different from the deterministic centroid. -->
     <h1>Searching by album</h1>
     <p class="sub">
-      Showing the photos closest to the average of <code>{activeCentroid}</code>.
-      <a href="/albums" class="back-link">← Back to albums</a>
+      {#if centroidMode === 'sample'}
+        Sample mode — based on a random {SAMPLE_K} photos from <code>{activeCentroid}</code>.
+        Refresh to re-roll, or
+        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}" class="back-link">
+          switch back to the full mean
+        </a>.
+      {:else}
+        Showing the photos closest to the average of <code>{activeCentroid}</code>.
+        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}&mode=sample" class="surprise-link">
+          Surprise me
+        </a> · <a href="/albums" class="back-link">← Back to albums</a>
+      {/if}
     </p>
   {:else}
     <h1>Find photos by what they look like.</h1>
@@ -416,6 +463,15 @@
     transition: color var(--t-fast);
   }
   .back-link:hover { color: var(--fg-1); }
+  /* Round‑34: "Surprise me" link in the album-search header. Same
+     colour as .back-link so the two actions read as siblings,
+     but no extra margin (the `·` separator handles the gap). */
+  .surprise-link {
+    color: var(--fg-2);
+    text-decoration: none;
+    transition: color var(--t-fast);
+  }
+  .surprise-link:hover { color: var(--fg-1); }
   .results { margin-top: 8px; }
   .error {
     padding: 14px 18px;

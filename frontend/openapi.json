@@ -910,7 +910,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
         "parameters": [
           {
             "in": "path",
@@ -941,7 +941,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
         "parameters": [
           {
             "in": "path",
@@ -1235,7 +1235,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max members to return",
               "title": "Limit",
               "type": "integer"
@@ -1525,7 +1525,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max results",
               "title": "Limit",
               "type": "integer"
@@ -1540,6 +1540,30 @@
               "default": 0,
               "description": "offset into the full result set",
               "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Retrieval mode. 'centroid' (default) uses the full mean of the seed set. 'sample' picks a random K-subset of the seeds and uses the mean of THAT subset. Each request re-rolls, so refreshing surfaces a different cluster.",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "centroid",
+              "description": "Retrieval mode. 'centroid' (default) uses the full mean of the seed set. 'sample' picks a random K-subset of the seeds and uses the mean of THAT subset. Each request re-rolls, so refreshing surfaces a different cluster.",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "description": "K for sample mode. Defaults to 10. Only used when mode=sample.",
+            "in": "query",
+            "name": "sample_k",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "K for sample mode. Defaults to 10. Only used when mode=sample.",
+              "title": "Sample K",
               "type": "integer"
             }
           }
@@ -1596,7 +1620,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max dislikes",
               "title": "Limit",
               "type": "integer"
@@ -1732,7 +1756,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max favourites",
               "title": "Limit",
               "type": "integer"
@@ -2052,7 +2076,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max results",
               "title": "Limit",
               "type": "integer"
@@ -2328,7 +2352,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max results",
               "title": "Limit",
               "type": "integer"
@@ -2476,7 +2500,7 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
+              "default": 28,
               "description": "max similar photos to return",
               "maximum": 200,
               "minimum": 1,
@@ -2588,7 +2612,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get",
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2597,7 +2621,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
         "responses": {
           "200": {
             "description": "Successful Response"

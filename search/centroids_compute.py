@@ -162,6 +162,97 @@ def calibrate_near_dup_threshold(seed_vectors: list[list[float]] | None) -> floa
 _MAX_NEAR_DUP_THRESHOLD = 0.02
 
 
+# Round‑34: default K for sample-centroid retrieval. Picked as a
+# small enough fraction of typical "Likes" sets (50–500) that the
+# subset is genuinely informative, but large enough that the mean
+# of K is still a meaningful centroid. 10 is the constant the
+# product spec calls out; routes can override per-request.
+DEFAULT_SAMPLE_K = 10
+
+
+def sample_centroid(
+    seed_ids: list[str],
+    vectors: list[list[float]],
+    k: int = DEFAULT_SAMPLE_K,
+    *,
+    seed: int | None = None,
+) -> tuple[list[float], int, list[str]]:
+    """Pick a random K-subset of (seed_ids, vectors) and return its mean.
+
+    Returns `(centroid, picked_count, picked_seed_ids)`:
+      - `centroid`: unit-length mean of the K selected vectors,
+        ready to be passed straight to a Qdrant cosine search.
+      - `picked_count`: how many vectors actually contributed
+        (≤ k, ≤ len(vectors)). Equals len(vectors) when the
+        input is shorter than k — see fallback note.
+      - `picked_seed_ids`: the point ids of the selected vectors,
+        in the same order as the rows of the centroid. The route
+        uses this for the `must_not` exclude-ids filter so the
+        results don't echo the sample back at the user, and the
+        frontend can render the "based on N random photos" copy
+        with the actual list.
+
+    Fallback: when `len(vectors) <= k` (typical for very small
+    albums, ≤ k likes) we don't over-sample with replacement —
+    sample_with_replacement would weight duplicates and skew
+    the mean. The whole input is used instead and `picked_count`
+    reflects that. This keeps the behaviour consistent with
+    "sample mode" being a no-op for tiny populations, rather
+    than a different algorithm.
+
+    Determinism: pass `seed=int` to make the selection
+    reproducible (used by unit tests). Without a seed we use
+    the module-level `random` RNG, which is fine for production
+    where each request wants a fresh sample.
+    """
+    n = len(vectors)
+    if n == 0:
+        raise ValueError("sample_centroid requires at least one vector")
+    if k <= 0:
+        raise ValueError(f"k must be > 0, got {k}")
+    if len(seed_ids) != n:
+        raise ValueError(
+            f"seed_ids/vectors length mismatch: "
+            f"{len(seed_ids)} ids vs {n} vectors"
+        )
+
+    import random
+
+    if n <= k:
+        # Fallback: use the whole input. Don't dedupe — the
+        # caller already passed a unique-id list.
+        chosen_indices = list(range(n))
+    else:
+        rng = random.Random(seed) if seed is not None else random
+        # sample(population, k) without replacement — equivalent
+        # to random.sample(range(n), k) but spelled out so the
+        # intent is obvious in code review.
+        chosen_indices = rng.sample(range(n), k)
+
+    selected_vecs = [vectors[i] for i in chosen_indices]
+    selected_ids = [seed_ids[i] for i in chosen_indices]
+
+    arr = np.asarray(selected_vecs, dtype=np.float32)
+    if arr.ndim != 2:
+        # Defensive: callers should pass list[list[float]].
+        raise ValueError(
+            f"expected 2D vector matrix, got shape {arr.shape}"
+        )
+    centroid = arr.mean(axis=0)
+    norm = float(np.linalg.norm(centroid))
+    if norm == 0:
+        # Should be impossible with real embeddings, but if a
+        # caller passes all-zero vectors we'd otherwise return
+        # a zero vector that Qdrant silently ranks at 0.0.
+        # Surface it instead.
+        raise ValueError(
+            "sample centroid collapsed to zero — all input vectors "
+            "appear to be zero"
+        )
+    centroid = (centroid / norm).tolist()
+    return (centroid, len(chosen_indices), selected_ids)
+
+
 def filter_near_duplicates(
     candidate_vectors: list[list[float]],
     seed_vectors: list[list[float]],
