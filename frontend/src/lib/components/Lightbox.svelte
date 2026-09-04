@@ -6,6 +6,19 @@
    *   - background blurs + tints from the current photo
    *   - "Most similar" navigates to /similar/{id} (closes itself)
    *
+   * Slideshow: a Play/Pause button in the action bar starts
+   * auto-advance from the currently-shown photo. The cadence
+   * comes from the user's preference (see stores/preferences.ts,
+   * surfaced on the Settings page) so it stays consistent across
+   * sessions. Wrap-around is on while playing — Prev from the
+   * first photo lands on the last — and off when paused so
+   * manual nav respects the existing boundaries. Manual nav
+   * (chevrons, ←/→, A/D) also pauses the timer, so a quick
+   * back-step never has the photo "skip past" the user's click.
+   * Press Space to toggle Play/Pause from anywhere in the
+   * lightbox (unless a button is focused, in which case Space
+   * activates that button naturally).
+   *
    * Photo bytes come from /photo/{id}/raw?w=N — the server does a
    * Lanczos downsample and serves the cached JPEG. This avoids the
    * quality loss of letting the browser scale a 12 MP source down
@@ -18,6 +31,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
+  import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
   import ActionButton from './ActionButton.svelte';
@@ -59,7 +73,14 @@
      *  "Add to album" submenu (round-5). */
     albums?: { id: number; name: string }[];
   };
-  let { items, index, onClose, onToggleFavorite, onDislike, albums }: Props = $props();
+  let {
+    items,
+    index,
+    onClose,
+    onToggleFavorite,
+    onDislike,
+    albums
+  }: Props = $props();
 
   let idx = $state(index);
   // Clamp `idx` to a valid range only when it's actually out of
@@ -188,6 +209,50 @@
     return items[idx] ?? null;
   }
 
+  /* Slideshow state. The Play/Pause button in the action bar is
+     always present when there's more than one photo to cycle
+     through, and the timer starts idle — the user has to opt in
+     by pressing Play. Auto-play on open would be jarring: the
+     lightbox pops in, then 4 seconds later starts moving on its
+     own with no visual indicator until the timer first fires.
+     Explicit Play also sidesteps prefers-reduced-motion entirely
+     (the user who cares about motion sensitivity just won't hit
+     the button). `pausedByUser` tracks whether the user has
+     explicitly paused vs. the timer just being unstarted, which
+     is currently only used to keep the button label honest when
+     items shrink to a single entry mid-playback. */
+  let playing = $state(false);
+  let pausedByUser = $state(false);
+
+  // Stop the timer if there's nothing to advance through (single
+  // item or empty). Reactive on `items.length` so a re-load that
+  // shrinks the set gracefully settles into "no auto-advance".
+  $effect(() => {
+    if (items.length <= 1) playing = false;
+  });
+
+  // Auto-advance. Effect re-runs whenever `playing` flips or the
+  // cadence changes, so toggling Play/Pause restarts cleanly and
+  // the user can change the interval from Settings mid-playback
+  // (next tick picks it up). `idx` reads inside the tick because
+  // each fire advances the index; we don't want `idx` itself to
+  // be a dependency (that would re-create the interval every
+  // photo and never advance).
+  $effect(() => {
+    if (!playing) return;
+    const intervalMs = $preferences.slideshowIntervalMs;
+    const id = setInterval(() => {
+      if (items.length === 0) return;
+      idx = (idx + 1) % items.length;
+    }, intervalMs);
+    return () => clearInterval(id);
+  });
+
+  function togglePlay() {
+    playing = !playing;
+    pausedByUser = !playing;
+  }
+
   // Re-run the photo-dependent effects whenever the current photo
   // changes (lightbox navigation, photo prop change). Tint is the
   // ambient background blur; memberOf is the add-to-album
@@ -206,16 +271,62 @@
   });
 
   function prev() {
-    if (idx > 0) idx -= 1;
+    // Snapshot the playing flag before mutating it. We want
+    // wrap-around in two cases: (a) the slideshow is currently
+    // running, and (b) the user just paused it via this very
+    // click — they're still mid-slideshow mentally, so looping
+    // to the previous photo is the intuitive continuation.
+    // Outside that window, respect the pre-slideshow boundary
+    // (prev disabled at the first photo).
+    const wasPlaying = playing;
+    if (playing) playing = false;
+    if (!wasPlaying) {
+      if (idx > 0) idx -= 1;
+      return;
+    }
+    if (items.length === 0) return;
+    idx = (idx - 1 + items.length) % items.length;
   }
   function next() {
-    if (idx < items.length - 1) idx += 1;
+    const wasPlaying = playing;
+    if (playing) playing = false;
+    if (!wasPlaying) {
+      if (idx < items.length - 1) idx += 1;
+      return;
+    }
+    if (items.length === 0) return;
+    idx = (idx + 1) % items.length;
   }
 
   function onKey(e: KeyboardEvent) {
+    // ArrowLeft/ArrowRight and Escape always run, regardless of
+    // what's focused — they're navigation, not activation.
     if (e.key === 'Escape') onClose();
     else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') prev();
     else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
+    else if (e.key === ' ' || e.code === 'Space') {
+      // Space natively activates focused buttons. If we also
+      // fire togglePlay() here, the synthetic click from the
+      // button + our handler would net out to no-op and the
+      // timer would never start. So skip our handler when a
+      // button is focused and let the browser fire the click
+      // naturally. ArrowLeft/Right don't have this issue since
+      // browsers don't fire synthetic clicks for them on
+      // buttons.
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') {
+        return;
+      }
+      // Toggle the slideshow. Only meaningful when there's more
+      // than one photo to cycle through (the same gate the
+      // button uses to render itself). preventDefault stops
+      // Space from also scrolling the page underneath the
+      // lightbox — body overflow is hidden anyway, but
+      // belt-and-braces against future layout changes.
+      if (items.length >= 2) {
+        e.preventDefault();
+        togglePlay();
+      }
+    }
   }
   onMount(() => {
     const prevOverflow = document.body.style.overflow;
@@ -249,7 +360,7 @@
       class="nav prev"
       type="button"
       onclick={prev}
-      disabled={idx === 0}
+      disabled={!playing && idx === 0}
       aria-label="Previous"
     >
       <Icon name="chevron-left" size={22} />
@@ -264,7 +375,7 @@
       class="nav next"
       type="button"
       onclick={next}
-      disabled={idx === items.length - 1}
+      disabled={!playing && idx === items.length - 1}
       aria-label="Next"
     >
       <Icon name="chevron-right" size={22} />
@@ -273,6 +384,15 @@
 
   <div class="bar glass-strong" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
       <span class="count">{idx + 1} / {items.length}</span>
+      {#if items.length >= 2}
+        <ActionButton
+          onclick={togglePlay}
+          title={playing ? 'Pause slideshow (Space)' : 'Play slideshow (Space)'}
+          ariaPressed={playing ? 'true' : 'false'}
+        >
+          <Icon name={playing ? 'pause' : 'play'} size={14} />
+        </ActionButton>
+      {/if}
       <ActionButton
         onclick={toggleFavorite}
         title="Like"

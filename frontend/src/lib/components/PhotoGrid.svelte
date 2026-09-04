@@ -421,7 +421,7 @@
 <style>
   .grid-wrapper {
     /* Body is the scroll context. The grid is in normal flow; only
-       virtual rows the user is looking at are rendered. */
+       virtual rows the user are looking at are rendered. */
     width: 100%;
   }
 
