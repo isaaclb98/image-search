@@ -260,11 +260,28 @@ export function listAlbums() {
   });
 }
 
-export function getAlbum(albumId: number | string) {
-  return apiGet<unknown>(`/api/albums/${albumId}`, {
-    schema: Z.AlbumDetailResponse,
-    schemaName: 'AlbumDetailResponse'
-  });
+/**
+ * Fetch a single album's metadata + members, with optional
+ * limit/offset for pagination. The album detail page walks the
+ * members in batches of GRID_PAGE_SIZE so very large albums
+ * (hundreds/thousands of photos) still render quickly.
+ *
+ * The backend's AlbumDetailResponse carries `member_total` so
+ * callers can compare against the running member count to drive
+ * their own `has_more` flag.
+ */
+export function getAlbum(
+  albumId: number | string,
+  limit: number = GRID_PAGE_SIZE,
+  offset: number = 0,
+) {
+  return apiGet<unknown>(
+    `/api/albums/${albumId}?limit=${limit}&offset=${offset}`,
+    {
+      schema: Z.AlbumDetailResponse,
+      schemaName: 'AlbumDetailResponse'
+    }
+  );
 }
 
 export async function createAlbum(body: { name: string; description?: string }) {

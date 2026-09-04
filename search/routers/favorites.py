@@ -142,12 +142,15 @@ def build_favorites_router(
         ),
     ):
         # Manual validation so we return 400 (not 422) for bad input.
+        # No upper cap on limit — Likes albums can grow arbitrarily
+        # large and the caller (frontend) walks them via
+        # ?limit=&offset= pagination, not "ask for everything once".
         try:
             limit = int(limit)
         except (TypeError, ValueError):
             return _bad_request_json("limit must be an integer")
-        if not (1 <= limit <= 1000):
-            return _bad_request_json("limit must be in [1, 1000]")
+        if limit < 1:
+            return _bad_request_json("limit must be >= 1")
         try:
             offset = int(offset)
         except (TypeError, ValueError):

@@ -309,7 +309,20 @@
   /* Menu lives at document.body via the portal action. CSS
      `position: fixed` is still correct there because no ancestor
      between the portal root and the menu has transform / filter /
-     contain / backdrop-filter (the whole point of the portal). */
+     contain / backdrop-filter (the whole point of the portal).
+
+     Long-item menu support: cap the menu's height so a popover
+     with many items (e.g. the lightbox's "Add to album" with
+     dozens of user albums) doesn't overflow the viewport. The
+     inner list scrolls while the menu itself stays anchored.
+     `max-height` is a viewport-relative 60vh so the menu never
+     grows taller than ~60% of the window — enough for several
+     rows without forcing the user to chase it down the page.
+     `min-height: 0` is required on the flex parent so the
+     `overflow-y: auto` actually shrinks the list rather than
+     expanding the menu past the cap. `overscroll-behavior:
+     contain` keeps overscroll from leaking into the page scroll
+     behind the menu. */
   .menu {
     position: fixed;
     display: flex;
@@ -320,6 +333,10 @@
     z-index: 510;
     box-shadow: var(--shadow-2);
     animation: dd-fade var(--t-fast) var(--ease-out);
+    max-height: 60vh;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   @keyframes dd-fade {
     from { opacity: 0; transform: translateY(4px); }

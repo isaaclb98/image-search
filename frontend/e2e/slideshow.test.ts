@@ -218,9 +218,11 @@ test('Settings page exposes the slideshow duration presets', async ({
   const radiogroup = page.locator('[role="radiogroup"][aria-label="Slideshow photo duration"]');
   await expect(radiogroup).toBeVisible({ timeout: 5_000 });
 
-  // Five preset chips, default 3s selected.
+  // Six preset chips (1s, 3s, 5s, 10s, 20s, 30s), default 3s
+  // selected. The 1s preset was added in this round so the user
+  // can pin a fast cadence for quick browsing.
   const presets = radiogroup.locator('button.preset');
-  await expect(presets).toHaveCount(5);
+  await expect(presets).toHaveCount(6);
 
   // The default (3s) starts active — aria-checked reflects the
   // current setting and data-active drives the visual highlight.

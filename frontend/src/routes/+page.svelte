@@ -274,15 +274,27 @@
     ) {
       await reload();
     }
-    // Round-31: surface a one-time prompt when the user has never
-    // indexed anything. Fire-and-forget — never blocks the search.
+    // Round-31: surface a one-time prompt when the library is
+    // empty so first-time users discover Settings → Index.
+    // Fire-and-forget — never blocks the search.
+    //
+    // "Empty" = the status endpoint reports `points_count === 0`.
+    // We deliberately DO NOT key off `last_run_at`: a fresh dev
+    // container that mounted pre-existing data has photos in the
+    // cache but has never run the indexer, and shouldn't nag.
+    // We also don't show the prompt when points_count is null
+    // (unknown): false-negatives on this banner are much less
+    // annoying than false-positives, so we assume "not empty"
+    // when we can't tell.
     try {
       const s = await fetch('/api/admin/index/status', {
         credentials: 'include'
       });
       if (s.ok) {
         const body = await s.json();
-        if (!body.last_run_at) indexIsEmpty = true;
+        if (typeof body.points_count === 'number' && body.points_count === 0) {
+          indexIsEmpty = true;
+        }
       }
     } catch {
       // ignore — admin endpoint may be unavailable in tests

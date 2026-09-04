@@ -92,8 +92,11 @@ def build_albums_router(
         album = await asyncio.to_thread(index_db.get_album, album_id)
         if album is None:
             raise HTTPException(status_code=404, detail="Album not found")
+        # No upper cap on limit — user albums can grow arbitrarily
+        # large and the caller (frontend) walks them via
+        # ?limit=&offset= pagination, not "ask for everything once".
         try:
-            limit = max(1, min(int(limit), 1000))
+            limit = max(1, int(limit))
         except (TypeError, ValueError):
             limit = cfg.top_k_default
         try:
