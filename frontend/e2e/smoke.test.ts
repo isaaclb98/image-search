@@ -183,14 +183,19 @@ test('Saved searches: save, pick reapplies prompts, delete removes', async ({ pa
   await waitFor(page, '.chip.pos', 8000);
 
   // Use a unique name so we don't collide with saved searches from
-  // other tests, then locate our entry by that name.
+  // other tests, then locate our entry by that name. Round 2
+  // migrated the Save action to the Svelte Dialog primitive —
+  // window.prompt no longer fires, so we type into the
+  // dialog's input directly.
   const uniqueName = `my-mountain-set-${Date.now()}`;
-  await page.evaluate((name) => {
-    (window as unknown as { prompt: (q: string) => string | null }).prompt = () => name;
-  }, uniqueName);
 
   // Click the Save button
   await page.getByTitle('Save current search').click();
+  // The prompt dialog opens; fill it and submit.
+  const promptInput = page.locator('input[id="dialog-prompt-input"]');
+  await promptInput.fill(uniqueName);
+  await page.locator('button:has-text("Save"):not([title])').last().click();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
 
   // Open the Saved dropdown and verify our name appears
   await page.getByTitle('Saved searches').click();
@@ -198,9 +203,13 @@ test('Saved searches: save, pick reapplies prompts, delete removes', async ({ pa
   const ourItem = page.locator('.pop .item-row').filter({ hasText: uniqueName });
   await expect(ourItem).toBeVisible({ timeout: 5000 });
 
-  // Delete our specific entry via the × button on its row
-  page.once('dialog', (d) => d.accept()); // confirm()
+  // Delete our specific entry via the × button on its row.
+  // Round 2: also a Svelte Dialog now — confirm via the
+  // Delete button inside the modal.
   await ourItem.locator('button.del, .del').first().click();
+  await expect(page.locator('[role="dialog"]')).toBeVisible();
+  await page.locator('button:has-text("Delete"):not([title])').click();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
 
   // After deletion our entry should be gone
   await expect(ourItem).toBeHidden({ timeout: 5000 });

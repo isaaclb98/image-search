@@ -85,30 +85,54 @@
     }
   }
 
+  // Round-9 perf: O(1) item lookup + update via shadow Map.
+  // Before this round, onToggleFavorite / onDislike used
+  // `items.find(...)` + `items.map(...)`, both O(n). For
+  // infinite-scrolled pages (1000+ items) every Like click
+  // walked the whole array twice. The Map mirrors `items`
+  // (id → index); updates stay O(1) as long as callers
+  // don't reorder / splice the array (they don't — we only
+  // push to the end or replace in-place).
+  let indexById = $state(new Map<string, number>());
+
+  // Append-only when `items` changes; rebuilds only when
+  // the array reference changes (after refresh / loadMore).
+  // The shadow Map is never mutated directly — always
+  // rebuilt from `items` so it can't drift.
+  $effect(() => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < items.length; i++) {
+      map.set(items[i].id, i);
+    }
+    indexById = map;
+  });
+
   async function onToggleFavorite(id: string) {
-    const it = items.find((x) => x.id === id);
-    const liked = it?.is_favorite ?? false;
+    const idx = indexById.get(id);
+    if (idx === undefined) return;
+    const liked = items[idx]?.is_favorite ?? false;
     try {
       if (liked) await unlikePoint(id);
       else await likePoint(id);
-      items = items.map((x) =>
-        x.id === id ? { ...x, is_favorite: !liked } : x
-      );
+      // O(1) replace — same array reference, one slot updated.
+      // Svelte 5 reactivity triggers because the inner object
+      // changes (we spread to a new object).
+      const next = items.slice();
+      next[idx] = { ...next[idx], is_favorite: !liked };
+      items = next;
     } catch {
       toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
   async function onDislike(id: string) {
+    const idx = indexById.get(id);
+    if (idx === undefined) return;
     try {
       await dislikePoint(id);
-      // No toast — silent. Visual feedback is on the button itself
-      // (the .action.neg.active style lights up to mirror Like).
-      // Mark the item as disliked so the button stays in the
-      // "pressed" state until the user navigates away.
-      items = items.map((x) =>
-        x.id === id ? { ...x, is_disliked: true } : x
-      );
+      const next = items.slice();
+      next[idx] = { ...next[idx], is_disliked: true };
+      items = next;
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }

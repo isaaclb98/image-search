@@ -304,14 +304,40 @@ def build_search_router(
             limit=limit,
             has_more=has_more,
         )
-        # ETag over the canonical query-string so the browser's
-        # If-None-Match on identical searches returns 304 (Tier 2.4).
-        etag = hashlib.sha256(
-            (q + "|" + ",".join(prompt_state.positives) + "|"
-             + ",".join(prompt_state.negatives) + "|"
-             + str(offset) + "|" + str(limit) + "|"
-             + ",".join(active_centroids) + "|" + view).encode("utf-8")
-        ).hexdigest()[:16]
+        # ETag over every field that can change the response so
+        # the browser's If-None-Match returns 304 only on truly
+        # identical searches (Tier 2.4). Earlier the hash missed
+        # filename/collections/diversity/weights — so a user
+        # toggling a filter or switching the filename pattern
+        # would get a 304 with the *wrong* response (the cached
+        # one from the unfiltered query). Including every
+        # variable that influences results_from_hits / diversity
+        # rerank / filename filtering makes the cache honest.
+        #
+        # Canonical form: `\x1f` (ASCII unit separator) between
+        # fields so a value containing `|` or `,` can't collide
+        # with a different field's value. Without this, a prompt
+        # of "a|b" would hash identically to two prompts "a"
+        # and "b" — silent cache poisoning.
+        etag_input = "\x1f".join(
+            [
+                q,
+                ",".join(prompt_state.positives),
+                ",".join(prompt_state.negatives),
+                str(offset),
+                str(limit),
+                ",".join(active_centroids),
+                ",".join(f"{w:.6f}" for w in (active_weights or [])),
+                view,
+                filename_pattern,
+                ",".join(collections),
+                diversity_mode,
+                f"{diversity_strength:.6f}",
+                diversity_depth_mode,
+                str(diversity_pool_depth),
+            ]
+        ).encode("utf-8")
+        etag = hashlib.sha256(etag_input).hexdigest()[:16]
         return JSONResponse(
             content=body.model_dump(),
             headers={

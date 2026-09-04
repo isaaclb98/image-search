@@ -31,8 +31,8 @@
    * useful to the user; removed. The page now only shows
    * Dimensions + Size.
    */
-  import { page } from '$app/stores';
   import { onMount } from 'svelte';
+  import type { PageData } from './$types';
   import {
     photoUrl,
     thumbUrl,
@@ -75,9 +75,20 @@
     dhash: string | null;
   };
 
-  let photo = $state<PhotoMeta | null>(null);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  // Photo is pre-populated by the +page.ts universal load
+  // function before this component renders. We keep it as a
+  // $state so Like/Dislike toggles can mutate it in-place
+  // (the optimistic UI); the load result is the seed.
+  let { data }: { data: PageData } = $props();
+  // The load function returns { photo: null, error: '...' }
+  // when the API 404s or errors. The placeholder.error block
+  // below handles that case; the rest of the component only
+  // runs when `photo` is non-null.
+  let photo = $state<PhotoMeta | null>(
+    (data.photo as PhotoMeta | null) ?? null
+  );
+  let loading = $state(false);
+  let errorMsg = $state<string | null>(data.error ?? null);
   let actionInFlight = $state(false);
   // Albums for the "Add to album" dropdown. Lazy-loaded on first
   // open so pages that never use the dropdown don't pay for the
@@ -93,48 +104,25 @@
   // if decoding fails (no blurhash, malformed, etc.).
   let blurTint = $state<string | null>(null);
 
-  async function load() {
-    const id = $page.params.id ?? '';
-    loading = true;
-    error = null;
-    try {
-      const res = await fetch(`/api/photo/${encodeURIComponent(id)}`, {
-        credentials: 'include'
-      });
-      if (res.status === 404) {
-        throw new Error('Photo not found');
-      }
-      if (!res.ok) {
-        throw new Error(`Failed to load photo (HTTP ${res.status})`);
-      }
-      const data = (await res.json()) as PhotoMeta;
-      photo = data;
-      // Decode blurhash off the critical path — the hero image
-      // covers it quickly anyway.
-      if (data.blurhash) {
-        blurhashToDataUrl(data.blurhash, 64, 40)
-          .then((url) => {
-            // Only apply if the photo hasn't changed (e.g. user
-            // navigated to a different one during decode).
-            if (photo && photo.id === data.id) {
-              blurTint = url;
-              // Round‑31: also push to the global pageTint store
-              // so +layout.svelte's backdrop picks up the colour
-              // wash behind the dedicated photo page.
-              pageTint.set(url);
-            }
-          })
-          .catch(() => {
-            /* leave blurTint null — the dark surface shows */
-          });
-      }
-    } catch (e: unknown) {
-      error = e instanceof Error ? e.message : 'Failed to load photo';
-    } finally {
-      loading = false;
+  // Blurhash decode runs on mount; the +page.ts load already
+  // pre-populated `photo`. We still need this for the pageTint
+  // backdrop effect — same logic as before, just kicked off
+  // by mount instead of the fetch.
+  onMount(() => {
+    const data = photo;
+    if (data?.blurhash) {
+      blurhashToDataUrl(data.blurhash, 64, 40)
+        .then((url) => {
+          if (url && photo && photo.id === data.id) {
+            blurTint = url;
+            pageTint.set(url);
+          }
+        })
+        .catch(() => {
+          /* leave blurTint null — the dark surface shows */
+        });
     }
-  }
-  onMount(load);
+  });
 
   async function toggleFavorite() {
     if (!photo || actionInFlight) return;
@@ -270,11 +258,9 @@
 </svelte:head>
 
 <main class="page">
-  {#if loading}
-    <div class="placeholder">Loading photo…</div>
-  {:else if error}
+  {#if errorMsg}
     <div class="placeholder error">
-      <p>{error}</p>
+      <p>{errorMsg}</p>
       <Button variant="ghost" href="/">Back to home</Button>
     </div>
   {:else if photo}

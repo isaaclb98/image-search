@@ -14,25 +14,31 @@ from search import config
 
 # ----- Variant lookup -----
 
-def test_default_variant_is_l16(monkeypatch):
-    """Default variant should be L/16-256 (1024-dim) when env unset."""
+def test_default_variant_is_so400m(monkeypatch):
+    """Default variant should be so400m/16-384 (1152-dim) when env unset.
+
+    As of the model-variant migration plan, so400m is the prod default;
+    L/16-256 is no longer the default — it's still registered and
+    selectable via SIGLIP_VARIANT=L/16-256, just not the default.
+    """
     monkeypatch.delenv("SIGLIP_VARIANT", raising=False)
     monkeypatch.delenv("MODEL_NAME", raising=False)
 
     variant = config.get_siglip_variant()
-    assert variant == "L/16-256"
+    assert variant == "so400m/16-384"
 
     model_name = config.get_model_name_for_variant(variant)
-    assert model_name == "ViT-L-16-SigLIP2-256"
+    assert model_name == "ViT-so400m-patch16-384"
 
     dim = config.get_vector_dim_for_variant(variant)
-    assert dim == 1024
+    assert dim == 1152
 
 
 @pytest.mark.parametrize("variant,expected_model,expected_dim", [
     ("B/16-256", "ViT-B-16-SigLIP2-256", 768),
     ("L/16-256", "ViT-L-16-SigLIP2-256", 1024),
     ("gopt/16-384", "ViT-gopt-16-SigLIP2-384", 1536),
+    ("so400m/16-384", "ViT-so400m-patch16-384", 1152),
 ])
 def test_all_known_variants(monkeypatch, variant, expected_model, expected_dim):
     """Each registered variant maps to the right model and dim."""
@@ -105,16 +111,25 @@ def test_get_vector_dim_uses_active_variant(monkeypatch):
 
 
 def test_siglip_variants_dict_is_complete():
-    """SIGLIP_VARIANTS dict should have exactly the 3 documented variants
+    """SIGLIP_VARIANTS dict should have all four documented variants
     with valid model names and positive dims."""
-    assert set(config.SIGLIP_VARIANTS.keys()) == {"B/16-256", "L/16-256", "gopt/16-384"}
+    assert set(config.SIGLIP_VARIANTS.keys()) == {
+        "B/16-256", "L/16-256", "gopt/16-384", "so400m/16-384",
+    }
     for variant, (model_name, dim) in config.SIGLIP_VARIANTS.items():
         assert isinstance(model_name, str)
         assert model_name.startswith("ViT-"), f"{variant}: bad model name {model_name!r}"
-        assert "SigLIP2" in model_name, f"{variant}: model is not SigLIP2"
+        # The so400m HF repo is named `timm/ViT-so400m-patch16-384`
+        # without a "SigLIP2" suffix (quirk of HF repo naming); the
+        # other three have "SigLIP2" in their HF repo names. Accept
+        # either, since `_CENTROID_MODEL_COMPAT` is what actually
+        # drives the model-family grouping.
+        assert ("SigLIP2" in model_name or "so400m" in model_name), (
+            f"{variant}: model {model_name!r} is not in the SigLIP2 family"
+        )
         assert isinstance(dim, int)
         assert dim > 0
-        assert dim in (768, 1024, 1536), f"{variant}: unexpected dim {dim}"
+        assert dim in (768, 1024, 1152, 1536), f"{variant}: unexpected dim {dim}"
 
 
 # ----- Variant persistence (data/siglip_variant.json) -----

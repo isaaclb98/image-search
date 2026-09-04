@@ -40,7 +40,10 @@ def build_thumbnails_router() -> APIRouter:
         # demand (that'd be a slow first-hit and burn disk) — instead
         # we look for a pre-generated sibling and 404 if it doesn't
         # exist so the browser falls back to the canonical 256px file.
-        w: int | None = Query(None, ge=64, le=256),
+        # Pre-migration cap was 256. The indexer now produces a
+        # single 384px variant (matches the so400m model input
+        # resolution), so the cap moves up to 384 to match.
+        w: int | None = Query(None, ge=64, le=384),
     ) -> FileResponse:
         """
         Serve a pre-generated WebP thumbnail, optionally sized.

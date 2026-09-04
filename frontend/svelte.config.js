@@ -12,6 +12,14 @@ const config = {
       precompress: false,
       strict: false,
     }),
+    // Round-6: View Transitions API crossfade between routes.
+    // SvelteKit 2.x doesn't have a `viewTransition` config
+    // option (that's a Svelte 5 / future-kit feature), so we
+    // implement it via `onNavigate` in +layout.svelte — wraps
+    // `goto()` in `document.startViewTransition` when the
+    // browser supports it, falls back to a plain navigation
+    // otherwise. The CSS rules in global.css drive the
+    // actual crossfade animation.
   },
 };
 

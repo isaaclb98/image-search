@@ -27,9 +27,15 @@ SIGLIP_VARIANTS = {
     "B/16-256": ("ViT-B-16-SigLIP2-256", 768),
     "L/16-256": ("ViT-L-16-SigLIP2-256", 1024),
     "gopt/16-384": ("ViT-gopt-16-SigLIP2-384", 1536),
+    # so400m/16-384 — shape-optimised attention; 1152-dim. New prod
+    # default after the model-variant migration plan. Same 384 input
+    # resolution as gopt-16-384 but a different vector space — the
+    # current Qdrant collection + centroids become invalid once we
+    # flip `SIGLIP_VARIANT` to this; re-index from scratch.
+    "so400m/16-384": ("ViT-so400m-patch16-384", 1152),
 }
 
-DEFAULT_VARIANT = "L/16-256"  # 1024-dim, balanced quality/speed
+DEFAULT_VARIANT = "so400m/16-384"  # shape-optimised; new prod default
 
 def get_siglip_variant() -> str:
     """Get the configured SigLIP2 variant from SIGLIP_VARIANT env var."""
@@ -159,6 +165,7 @@ DEFAULT_RESULT_LIMIT: int = 28
 _CENTROID_MODEL_COMPAT = {
     "ViT-gopt-16-SigLIP2-384": "siglip2",
     "ViT-L-16-SigLIP2-256": "siglip2",
+    "ViT-so400m-patch16-384": "siglip2",
 }
 
 
@@ -254,10 +261,18 @@ class Config:
     # pulls from the registry so tests that construct `Config()`
     # directly (without going through `config.load()`) still see a
     # real dim. Production always overrides via `centroid_compat_for()`.
+    #
+    # Reads from `DEFAULT_MODEL` rather than hardcoding
+    # "ViT-gopt-16-SigLIP2-384" so the default follows whichever
+    # variant is the current prod default (so400m-patch16-384 as
+    # of the model-variant migration). `model_name` itself is also
+    # set from `DEFAULT_MODEL` further down — both flow from the
+    # same `get_siglip_variant()` lookup, so the registry call here
+    # never disagrees with the production override.
     centroid_expected_feature_dim: int = field(
         default_factory=lambda: __import__(
             "image_search_kernel.registry", fromlist=["get"],
-        ).get("ViT-gopt-16-SigLIP2-384").dim,
+        ).get(DEFAULT_MODEL).dim,
     )
     index_db_path: str = "./data/images.db"
     # ----- Operational constants (formerly module-level in app.py) -----

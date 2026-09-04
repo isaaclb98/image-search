@@ -24,6 +24,7 @@
     thumbUrl
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
+  import { dialog } from '$lib/components/Dialog.svelte';
   import { pushRandomTint } from '$lib/components/blurhash-bg';
   import Icon from '$lib/components/Icon.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
@@ -142,7 +143,12 @@
   }
 
   async function create() {
-    const name = window.prompt('Album name?');
+    const name = await dialog.prompt({
+      title: 'Create album',
+      label: 'Album name',
+      confirmLabel: 'Create',
+      defaultValue: ''
+    });
     if (!name) return;
     try {
       await createAlbum({ name: name.trim() });
@@ -154,7 +160,13 @@
   }
 
   async function remove(id: number, name: string) {
-    if (!window.confirm(`Delete album "${name}"?`)) return;
+    const ok = await dialog.confirm({
+      title: 'Delete album',
+      body: `Delete album "${name}"? This can't be undone.`,
+      confirmLabel: 'Delete',
+      kind: 'danger'
+    });
+    if (!ok) return;
     try {
       await deleteAlbum(id);
       albums = albums.filter((a) => a.id !== id);

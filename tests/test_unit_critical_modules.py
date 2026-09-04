@@ -258,11 +258,16 @@ class TestVisionEncoderMockPath:
         from indexer.vision_encoder import VisionEncoder
 
         enc = VisionEncoder(test_mode=True)
-        assert enc.dim == 1536  # mock-1536's dim
+        # Mock dim tracks the active prod variant — so400m today
+        # (1152-dim). Pre-migration this was 1536 (gopt's dim).
+        from image_search_kernel.registry import get as _registry_get
+        from search.config import DEFAULT_MODEL
+        expected_dim = _registry_get(DEFAULT_MODEL).dim
+        assert enc.dim == expected_dim
         img = Image.new("RGB", (8, 8), color=(1, 2, 3))
         vec = enc.embed_one(img)
         assert isinstance(vec, list)
-        assert len(vec) == 1536
+        assert len(vec) == expected_dim
         # Unit norm.
         norm = sum(v * v for v in vec) ** 0.5
         assert abs(norm - 1.0) < 1e-6

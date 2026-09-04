@@ -85,8 +85,10 @@ def _build_demo_app(count: int):
     paths = _make_demo_images(demo_root, count)
     client = QdrantClient(location=":memory:")
     collection = "images_demo"
-    from image_search_kernel.registry import get as _registry_get
-    _dim = _registry_get("ViT-gopt-16-SigLIP2-384").dim
+    from image_search_kernel.registry import get_default_registry
+    _dim = get_default_registry().get(
+        config.get_model_name_for_variant(config.get_siglip_variant())
+    ).dim
     client.create_collection(
         collection_name=collection,
         vectors_config=qmodels.VectorParams(size=_dim, distance=qmodels.Distance.COSINE),

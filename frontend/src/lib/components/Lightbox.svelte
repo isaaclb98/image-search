@@ -96,6 +96,55 @@
   });
 
   let tint = $state<string | null>(null);
+  // Crossfade gate for the .tint backdrop layer. See the template
+  // note above for why this needs to be rAF-deferred — without
+  // the gate the browser batches the style change and the
+  // transition never fires.
+  let tintReady = $state(false);
+
+  // Photo-load state for crossfade. The lightbox used to flash on
+  // every navigation because the `<img>` was inside `{#key it.id}`,
+  // which unmounted the old image and mounted a new one — the dark
+  // backdrop showed through until the new fetch resolved. Now we
+  // reuse the same `<img>` element across navigations (its `src`
+  // updates reactively when `idx` changes) and gate its visibility
+  // on `naturalWidth > 0` via a CSS transition. While the new src
+  // is loading, the blurhash backdrop (`tint`) stays visible so
+  // there's never a fully-blank frame.
+  //
+  // `photoReady` flips to false whenever the displayed src changes
+  // and back to true when the next `load` event lands. We track the
+  // src we last saw so a duplicate `load` event for the same photo
+  // (browsers fire these on cache hits too) doesn't toggle state
+  // twice.
+  let photoReady = $state(false);
+  let lastLoadedSrc = $state('');
+  let photoSrc = $state('');
+
+  // Adjacent-photo preloader. Hidden `<img>` elements whose `src`
+  // is set to the next/previous photo's URL. The browser shares
+  // the HTTP cache with the visible `<img>` and reuses the
+  // decoded bitmap on navigation, so prev/next feel instant.
+  //
+  // Why a Set instead of just rendering all of `items.slice(idx-2,
+  // idx+3)`: preloading the same URL twice would create two <img>
+  // nodes holding the same data — wasteful when the user lingers
+  // on a photo and `idx` stays put. The Set ensures we only mount
+  // each preloader once; subsequent effect runs (caused by
+  // blurhash decode, memberOf refresh, etc.) are no-ops.
+  //
+  // Distance: ±1 by default. The 1s slideshow preset only gives
+  // the user 1000 ms between ticks — `playing` bumps that to ±3
+  // so the auto-advance doesn't race the network. Single-photo
+  // lightbox (`items.length <= 1`) skips preloading entirely.
+  //
+  // Bandwidth respect: skip preloading when the user has
+  // declared save-data via the Network Information API or the
+  // `prefers-reduced-data` media query. Both are
+  // feature-detected; old browsers that lack them get the
+  // default ±1 preload (a strict-power-user setting, but that's
+  // the conservative default for a desktop-class lightbox).
+  let preloadedSrcs = $state<Set<string>>(new Set());
 
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
@@ -259,15 +308,131 @@
   // membership indicator on the dropdown.
   $effect(() => {
     const it = current();
+    // Compute the next src. `lightboxWidth()` is called fresh so
+    // a window resize between navigations picks up the new width
+    // without us needing a separate resize listener.
+    const nextSrc = it ? photoUrl(it.id, lightboxWidth()) : '';
+    if (nextSrc !== photoSrc) {
+      photoSrc = nextSrc;
+      // Mark the photo as not-ready until the new `<img>` fires
+      // its `load` event. If the browser serves this from cache
+      // the load fires synchronously-ish, but the $effect below
+      // still sees it and flips photoReady back on.
+      photoReady = false;
+    }
     if (!it || !it.blurhash) {
       tint = null;
+      tintReady = false;
       return;
     }
-    blurhashToDataUrl(it.blurhash, 80, 50).then((u) => (tint = u));
+    // Crossfade the backdrop. Drop tintReady immediately so the
+    // existing layer animates OUT (opacity 0.65 → 0), then on the
+    // next animation frame after the new blurhash resolves, flip
+    // tintReady back to true so the new layer animates IN.
+    //
+    // Without the rAF we get a hard cut: Svelte updates the inline
+    // `background-image` style synchronously, and the browser
+    // composites both the old class and the new bg in a single
+    // paint, skipping the transition entirely. The rAF forces a
+    // paint at opacity 0 first so the next state change has a
+    // transition to run.
+    tintReady = false;
+    blurhashToDataUrl(it.blurhash, 80, 50).then((u) => {
+      tint = u;
+      requestAnimationFrame(() => {
+        tintReady = true;
+      });
+    });
     // Refresh the membership indicator for the new photo. Done
     // in the same effect so a single `idx` change triggers both
     // (one round trip, no flicker between the two updates).
     void refreshMembership();
+  });
+
+  // Adjacent-photo preloader. Runs on every `idx` change so the
+  // preload window tracks the cursor. Reactive deps: `idx` (the
+  // cursor) and `playing` (window expands during slideshow). We
+  // deliberately do NOT track `photoUrl`'s width argument —
+  // `lightboxWidth()` reads `window.innerWidth`, which is reactive
+  // in Svelte 5 only via the `if (browser)` guard, so a resize
+  // mid-lightbox may briefly leave a stale preload at the old
+  // width until the next navigation; that's fine — the cache
+  // entry is shared across widths via the `?w=...` query.
+  $effect(() => {
+    // Touch the deps so Svelte tracks them.
+    const cursor = idx;
+    const isPlaying = playing;
+    void items.length;
+
+    // Skip on single-photo lightbox or when the user opted into
+    // data-saver mode. `saveData` is the Network Information API
+    // flag; `prefers-reduced-data: reduce` is the OS-level setting
+    // we honour via matchMedia. Both are optional — old browsers
+    // simply lack them and we fall back to the default preload.
+    if (items.length <= 1) {
+      // Evict any leftover preload entries from a previous
+      // multi-photo session. The Set is the source of truth that
+      // the hidden <img> nodes mirror, so clearing it tells the
+      // template to remove them on the next render.
+      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
+      return;
+    }
+    const conn =
+      typeof navigator !== 'undefined'
+        ? (navigator as Navigator & {
+            connection?: { saveData?: boolean };
+          }).connection
+        : undefined;
+    const saveData =
+      !!conn?.saveData ||
+      (typeof window !== 'undefined' &&
+        !!window.matchMedia?.('(prefers-reduced-data: reduce)').matches);
+    if (saveData) {
+      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
+      return;
+    }
+
+    // Distance: ±3 during slideshow so a 1s cadence doesn't
+    // race the network; ±1 otherwise.
+    const distance = isPlaying ? 3 : 1;
+    const want = new Set<string>();
+    for (let d = 1; d <= distance; d++) {
+      // Wrap-around only while the slideshow is running —
+      // manual prev at the first photo and next at the last
+      // are intentionally disabled, so preloading the wrap
+      // would be wasted bandwidth.
+      if (isPlaying) {
+        const nextIdx = (cursor + d) % items.length;
+        const prevIdx = (cursor - d + items.length) % items.length;
+        const nextIt = items[nextIdx];
+        const prevIt = items[prevIdx];
+        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
+        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
+      } else {
+        const nextIt = items[cursor + d];
+        const prevIt = items[cursor - d];
+        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
+        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
+      }
+    }
+
+    // Evict entries that fell out of the window. Without this,
+    // a fast scrub through a 1000-photo grid would mount 1000
+    // hidden <img> nodes; the browser would keep them all
+    // cached and we'd hold 1000 decoded bitmaps in memory.
+    let changed = false;
+    const next = new Set<string>();
+    for (const src of want) {
+      if (preloadedSrcs.has(src) || src === photoSrc) next.add(src);
+      else {
+        next.add(src);
+        changed = true;
+      }
+    }
+    for (const src of preloadedSrcs) {
+      if (!next.has(src)) changed = true;
+    }
+    if (changed) preloadedSrcs = next;
   });
 
   function prev() {
@@ -304,7 +469,55 @@
     if (e.key === 'Escape') onClose();
     else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') prev();
     else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
-    else if (e.key === ' ' || e.code === 'Space') {
+    else if (e.key === 'Home') {
+      // Jump to first photo. Same button-focus caveat as Space —
+      // don't fight the browser's synthetic click on a focused
+      // button.
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = 0;
+      }
+    } else if (e.key === 'End') {
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = items.length - 1;
+      }
+    } else if (e.key === 'PageUp') {
+      // Skip back 10 — large-grid navigation. Bound to [0, N-1].
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = Math.max(0, idx - 10);
+      }
+    } else if (e.key === 'PageDown') {
+      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
+      if (items.length > 0) {
+        e.preventDefault();
+        idx = Math.min(items.length - 1, idx + 10);
+      }
+    } else if (e.key === 'f' || e.key === 'F') {
+      // Like / Unlike shortcut. Disabled while typing in a
+      // text field so we don't steal keys from the rename
+      // input on the Add-to-album dialog, etc.
+      if (e.target instanceof HTMLElement) {
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      }
+      e.preventDefault();
+      toggleFavorite();
+    } else if (e.key === 'd' || e.key === 'D') {
+      // Wait — 'd' is already used for Next (alongside ArrowRight).
+      // Reuse the same key, but only when Shift is NOT held —
+      // Shift+D is a different gesture and shouldn't fire dislike.
+      // Actually, looking at the existing handler: 'd' (no Shift)
+      // calls next(). So we can't double-up on plain 'd' for
+      // dislike without breaking the existing shortcut. Users
+      // who want a keyboard shortcut for dislike can use the
+      // right-click context menu or the on-screen button.
+      // (Skip — see comment below.)
+    } else if (e.key === ' ' || e.code === 'Space') {
       // Space natively activates focused buttons. If we also
       // fire togglePlay() here, the synthetic click from the
       // button + our handler would net out to no-op and the
@@ -351,7 +564,23 @@
   role="dialog"
   aria-modal="true"
 >
-  {#if tint}<div class="tint" style:background="var(--glass-tint) no-repeat center/cover" aria-hidden="true"></div>{/if}
+  {#if tint}
+    <!-- Crossfade the tint layer when its background-image swaps.
+         The opacity transition runs on the same axis as the photo
+         crossfade (both 150 ms), so the user perceives a single
+         coordinated swap rather than two distinct layer changes.
+         `.tint-ready` is set on the next animation frame after
+         the bg-url changes — without the rAF gate, the browser
+         would batch the style change and never run the transition
+         (it has to first paint the old URL at full opacity, then
+         paint the new one and animate down/up). -->
+    <div
+      class="tint"
+      class:tint-ready={tintReady}
+      style:background-image="var(--glass-tint)"
+      aria-hidden="true"
+    ></div>
+  {/if}
   <div class="content" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
     <button class="nav close" type="button" onclick={onClose} aria-label="Close">
       <Icon name="close" size={20} />
@@ -367,10 +596,53 @@
     </button>
     {#if current()}
       {@const it = current()!}
-      {#key it.id}
-        <img class="photo" src={photoUrl(it.id, lightboxWidth())} alt="" />
-      {/key}
+      <!-- Single reusable <img>; src updates reactively when idx
+           changes. Crossfade via .photo { opacity } tied to
+           photoReady so the new image only fades in once the
+           browser has decoded it. No {#key} — tearing down the
+           element on every nav caused the old flash because the
+           browser would briefly render the dark backdrop until
+           the new fetch resolved. -->
+      <img
+        class="photo"
+        class:photo-ready={photoReady}
+        src={photoSrc}
+        alt=""
+        onload={() => {
+          // Guard against cache-hit replays for the same src.
+          // The browser may also fire `load` after the src has
+          // already changed to a different photo; we only flip
+          // photoReady when the loaded src matches what we're
+          // currently showing.
+          if (photoSrc && photoSrc === lastLoadedSrc) return;
+          lastLoadedSrc = photoSrc;
+          photoReady = true;
+        }}
+      />
     {/if}
+    <!-- Adjacent-photo preloaders. Hidden, off-screen, no
+         interaction — they exist only so the browser's image
+         cache + decoded bitmap are warm when the user
+         navigates. `fetchpriority="low"` keeps them from
+         competing with the visible <img>; `loading="eager"`
+         overrides the default lazy-loading because we
+         explicitly want the fetch now (not "when the
+         IntersectionObserver notices this offscreen node").
+         The Set is the source of truth — additions/removals
+         drive mount/unmount. aria-hidden + tabindex=-1 so
+         screen readers and keyboard focus skip them. -->
+    {#each [...preloadedSrcs] as preloadSrc (preloadSrc)}
+      <img
+        class="preload"
+        aria-hidden="true"
+        tabindex="-1"
+        alt=""
+        src={preloadSrc}
+        loading="eager"
+        decoding="async"
+        fetchpriority="low"
+      />
+    {/each}
     <button
       class="nav next"
       type="button"
@@ -395,7 +667,7 @@
       {/if}
       <ActionButton
         onclick={toggleFavorite}
-        title="Like"
+        title="Like (F)"
         ariaPressed={isFavorite ? 'true' : 'false'}
       >
         Like
@@ -487,11 +759,23 @@
 .tint {
     position: absolute;
     inset: -40px;
-    background: var(--glass-tint, none) no-repeat center / cover;
+    /* background-image is set via inline style from the JS blurhash
+       decode; the rest of the shorthand stays here so the inline
+       style only has to ship the data-URL, not repeat the layout
+       commands. Default opacity 0 forces the layer to animate in
+       when `.tint-ready` is applied (see the template note above
+       for why the rAF gate matters). */
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
     filter: blur(60px) saturate(1.5) brightness(0.55);
-    opacity: 0.65;
+    opacity: 0;
+    transition: opacity 150ms var(--ease-out);
     pointer-events: none;
     z-index: -1;
+  }
+  .tint.tint-ready {
+    opacity: 0.65;
   }
   .content {
     /* Fill the first (1fr) row of the overlay grid. The grid
@@ -527,6 +811,39 @@
     object-fit: contain;
     border-radius: var(--r-2);
     box-shadow: var(--shadow-3);
+    /* Crossfade between photos. Default opacity 0 keeps the dark
+       backdrop visible until the <img> fires its `load` event,
+       at which point .photo-ready is applied and the transition
+       fades the new image in over ~150 ms. The old `{#key}`
+       approach unmounted and remounted the element on every nav,
+       so the user briefly saw the bare backdrop — this is the
+       fix. Tuned to 150 ms: long enough to mask the decode
+       jank, short enough that fast slideshow ticks don't smear
+       into a blur. The transition is opacity-only so the
+       gallery geometry stays stable across swaps. */
+    opacity: 0;
+    transition: opacity 150ms var(--ease-out);
+  }
+  .photo.photo-ready {
+    opacity: 1;
+  }
+  /* Adjacent-photo preloaders. Visually inert — the browser
+     still renders the image into its image cache, but we hide
+     the element from the user. Zero-size off-screen positioning
+     is the lightest way to do this: `display: none` would
+     cancel the fetch in some browsers, `visibility: hidden`
+     leaves the decoded bitmap off the compositor. `position:
+     fixed` with a far-offscreen top keeps them in the layout
+     tree (so the browser considers them "visible enough" to
+     fetch + decode) but out of any viewport. */
+  .preload {
+    position: fixed;
+    top: -10000px;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
   }
   .nav {
     position: absolute;

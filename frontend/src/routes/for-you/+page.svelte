@@ -95,28 +95,44 @@
     }
   }
 
+  // Round-9 perf: O(1) item lookup + update via shadow Map.
+  // See the random page comment for the rationale — same
+  // pattern, both pages had identical find+map code that
+  // walked the whole items array per Like/Dislike click.
+  let indexById = $state(new Map<string, number>());
+  $effect(() => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < items.length; i++) {
+      map.set(items[i].id, i);
+    }
+    indexById = map;
+  });
+
   async function onToggleFavorite(id: string) {
-    const it = items.find((x) => x.id === id);
-    const liked = it?.is_favorite ?? false;
+    const idx = indexById.get(id);
+    if (idx === undefined) return;
+    const liked = items[idx]?.is_favorite ?? false;
     try {
       if (liked) await unlikePoint(id);
       else await likePoint(id);
-      items = items.map((x) =>
-        x.id === id ? { ...x, is_favorite: !liked } : x
-      );
+      const next = items.slice();
+      next[idx] = { ...next[idx], is_favorite: !liked };
+      items = next;
     } catch {
       toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
   async function onDislike(id: string) {
+    const idx = indexById.get(id);
+    if (idx === undefined) return;
     try {
       await dislikePoint(id);
       // Mark as disliked so the lightbox button stays lit
       // (round-5 #3 — visual feedback on Dislike).
-      items = items.map((x) =>
-        x.id === id ? { ...x, is_disliked: true } : x
-      );
+      const next = items.slice();
+      next[idx] = { ...next[idx], is_disliked: true };
+      items = next;
     } catch {
       toast.show('Failed to dislike.', { kind: 'error' });
     }

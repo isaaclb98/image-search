@@ -46,7 +46,27 @@ export default defineConfig({
       // for /photo/{id} match first because the file route is more
       // specific, but the dev proxy still must serve raw bytes when
       // used directly.
-      '^/photo/[^/]+/raw$': {
+      //
+      // The `(?:$|\?)` terminator is the dev-proxy bugfix: the
+      // earlier `^/photo/[^/]+/raw$` only matched URLs that ended
+      // at `/raw`, but `photoUrl()` always appends `?w=1248` (the
+      // Lanczos-resized width). With the old regex, every lightbox
+      // open 404'd and the user saw a permanent dark backdrop —
+      // which itself reads as the "next-photo flash" report.
+      // Allowing either end-of-URL or a query-string separator as
+      // the terminator lets the `?w=` variant through.
+      '^/photo/[^/]+/raw(?:$|\\?)': {
+        target: API_PROXY_TARGET,
+        changeOrigin: true
+      },
+      // Round-11: thumbnail proxy. Without this, every grid
+      // tile's <img src> in dev mode 404'd (Vite SPA's index.html
+      // would be served instead of the WebP bytes), so tiles
+      // rendered as blurhash placeholders with no photo ever
+      // appearing. Prod is unaffected (Caddy proxies
+      // /thumb/{id} unconditionally); this only matters for
+      // local vite dev.
+      '^/thumb/[^/]+(?:$|\\?)': {
         target: API_PROXY_TARGET,
         changeOrigin: true
       },

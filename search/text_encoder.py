@@ -43,10 +43,38 @@ class ModelStatus(str, Enum):
 _model_status: ModelStatus = ModelStatus.NOT_STARTED
 _model_error: str | None = None
 
-# Default model name registered with the kernel.
-DEFAULT_MODEL_NAME: str = "ViT-gopt-16-SigLIP2-384"
+# Default model name registered with the kernel. Sourced from
+# DEFAULT_MODEL (which itself is the active variant's model name)
+# so this follows whichever variant is the prod default — pre-R1
+# it was hardcoded to "ViT-gopt-16-SigLIP2-384". Kept as a string
+# rather than a direct registry call to avoid import-time cycles
+# (registry → config → ... → encoder).
+from search.config import DEFAULT_MODEL as DEFAULT_MODEL_NAME  # noqa: E402
 # Mock entry registered by `image_search_kernel.registry.get_default_registry`.
-MOCK_MODEL_NAME: str = "mock-1536"
+# Sourced from the registry too: pre-R1 this was "mock-1536" (a
+# constant matching the gopt dim); post-R1 it's whatever the
+# registry's mock entry is named. Look it up via the same
+# `_MOCK_REGISTRY_NAME` constant the registry exports.
+from image_search_kernel.registry import (  # noqa: E402
+    _MOCK_REGISTRY_NAME as MOCK_MODEL_NAME,
+    register_mock_dim_provider,
+)
+
+
+def _provide_active_mock_dim() -> int:
+    """Return the dim of the active prod variant.
+
+    Wired into the kernel via `register_mock_dim_provider` at
+    import time (below). The kernel calls this when patching the
+    mock spec so it matches the prod variant's dim — without it
+    the mock stays at the pre-migration 1536 literal and tests
+    against the new variant would fail with shape mismatches.
+    """
+    from image_search_kernel.registry import get as _registry_get
+    return _registry_get(DEFAULT_MODEL_NAME).dim
+
+
+register_mock_dim_provider(_provide_active_mock_dim)
 
 
 def _normalize_query_for_siglip2(text: str) -> str:

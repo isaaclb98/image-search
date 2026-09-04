@@ -48,15 +48,19 @@ def _register_test_model():
         ModelSpec,
         get_default_registry,
     )
-
+    # Source the test dim from the registry too — pre-migration this
+    # fixture hardcoded 1536 (gopt's dim); post-migration we use the
+    # same dim as the active prod variant so any test that compares
+    # fixture vectors against registry-resolved dim stays correct.
+    from indexer.upsert import VECTOR_DIM
     registry = get_default_registry()
     registry.register(ModelSpec(
         name="test",
-        dim=1536,
+        dim=VECTOR_DIM,
         resolution=384,
         revision="test-r0",
-        text=MockEmbedder(dim=1536, resolution=384),
-        vision=MockEmbedder(dim=1536, resolution=384),
+        text=MockEmbedder(dim=VECTOR_DIM, resolution=384),
+        vision=MockEmbedder(dim=VECTOR_DIM, resolution=384),
     ))
     yield
 
