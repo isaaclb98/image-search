@@ -7,11 +7,61 @@
   import Dialog from '$lib/components/Dialog.svelte';
   import { pageTint } from '$lib/stores/tint';
   import { onNavigate } from '$app/navigation';
+  import { onMount } from 'svelte';
 
   let { children } = $props();
   // Svelte 5 reactive store binding: $pageTint tracks the writable value.
   // The store carries a photo URL (relative path) which the backdrop
   // element renders behind everything as a heavily blurred colour wash.
+
+  // Round-8: Cmd/Ctrl+K focuses the search composer input.
+  // The convention is shared with GitHub, Linear, Vercel, and
+  // most search-first apps. Implementation: a single
+  // document-level keydown listener installed on mount, scoped
+  // to modifier+K. We avoid stealing the key when the user is
+  // already typing in an input/textarea (the conventional case
+  // where Ctrl+K should pass through to the browser — though
+  // most browsers have no default Ctrl+K binding, some users
+  // map it to extensions).
+  //
+  // The shortcut only fires on routes that have a search
+  // composer — currently / (home) and /search. On other routes
+  // (lightbox is open, etc.) it's a no-op so we don't grab the
+  // keystroke from a context that doesn't need it.
+  function focusSearchInput() {
+    const input = document.querySelector<HTMLInputElement>(
+      '.composer-input'
+    );
+    if (input) {
+      input.focus();
+      // Select existing text so the user can type to replace
+      // it (matches GitHub/Linear behaviour). If the input is
+      // empty, this is a no-op.
+      input.select();
+    }
+  }
+  function onGlobalKey(e: KeyboardEvent) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (e.key !== 'k' && e.key !== 'K') return;
+    // Don't fire if the user is already typing in a non-search
+    // input (e.g. an album-rename modal's text field). The
+    // composer input IS a text input — but we WANT to focus
+    // it, so this guard is intentionally narrow: only skip
+    // when the focused element is outside the composer.
+    if (
+      e.target instanceof HTMLElement &&
+      e.target.tagName !== 'BODY' &&
+      !e.target.closest('.composer')
+    ) {
+      return;
+    }
+    e.preventDefault();
+    focusSearchInput();
+  }
+  onMount(() => {
+    document.addEventListener('keydown', onGlobalKey);
+    return () => document.removeEventListener('keydown', onGlobalKey);
+  });
 
   // Round-6: View Transitions API crossfade between routes.
   // Wraps `goto()` and `<a>` navigations in
