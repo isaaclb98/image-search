@@ -1042,3 +1042,67 @@ def test_normalize_query_is_idempotent():
     twice = _normalize_query_for_siglip2(once)
     assert once == twice == "mixed case"
 
+
+
+# ---------------- ETag distinctness ----------------
+
+
+def test_api_search_etag_distinct_for_filename_filter(app_with_qdrant):
+    """Round-1 fix: ETag must include `filename` so toggling the
+    filename filter never returns a 304 with stale results from
+    the unfiltered query."""
+    client = app_with_qdrant
+    no_filter = client.get("/api/search?q=cat&limit=4")
+    # `cat` is a valid substring token in FTS5; lands the same
+    # rows without 400-ing the request.
+    with_filter = client.get("/api/search?q=cat&limit=4&filename=cat")
+    assert no_filter.status_code == 200, no_filter.text
+    assert with_filter.status_code == 200, with_filter.text
+    no_filter_etag = no_filter.headers.get("ETag")
+    with_filter_etag = with_filter.headers.get("ETag")
+    assert no_filter_etag is not None
+    assert with_filter_etag is not None
+    assert no_filter_etag != with_filter_etag, (
+        "Same ETag for different filename filters — stale 304 risk"
+    )
+
+
+def test_api_search_etag_distinct_for_diversity(app_with_qdrant):
+    """Round-1 fix: ETag must include diversity mode/strength/depth."""
+    client = app_with_qdrant
+    off = client.get("/api/search?q=cat&limit=4")
+    on = client.get("/api/search?q=cat&limit=4&diversity=balanced")
+    assert off.status_code == 200, off.text
+    assert on.status_code == 200, on.text
+    assert off.headers["ETag"] != on.headers["ETag"], (
+        "Same ETag for diversity off vs balanced — stale 304 risk"
+    )
+
+
+def test_api_search_etag_distinct_for_collections(app_with_qdrant):
+    """Round-1 fix: ETag must include the collections filter."""
+    client = app_with_qdrant
+    no_coll = client.get("/api/search?q=cat&limit=4")
+    with_coll = client.get(
+        "/api/search?q=cat&limit=4&collection=general"
+    )
+    assert no_coll.status_code == 200, no_coll.text
+    # The test fixture seeds items with collection="general", so
+    # this filter returns the same rows but the ETag must differ.
+    assert with_coll.status_code == 200, with_coll.text
+    no_coll_etag = no_coll.headers.get("ETag")
+    with_coll_etag = with_coll.headers.get("ETag")
+    assert no_coll_etag is not None
+    assert with_coll_etag is not None
+    assert no_coll_etag != with_coll_etag
+
+
+def test_api_search_etag_stable_for_identical_requests(app_with_qdrant):
+    """Round-1 sanity: identical requests still hash identically
+    so the 304 fast path keeps working."""
+    client = app_with_qdrant
+    a = client.get("/api/search?q=cat&limit=4")
+    b = client.get("/api/search?q=cat&limit=4")
+    assert a.status_code == 200
+    assert b.status_code == 200
+    assert a.headers["ETag"] == b.headers["ETag"]
