@@ -16,6 +16,7 @@
     createSavedSearch
   } from '$lib/api/endpoints';
   import { toast } from './Toaster.svelte';
+  import { dialog } from './Dialog.svelte';
   import type { SavedSearch } from '$lib/api/endpoints';
 
   type Props = {
@@ -55,10 +56,12 @@
       toast.show('Add at least one prompt before saving.', { kind: 'warn' });
       return;
     }
-    const name = window.prompt(
-      `Name this search (${positives.length}+/${negatives.length}-):`,
-      ''
-    );
+    const name = await dialog.prompt({
+      title: 'Save search',
+      label: `Name this search (${positives.length}+/${negatives.length}-)`,
+      confirmLabel: 'Save',
+      defaultValue: ''
+    });
     if (!name) return;
     try {
       await createSavedSearch({
@@ -80,7 +83,13 @@
 
   async function remove(e: MouseEvent, id: number) {
     e.stopPropagation();
-    if (!window.confirm('Delete this saved search?')) return;
+    const ok = await dialog.confirm({
+      title: 'Delete saved search',
+      body: 'Delete this saved search?',
+      confirmLabel: 'Delete',
+      kind: 'danger'
+    });
+    if (!ok) return;
     try {
       await deleteSavedSearch(id);
       items = items.filter((s) => s.id !== id);

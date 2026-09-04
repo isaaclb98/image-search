@@ -16,6 +16,12 @@
     title?: string;
     onclick?: (e: MouseEvent) => void;
     children?: import('svelte').Snippet;
+    /** Marker for the Modal primitive: when true, this button
+     *  receives focus on dialog open. The Modal reads the
+     *  attribute to find the initial-focus target rather than
+     *  relying on DOM order, so destructive confirms can sit
+     *  on the right without stealing focus from Cancel. */
+    initialFocus?: boolean;
   };
   let {
     variant = 'secondary',
@@ -25,6 +31,7 @@
     disabled = false,
     title,
     onclick,
+    initialFocus,
     children
   }: Props = $props();
 </script>
@@ -41,6 +48,7 @@
 {:else}
   <button
     class="btn {variant} {size}"
+    data-initial-focus={initialFocus ? '' : undefined}
     {type}
     {disabled}
     {title}
