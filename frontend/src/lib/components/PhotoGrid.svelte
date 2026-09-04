@@ -501,4 +501,16 @@
       transform: rotate(360deg);
     }
   }
+
+  /* Hover emphasis — when one tile is hovered, dim the rest
+     slightly so the hovered tile reads as the foreground.
+     Uses :has() with a fallback for older browsers (the rule
+     is progressive enhancement; unsupported browsers just see
+     the plain grid). */
+  @supports (selector(:has(*))) {
+    .grid-row:has(.grid-tile:hover) .grid-tile:not(:hover) {
+      opacity: 0.55;
+      transition: opacity var(--t-fast) var(--ease-out);
+    }
+  }
 </style>

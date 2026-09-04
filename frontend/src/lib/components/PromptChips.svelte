@@ -116,8 +116,8 @@
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-3);
     padding: 14px 14px 12px;
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
   }
   .row {
     display: flex;

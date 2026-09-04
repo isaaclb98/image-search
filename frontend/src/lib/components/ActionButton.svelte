@@ -103,9 +103,11 @@
   }
   .action:hover { background: var(--glass-2); }
   .action:disabled { cursor: not-allowed; opacity: 0.5; }
-  /* Permanent darken for actions that have already been taken. */
+  /* Permanent darken for actions that have already been taken.
+     Uses --glass-edge + a stronger fill so the pressed state
+     reads as "selected" without competing with the hover state. */
   .action[aria-pressed='true'] {
-    background: rgba(0, 0, 0, 0.35);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--dialog-fill);
+    border-color: var(--glass-edge-strong);
   }
 </style>

@@ -39,6 +39,11 @@
      *  Falls back to the first focusable inside, then the dialog
      *  itself. */
     initialFocus?: string;
+    /** Use the frosted-glass variant instead of matte. Rare —
+     *  matte is the default because fixed combobox alignment
+     *  breaks inside backdrop-filtered ancestors, but some
+     *  small confirmation dialogs look better frosted. */
+    glass?: boolean;
   };
 
   let {
@@ -48,7 +53,8 @@
     kind = 'default',
     children,
     footer,
-    initialFocus
+    initialFocus,
+    glass = false
   }: Props = $props();
 
   let dialog: HTMLDivElement | undefined = $state();
@@ -143,7 +149,7 @@
   >
     <div
       bind:this={dialog}
-      class="dialog glass-strong"
+      class="dialog {glass ? 'glass-dialog' : 'matte-dialog'}"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
@@ -168,7 +174,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(8, 8, 12, 0.65);
+    /* Scrim — light enough that the page is visible through
+       it (the "glass" aesthetic), heavy enough to clearly
+       defocus the content behind the dialog. */
+    background: rgba(8, 8, 12, var(--glass-alpha-scrim));
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -185,7 +194,9 @@
     width: min(440px, 100%);
     max-height: calc(100vh - 48px);
     overflow-y: auto;
-    border-radius: 14px;
+    /* matte-dialog / glass-dialog supply radius via tokens;
+       override here only if a particular dialog wants tighter. */
+    border-radius: var(--r-2);
     padding: 22px 22px 18px;
     display: flex;
     flex-direction: column;

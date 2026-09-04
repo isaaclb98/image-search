@@ -46,10 +46,10 @@
   .chip.neg {
     color: var(--fg-2);
     background: var(--negative-soft);
-    border-color: rgba(255,122,138,0.30);
+    border-color: color-mix(in srgb, var(--negative) 30%, transparent);
   }
   .chip:hover { background: var(--glass-2); }
-  .chip.neg:hover { background: rgba(255,122,138,0.30); }
+  .chip.neg:hover { background: color-mix(in srgb, var(--negative) 30%, transparent); }
   .minus {
     color: var(--negative);
     font-weight: 600;

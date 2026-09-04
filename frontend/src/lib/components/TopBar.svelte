@@ -84,12 +84,14 @@
        floating scroll-to-top button restores navigation reach
        after a long scroll. */
     position: static;
+    /* Heavy glass tier — the topbar sits on top of the photo
+       backdrop and needs the strongest frost to read clearly. */
     background-color: rgba(14,15,20,0.12);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
     border-bottom: 1px solid var(--glass-edge);
     overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-glass);
   }
   .bar {
     height: var(--topbar-h);

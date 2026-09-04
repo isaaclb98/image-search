@@ -731,9 +731,13 @@
     inset: 0;
     /* Above the top bar (z-50) and every other layer. */
     z-index: 500;
-    background: rgba(8,8,12,0.55);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    /* Lightbox overlay uses the heavy glass tier (strongest
+       frost) because the photo behind the action bar is
+       the highest-contrast content in the app — the bar
+       needs every bit of frost to stay legible. */
+    background: rgba(8,8,12, var(--glass-alpha-scrim));
+    backdrop-filter: var(--glass-heavy);
+    -webkit-backdrop-filter: var(--glass-heavy);
     /* Two stacked rows: the image region (content) and the action
        bar. The row-gap is the sole source of spacing between
        them — .content has no border or margin contributing extra

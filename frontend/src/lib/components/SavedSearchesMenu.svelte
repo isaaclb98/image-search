@@ -169,7 +169,7 @@
     font-size: var(--fs-sm);
     transition: background var(--t-fast);
   }
-  .trigger:hover { background: rgba(255,255,255,0.14); }
+  .trigger:hover { background: var(--glass-2); border-color: var(--accent-soft); }
   .save {
     background: transparent;
     border-color: var(--glass-edge);

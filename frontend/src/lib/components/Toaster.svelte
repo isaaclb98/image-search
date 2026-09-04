@@ -70,9 +70,9 @@
     padding: 10px 18px;
     min-width: 220px;
     max-width: 540px;
-    box-shadow: var(--shadow-2);
-    backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+    box-shadow: var(--shadow-glass);
+    backdrop-filter: var(--glass-heavy);
+    -webkit-backdrop-filter: var(--glass-heavy);
     animation: pop var(--t-med) var(--ease-out);
   }
   @keyframes pop {

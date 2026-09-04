@@ -12,11 +12,37 @@
   /* surfaces */
   --bg-0: #0e0f14;          /* page background, deepest */
   --bg-1: #161821;          /* panel background, non-glass */
+  /* glass — alpha layers (used directly + as rgba base for tints) */
   --glass-1: rgba(255,255,255,0.06);  /* default panel */
   --glass-2: rgba(255,255,255,0.10);  /* raised panel / hovered */
-  --glass-edge: rgba(255,255,255,0.14);  /* hairline border */
-  --glass-edge-strong: rgba(255,255,255,0.22);
   --glass-tint: transparent;           /* dynamic tint source */
+
+  /* glass — borders (felt, not seen — Linear/Immich subtlety) */
+  --glass-edge: rgba(255,255,255,0.08);        /* hairline */
+  --glass-edge-strong: rgba(255,255,255,0.14);  /* hover/focus border */
+
+  /* glass — backdrop-filter tiers. Use these on glass surfaces
+     instead of blur(…) directly so a single token retunes
+     every panel at once. Tier choice is per surface role:
+       light   — scrims, sidebars, ambient blur
+       medium  — panels, inputs (default for .glass)
+       heavy   — modals, floating menus
+       dialog  — dialog/dropdown content boxes */
+  --glass-light: blur(12px) saturate(140%);
+  --glass-medium: blur(20px) saturate(160%);
+  --glass-heavy: blur(32px) saturate(180%);
+  --glass-dialog: blur(18px) saturate(180%);
+
+  /* glass — alpha multipliers for rgba(var(--…-rgb), α) patterns.
+     Lets a single component tune tint without re-tuning blur. */
+  --glass-alpha-scrim: 0.4;
+  --glass-alpha-panel: 0.55;
+  --glass-alpha-panel-focus: 0.7;
+
+  /* glass — matte fill for center shells (no blur, fixed-compat).
+     Modal/Dialog content uses this by default; rare cases opt
+     into .glass-dialog. */
+  --dialog-fill: rgba(14, 15, 20, 0.88);
 
   /* text */
   --fg-1: #f3f4f7;          /* primary */
@@ -70,10 +96,28 @@
   --glass-blur-strong: 28px;
   --glass-saturate: 160%;
 
-  /* shadows */
+  /* shadows — original depth tiers (kept for legacy callers) */
   --shadow-1: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.18);
   --shadow-2: 0 4px 12px rgba(0,0,0,0.40), 0 12px 32px rgba(0,0,0,0.28);
   --shadow-3: 0 12px 28px rgba(0,0,0,0.55), 0 32px 80px rgba(0,0,0,0.40);
+
+  /* shadows — layered "glass" shadows. Outer depth + inset
+     highlight mimics macOS window chrome: a card sits ON the
+     surface (lit from above) rather than being a flat rectangle.
+     Use on .glass / .glass-strong / .glass-dialog / .matte-dialog. */
+  --shadow-glass:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 8px 32px rgba(0,0,0,0.35);
+  --shadow-glass-strong:
+    0 1px 0 rgba(255,255,255,0.12) inset,
+    0 12px 48px rgba(0,0,0,0.5);
+
+  /* ratios — mathematical relationships per AGENTS.md ("prefer
+     elegant mathematical relationships over hardcoded values").
+     Use for component-internal dimensions (tile aspect ratios,
+     sidebar widths, hero text scaling) rather than for spacing. */
+  --ratio-golden: 1.618;
+  --ratio-sqrt2: 1.414;
 
   /* layout */
   --topbar-h: 56px;
