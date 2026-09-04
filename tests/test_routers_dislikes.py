@@ -114,12 +114,19 @@ def test_list_dislikes_as_results_marks_favorite(fake_index_db, fake_cfg, invali
     assert data["results"][0]["id"] == "abc"
 
 
-def test_list_dislikes_limit_above_1000_returns_400(fake_index_db, fake_cfg, invalidate):
+def test_list_dislikes_accepts_large_limits(fake_index_db, fake_cfg, invalidate):
+    """Large limits are accepted — no upper cap.
+
+    Previously this endpoint capped limit at 1000 (returning
+    400 above that). With infinite-scroll pagination the
+    caller can request any limit; the server clamps offset
+    against total in the actual handler, not at the
+    validation layer.
+    """
     app = _build(fake_index_db, fake_cfg, invalidate)
     with TestClient(app) as client:
         resp = client.get("/api/dislikes?limit=9999")
-    assert resp.status_code == 400
-    assert resp.json()["error"] == "bad_request"
+    assert resp.status_code == 200
 
 
 def test_list_dislikes_negative_offset_returns_400(fake_index_db, fake_cfg, invalidate):

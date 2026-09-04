@@ -117,10 +117,17 @@ def test_unmark_favorite_404_when_not_favourited(
     assert resp.status_code == 404
 
 
-def test_list_favorites_limit_out_of_range(
+def test_list_favorites_accepts_large_limits(
     fake_index_db, fake_cfg, invalidate,
 ):
-    """GET /api/favorites?limit=99999 → 400."""
+    """Large limits are accepted — no upper cap.
+
+    Previously this endpoint capped limit at 1000 (returning
+    400 above that). With infinite-scroll pagination the
+    caller can request any limit; the server clamps offset
+    against total in the actual handler, not at the
+    validation layer.
+    """
     from search.routers.favorites import build_favorites_router
 
     router = build_favorites_router(
@@ -133,9 +140,7 @@ def test_list_favorites_limit_out_of_range(
     app.include_router(router)
     with TestClient(app) as client:
         resp = client.get("/api/favorites?limit=99999")
-    assert resp.status_code == 400
-    body = resp.json()
-    assert body["code"] == "bad_request"
+    assert resp.status_code == 200
 
 
 def test_list_favorites_offset_negative(

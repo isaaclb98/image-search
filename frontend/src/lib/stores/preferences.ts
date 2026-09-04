@@ -23,9 +23,10 @@ import { writable } from 'svelte/store';
 
 const STORAGE_KEY = 'image-search:preferences';
 
-export type SlideshowPreset = 3000 | 5000 | 10000 | 20000 | 30000;
+export type SlideshowPreset = 1000 | 3000 | 5000 | 10000 | 20000 | 30000;
 
 export const SLIDESHOW_PRESETS: { label: string; ms: SlideshowPreset }[] = [
+  { label: '1s', ms: 1000 },
   { label: '3s', ms: 3000 },
   { label: '5s', ms: 5000 },
   { label: '10s', ms: 10000 },

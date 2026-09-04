@@ -39,7 +39,15 @@ from search.models import (
 logger = logging.getLogger(__name__)
 
 
-def _status_to_response(status) -> IndexerStatusResponse:
+def _status_to_response(status, *, points_count: int | None = None) -> IndexerStatusResponse:
+    """Translate the runner's internal `IndexerStatus` to the wire model.
+
+    `points_count` defaults to the runner's own snapshot, but
+    callers can override it with a live count from the side store
+    (IndexDB.count_images) so the UI sees the real count even when
+    the indexer hasn't completed a run yet (e.g. a fresh dev
+    container that mounted pre-existing data).
+    """
     return IndexerStatusResponse(
         state=status.state.value,
         mode=status.mode,
@@ -55,7 +63,9 @@ def _status_to_response(status) -> IndexerStatusResponse:
             skipped=status.progress.skipped,
             errors=status.progress.errors,
         ),
-        points_count=status.points_count,
+        points_count=(
+            points_count if points_count is not None else status.points_count
+        ),
         phase=status.phase,
     )
 
@@ -72,6 +82,28 @@ def build_admin_index_router(
     actually clears the side store.
     """
     router = APIRouter(prefix="/api/admin/index")
+
+    def _live_points_count() -> int | None:
+        """Return the current count of indexed images.
+
+        Reads from the IndexDB cache (source of truth for the UI),
+        not from Qdrant directly — the cache is refreshed from
+        Qdrant on a timer and on POST /api/cache/refresh, so a
+        live cache read is a reliable proxy for "how many photos
+        are indexed right now" without adding another Qdrant
+        round-trip per status poll.
+
+        Returns None on any error (DB not initialised, lock
+        contention, etc.) so the runner's own snapshot is used
+        instead — never lie about counts.
+        """
+        if index_db is None:
+            return None
+        try:
+            return int(index_db.count_images())
+        except Exception as err:  # noqa: BLE001
+            logger.debug("count_images failed; falling back to snapshot: %s", err)
+            return None
 
     @router.post("", response_model=IndexerStatusResponse, status_code=202)
     def start_index(req: IndexerRunRequest) -> IndexerStatusResponse:
@@ -98,7 +130,7 @@ def build_admin_index_router(
                 detail=f"failed to spawn indexer: {exc}",
             ) from exc
 
-        return _status_to_response(indexer_runner.status())
+        return _status_to_response(indexer_runner.status(), points_count=_live_points_count())
 
     @router.post("/cancel", response_model=IndexerStatusResponse)
     def cancel_index() -> IndexerStatusResponse:
@@ -115,13 +147,13 @@ def build_admin_index_router(
         # Wait briefly for the subprocess to acknowledge and exit.
         # This is mostly so the response carries the post-cancel state.
         indexer_runner.wait_idle(timeout=5.0)
-        return _status_to_response(indexer_runner.status())
+        return _status_to_response(indexer_runner.status(), points_count=_live_points_count())
 
     @router.get("/status", response_model=IndexerStatusResponse)
     def get_status() -> IndexerStatusResponse:
         """Snapshot of the current job. The UI polls this every 1s
         while the job is RUNNING."""
-        return _status_to_response(indexer_runner.status())
+        return _status_to_response(indexer_runner.status(), points_count=_live_points_count())
 
     @router.get("/log", response_model=IndexerLogResponse)
     def get_log(

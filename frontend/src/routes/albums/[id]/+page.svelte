@@ -3,10 +3,17 @@
    * Album detail — grid of photos in this album, with a
    * "Download zip" link to /albums/{id}/download.zip and
    * a back link to /albums.
+   *
+   * Infinite scroll: walks /api/albums/{id}?limit=&offset= in
+   * batches of GRID_PAGE_SIZE so the UI keeps working no matter
+   * how large the album grows. The AlbumDetailResponse carries
+   * member_total which we compare against the running member
+   * count to drive `has_more`.
    */
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { getAlbum, removePhotoFromAlbum } from '$lib/api/endpoints';
+  import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
@@ -27,26 +34,66 @@
     is_favorite?: boolean;
   };
 
+  const PAGE = GRID_PAGE_SIZE;
+
   let detail = $state<AlbumDetail | null>(null);
+  // Accumulated members across paged /api/albums/{id} responses.
+  // Each response carries `members` (the slice for this batch)
+  // and `member_total` (the album-wide total) — we append the
+  // slices here and compare lengths to drive `has_more`.
+  let members = $state<Member[]>([]);
   let loading = $state(true);
+  let loadingMore = $state(false);
   let error = $state<string | null>(null);
+  let offset = $state(0);
+  let hasMore = $state(false);
 
   async function load() {
     const id = String($page.params.id);
     loading = true;
     try {
-      detail = (await getAlbum(id)) as AlbumDetail;
+      const res = (await getAlbum(id, PAGE, 0)) as AlbumDetail;
+      detail = res;
+      members = (res.members ?? []) as Member[];
+      offset = members.length;
+      const total = res.member_total ?? members.length;
+      hasMore = offset < total && members.length >= PAGE;
+      error = null;
     } catch (e: any) {
       error = e?.message ?? 'Failed to load album';
     } finally {
       loading = false;
     }
   }
+
+  async function loadMore() {
+    if (loading || loadingMore || !hasMore || !detail) return;
+    const id = String($page.params.id);
+    loadingMore = true;
+    try {
+      // Reuse the album-detail endpoint with the next offset —
+      // it already returns metadata + a member slice in one
+      // round-trip, and the first call cached the album's name/
+      // description/total in `detail` so we just take `members`.
+      const res = (await getAlbum(id, PAGE, offset)) as AlbumDetail;
+      const more = (res.members ?? []) as Member[];
+      members = [...members, ...more];
+      offset = members.length;
+      const total = res.member_total ?? members.length;
+      hasMore = offset < total && more.length >= PAGE;
+    } catch {
+      // Leave the existing list intact; the user can keep paging
+      // — losing scroll progress on a transient error is worse
+      // than a stuck spinner.
+    } finally {
+      loadingMore = false;
+    }
+  }
+
   onMount(load);
 
   function items(): Item[] {
-    if (!detail) return [];
-    return (detail.members ?? []).map((m: Member) => ({
+    return members.map((m: Member) => ({
       id: m.point_id ?? m.id,
       path: m.path,
       blurhash: m.blurhash ?? null,
@@ -60,31 +107,35 @@
    * the DELETE endpoint. On failure, re-add + toast so the user
    * doesn't lose the action.
    *
-   * The album id comes from $page.params; capture it in the closure
-   * so the handler stays a one-argument fn the PhotoGrid can call
-   * with just the photo id.
+   * The album id comes from $page.params; the photo id from the
+   * tile's `id` prop.
    */
   async function onRemoveFromAlbum(pointId: string) {
-    const albumId = String($page.params.id);
-    const before = detail;
-    if (!before) return;
-    // Optimistic remove.
-    detail = {
-      ...before,
-      members: (before.members ?? []).filter(
-        (m: Member) => (m.point_id ?? m.id) !== pointId,
-      ),
-      member_total: Math.max(
-        0,
-        (before.member_total ?? before.members?.length ?? 1) - 1,
-      ),
-    };
+    const albumId = $page.params.id;
+    const before = members;
+    members = members.filter(
+      (m) => (m.point_id ?? m.id) !== pointId,
+    );
+    // Reflect the local removal in the cached total so the
+    // header counter ("N photos") stays accurate.
+    if (detail && typeof detail.member_total === 'number') {
+      detail = {
+        ...detail,
+        member_total: Math.max(0, detail.member_total - 1),
+      };
+    }
     try {
       await removePhotoFromAlbum(Number(albumId), pointId);
       toast.show('Removed from album.', { kind: 'success' });
     } catch (e: any) {
       // Restore the previous state.
-      detail = before;
+      members = before;
+      if (detail && typeof detail.member_total === 'number') {
+        detail = {
+          ...detail,
+          member_total: detail.member_total + 1,
+        };
+      }
       toast.show(`Failed to remove: ${e?.message ?? 'unknown error'}`, {
         kind: 'error',
       });
@@ -107,7 +158,7 @@
     <div>
       <h1>{detail.name}</h1>
       {#if detail.description}<p>{detail.description}</p>{/if}
-      <p class="meta">{detail.member_total ?? detail.members?.length ?? 0} photos</p>
+      <p class="meta">{detail.member_total ?? members.length} photos</p>
     </div>
     {#if detail.id}
       <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
@@ -118,8 +169,9 @@
   <section>
     <PhotoGrid
       items={items()}
-      loading={false}
-      hasMore={false}
+      loading={loadingMore}
+      {hasMore}
+      onLoadMore={loadMore}
       onRemove={onRemoveFromAlbum}
       removeLabel="Remove from album"
     />
@@ -152,25 +204,18 @@
   }
   .head .meta { color: var(--fg-3); font-size: var(--fs-sm); }
   .zip {
-    height: 40px;
-    padding: 0 18px;
+    padding: 8px 16px;
     border-radius: var(--r-pill);
-    background: var(--glass-2);
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge-strong);
+    background: var(--accent);
+    color: #fff;
     text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    font-size: var(--fs-sm);
+    font-weight: 500;
   }
-  .zip:hover { background: rgba(255,255,255,0.14); }
+  .zip:hover { background: var(--accent-strong); }
   .placeholder {
-    color: var(--fg-3);
-    padding: 32px 16px;
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
+    padding: 32px 24px;
     text-align: center;
+    color: var(--fg-2);
   }
-  .placeholder.error { color: var(--negative); }
+  .placeholder.error { color: var(--accent); }
 </style>

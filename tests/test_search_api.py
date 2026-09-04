@@ -657,15 +657,26 @@ def test_api_search_offset_beyond_results(app_with_qdrant):
 
 
 def test_api_search_offset_beyond_max_total(app_with_qdrant):
-    """Offset way past MAX_RESULTS_TOTAL is clamped to 0 results, no error."""
-    r = app_with_qdrant.get("/api/search?q=cat&offset=10000&limit=50").json()
+    """Offset way past MAX_RESULTS_TOTAL is clamped to 0 results, no error.
+
+    MAX_RESULTS_TOTAL is the defensive pagination ceiling (1M by default
+    — see search/config.py) that catches runaway clients ignoring
+    has_more. Real clients stop when has_more flips False; this test
+    just confirms the ceiling itself is a clean clamp.
+    """
+    r = app_with_qdrant.get("/api/search?q=cat&offset=2_000_000&limit=50").json()
     assert r["results"] == []
     assert r["has_more"] is False
 
 
 def test_api_search_offset_max_total_cap(app_with_qdrant):
-    """Offset >= MAX_RESULTS_TOTAL (5000) returns empty + has_more=False."""
-    r = app_with_qdrant.get("/api/search?q=cat&offset=5000&limit=50").json()
+    """Offset >= MAX_RESULTS_TOTAL returns empty + has_more=False.
+
+    Default MAX_RESULTS_TOTAL is 1M (search/config.py). The cap is
+    intentionally generous — the client is expected to honour has_more
+    and stop paginating long before reaching it.
+    """
+    r = app_with_qdrant.get("/api/search?q=cat&offset=1_000_000&limit=50").json()
     assert r["results"] == []
     assert r["has_more"] is False
 
