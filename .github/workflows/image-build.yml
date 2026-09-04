@@ -139,22 +139,66 @@ jobs:
       - name: Prune old :sha-* tags
         if: success()
         env:
+          # `gh` doesn't auto-discover GITHUB_TOKEN in GH Actions on
+          # every runner image — it wants GH_TOKEN explicitly. Without
+          # this, `gh api` exits non-zero with "set the GH_TOKEN
+          # environment variable", `mapfile` ends up with an empty
+          # array, and the step silently "finds" 0 sha-* tags — which
+          # is exactly the silent regression that left 18 old tags
+          # piled up before this was fixed. Setting both names covers
+          # newer `gh` versions that DO honour GITHUB_TOKEN as a
+          # fallback, so future runner image changes don't re-break.
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           PACKAGE_NAME: ${{ github.event.repository.name }}
           PACKAGE_OWNER: ${{ github.repository_owner }}
           KEEP_TAGS: "5"
         run: |
           set -euo pipefail
 
+          # Sanity: confirm gh can auth BEFORE we lose the exit
+          # code inside the mapfile. `gh auth status` writes to
+          # stderr on failure, which `set -e` would otherwise
+          # mask. Bail loudly so a future token-permission
+          # regression can't silently no-op the prune again.
+          gh auth status >/dev/null
+
           # List all versions for this container package. The
           # endpoint returns the most recent first; we walk it in
           # reverse because deleting the N oldest is idempotent if
           # the run is re-triggered.
           echo "Listing versions for ${PACKAGE_OWNER}/${PACKAGE_NAME}..."
+          # `gh api ... --jq` returns the raw API payload where
+          # the tag list lives at `.metadata.container.tags`, NOT
+          # at top-level `.tags` (which is always null on this
+          # endpoint). The `select(... | length > 0)` skips the
+          # untagged buildx cache layers — `length` on a null
+          # path returns 0, so this naturally excludes them
+          # without needing `// []` (which we keep anyway as a
+          # belt-and-braces default). Buildx cache layers are
+          # kept by design (for cache-hit speedups); we only want
+          # tagged, named versions here.
+          #
+          # NB: the comment MUST live above the `gh api` block,
+          # not between its continuation lines — `# comment`
+          # after `\` terminates the continuation and `bash` parses
+          # the next non-comment line as a fresh command.
           mapfile -t VERSIONS < <(
             gh api \
               "/users/${PACKAGE_OWNER}/packages/container/${PACKAGE_NAME}/versions?per_page=100" \
-              --jq '.[] | "\(.id)\t\(.name)\t\(.tags | join(","))"'
+              --jq '.[] | select((.metadata.container.tags // []) | length > 0) | "\(.id)\t\(.name)\t\(.metadata.container.tags | join(","))"'
           )
+
+          # Fail loudly if the API returned zero versions. The
+          # only sane way this happens is auth failure (which
+          # `gh auth status` above would already have caught) or
+          # a 404 / 403 we somehow ate — both are "stop the
+          # pipeline" conditions, not "keep accumulating tags".
+          if [[ ${#VERSIONS[@]} -eq 0 ]]; then
+            echo "::error::gh api returned 0 versions for ${PACKAGE_OWNER}/${PACKAGE_NAME}." >&2
+            echo "::error::Refusing to silently skip the prune — check GH_TOKEN scopes and package visibility." >&2
+            exit 1
+          fi
 
           # Filter to sha-* tags only; keep :latest unconditionally.
           SHA_TAGS=()
