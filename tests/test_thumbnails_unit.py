@@ -1,7 +1,7 @@
 """
 tests/test_thumbnails_unit.py — Unit tests for indexer/thumbnails.py.
 
-Thumbnail generation: 256×256 WebP q50, stored at
+Thumbnail generation: 384×384 WebP q50, stored at
 {THUMBNAIL_DIR}/{prefix}/{point_id}.webp with a 2-char prefix
 shard to avoid one-directory-per-2M-files.
 
@@ -83,27 +83,27 @@ class TestComputeThumbnail:
         assert result == thumbnail_path("abc123")
 
     def test_thumbnail_dimensions_are_square(self, tmp_path, monkeypatch):
-        """Output should be exactly 256x256 (square-cropped, not letterboxed)."""
+        """Output should be exactly 384x384 (square-cropped, not letterboxed)."""
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
         img = Image.new("RGB", (1024, 768), color="green")
         result = compute_thumbnail(img, "abc123")
         with Image.open(result) as thumb:
-            assert thumb.size == (256, 256)
+            assert thumb.size == (384, 384)
 
     def test_smaller_image_upscaled_to_target(self, tmp_path, monkeypatch):
-        """Smaller square inputs are resized up to 256x256 (center-crop is no-op)."""
+        """Smaller square inputs are resized up to 384x384 (center-crop is no-op)."""
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
         img = Image.new("RGB", (64, 64), color="red")
         result = compute_thumbnail(img, "small123")
         with Image.open(result) as thumb:
-            assert thumb.size == (256, 256)
+            assert thumb.size == (384, 384)
 
     def test_square_image(self, tmp_path, monkeypatch):
         monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
         img = Image.new("RGB", (512, 512), color="red")
         result = compute_thumbnail(img, "square12")
         with Image.open(result) as thumb:
-            assert thumb.size == (256, 256)
+            assert thumb.size == (384, 384)
 
     def test_portrait_image_becomes_square(self, tmp_path, monkeypatch):
         """Tall portrait: center-crop the shorter (width) side, resize to square."""
@@ -111,7 +111,7 @@ class TestComputeThumbnail:
         img = Image.new("RGB", (400, 800), color="red")
         result = compute_thumbnail(img, "tall1234")
         with Image.open(result) as thumb:
-            assert thumb.size == (256, 256)
+            assert thumb.size == (384, 384)
 
     def test_landscape_image_becomes_square(self, tmp_path, monkeypatch):
         """Wide landscape: center-crop the shorter (height) side, resize to square."""
@@ -119,7 +119,7 @@ class TestComputeThumbnail:
         img = Image.new("RGB", (800, 400), color="red")
         result = compute_thumbnail(img, "wide1234")
         with Image.open(result) as thumb:
-            assert thumb.size == (256, 256)
+            assert thumb.size == (384, 384)
 
     def test_center_crop_uses_center_of_image(self, tmp_path, monkeypatch):
         """A 4x4 image with distinct corners — center crop should sample center."""
@@ -132,9 +132,9 @@ class TestComputeThumbnail:
             for x in range(100):
                 img.putpixel((x, y), (255, 0, 0))
         result = compute_thumbnail(img, "center12")
-        # Resized 256x256 should be predominantly red (center was red)
+        # Resized 384x384 should be predominantly red (center was red)
         with Image.open(result) as thumb:
-            assert thumb.size == (256, 256)
+            assert thumb.size == (384, 384)
             # Sample the center pixel — should be reddish
             r, g, b = thumb.getpixel((128, 128))
             assert r > g  # red dominates over blue
@@ -252,8 +252,11 @@ class TestGenerateThumbnailForPath:
 class TestThumbnailConstants:
     """Constants are stable (referenced from indexer/local_sync.py)."""
 
-    def test_thumbnail_size_is_256(self):
-        assert THUMBNAIL_SIZE == (256, 256)
+    def test_thumbnail_size_is_384(self):
+        # Post the model-variant migration plan, the thumbnail is
+        # 384×384 (matching the so400m model input resolution). Pre-
+        # migration this was 256×256.
+        assert THUMBNAIL_SIZE == (384, 384)
 
     def test_thumbnail_quality_is_50(self):
         assert THUMBNAIL_QUALITY == 50

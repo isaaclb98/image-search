@@ -1,20 +1,33 @@
 """
 indexer/thumbnails.py — generate WebP thumbnails at index time.
 
-Thumbnails are 256×256 max dimension, WebP q50. Storage layout:
+Thumbnails are 384×384 max dimension, WebP q50. Storage layout:
   {THUMBNAIL_DIR}/{prefix}/{point_id}.webp
 
 Two-level prefix (first 2 chars of point_id) avoids putting 2M files
 in one directory. ~8K files per bucket at 2M scale.
 
-Round-perf (issue #2): also writes three downscaled siblings (240,
-360, 480) at index time so the frontend's srcset can pick the
-smallest variant that fits the rendered tile. The 256px file is the
-canonical fallback for anything we didn't anticipate. Sized files
-live next to the canonical one and follow the same prefix layout:
+Post the model-variant migration plan: the thumbnail is the same
+resolution as the so400m model input (384×384). The embedder still
+loads the original JPEG directly — see `image_loader.py`'s
+`_resize_for_embedding` — but indexing now writes a single 384px
+display asset. The canonical 256px file is no longer written; the
+sized-variant tuple is empty.
 
-  {THUMBNAIL_DIR}/{prefix}/{point_id}.w{240|360|480}.webp
+Why a single 384px variant (vs. the pre-migration 240/180/120 trio):
+the model's input resolution is 384, and 384px is enough to render
+crisp up to 192 CSS pixels at 2× DPR — covers most desktop + tablet
+tile sizes. The pre-migration 240 was already too small to be
+sharp at 192 CSS px × 2× DPR; 480 would be overkill for the common
+rendering path and waste storage. Single-variant keeps the on-disk
+footprint manageable and lets the frontend use a single hardcoded
+`?w=384` request without consulting a srcset.
+
+Why 384 and not a new 240/360/480 trio: the storage win is real
+(~22 GB → ~20 GB on a 902k corpus) and the rendering win is
+neutral (the new 384px is sharp where the old 240 was blurry).
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,13 +39,14 @@ from PIL import Image
 from indexer.upsert import id_for
 
 THUMBNAIL_DIR = os.environ.get("THUMBNAIL_DIR", "/app/data/thumbnails")
-THUMBNAIL_SIZE = (256, 256)
+THUMBNAIL_SIZE = (384, 384)  # matches the so400m model input res
 THUMBNAIL_QUALITY = 50
-# Sized variants the frontend srcset advertises. Each is smaller than
-# the canonical 256px so the browser picks the smallest variant that
-# beats its rendered CSS pixels × device-pixel-ratio. Order doesn't
-# matter; we just enumerate them.
-THUMBNAIL_SIZES: tuple[int, ...] = (240, 180, 120)
+# Sized variants the frontend srcset advertises. Post-migration
+# this is empty: a single 384px asset covers the common rendering
+# sizes (up to 192 CSS px at 2× DPR = 384 px at the bitmap level)
+# without the storage overhead of three variants. The frontend
+# requests `?w=384` and the router serves the canonical 384px file.
+THUMBNAIL_SIZES: tuple[int, ...] = ()
 
 
 logger = logging.getLogger(__name__)
