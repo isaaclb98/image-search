@@ -34,7 +34,7 @@
     border: 1px solid var(--glass-edge);
     border-radius: 4px;
     color: var(--fg-2);
-    font-family: var(--font-stack);
+    font-family: var(--font-mono-stack);
     font-size: 0.85em;
     line-height: 1;
     /* Mono-ish character look without forcing a different font

@@ -16,6 +16,7 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
 
   type Member = {
@@ -154,18 +155,19 @@
 {:else if error || !detail}
   <div class="placeholder error">Couldn't load album: {error ?? 'not found'}</div>
 {:else}
-  <section class="head glass">
-    <div>
-      <h1>{detail.name}</h1>
-      {#if detail.description}<p>{detail.description}</p>{/if}
-      <p class="meta">{detail.member_total ?? members.length} photos</p>
-    </div>
-    {#if detail.id}
-      <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
-        Download zip
-      </a>
-    {/if}
-  </section>
+  <PageHeader
+    title={detail.name}
+    subtitle={detail.description}
+    meta="{detail.member_total ?? members.length} photos"
+  >
+    {#snippet actions()}
+      {#if detail && detail.id}
+        <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
+          Download zip
+        </a>
+      {/if}
+    {/snippet}
+  </PageHeader>
   <section>
     <PhotoGrid
       items={items()}
@@ -185,26 +187,6 @@
     color: var(--fg-2);
   }
   .back:hover { color: var(--fg-1); }
-  .head {
-    padding: 22px 26px;
-    margin: 16px auto 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: var(--fs-2xl);
-    font-weight: 600;
-  }
-  .head p {
-    margin: 4px 0 0;
-    color: var(--fg-2);
-  }
-  .head .meta { color: var(--fg-3); font-size: var(--fs-sm); }
   .zip {
     padding: 8px 16px;
     border-radius: var(--r-pill);

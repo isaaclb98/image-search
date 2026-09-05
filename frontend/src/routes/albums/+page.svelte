@@ -27,6 +27,7 @@
   import { dialog } from '$lib/components/Dialog.svelte';
   import { pushRandomTint } from '$lib/components/blurhash-bg';
   import Icon from '$lib/components/Icon.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
   // Round‑29b: renamed from 'favourites' to 'likes' to match
@@ -192,13 +193,14 @@
   <title>Albums · Image Search</title>
 </svelte:head>
 
-<section class="head">
-  <div>
-    <h1>Albums</h1>
-    <p>Like photos to keep them handy, build collections, group memories.</p>
-  </div>
-  <button type="button" class="new" onclick={create}>+ New album</button>
-</section>
+<PageHeader
+  title="Albums"
+  subtitle="Like photos to keep them handy, build collections, group memories."
+>
+  {#snippet actions()}
+    <button type="button" class="new" onclick={create}>+ New album</button>
+  {/snippet}
+</PageHeader>
 
 <section class="system" aria-label="Built-in albums">
   <article class="card glass system-like">
@@ -333,23 +335,6 @@
 {/if}
 
 <style>
-  .head {
-    margin: 16px auto 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
-  .head h1 {
-    font-size: var(--fs-2xl);
-    font-weight: 600;
-    margin: 0;
-  }
-  .head p {
-    color: var(--fg-2);
-    margin: 4px 0 0;
-  }
   .new {
     height: 40px;
     padding: 0 18px;
@@ -415,24 +400,33 @@
     border-color: var(--accent);
   }
 
-  /* System albums — pinned to the top, never deletable. */
+  /* System albums — pinned to the top, never deletable.
+     Width mirrors the PageHeader above so the chrome edges
+     (card outline, header outline) line up. */
   .system {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--grid-gutter);
-    margin: 0 0 24px;
+    margin: 0 auto 24px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .section-title {
     font-size: var(--fs-sm);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--fg-2);
-    margin: 0 0 12px;
+    margin: 0 auto 12px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--grid-gutter);
+    margin: 0 auto 24px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .card {
     /* No horizontal padding — the cover spans full width. Vertical

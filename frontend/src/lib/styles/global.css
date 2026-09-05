@@ -1,4 +1,12 @@
 @import './tokens.css';
+/* Geist Sans — three weights we actually use (400 regular, 500
+   medium, 600 semibold). Self-hosted woff2 via @fontsource — no
+   CDN, no FOIT. Skips 700+; the design system doesn't reach for
+   bold. Imported here so the @font-face declarations register
+   before any component CSS reads --font-stack. */
+@import '@fontsource/geist-sans/400.css';
+@import '@fontsource/geist-sans/500.css';
+@import '@fontsource/geist-sans/600.css';
 
 * { box-sizing: border-box; }
 

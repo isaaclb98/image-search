@@ -457,8 +457,16 @@
 <style>
   .grid-wrapper {
     /* Body is the scroll context. The grid is in normal flow; only
-       virtual rows the user are looking at are rendered. */
-    width: 100%;
+       virtual rows the user are looking at are rendered.
+
+       Width mirrors the PageHeader above (var(--grid-width) =
+       cols * tileSize + gaps, capped). Without this constraint
+       the wrapper fills the page container (2352px at 2510
+       viewport) and the grid edges bleed 14px past the header on
+       each side. */
+    width: var(--grid-width, 100%);
+    max-width: 100%;
+    margin: 0 auto;
   }
 
   .grid-virtual {
@@ -507,6 +515,14 @@
   }
 
   .empty {
+    /* Width mirrors the PageHeader above (var(--grid-width) =
+       cols * tileSize + gaps, capped). Without this the
+       placeholder fills the page container (2352px at 2510
+       viewport) and its edges bleed 14px past the header on
+       each side. */
+    width: var(--grid-width, 100%);
+    max-width: 100%;
+    margin: 0 auto;
     padding: var(--s-6, 48px) var(--s-4, 24px);
     color: var(--fg-3, #7e8290);
     font-size: 0.95rem;

@@ -23,6 +23,7 @@
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
 
   type Item = {
     id: string;
@@ -105,16 +106,15 @@
 
 <a class="back" href="/albums">← All albums</a>
 
-<section class="head glass">
-  <div>
-    <h1>
-      <Icon name="minus" size={24} />
-      <span>Dislikes</span>
-    </h1>
-    <p>Photos you've marked as not interested. Built-in, always here.</p>
-    <p class="meta">{items.length} photo{items.length === 1 ? '' : 's'}</p>
-  </div>
-</section>
+<PageHeader
+  subtitle="Photos you've marked as not interested. Built-in, always here."
+  meta="{items.length} photo{items.length === 1 ? '' : 's'}"
+>
+  {#snippet title()}
+    <Icon name="minus" size={24} />
+    <span>Dislikes</span>
+  {/snippet}
+</PageHeader>
 
 {#if loading}
   <div class="placeholder">Loading…</div>
@@ -145,31 +145,6 @@
     color: var(--fg-2);
   }
   .back:hover { color: var(--fg-1); }
-  .head {
-    padding: 22px 26px;
-    margin: 16px auto 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: var(--fs-2xl);
-    font-weight: 600;
-    /* Icon + label on one row, vertically aligned. The icon's
-       own viewBox keeps it optically centered. */
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .head p {
-    margin: 4px 0 0;
-    color: var(--fg-2);
-  }
-  .head .meta { color: var(--fg-3); font-size: var(--fs-sm); }
   .placeholder {
     padding: 32px 24px;
     text-align: center;

@@ -6,16 +6,19 @@
    *
    * Layout (vertical stack):
    *   [ PromptChips              ]
-   *   [ CollectionsChips (opt)   ]
    *
    * The Search button + saved-searches menu used to live here
    * too, but they were pulled out to the page level (rendered
    * as siblings AFTER the AdditionalFilters panel) so the
    * visual order matches what the user asked for: search inputs
    * → diversity/filename options → action buttons.
+   *
+   * The collections chip filter used to live here too; it now
+   * lives inside the AdditionalFilters panel (rendered when
+   * `onToggleCollection` is passed). Keeps the "library scoping"
+   * choice with the other search-scope controls.
    */
   import PromptChips from './PromptChips.svelte';
-  import CollectionsChips from './CollectionsChips.svelte';
 
   type Props = {
     // state
@@ -23,28 +26,23 @@
     negatives: string[];
     input: string;
     mode: 'pos' | 'neg';
-    /** Selected collection (source) names. Empty = whole library. */
-    collections: string[];
     // events
     onInput: (v: string) => void;
     onMode: (m: 'pos' | 'neg') => void;
     onAdd: (text: string, mode: 'pos' | 'neg') => void;
     onRemovePositive: (i: number) => void;
     onRemoveNegative: (i: number) => void;
-    onToggleCollection?: (name: string) => void;
   };
   let {
     positives,
     negatives,
     input,
     mode,
-    collections = [],
     onInput,
     onMode,
     onAdd,
     onRemovePositive,
     onRemoveNegative,
-    onToggleCollection,
   }: Props = $props();
 </script>
 
@@ -60,12 +58,6 @@
     {onRemoveNegative}
     {onMode}
   />
-  {#if onToggleCollection}
-    <CollectionsChips
-      selected={collections}
-      onToggle={onToggleCollection}
-    />
-  {/if}
 </div>
 
 <style>

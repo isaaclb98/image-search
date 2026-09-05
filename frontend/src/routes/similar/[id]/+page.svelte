@@ -20,6 +20,7 @@
     dislikePoint
   } from '$lib/api/endpoints';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -104,16 +105,12 @@
   ← Back
 </button>
 
-<section class="head glass">
-  <h1>Most similar</h1>
-  <p>
-    {#if items.length === 0}
-      Up to {MAX_TOTAL} nearest neighbours, ranked by visual closeness.
-    {:else}
-      {items.length} of up to {MAX_TOTAL} nearest neighbours, ranked by visual closeness.
-    {/if}
-  </p>
-</section>
+<PageHeader
+  title="Most similar"
+  subtitle={items.length === 0
+    ? `Up to ${MAX_TOTAL} nearest neighbours, ranked by visual closeness.`
+    : `${items.length} of up to ${MAX_TOTAL} nearest neighbours, ranked by visual closeness.`}
+/>
 
 {#if loading && items.length === 0}
   <div class="placeholder">Finding visually similar photos…</div>
@@ -150,28 +147,6 @@
     font-size: var(--fs-sm);
   }
   .back:hover { color: var(--fg-1); }
-
-  .head {
-    margin: 0 auto 16px;
-    padding: 22px 26px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: var(--fs-2xl);
-    font-weight: 600;
-  }
-  .head p {
-    margin: 4px 0 0;
-    color: var(--fg-2);
-    flex-basis: 100%;
-  }
 
   .placeholder {
     color: var(--fg-3);

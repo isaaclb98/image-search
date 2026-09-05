@@ -98,7 +98,7 @@
     diversityMode = q.get('diversity') ?? 'off';
     diversityDepth = q.get('diversity_depth') ?? 'auto';
     collections = q.getAll('collections');
-    filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto';
+    filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto' || collections.length > 0;
     activeCentroid = q.get('centroid');
     // Validate the mode param — anything other than the two
     // known values is treated as the default so a stale or
@@ -356,9 +356,7 @@
   {:else}
     <h1>Find photos by what they look like.</h1>
     <p class="sub">
-      Type what you remember — colours, moods, subjects — and pick from the
-      results. Save the searches you love, like your favourites, discover
-      what's nearby.
+      Type what you remember. Save what you love.
     </p>
   {/if}
   {#if !activeCentroid}
@@ -367,30 +365,30 @@
       {negatives}
       {input}
       {mode}
-      {collections}
       onInput={(v) => (input = v)}
       onMode={(m) => (mode = m)}
       onAdd={addPrompt}
       onRemovePositive={removePositive}
       onRemoveNegative={removeNegative}
-      onToggleCollection={toggleCollection}
     />
   {/if}
 
-  <!-- Diversity / filename controls. Rendered inside .hero (next
-       to the SearchComposer, not nested inside the composer
-       component) so they share the composer's card width — the
-       user wants this panel to read as part of the search
-       section, not the photo grid. -->
+  <!-- Diversity / filename controls + collections chip filter.
+       Rendered inside .hero (next to the SearchComposer, not nested
+       inside the composer component) so they share the composer's
+       card width — the user wants this panel to read as part of
+       the search section, not the photo grid. -->
   <AdditionalFilters
     open={filtersOpen}
     {filename}
     {diversityMode}
     {diversityDepth}
+    {collections}
     onToggle={() => (filtersOpen = !filtersOpen)}
     onFilename={(v) => (filename = v)}
     onDiversityMode={(v) => (diversityMode = v)}
     onDiversityDepth={(v) => (diversityDepth = v)}
+    onToggleCollection={toggleCollection}
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
@@ -403,9 +401,12 @@
         {positives}
         {negatives}
         onPick={(s: SavedSearch) => {
+          // Populate the state but don't auto-run. The Search
+          // button is now enabled (positives/negatives are set)
+          // and the user presses it to actually execute — same
+          // pattern as typing prompts fresh.
           positives = [...s.positives];
           negatives = [...s.negatives];
-          reload();
         }}
       />
       <button
@@ -446,7 +447,7 @@
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: 32px 16px 12px;
+    padding: 40px 16px 28px;
     text-align: center;
   }
 
@@ -491,7 +492,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 8px;
   }
   .primary {
     height: 44px;
@@ -514,13 +514,13 @@
   .hero h1 {
     font-size: var(--fs-3xl);
     font-weight: 600;
-    margin: 0 0 12px;
+    margin: 0 0 6px;
     letter-spacing: -0.01em;
     line-height: var(--lh-tight);
   }
   .hero .sub {
     color: var(--fg-muted);
-    margin: 0 auto 24px;
+    margin: 0 auto 28px;
     max-width: 56ch;
     line-height: var(--lh-prose);
   }
@@ -530,6 +530,22 @@
     border-radius: var(--r-1);
     padding: 1px 6px;
     font-size: 0.9em;
+  }
+  /* Spacing inside the hero stack:
+       composer (PromptChips + CollectionsChips)
+         ↓ 14px
+       diversity / filename controls (AdditionalFilters)
+         ↓ 10px
+       search actions (Saved + Search)
+     These gaps are deliberate — title→subtitle is 6px (they
+     read as one block), subtitle→composer is 28px (separate
+     chunk), and these middle gaps give each card its own
+     breathing room instead of stacking them flush. */
+  .hero > :global(.filters) {
+    margin-top: 14px;
+  }
+  .search-actions {
+    margin-top: 10px;
   }
   .back-link {
     color: var(--fg-2);

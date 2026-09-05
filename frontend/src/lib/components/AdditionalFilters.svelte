@@ -2,14 +2,21 @@
   /**
    * AdditionalFilters — the collapsible panel below the search
    * controls. Has a header with title + chevron, body has the
-   * filename input and diversity controls.
+   * filename input, diversity controls, and (on the home page)
+   * the collections chip filter.
    *
    * Diversity API contract (see search/diversity.py):
    *   diversity_mode  ∈ {off, low, balanced, high}
    *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000}
    *   (diversity_strength was a 0–1 slider; removed in round-4
    *    per king — the mode dropdown is enough.)
+   *
+   * Collections: optional. Pass `collections` + `onToggleCollection`
+   * to surface the chip-row filter inside this panel. Used on the
+   * home page only — other pages don't need library scoping.
    */
+  import CollectionsChips from './CollectionsChips.svelte';
+
   type Props = {
     open: boolean;
     filename: string;
@@ -19,6 +26,8 @@
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
     onDiversityDepth?: (v: string) => void;
+    collections?: string[];
+    onToggleCollection?: (name: string) => void;
   };
   let {
     open,
@@ -28,7 +37,9 @@
     onToggle,
     onFilename,
     onDiversityMode,
-    onDiversityDepth
+    onDiversityDepth,
+    collections = [],
+    onToggleCollection
   }: Props = $props();
 </script>
 
@@ -89,6 +100,15 @@
           </div>
         </div>
       {/if}
+      {#if onToggleCollection}
+        <div class="collections-row">
+          <span class="lab">Limit to library</span>
+          <CollectionsChips
+            selected={collections}
+            onToggle={onToggleCollection}
+          />
+        </div>
+      {/if}
     </div>
   {/if}
 </section>
@@ -106,6 +126,10 @@
        two cards visually line up. */
     width: 100%;
     margin: 0 auto;
+    /* The hero is text-align: center; override so this panel's
+       labels (Filename, Diversity, Diversity depth, Limit to
+       library) read as a form, not as centered prose. */
+    text-align: left;
   }
   .head {
     display: flex;
@@ -122,19 +146,33 @@
   }
   .body {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 14px;
     padding: 4px 16px 16px;
     border-top: 1px solid var(--glass-edge);
   }
+  /* Inline label + control pattern, matching /for-you. The label
+     sits on the left at a fixed width so "Diversity" and
+     "Diversity depth" align at the same x, and the input/select
+     fills the remaining row width via flex: 1. Without this the
+     fields stack label-on-top-of-control which forces the control
+     to fill the full column width (235px) and look oversized for
+     short values like "Balanced" or "Auto". */
   .field {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
   .field .lab {
     color: var(--fg-2);
     font-size: var(--fs-sm);
+    /* Wider than /for-you (96px) because "Filename contains" and
+       "Limit to library" don't fit in 96px without wrapping. The
+       +24px keeps all labels on one line while still aligning
+       the dropdowns at a consistent x. */
+    width: 120px;
+    flex-shrink: 0;
   }
   .field input[type='text'] {
     background: rgba(14,15,20,0.45);
@@ -144,9 +182,27 @@
     height: 36px;
     color: var(--fg-1);
     transition: border-color var(--t-fast);
+    /* Fill the grid cell so every column reads the same width.
+       Without this, native <select> sizes to its content (often
+       narrower than the field's allocated column), making the
+       dropdown look pinched next to a wider text input. */
+    width: 100%;
+    box-sizing: border-box;
   }
   .field input[type='text']:focus {
     border-color: var(--accent);
+  }
+  /* The collections chip-row spans the full grid width — it's a
+     row of toggleable chips, not a single labeled input. */
+  .collections-row {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .collections-row .lab {
+    color: var(--fg-2);
+    font-size: var(--fs-sm);
   }
   .row {
     display: flex;
@@ -160,6 +216,12 @@
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     padding: 0 12px;
+    /* Fill the grid cell so dropdowns match the text input width
+       in their row. Without this, the <select> shrinks to fit
+       its current value (e.g. "Balanced") and looks pinched
+       next to the wider filename input. */
+    width: 100%;
+    box-sizing: border-box;
   }
   input[type='range'] {
     flex: 1;
