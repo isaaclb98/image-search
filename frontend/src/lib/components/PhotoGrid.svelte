@@ -42,7 +42,7 @@
     items: Item[];
     loading?: boolean;
     hasMore?: boolean;
-    onLoadMore?: () => void;
+    onLoadMore?: (signal?: AbortSignal) => void;
     onToggleFavorite?: (id: string) => void;
     onDislike?: (id: string) => void;
     /**
@@ -260,9 +260,24 @@
     resizeObserver?.disconnect();
   });
 
-  // Infinite scroll: sentinel. root: null → viewport (window).
+  // Infinite scroll — pre-fetch ahead.
+  //
+  // The user-visible "batch just dropped in" feel comes from a
+  // fetch that starts AFTER they reach the bottom. We instead
+  // trigger when the rendered virtual range is within `PRE_FETCH_AHEAD`
+  // viewports of the total — by the time the user scrolls there,
+  // the next page is already in `items`. The existing bottom
+  // sentinel stays as a backstop (handles the edge case where the
+  // virtualizer doesn't render the trigger row because of its
+  // overscan estimate).
+  //
+  // The AbortSignal lets the caller cancel an in-flight pre-fetch
+  // if the user scrolls back fast — a stale page-2 landing on
+  // top of items that have since grown would be jarring.
+  const PRE_FETCH_AHEAD = 2; // viewports
   let sentinel: HTMLDivElement | undefined = $state();
   let observer: IntersectionObserver | null = null;
+  let preFetchController: AbortController | null = null;
 
   $effect(() => {
     if (sentinel && hasMore && onLoadMore && !loading) {
@@ -270,7 +285,9 @@
       observer = new IntersectionObserver(
         (entries) => {
           if (entries[0].isIntersecting) {
-            onLoadMore?.();
+            preFetchController?.abort();
+            preFetchController = new AbortController();
+            onLoadMore?.(preFetchController.signal);
           }
         },
         { root: null, threshold: 0.1 }
@@ -278,6 +295,31 @@
       observer.observe(sentinel);
     }
     return () => observer?.disconnect();
+  });
+
+  // Virtualizer-driven pre-fetch trigger. Runs when virtualItems
+  // or rowHeight changes; recomputes whether the rendered tail is
+  // close enough to the end to warrant fetching the next page.
+  // Skipped while already loading (avoids piling up fetches) and
+  // skipped when there's no more data.
+  $effect(() => {
+    if (!hasMore || loading || !onLoadMore) return;
+    if (typeof window === 'undefined') return; // SSR
+    const totalRows = rows.length;
+    if (totalRows === 0) return;
+    const vis = virtualItems;
+    if (vis.length === 0) return;
+    const lastRenderedRow = vis[vis.length - 1].index;
+    const rowsPerViewport = Math.max(
+      1,
+      Math.floor(window.innerHeight / rowHeight)
+    );
+    const triggerAt = totalRows - PRE_FETCH_AHEAD * rowsPerViewport;
+    if (lastRenderedRow >= triggerAt) {
+      preFetchController?.abort();
+      preFetchController = new AbortController();
+      onLoadMore?.(preFetchController.signal);
+    }
   });
 
   // Tile interactions

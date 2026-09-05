@@ -67,7 +67,7 @@
     }
   }
 
-  async function loadMore() {
+  async function loadMore(signal?: AbortSignal) {
     if (loading || loadingMore || !hasMore || !detail) return;
     const id = String($page.params.id);
     loadingMore = true;
@@ -76,16 +76,18 @@
       // it already returns metadata + a member slice in one
       // round-trip, and the first call cached the album's name/
       // description/total in `detail` so we just take `members`.
-      const res = (await getAlbum(id, PAGE, offset)) as AlbumDetail;
+      const res = (await getAlbum(id, PAGE, offset, signal)) as AlbumDetail;
       const more = (res.members ?? []) as Member[];
       members = [...members, ...more];
       offset = members.length;
       const total = res.member_total ?? members.length;
       hasMore = offset < total && more.length >= PAGE;
-    } catch {
+    } catch (e) {
       // Leave the existing list intact; the user can keep paging
       // — losing scroll progress on a transient error is worse
-      // than a stuck spinner.
+      // than a stuck spinner. A clean cancel from the pre-fetch
+      // retrigger is silent — no hasMore=false penalty.
+      if (signal?.aborted) return;
     } finally {
       loadingMore = false;
     }

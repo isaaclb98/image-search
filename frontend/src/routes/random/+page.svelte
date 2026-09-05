@@ -66,7 +66,7 @@
     }
   }
 
-  async function loadMore() {
+  async function loadMore(signal?: AbortSignal) {
     if (loading || !hasMore || !sessionId) return;
     loading = true;
     try {
@@ -74,12 +74,14 @@
         session: sessionId,
         offset: nextOffset,
         limit: PAGE,
+        signal
       });
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       nextOffset += more.length;
       hasMore = !!res?.has_more && more.length > 0;
-    } catch {
+    } catch (e) {
+      if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
       loading = false;
