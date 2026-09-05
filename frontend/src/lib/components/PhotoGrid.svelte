@@ -99,6 +99,17 @@
   // stays at 280 since it was already larger than tileSize + GAP — the
   // estimate just gets more accurate.
   const GAP = 4; // px, matches --grid-gutter
+
+  // Number of skeleton placeholder rows rendered while a fetch
+  // is in flight. Sized to roughly one viewport at the typical
+  // rowHeight (388px = 384 tile + 4 gap): 3 rows ≈ 1164px, which
+  // covers a 1080p viewport's bottom-band plus a small buffer
+  // below the fold. Any less and the placeholder band is shorter
+  // than the visible area below the last real row, so the user
+  // sees a gap between tiles and skeleton. Any more and the
+  // skeleton forces the page to grow when the next page arrives,
+  // causing a tiny layout jump.
+  const SKELETON_ROWS = 3;
   const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
 
   // Sensible floor before we know the wrapper width — used on the
@@ -458,11 +469,38 @@
     </div>
 
     {#if hasMore}
-      <div class="sentinel" bind:this={sentinel}>
-        {#if loading}
-          <div class="loading">Loading...</div>
-        {/if}
-      </div>
+      <div class="sentinel" bind:this={sentinel}></div>
+      {#if loading}
+        <!--
+          Skeleton placeholder rows. Sit in normal flow just below
+          the virtualized grid so the user sees tile-shaped
+          placeholders in the gap between when the pre-fetch
+          fires and when the next page's data arrives. Without
+          these, the user sees a partially-filled last row + a
+          large expanse of empty space, then a sudden "dump" of
+          new tiles — the "loads in at each scroll" perception.
+
+          The number of rows (SKELETON_ROWS) is sized so the
+          placeholder band is roughly one viewport tall — enough
+          to cover the visible area below the last rendered row
+          without being so tall it would force-scroll the page.
+
+          Rows use the same `.grid-row` class so the column
+          structure (auto-fill, 384px tracks, 4px gutter,
+          centered) matches the real grid exactly. Tiles inherit
+          `.grid-tile`'s aspect-ratio: 1 and become the shimmer
+          surface via `.skeleton-tile`.
+        -->
+        <div class="skeleton-rows" aria-hidden="true">
+          {#each Array(SKELETON_ROWS) as _, sr (sr)}
+            <div class="grid-row skeleton-row">
+              {#each Array(columns) as _, sc (sc)}
+                <div class="grid-tile skeleton-tile"></div>
+              {/each}
+            </div>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -596,6 +634,61 @@
   @keyframes spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  /* Skeleton placeholder rows shown while the next page is
+     fetching. Sits in normal flow below the virtualized grid so
+     the visual height of the grid-wrapper grows during the fetch
+     gap. Tiles inherit .grid-tile's aspect-ratio: 1 and pick up
+     the .grid-row column structure (auto-fill 384px, 4px gap,
+     centered), so the placeholder band aligns pixel-for-pixel
+     with the real tile grid above it.
+
+     The shimmer is a diagonal gradient sweep across each tile.
+     1.5s duration is slow enough to feel like a deliberate
+     affordance, fast enough that a sub-second fetch doesn't
+     show the animation in a way that suggests slowness. */
+  .skeleton-rows {
+    padding-top: 4px;
+  }
+  .skeleton-row {
+    /* Inherits .grid-row's grid-template-columns, gap, and
+       justify-content. No additional sizing needed. */
+    margin-bottom: var(--grid-gutter, 4px);
+    pointer-events: none;
+  }
+  .skeleton-tile {
+    /* Inherits aspect-ratio: 1 from .grid-tile. */
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--r-md, 8px);
+    overflow: hidden;
+    position: relative;
+  }
+  .skeleton-tile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0) 20%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0) 80%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite linear;
+  }
+  @keyframes skeleton-shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-tile::after {
+      animation: none;
     }
   }
 
