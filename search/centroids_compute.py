@@ -223,7 +223,7 @@ def sample_centroid(
         # caller already passed a unique-id list.
         chosen_indices = list(range(n))
     else:
-        rng = random.Random(seed) if seed is not None else random
+        rng = random.Random(seed) if seed is not None else random  # noqa: S311
         # sample(population, k) without replacement — equivalent
         # to random.sample(range(n), k) but spelled out so the
         # intent is obvious in code review.

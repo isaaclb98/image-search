@@ -220,7 +220,7 @@ def build_centroids_search_router(
                             f"could not retrieve seed vectors for "
                             f"centroid {name!r}"
                         )
-                    vector, picked_count, picked_seed_ids = sample_centroid(
+                    vector, _picked_count, picked_seed_ids = sample_centroid(
                         picked_ids, picked_vecs, k=sample_k,
                     )
                     # Use the picked subset as the exclude list so

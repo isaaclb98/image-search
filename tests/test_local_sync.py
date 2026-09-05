@@ -78,7 +78,7 @@ def test_vector_dim_matches_siglip2() -> None:
     from image_search_kernel.registry import get as _registry_get
     from search.config import DEFAULT_MODEL
     expected_dim = _registry_get(DEFAULT_MODEL).dim
-    assert VECTOR_DIM == expected_dim, (
+    assert expected_dim == VECTOR_DIM, (
         f"VECTOR_DIM={VECTOR_DIM} should match registry dim for "
         f"{DEFAULT_MODEL} ({expected_dim})"
     )

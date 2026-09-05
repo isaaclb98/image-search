@@ -97,7 +97,7 @@ def test_centroid_matches_manual_mean_of_subset():
     seed_ids = [f"id-{i}" for i in range(30)]
     vectors = [_vec(float(i % 8)) for i in range(30)]
     import random
-    expected_indices = random.Random(123).sample(range(30), 10)
+    expected_indices = random.Random(123).sample(range(30), 10)  # noqa: S311
     expected_ids = [seed_ids[i] for i in expected_indices]
     expected_mean = np.mean(
         [vectors[i] for i in expected_indices], axis=0,

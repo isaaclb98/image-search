@@ -49,16 +49,18 @@ _model_error: str | None = None
 # it was hardcoded to "ViT-gopt-16-SigLIP2-384". Kept as a string
 # rather than a direct registry call to avoid import-time cycles
 # (registry → config → ... → encoder).
-from search.config import DEFAULT_MODEL as DEFAULT_MODEL_NAME  # noqa: E402
 # Mock entry registered by `image_search_kernel.registry.get_default_registry`.
 # Sourced from the registry too: pre-R1 this was "mock-1536" (a
 # constant matching the gopt dim); post-R1 it's whatever the
 # registry's mock entry is named. Look it up via the same
 # `_MOCK_REGISTRY_NAME` constant the registry exports.
-from image_search_kernel.registry import (  # noqa: E402
+from image_search_kernel.registry import (
     _MOCK_REGISTRY_NAME as MOCK_MODEL_NAME,
+)
+from image_search_kernel.registry import (
     register_mock_dim_provider,
 )
+from search.config import DEFAULT_MODEL as DEFAULT_MODEL_NAME
 
 
 def _provide_active_mock_dim() -> int:

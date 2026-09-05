@@ -33,7 +33,7 @@ Concrete entries shipped today:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -324,7 +324,7 @@ _MOCK_1536_SPEC = ModelSpec(
 # dimension (1152 for so400m/16-384 today). Defaults to 1536
 # (gopt's dim) if not registered — so the kernel is usable in
 # isolation for tests that don't care about the active variant.
-_active_mock_dim_provider: "callable[[], int] | None" = None
+_active_mock_dim_provider: Callable[[], int] | None = None
 
 # Re-entry guard for `_resolve_mock_dim`. Set True while the
 # resolver is in flight (so `_try_register_real_models` →
@@ -335,7 +335,7 @@ _active_mock_dim_provider: "callable[[], int] | None" = None
 _RESOLVE_IN_PROGRESS: bool = False
 
 
-def register_mock_dim_provider(provider: "callable[[], int]") -> None:
+def register_mock_dim_provider(provider: Callable[[], int]) -> None:
     """Install a callable that returns the active mock dim.
 
     The application (`search/__init__.py`) registers its
@@ -373,7 +373,7 @@ def _resolve_mock_dim() -> int:
         if not result:
             raise ValueError("provider returned falsy dim")
         return int(result)
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         print(f"[kernel] _resolve_mock_dim fallback to 1536: {type(e).__name__}: {e}")
         return 1536
     finally:
