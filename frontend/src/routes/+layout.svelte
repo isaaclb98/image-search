@@ -124,6 +124,22 @@
     return () => document.removeEventListener('keydown', onGlobalKey);
   });
 
+  // Tuning constants for the photo grid layout. These flow to
+  // every chrome bar (page header, filters panel, saved-search
+  // row) via --grid-width, so changing TILE here also resizes the
+  // chrome on every page.
+  //
+  // 240px tiles at 6 cols gives a 1460px content width. With the
+  // 384px source WebP, that's a 0.96× downscale at dpr 1.53 —
+  // essentially 1:1 device-pixel mapping, which is the crispest
+  // the single-variant setup gets without going to larger source
+  // files. Round-36 had 384px tiles (1.53× upscale on Isaac's
+  // 4K monitor) which read as soft. Going smaller below 240
+  // starts trading crispness for over-density (12+ cols at 220px).
+  const MAX_COLS = 6;
+  const TILE = 240;
+  const GAP = 4;
+
   // Compute and publish `--grid-width` on :root so any page
   // element (header bar, filters panel, etc.) can size to match
   // the rendered photo grid. Same math as PhotoGrid uses, but
@@ -133,17 +149,20 @@
   // PhotoGrid overwrites with its measured value once mounted —
   // the layout value is the seed/default.
   //
-  // Math mirrors PhotoGrid's column calculation exactly:
-  //   N = floor((containerWidth + 4) / 388)
-  //   gridWidth = min(containerWidth, N * 384 + (N - 1) * 4)
+  // Math mirrors PhotoGrid's column calculation:
+  //   N = min(MAX_COLS, floor((containerWidth + GAP) / (TILE + GAP)))
+  //   gridWidth = N * TILE + (N - 1) * GAP
   onMount(() => {
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const containerWidth = entry.contentRect.width;
         if (containerWidth <= 0) continue;
-        const cols = Math.max(1, Math.floor((containerWidth + 4) / 388));
-        const gridWidth = Math.min(containerWidth, cols * 384 + (cols - 1) * 4);
+        const cols = Math.max(
+          1,
+          Math.min(MAX_COLS, Math.floor((containerWidth + GAP) / (TILE + GAP)))
+        );
+        const gridWidth = cols * TILE + (cols - 1) * GAP;
         document.documentElement.style.setProperty('--grid-width', gridWidth + 'px');
       }
     });
