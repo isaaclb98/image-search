@@ -124,6 +124,34 @@
     return () => document.removeEventListener('keydown', onGlobalKey);
   });
 
+  // Compute and publish `--grid-width` on :root so any page
+  // element (header bar, filters panel, etc.) can size to match
+  // the rendered photo grid. Same math as PhotoGrid uses, but
+  // evaluated at the layout level so pages WITHOUT PhotoGrid
+  // mounted (e.g. / before any search runs, or a future page that
+  // doesn't use PhotoGrid at all) still get the correct value.
+  // PhotoGrid overwrites with its measured value once mounted —
+  // the layout value is the seed/default.
+  //
+  // Math mirrors PhotoGrid's column calculation exactly:
+  //   N = floor((containerWidth + 4) / 388)
+  //   gridWidth = min(containerWidth, N * 384 + (N - 1) * 4)
+  onMount(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const containerWidth = entry.contentRect.width;
+        if (containerWidth <= 0) continue;
+        const cols = Math.max(1, Math.floor((containerWidth + 4) / 388));
+        const gridWidth = Math.min(containerWidth, cols * 384 + (cols - 1) * 4);
+        document.documentElement.style.setProperty('--grid-width', gridWidth + 'px');
+      }
+    });
+    const main = document.querySelector('.app-main');
+    if (main) ro.observe(main);
+    return () => ro.disconnect();
+  });
+
   // Round-6: View Transitions API crossfade between routes.
   // Wraps `goto()` and `<a>` navigations in
   // `document.startViewTransition` so the browser paints the

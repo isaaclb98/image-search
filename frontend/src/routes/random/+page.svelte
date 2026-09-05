@@ -162,12 +162,18 @@
 </section>
 
 <style>
+  /* Width matches the rendered grid below — PhotoGrid sets
+     `--grid-width` on .grid-wrapper, and we pick it up via the
+     inheritable custom property. Falls back to full container
+     width if the grid hasn't measured yet. */
   .head {
-    margin: 16px 0 24px;
+    margin: 16px auto 24px;
     padding: 22px 26px;
     display: flex;
     align-items: center;
     gap: 16px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .head h1 {
     font-size: var(--fs-2xl);

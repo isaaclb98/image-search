@@ -165,11 +165,13 @@
   .back:hover { color: var(--fg-1); }
   .head {
     padding: 22px 26px;
-    margin-bottom: 24px;
+    margin: 16px auto 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 16px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .head h1 {
     margin: 0;

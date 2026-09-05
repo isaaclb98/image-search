@@ -152,13 +152,15 @@
   .back:hover { color: var(--fg-1); }
 
   .head {
-    margin: 0 0 16px;
+    margin: 0 auto 16px;
     padding: 22px 26px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .head h1 {
     margin: 0;

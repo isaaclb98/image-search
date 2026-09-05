@@ -208,11 +208,13 @@
 
 <style>
   .head {
-    margin: 16px 0 16px;
+    margin: 16px auto 16px;
     padding: 22px 26px;
     display: flex;
     align-items: center;
     gap: 16px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .head h1 {
     margin: 0;

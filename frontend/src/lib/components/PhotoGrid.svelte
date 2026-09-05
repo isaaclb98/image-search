@@ -219,6 +219,22 @@
     resizeObserver.observe(gridWrapper);
   });
 
+  // Actual rendered width of the .grid-row inside the wrapper.
+  // Equals N×TILE + (N−1)×GAP where N is the column count. The
+  // wrapper itself is wider than this (it includes the leftover
+  // space when the container can't fit another 384px tile).
+  //
+  // Note: --grid-width is also computed at the layout level in
+  // +layout.svelte so pages without PhotoGrid (e.g. / before
+  // any search runs) still have the var set. PhotoGrid's
+  // measurement is the source of truth when mounted; the layout
+  // fallback handles the empty-items case.
+  let gridWidth = $derived(
+    columns > 0 && containerWidth > 0
+      ? Math.min(containerWidth, columns * 384 + (columns - 1) * GAP)
+      : 0
+  );
+
   // Re-measure the rendered tile whenever items change OR the
   // container width changes. The CSS grid uses auto-fill, so the
   // number of columns (and therefore the tile width) depends on
@@ -459,6 +475,12 @@
        rather than stretching tiles. Round‑36 container cap is
        2400px, so 6 cols fit cleanly at the 2352px wrapper width. */
     grid-template-columns: repeat(auto-fill, 384px);
+    /* Center the row when the container is wider than the tile
+       grid (the common case on viewports >1548px). Without this,
+       CSS Grid's default `justify-content: start` packs cols to
+       the left and leaves an empty band on the right — looks like
+       a layout bug. Centering reads as deliberate. */
+    justify-content: center;
     /* Round‑36: tightened from 20px to 4px. A dense wall-of-photos
        reads as a real gallery; the old 20px gap looked like a
        card grid. Keep this in sync with the JS-side `GAP`

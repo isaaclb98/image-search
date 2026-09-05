@@ -21,6 +21,8 @@
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import SearchComposer from '$lib/components/SearchComposer.svelte';
+  import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
+  import AdditionalFilters from '$lib/components/AdditionalFilters.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import {
     search,
@@ -365,29 +367,57 @@
       {negatives}
       {input}
       {mode}
-      {filename}
-      {diversityMode}
-      {diversityDepth}
       {collections}
-      {filtersOpen}
-      {loading}
       onInput={(v) => (input = v)}
       onMode={(m) => (mode = m)}
       onAdd={addPrompt}
       onRemovePositive={removePositive}
       onRemoveNegative={removeNegative}
-      onFilename={(v) => (filename = v)}
-      onDiversityMode={(v) => (diversityMode = v)}
-      onDiversityDepth={(v) => (diversityDepth = v)}
       onToggleCollection={toggleCollection}
-      onToggleFilters={() => (filtersOpen = !filtersOpen)}
-      onSearch={reload}
-      onPickSaved={(s: SavedSearch) => {
-        positives = [...s.positives];
-        negatives = [...s.negatives];
-        reload();
-      }}
     />
+  {/if}
+
+  <!-- Diversity / filename controls. Rendered inside .hero (next
+       to the SearchComposer, not nested inside the composer
+       component) so they share the composer's card width — the
+       user wants this panel to read as part of the search
+       section, not the photo grid. -->
+  <AdditionalFilters
+    open={filtersOpen}
+    {filename}
+    {diversityMode}
+    {diversityDepth}
+    onToggle={() => (filtersOpen = !filtersOpen)}
+    onFilename={(v) => (filename = v)}
+    onDiversityMode={(v) => (diversityMode = v)}
+    onDiversityDepth={(v) => (diversityDepth = v)}
+  />
+
+  <!-- Search button + saved-searches menu. Pulled out of
+       SearchComposer so it sits AFTER the additional-options
+       panel — visual order: search inputs → diversity options
+       → action buttons. -->
+  {#if !activeCentroid}
+    <div class="search-actions">
+      <SavedSearchesMenu
+        {positives}
+        {negatives}
+        onPick={(s: SavedSearch) => {
+          positives = [...s.positives];
+          negatives = [...s.negatives];
+          reload();
+        }}
+      />
+      <button
+        type="button"
+        class="primary"
+        onclick={reload}
+        disabled={!positives.length && !negatives.length && !filename.trim() && !collections.length || loading}
+        title="Run search"
+      >
+        Search
+      </button>
+    </div>
   {/if}
 </section>
 
@@ -410,7 +440,11 @@
 
 <style>
   .hero {
-    max-width: 980px;
+    /* Matches the .head width on the other grid pages (random,
+       for-you, albums, similar, ...). All page-level "sections"
+       span --grid-width so they line up visually. */
+    width: var(--grid-width, 100%);
+    max-width: 1548px;
     margin: 0 auto;
     padding: 32px 16px 12px;
     text-align: center;
@@ -447,6 +481,35 @@
   }
   .empty-prompt .dismiss:hover {
     color: var(--fg-1);
+  }
+  /* Saved-searches + Search button. Pulled out of SearchComposer
+     so the action row sits below the diversity panel, not below
+     the search inputs (matches the layout the user wants:
+     inputs → diversity options → actions). */
+  .search-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .primary {
+    height: 44px;
+    padding: 0 28px;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    color: var(--fg-on-accent);
+    font-weight: 600;
+    font-size: var(--fs-md);
+    transition: background var(--t-fast);
+    box-shadow: 0 4px 18px rgba(108,198,255,0.30);
+  }
+  .primary:hover { background: var(--accent-2); }
+  .primary:disabled {
+    background: var(--glass-1);
+    color: var(--fg-3);
+    box-shadow: none;
+    cursor: not-allowed;
   }
   .hero h1 {
     font-size: var(--fs-3xl);

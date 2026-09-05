@@ -334,10 +334,12 @@
 
 <style>
   .head {
-    margin: 16px 0 24px;
+    margin: 16px auto 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
   }
   .head h1 {
     font-size: var(--fs-2xl);
