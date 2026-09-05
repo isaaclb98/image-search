@@ -101,6 +101,13 @@
   // the gate the browser batches the style change and the
   // transition never fires.
   let tintReady = $state(false);
+  // Round-32: freeze the tint after the first decode of the
+  // lightbox session. Without this, every prev/next navigation
+  // re-decodes the photo's blurhash and the backdrop churns
+  // (felt as the tint jumping wildly between photos). Reset
+  // when the lightbox closes so the next open picks a fresh
+  // tint from the new first photo.
+  let tintFrozen = $state(false);
 
   // Photo-load state for crossfade. The lightbox used to flash on
   // every navigation because the `<img>` was inside `{#key it.id}`,
@@ -323,8 +330,19 @@
     if (!it || !it.blurhash) {
       tint = null;
       tintReady = false;
+      // Reset the freeze too so the next lightbox session decodes
+      // the first photo of that session (round-32 UX: tint frozen
+      // for the session so prev/next doesn't churn the backdrop).
+      tintFrozen = false;
       return;
     }
+    // Freeze the tint after the first decode of the session.
+    // Navigating prev/next keeps the original photo's tint so the
+    // backdrop stays calm — a smooth crossfade on lightbox open,
+    // then stable for the duration of the session. The flag resets
+    // above when the lightbox closes (no photo) so the next open
+    // picks a fresh tint from the new first photo.
+    if (tintFrozen) return;
     // Crossfade the backdrop. Drop tintReady immediately so the
     // existing layer animates OUT (opacity 0.65 → 0), then on the
     // next animation frame after the new blurhash resolves, flip
@@ -341,6 +359,7 @@
       tint = u;
       requestAnimationFrame(() => {
         tintReady = true;
+        tintFrozen = true;
       });
     });
     // Refresh the membership indicator for the new photo. Done
@@ -731,9 +750,13 @@
     inset: 0;
     /* Above the top bar (z-50) and every other layer. */
     z-index: 500;
-    background: rgba(8,8,12,0.55);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    /* Lightbox overlay uses the heavy glass tier (strongest
+       frost) because the photo behind the action bar is
+       the highest-contrast content in the app — the bar
+       needs every bit of frost to stay legible. */
+    background: rgba(8,8,12, var(--glass-alpha-scrim));
+    backdrop-filter: var(--glass-heavy);
+    -webkit-backdrop-filter: var(--glass-heavy);
     /* Two stacked rows: the image region (content) and the action
        bar. The row-gap is the sole source of spacing between
        them — .content has no border or margin contributing extra

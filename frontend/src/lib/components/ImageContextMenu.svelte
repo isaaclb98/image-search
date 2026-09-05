@@ -221,9 +221,9 @@
     /* Solid-ish glass — visible against any photo. We sacrifice
        some "frosty" look for legibility (a translucent menu over
        bright sky/clouds disappears). */
-    background: rgba(14, 16, 22, 0.92);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: var(--dialog-fill);
+    backdrop-filter: var(--glass-heavy);
+    -webkit-backdrop-filter: var(--glass-heavy);
     border: 1px solid var(--glass-edge-strong);
     border-radius: var(--r-3);
     box-shadow: var(--shadow-3), 0 0 0 1px rgba(255, 255, 255, 0.04);
@@ -245,7 +245,7 @@
     transition: background var(--t-fast), color var(--t-fast);
   }
   .item:hover {
-    background: rgba(255, 255, 255, 0.10);
+    background: var(--glass-2);
     color: #fff;
   }
   .i {
@@ -275,9 +275,9 @@
     margin-left: 4px;
     min-width: 200px;
     padding: 6px;
-    background: rgba(14, 16, 22, 0.92);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: var(--dialog-fill);
+    backdrop-filter: var(--glass-heavy);
+    -webkit-backdrop-filter: var(--glass-heavy);
     border: 1px solid var(--glass-edge-strong);
     border-radius: var(--r-3);
     box-shadow: var(--shadow-3), 0 0 0 1px rgba(255, 255, 255, 0.04);

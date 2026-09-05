@@ -10,6 +10,67 @@
   import { onMount } from 'svelte';
 
   let { children } = $props();
+
+  // Two-layer page-tint crossfade. Previously a single <img> swapped
+  // src instantly when pageTint changed (PhotoGrid fires it on every
+  // scroll-driven row mount, so /random was thrashing the backdrop
+  // colour continuously). Even with the 800ms opacity transition the
+  // underlying image cut hard — felt amateurish.
+  //
+  // Now we keep two img slots, preload the new tint into the inactive
+  // slot, then flip which slot is .active. Both opacities transition
+  // on the same 800ms axis so the user sees one coordinated crossfade
+  // rather than two stacked layer changes. The cleanup timer nulls
+  // the now-invisible slot 800ms after the swap to free memory.
+  //
+  // On rapid scroll (multiple pageTint updates per second) the latest
+  // preload wins; in-flight crossfades get cancelled via clearTimeout
+  // and a fresh swap kicks off from whatever opacity we're at. The
+  // result feels continuous rather than jumpy.
+  const FADE_MS = 800;
+  let layerA = $state<string | null>(null);
+  let layerB = $state<string | null>(null);
+  let activeLayer = $state<'a' | 'b'>('a');
+  let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $effect(() => {
+    const newUrl = $pageTint;
+    if (!newUrl) {
+      // Lightbox closed / navigated away from a gallery. Clear both
+      // layers so the page returns to the deep base color.
+      if (fadeTimer) clearTimeout(fadeTimer);
+      layerA = null;
+      layerB = null;
+      activeLayer = 'a';
+      return;
+    }
+    // No-op if the active layer already shows this URL.
+    const activeUrl = activeLayer === 'a' ? layerA : layerB;
+    if (activeUrl === newUrl) return;
+    // Preload the new image so it's painted by the time we flip
+    // active layers (otherwise the new slot shows blank during the
+    // fade-in — that's the original bug, just on a different layer).
+    const pre = new Image();
+    pre.onload = () => {
+      if (fadeTimer) clearTimeout(fadeTimer);
+      const inactiveLayer = activeLayer === 'a' ? 'b' : 'a';
+      if (inactiveLayer === 'a') layerA = newUrl;
+      else layerB = newUrl;
+      // Force a paint at the current opacity first — without this
+      // rAF the browser batches the src change + the class swap and
+      // skips the transition (same trick the Lightbox uses with its
+      // tintReady gate).
+      requestAnimationFrame(() => {
+        activeLayer = inactiveLayer;
+        fadeTimer = setTimeout(() => {
+          const oldLayer = inactiveLayer === 'a' ? 'b' : 'a';
+          if (oldLayer === 'a') layerA = null;
+          else layerB = null;
+        }, FADE_MS);
+      });
+    };
+    pre.src = newUrl;
+  });
   // Svelte 5 reactive store binding: $pageTint tracks the writable value.
   // The store carries a photo URL (relative path) which the backdrop
   // element renders behind everything as a heavily blurred colour wash.
@@ -63,6 +124,34 @@
     return () => document.removeEventListener('keydown', onGlobalKey);
   });
 
+  // Compute and publish `--grid-width` on :root so any page
+  // element (header bar, filters panel, etc.) can size to match
+  // the rendered photo grid. Same math as PhotoGrid uses, but
+  // evaluated at the layout level so pages WITHOUT PhotoGrid
+  // mounted (e.g. / before any search runs, or a future page that
+  // doesn't use PhotoGrid at all) still get the correct value.
+  // PhotoGrid overwrites with its measured value once mounted —
+  // the layout value is the seed/default.
+  //
+  // Math mirrors PhotoGrid's column calculation exactly:
+  //   N = floor((containerWidth + 4) / 388)
+  //   gridWidth = min(containerWidth, N * 384 + (N - 1) * 4)
+  onMount(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const containerWidth = entry.contentRect.width;
+        if (containerWidth <= 0) continue;
+        const cols = Math.max(1, Math.floor((containerWidth + 4) / 388));
+        const gridWidth = Math.min(containerWidth, cols * 384 + (cols - 1) * 4);
+        document.documentElement.style.setProperty('--grid-width', gridWidth + 'px');
+      }
+    });
+    const main = document.querySelector('.app-main');
+    if (main) ro.observe(main);
+    return () => ro.disconnect();
+  });
+
   // Round-6: View Transitions API crossfade between routes.
   // Wraps `goto()` and `<a>` navigations in
   // `document.startViewTransition` so the browser paints the
@@ -99,12 +188,16 @@
   });
 </script>
 
-<div class="app-shell" class:has-tint={$pageTint}>
+<div class="app-shell" class:has-tint={!!(layerA || layerB)}>
   <!-- Backdrop first so its painted pixels live behind everything
-       that follows. position:fixed, full viewport. -->
+       that follows. position:fixed, full viewport. The two-layer
+       crossfade logic in the script block above drives these. -->
   <div class="bg-backdrop" aria-hidden="true">
-    {#if $pageTint}
-      <img src={$pageTint} alt="" />
+    {#if layerA}
+      <img class="bg-img" class:active={activeLayer === 'a'} src={layerA} alt="" />
+    {/if}
+    {#if layerB}
+      <img class="bg-img" class:active={activeLayer === 'b'} src={layerB} alt="" />
     {/if}
   </div>
   <!-- Vignette overlay keeps text readable while letting colour
@@ -134,7 +227,9 @@
     overflow: hidden;
     z-index: 0;
   }
-  .bg-backdrop img {
+  .bg-backdrop .bg-img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -146,7 +241,7 @@
     opacity: 0;
     transition: opacity 800ms ease-out;
   }
-  .app-shell.has-tint .bg-backdrop img {
+  .bg-backdrop .bg-img.active {
     opacity: 0.45;
   }
   .bg-tint {
@@ -170,7 +265,14 @@
   .app-main {
     min-height: calc(100vh - var(--topbar-h));
     padding: 24px 24px 64px;
-    max-width: 1600px;
+    /* Round‑36: raised from 1600 to 2400 so the grid can lay out
+       6×384px tiles cleanly on 4K/2K monitors without big empty
+       margins on either side. Content below 2400px stays
+       viewport-natural. PhotoGrid's grid uses fixed 384px tiles
+       (matches the 384px thumbnail source 1:1), so beyond this
+       cap we'd just be adding whitespace — there's no benefit to
+       an even higher cap until the design supports 7+ columns. */
+    max-width: 2400px;
     margin: 0 auto;
   }
   @media (max-width: 640px) {

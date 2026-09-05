@@ -138,7 +138,14 @@ const ForYouState = z.object({
 }).passthrough();
 
 // ---- misc ----
-const CollectionsList = z.object({ collections: z.array(z.string()) }).passthrough();
+const CollectionsList = z.object({
+  collections: z.array(
+    z.object({
+      name: z.string(),
+      count: z.number().int(),
+    }).passthrough()
+  )
+}).passthrough();
 const CentroidList = z.object({
   centroids: z.array(z.object({
     name: z.string(),

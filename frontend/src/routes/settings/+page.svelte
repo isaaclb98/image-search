@@ -279,8 +279,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: var(--glass-light);
+    -webkit-backdrop-filter: var(--glass-light);
   }
 
   .card-title {
@@ -352,8 +352,8 @@
     padding: var(--s-1);
     min-width: 280px;
     z-index: 10;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
     display: flex;
     flex-direction: column;
     gap: 2px;

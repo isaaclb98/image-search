@@ -1,4 +1,12 @@
 @import './tokens.css';
+/* Geist Sans — three weights we actually use (400 regular, 500
+   medium, 600 semibold). Self-hosted woff2 via @fontsource — no
+   CDN, no FOIT. Skips 700+; the design system doesn't reach for
+   bold. Imported here so the @font-face declarations register
+   before any component CSS reads --font-stack. */
+@import '@fontsource/geist-sans/400.css';
+@import '@fontsource/geist-sans/500.css';
+@import '@fontsource/geist-sans/600.css';
 
 * { box-sizing: border-box; }
 
@@ -15,6 +23,14 @@ html, body {
     radial-gradient(1200px 600px at 12% -10%, rgba(108,198,255,0.06), transparent 60%),
     radial-gradient(900px 480px at 92% 110%, rgba(255,122,138,0.05), transparent 60%);
   background-attachment: fixed;
+}
+
+/* Inter OpenType — cleaner geometric character shapes (single-storey
+   g via cv01, curved f via ss03) + standard kerning/ligatures.
+   Linear + Raycast pattern; zero visual cost. Inter-only; if a
+   non-Inter font is ever introduced, gate via @supports. */
+html {
+  font-feature-settings: "cv01", "ss03", "calt", "kern";
 }
 
 a { color: var(--accent); text-decoration: none; }
@@ -41,29 +57,55 @@ input, textarea {
 
 ::selection { background: var(--accent-soft); }
 
-/* utility — keep these small; most styling belongs on components */
-/* Heavy frosted glass. The full-viewport photo backdrop (set in
+/* utility — keep these small; most styling belongs on components.
+   Heavy frosted glass. The full-viewport photo backdrop (set in
    +layout.svelte as a heavily blurred image) shows through because the
-   surface is only 15% opaque. backdrop-filter adds the frost. */
+   surface is only 15% opaque. backdrop-filter adds the frost.
+   Tier choice is per role — see tokens.css for the tier catalog. */
 .glass {
   position: relative;
   background: rgba(14, 15, 20, 0.15);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: var(--glass-medium);
+  -webkit-backdrop-filter: var(--glass-medium);
   border: 1px solid var(--glass-edge);
   border-radius: var(--r-3);
   overflow: hidden;
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.35),
-    inset 0 1px 0 rgba(255,255,255,0.08);
+  box-shadow: var(--shadow-glass);
 }
 
+/* Same shape as .glass but with heavier blur/saturation for
+   floating overlays (modals, menus) where you want the glass
+   to feel like it's clearly lifted off the page. */
 .glass-strong {
   background: var(--glass-2);
-  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  backdrop-filter: var(--glass-heavy);
+  -webkit-backdrop-filter: var(--glass-heavy);
   border: 1px solid var(--glass-edge-strong);
   border-radius: var(--r-3);
+  box-shadow: var(--shadow-glass-strong);
+}
+
+/* For dialog/dropdown content. Lighter blur than .glass-strong
+   because dropdowns sit on more visual content; the blur budget
+   per pixel is lower. */
+.glass-dialog {
+  background: rgba(14, 15, 20, 0.55);
+  backdrop-filter: var(--glass-dialog);
+  -webkit-backdrop-filter: var(--glass-dialog);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-glass);
+}
+
+/* Center shell — no backdrop-filter (fixed-compat for combobox
+   alignment and to keep the dialog visually solid at any zoom).
+   Use on Modal/Dialog content. Rare cases can opt into
+   .glass-dialog for a frosted variant. */
+.matte-dialog {
+  background: var(--dialog-fill);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-glass-strong);
 }
 
 /* scrollbars — slim, on-brand */

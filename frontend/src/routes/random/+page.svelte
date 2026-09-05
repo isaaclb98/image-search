@@ -21,6 +21,7 @@
   } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -145,10 +146,7 @@
   <title>Random · Image Search</title>
 </svelte:head>
 
-<section class="head glass">
-  <h1>Random</h1>
-  <p>Random photos from your library. Scroll for more.</p>
-</section>
+<PageHeader title="Random" subtitle="Random photos from your library. Scroll for more." />
 
 <section class="grid-wrap">
   <PhotoGrid
@@ -162,18 +160,5 @@
 </section>
 
 <style>
-  .head {
-    margin: 16px 0 24px;
-    padding: 22px 26px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .head h1 {
-    font-size: var(--fs-2xl);
-    font-weight: 600;
-    margin: 0;
-  }
-  .head p { color: var(--fg-2); margin: 4px 0 0; }
   .grid-wrap { padding-top: 8px; }
 </style>

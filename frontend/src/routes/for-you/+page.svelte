@@ -24,6 +24,7 @@
   } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
@@ -145,10 +146,7 @@
   <title>For You · Image Search</title>
 </svelte:head>
 
-<section class="head glass">
-  <h1>For you</h1>
-  <p>Ranked by your likes + dislikes. Pick diversity to vary the results.</p>
-</section>
+<PageHeader title="For you" subtitle="Ranked by your likes + dislikes. Pick diversity to vary the results." />
 
 <section class="filters glass">
   <label class="field">
@@ -207,25 +205,14 @@
 </section>
 
 <style>
-  .head {
-    margin: 16px 0 16px;
-    padding: 22px 26px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: var(--fs-2xl);
-    font-weight: 600;
-  }
-  .head p {
-    margin: 4px 0 0;
-    color: var(--fg-2);
-  }
   .filters {
-    margin: 0 0 16px;
+    /* Width matches the PageHeader above so the chrome edges line
+       up. Without this, the panel fills the page (2352px at 2510
+       viewport) and extends 14px past the header on each side. */
+    margin: 0 auto 16px;
     padding: 14px 18px;
+    width: var(--grid-width, 100%);
+    max-width: 100%;
     display: flex;
     gap: 18px;
     align-items: center;
@@ -235,10 +222,20 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    /* Shrink to content (matches the home-page AdditionalFilters
+       pattern) instead of stretching to fill the panel. Each
+       field's width = label + gap + select's intrinsic width. */
+    min-width: 0;
   }
   .field .lab {
     color: var(--fg-2);
     font-size: var(--fs-sm);
+    /* Lock the label width so "Diversity" and "Diversity depth"
+       align at the same x position. Without this the longer
+       label pushes its dropdown further right than the shorter
+       one. */
+    width: 96px;
+    flex-shrink: 0;
   }
   .apply {
     background: var(--accent);
@@ -263,6 +260,11 @@
     color: var(--fg-1);
     font-size: var(--fs-sm);
     cursor: pointer;
+    /* Size to content (matches the home-page AdditionalFilters
+       pattern) instead of stretching to fill the field width.
+       The fields still share the panel equally via flex: 1 1 0
+       on .field, so the empty space sits to the right of each
+       compact dropdown — same visual rhythm as the home page. */
   }
   .field select:hover { border-color: var(--glass-edge-strong); }
   .field select:focus {

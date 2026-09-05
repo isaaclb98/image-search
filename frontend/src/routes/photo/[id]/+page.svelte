@@ -469,8 +469,8 @@
     display: block;
     width: 100%;
     text-align: left;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--fg-1) 4%, transparent);
+    border: 1px solid var(--glass-edge);
     border-radius: 8px;
     padding: 8px 10px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -482,8 +482,8 @@
       border-color 120ms ease;
   }
   .path:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--glass-1);
+    border-color: var(--glass-edge-strong);
   }
   .path .folder {
     color: var(--fg-3, #777);

@@ -98,10 +98,14 @@
     background: var(--glass-2);
     color: var(--fg-1);
     border-color: var(--glass-edge-strong);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
   }
-  .secondary:hover { background: rgba(255,255,255,0.14); }
+  .secondary:hover {
+    /* focus feedback: brighter glass + accent border hint */
+    background: color-mix(in srgb, var(--fg-1) 14%, transparent);
+    border-color: var(--accent-soft);
+  }
 
   .ghost {
     background: transparent;

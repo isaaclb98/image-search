@@ -61,15 +61,15 @@
     border-radius: var(--r-pill);
     padding: 0 14px;
     height: 44px;
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
     transition: border-color var(--t-fast) var(--ease-out),
                 background var(--t-fast) var(--ease-out);
     width: 100%;
   }
   .input-wrap:focus-within {
     border-color: var(--accent);
-    background: rgba(108,198,255,0.10);
+    background: var(--accent-soft);
   }
   input {
     flex: 1;

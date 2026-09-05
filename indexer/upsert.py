@@ -79,7 +79,7 @@ def __getattr__(name: str) -> int:
         # `__getattr__` and so `from x import y` works.
         import sys
         current_module = sys.modules[__name__]
-        setattr(current_module, "VECTOR_DIM", resolved)
+        current_module.VECTOR_DIM = resolved
         return resolved
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

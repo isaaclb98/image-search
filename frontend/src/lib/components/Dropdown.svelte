@@ -243,7 +243,7 @@
 {#if open}
   <div
     bind:this={menuEl}
-    class="menu glass-strong"
+    class="menu glass-dialog"
     role="menu"
     aria-label={label}
     style:top="{pos.top}px"
@@ -363,7 +363,7 @@
   }
   .item:hover,
   .item:focus-visible {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-1);
     border-color: var(--glass-edge);
     outline: none;
   }

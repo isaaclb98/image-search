@@ -229,30 +229,24 @@
   .tile:hover {
     transform: translateY(-2px);
     border-color: var(--glass-edge-strong);
-    box-shadow: var(--shadow-2);
+    box-shadow: var(--shadow-glass-strong);
   }
   .tile.menu-open {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent), var(--shadow-2);
+    box-shadow: var(--shadow-glass-strong);
   }
-  /* Liked — pink accent border + subtle outer glow so the user
-     can see the photo is saved without hovering. */
-  .tile.favorite {
-    border-color: rgba(255, 122, 138, 0.55);
-    box-shadow: 0 0 0 1px rgba(255, 122, 138, 0.35),
-                0 0 14px rgba(255, 122, 138, 0.18);
-  }
-  .tile.favorite:hover {
-    border-color: rgba(255, 122, 138, 0.85);
-    box-shadow: 0 0 0 1px rgba(255, 122, 138, 0.55),
-                0 0 18px rgba(255, 122, 138, 0.28);
-  }
+  /* Liked — only the floating fav badge remains (Round‑36 dropped
+     the persistent pink border + outer glow). The badge in the
+     top-right is enough signal: "this photo is saved". The border
+     was reading as an orange outline against the dark backdrop
+     and competed with the image; without it the grid reads as
+     a clean photo wall with discrete like markers. */
   /* Disliked — cool blue-grey dim + slightly washed-out image so
      the feedback state is visible without being loud. (Round-6
      issue #3 — applies to every page the tile appears on.) */
   .tile.disliked {
-    border-color: rgba(140, 160, 200, 0.45);
-    box-shadow: 0 0 0 1px rgba(140, 160, 200, 0.30);
+    border-color: color-mix(in srgb, #8ca0c8 45%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, #8ca0c8 30%, transparent);
     opacity: 0.72;
   }
   .tile.disliked .full,
@@ -366,8 +360,11 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: rgba(14, 15, 20, 0.65);
-    border: 1px solid var(--glass-edge-strong);
+    /* Glass action chip — uses the light glass tier (small blur
+       is sufficient for a 28px chip sitting on a photo) plus the
+       layered shadow for lift. */
+    background: var(--dialog-fill);
+    border: 1px solid var(--glass-edge);
     color: var(--fg-1);
     font-size: 18px;
     font-weight: 500;
@@ -376,8 +373,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--glass-light);
+    -webkit-backdrop-filter: var(--glass-light);
+    box-shadow: var(--shadow-glass);
     opacity: 0;
     z-index: 2;
     transition:
@@ -392,8 +390,8 @@
     opacity: 1;
   }
   .remove-btn:hover {
-    background: rgba(255, 122, 138, 0.18);
-    border-color: rgba(255, 122, 138, 0.65);
+    background: color-mix(in srgb, var(--negative) 18%, transparent);
+    border-color: color-mix(in srgb, var(--negative) 65%, transparent);
   }
   .remove-btn:active {
     transform: scale(0.92);
