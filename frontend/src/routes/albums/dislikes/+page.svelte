@@ -59,11 +59,11 @@
     }
   }
 
-  async function loadMore() {
+  async function loadMore(signal?: AbortSignal) {
     if (loading || loadingMore || !hasMore) return;
     loadingMore = true;
     try {
-      const res = (await listDislikes(PAGE, offset)) as {
+      const res = (await listDislikes(PAGE, offset, signal)) as {
         results?: Item[];
         has_more?: boolean;
       };
@@ -71,10 +71,12 @@
       items = [...items, ...more];
       offset += more.length;
       hasMore = !!res?.has_more && more.length >= PAGE;
-    } catch {
+    } catch (e) {
       // Leave the existing list intact; the user can keep paging
       // — losing scroll progress on a transient error is worse
-      // than a stuck spinner.
+      // than a stuck spinner. A clean cancel from the pre-fetch
+      // retrigger is silent — no hasMore=false penalty.
+      if (signal?.aborted) return;
     } finally {
       loadingMore = false;
     }

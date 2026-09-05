@@ -74,7 +74,7 @@
     }
   }
 
-  async function loadMore() {
+  async function loadMore(signal?: AbortSignal) {
     if (loading || !hasMore) return;
     loading = true;
     try {
@@ -82,14 +82,15 @@
         PAGE,
         diversityMode,
         diversityDepth,
-        undefined,
+        signal,
         currentPage
       );
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       hasMore = !!res?.has_more && more.length >= PAGE;
       if (more.length > 0) currentPage += 1;
-    } catch {
+    } catch (e) {
+      if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
       loading = false;

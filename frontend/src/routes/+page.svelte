@@ -213,7 +213,7 @@
     }
   }
 
-  async function loadMore() {
+  async function loadMore(signal?: AbortSignal) {
     if (loading || !hasMore) return;
     loading = true;
     try {
@@ -224,13 +224,15 @@
         centroid: activeCentroid ?? undefined,
         centroidMode:
           activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
-        collections: collections.length ? collections : undefined
+        collections: collections.length ? collections : undefined,
+        signal
       });
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       offset += more.length;
       hasMore = more.length >= PAGE && !!res?.has_more;
-    } catch {
+    } catch (e) {
+      if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
       loading = false;

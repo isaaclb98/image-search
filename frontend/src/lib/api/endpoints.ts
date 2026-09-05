@@ -274,12 +274,14 @@ export function getAlbum(
   albumId: number | string,
   limit: number = GRID_PAGE_SIZE,
   offset: number = 0,
+  signal?: AbortSignal,
 ) {
   return apiGet<unknown>(
     `/api/albums/${albumId}?limit=${limit}&offset=${offset}`,
     {
       schema: Z.AlbumDetailResponse,
-      schemaName: 'AlbumDetailResponse'
+      schemaName: 'AlbumDetailResponse',
+      signal,
     }
   );
 }
