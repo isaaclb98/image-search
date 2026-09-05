@@ -39,21 +39,17 @@
       // full (no awkward partial-row of clustered tiles on the
       // left).
       //
-      // CSS: `grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))`
-      // with `gap: var(--grid-gutter, 20px)`. Column count =
-      //   floor((containerWidth + GAP) / (COLUMN_MIN + GAP))
-      // estimated from `window.innerWidth - main padding`. Note
-      // `.app-main` is capped at 1600px, so the wrapper width is
-      // min(viewport - 48, 1552).
-      const COL_MIN = 180;
-      const GAP = 20;
+      // CSS: `grid-template-columns: repeat(auto-fill, 384px)`
+      // (fixed tiles, not minmax) — see PhotoGrid. With gap=4:
+      //   cols = floor((wrapperW + 4) / (384 + 4))
+      // .app-main is capped at 2400px (Round‑36), so the wrapper
+      // width is min(viewport - 48, 2352).
+      const TILE = 384;
+      const GAP = 4; // matches --grid-gutter
       const MAIN_PAD = 48; // 24px each side, matches `.app-main`
-      const MAIN_MAX = 1552; // 1600px cap minus padding
+      const MAIN_MAX = 2352; // 2400px cap minus padding
       const wrapperW = Math.min(window.innerWidth - MAIN_PAD, MAIN_MAX);
-      const cols = Math.max(
-        1,
-        Math.floor((wrapperW + GAP) / (COL_MIN + GAP))
-      );
+      const cols = Math.max(1, Math.floor((wrapperW + GAP) / (TILE + GAP)));
       const want = cols * 3;
       const res = await forYouFeed(poolSize);
       const pool = res?.results ?? [];

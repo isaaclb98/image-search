@@ -93,12 +93,21 @@
   // `.grid-row` (--grid-gutter) so horizontal and vertical gutters
   // read as the same thickness — otherwise tiles look balanced
   // side-to-side but cramped top-to-bottom.
-  const GAP = 20; // px, matches --grid-gutter
+  //
+  // Round‑36: tightened from 20 to 4 so the grid reads as a dense
+  // wall of photos instead of an airy card layout. ESTIMATED_ROW_HEIGHT
+  // stays at 280 since it was already larger than tileSize + GAP — the
+  // estimate just gets more accurate.
+  const GAP = 4; // px, matches --grid-gutter
   const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
 
   // Sensible floor before we know the wrapper width — used on the
   // very first render when both containerWidth and tileSize are 0.
-  const ESTIMATED_COLUMNS = 5;
+  // Round‑36: bumped from 5 to 6 — at the 2400px container cap the
+  // new fixed 384px tiles give 6 cols. The ResizeObserver fires
+  // within one frame and corrects to the real value before the
+  // user notices.
+  const ESTIMATED_COLUMNS = 6;
 
   // State
   let contextMenu = $state<{ x: number; y: number; item: Item } | null>(null);
@@ -442,18 +451,19 @@
 
   .grid-row {
     display: grid;
-    /* Round‑32: auto-fill with a 180-px minimum. At 1200 px
-       container width this gives 6 columns (~183-px tiles);
-       at 1800 px it gives 9 columns (~197-px tiles); on a
-       narrow phone it gracefully drops to 2 columns instead
-       of squeezing 5 of them into ~70 px each. The JS-side
-       `tileSize` derivation still uses `COLUMNS = 5` for the
-       virtualizer's row-height estimate; that's a minor
-       inaccuracy during resize but the ResizeObserver on
-       container width triggers a re-layout on every resize,
-       so it self-corrects on the next frame. */
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: var(--grid-gutter, 20px);
+    /* Round‑36: fixed 384px tiles (was auto-fill minmax(180, 1fr)
+       → 8 cols at ~183px). Fixed 384 matches the thumbnail source
+       1:1 — no upscale, no downscale. auto-fill + fixed track size
+       packs as many 384px cols as fit; leftover space (e.g. 1392px
+       container → 3 cols of 384 with 232px slack) stays empty
+       rather than stretching tiles. Round‑36 container cap is
+       2400px, so 6 cols fit cleanly at the 2352px wrapper width. */
+    grid-template-columns: repeat(auto-fill, 384px);
+    /* Round‑36: tightened from 20px to 4px. A dense wall-of-photos
+       reads as a real gallery; the old 20px gap looked like a
+       card grid. Keep this in sync with the JS-side `GAP`
+       constant above so virtualizer row-height math is exact. */
+    gap: var(--grid-gutter, 4px);
     /* No horizontal padding here — `.app-main` already provides
        24px of side padding, and the row belongs to the wrapper
        which fills main's content area. Adding more here would
@@ -465,6 +475,13 @@
   .grid-tile {
     aspect-ratio: 1;
     min-width: 0;
+    /* Round‑36: CSS containment isolates each tile's size, layout,
+       paint, and style from the rest of the grid. With a wall
+       of 100+ tiles on screen, this prevents the browser from
+       re-laying-out the whole grid when one tile's contents
+       change (e.g. blurhash decoded, hover chrome mounted).
+       No visual cost; small paint-side memory bump. */
+    contain: size layout paint style;
   }
 
   .empty {
@@ -502,15 +519,9 @@
     }
   }
 
-  /* Hover emphasis — when one tile is hovered, dim the rest
-     slightly so the hovered tile reads as the foreground.
-     Uses :has() with a fallback for older browsers (the rule
-     is progressive enhancement; unsupported browsers just see
-     the plain grid). */
-  @supports (selector(:has(*))) {
-    .grid-row:has(.grid-tile:hover) .grid-tile:not(:hover) {
-      opacity: 0.55;
-      transition: opacity var(--t-fast) var(--ease-out);
-    }
-  }
+  /* No dim-on-hover effect (Round‑36 removed).
+     The row-level dim felt like a UI interruption on the dense
+     6×4K grid — non-hovered tiles already have their own hover
+     state (scale + border), so dimming siblings added noise
+     without conveying useful info. */
 </style>

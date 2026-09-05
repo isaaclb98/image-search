@@ -237,7 +237,14 @@
   .app-main {
     min-height: calc(100vh - var(--topbar-h));
     padding: 24px 24px 64px;
-    max-width: 1600px;
+    /* Round‑36: raised from 1600 to 2400 so the grid can lay out
+       6×384px tiles cleanly on 4K/2K monitors without big empty
+       margins on either side. Content below 2400px stays
+       viewport-natural. PhotoGrid's grid uses fixed 384px tiles
+       (matches the 384px thumbnail source 1:1), so beyond this
+       cap we'd just be adding whitespace — there's no benefit to
+       an even higher cap until the design supports 7+ columns. */
+    max-width: 2400px;
     margin: 0 auto;
   }
   @media (max-width: 640px) {

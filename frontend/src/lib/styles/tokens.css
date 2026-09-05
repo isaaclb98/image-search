@@ -121,7 +121,12 @@
 
   /* layout */
   --topbar-h: 56px;
-  --grid-gutter: 20px;
+  /* Round‑36: tightened from 20 to 4 — dense wall-of-photos
+     instead of airy card grid. Consumers: PhotoGrid (.grid-row),
+     albums/+page.svelte (two grids). JS-side `GAP` constant in
+     PhotoGrid mirrors this so virtualizer row-height math stays
+     exact. */
+  --grid-gutter: 4px;
 
   /* motion */
   --ease-out: cubic-bezier(0.16, 0.84, 0.32, 1);

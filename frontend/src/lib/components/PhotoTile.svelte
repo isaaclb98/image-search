@@ -235,18 +235,12 @@
     border-color: var(--accent);
     box-shadow: var(--shadow-glass-strong);
   }
-  /* Liked — pink accent border + subtle outer glow so the user
-     can see the photo is saved without hovering. */
-  .tile.favorite {
-    border-color: color-mix(in srgb, var(--negative) 55%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--negative) 35%, transparent),
-                0 0 14px color-mix(in srgb, var(--negative) 18%, transparent);
-  }
-  .tile.favorite:hover {
-    border-color: color-mix(in srgb, var(--negative) 85%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--negative) 55%, transparent),
-                0 0 18px color-mix(in srgb, var(--negative) 28%, transparent);
-  }
+  /* Liked — only the floating fav badge remains (Round‑36 dropped
+     the persistent pink border + outer glow). The badge in the
+     top-right is enough signal: "this photo is saved". The border
+     was reading as an orange outline against the dark backdrop
+     and competed with the image; without it the grid reads as
+     a clean photo wall with discrete like markers. */
   /* Disliked — cool blue-grey dim + slightly washed-out image so
      the feedback state is visible without being loud. (Round-6
      issue #3 — applies to every page the tile appears on.) */
