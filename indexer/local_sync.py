@@ -239,7 +239,16 @@ def _load_batch_concurrent(paths):
 
 
 def _scroll_existing_meta(client, collection, src_name):
-    """Scroll all points in `collection` with `src_name` as their `source`.
+    """Scroll all points in `collection` with `src_name` as their `collection`.
+
+    Filters on the `collection` payload field — that is the name
+    `upsert.build_payload` writes for the source name. (The earlier
+    revision of this helper filtered on `source`, which no production
+    code path actually populated; the mismatch made every legacy
+    point invisible to change-detection and forced a full re-embed
+    on every run. The defence-in-depth fallback at the call site
+    still triggers per-batch retrieve for any legacy data that
+    predates the `collection` field being written.)
 
     Returns a dict `{point_id_str: (mtime, size) | None}`. Points
     with mtime/size populated in the payload map to `(mtime, size)`;
@@ -262,7 +271,7 @@ def _scroll_existing_meta(client, collection, src_name):
             scroll_filter=_qm.Filter(
                 must=[
                     _qm.FieldCondition(
-                        key="source",
+                        key="collection",
                         match=_qm.MatchValue(value=src_name),
                     )
                 ]
@@ -452,6 +461,38 @@ def main(argv=None):
                     "falling back to per-batch retrieve", src_name, exc,
                 )
                 source_meta_failed = True
+            else:
+                # Successful scroll that returned no points is ambiguous:
+                # (a) this source has no points in the collection yet
+                #     (fresh source, nothing to skip), or
+                # (b) the collection has legacy points but none of them
+                #     have the `collection` payload field the scroll
+                #     filters on — change-detection would silently
+                #     re-embed them all, which is the bug we're
+                #     guarding against.
+                # Disambiguate by reading the collection's overall
+                # point count: if it's non-zero, treat as case (b)
+                # and fall back to per-batch retrieve (id-based, no
+                # `collection` field needed).
+                if not source_meta:
+                    try:
+                        if client.get_collection(
+                            args.qdrant_collection
+                        ).points_count > 0:
+                            logger.warning(
+                                "source-scoped scroll returned 0 points "
+                                "for %s but the collection is non-empty; "
+                                "legacy data likely lacks the "
+                                "`collection` payload field — falling "
+                                "back to per-batch retrieve",
+                                src_name,
+                            )
+                            source_meta_failed = True
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug(
+                            "could not read collection point count "
+                            "for %s: %s", src_name, exc,
+                        )
         try:
             snap = scan_mod.snapshot(
                 src_path,

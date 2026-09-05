@@ -54,7 +54,7 @@ def in_memory_qdrant():
     )
     # Pre-seed a payload index so scroll filtering works in tests too
     client.create_payload_index(
-        collection_name="images", field_name="source", field_schema=qm.PayloadSchemaType.KEYWORD,
+        collection_name="images", field_name="collection", field_schema=qm.PayloadSchemaType.KEYWORD,
     )
     return client
 
@@ -169,7 +169,7 @@ class TestScrollExistingMeta:
                     qm.PointStruct(
                         id=id_for(Path(f"/tmp/{pid}.jpg"), src_name),
                         vector=[0.0] * 16,
-                        payload={"source": src_name, "mtime": mtime, "size": size},
+                        payload={"collection": src_name, "mtime": mtime, "size": size},
                     )
                 ],
             )
@@ -196,12 +196,12 @@ class TestScrollExistingMeta:
                 qm.PointStruct(
                     id=legacy_pid,
                     vector=[0.0] * 16,
-                    payload={"source": "lib_a"},  # no mtime/size
+                    payload={"collection": "lib_a"},  # no mtime/size
                 ),
                 qm.PointStruct(
                     id=modern_pid,
                     vector=[0.0] * 16,
-                    payload={"source": "lib_a", "mtime": 1234.0, "size": 5678},
+                    payload={"collection": "lib_a", "mtime": 1234.0, "size": 5678},
                 ),
             ],
         )
@@ -209,8 +209,8 @@ class TestScrollExistingMeta:
         assert meta[str(legacy_pid)] is None
         assert meta[str(modern_pid)] == (1234.0, 5678)
 
-    def test_filters_by_source(self, in_memory_qdrant):
-        """Only points with matching `source` payload are returned."""
+    def test_filters_by_collection(self, in_memory_qdrant):
+        """Only points with matching `collection` payload are returned."""
         client = in_memory_qdrant
         # lib_a: 3 points
         self._seed(client, "lib_a", [("a1", 1.0, 1), ("a2", 2.0, 2), ("a3", 3.0, 3)])
@@ -247,7 +247,7 @@ class TestScrollExistingMeta:
                 qm.PointStruct(
                     id=id_for(Path(f"/tmp/big_{i}.jpg"), "big_lib"),
                     vector=[0.0] * 16,
-                    payload={"source": "big_lib", "mtime": float(i), "size": i * 10},
+                    payload={"collection": "big_lib", "mtime": float(i), "size": i * 10},
                 )
                 for i in range(1500)
             ],
