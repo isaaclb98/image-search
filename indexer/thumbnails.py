@@ -40,7 +40,13 @@ from indexer.upsert import id_for
 
 THUMBNAIL_DIR = os.environ.get("THUMBNAIL_DIR", "/app/data/thumbnails")
 THUMBNAIL_SIZE = (384, 384)  # matches the so400m model input res
-THUMBNAIL_QUALITY = 50
+# Quality 80 — top of the Instagram / Google Photos / Apple Photos
+# range. Preserves fine detail (faces, fabric, foliage) without the
+# ~20% byte bloat of going to 85+. Below 70 starts eating high-
+# frequency texture. Round-36 had this at 50 which kept broad color
+# but crushed detail — every tile looked like a watercolor when
+# viewed on a HiDPI display.
+THUMBNAIL_QUALITY = 80
 # Sized variants the frontend srcset advertises. Post-migration
 # this is empty: a single 384px asset covers the common rendering
 # sizes (up to 192 CSS px at 2× DPR = 384 px at the bitmap level)
