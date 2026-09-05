@@ -290,7 +290,7 @@
             onLoadMore?.(preFetchController.signal);
           }
         },
-        { root: null, threshold: 0.1 }
+        { root: null, rootMargin: '800px 0px', threshold: 0 }
       );
       observer.observe(sentinel);
     }
