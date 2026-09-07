@@ -238,15 +238,16 @@ def register_into(registry: Registry) -> None:
     """
 
     so400m_embedder = OpenClipEmbedder(
-        # open_clip's pretrained registry spells this model as
-        # "ViT-SO400M-14-SigLIP2-378" — the 378 is a resolution
-        # tweak that uses the 384 weights (see
-        # mlfoundations/open_clip pretrained.py NOTE). The HF
-        # repo path is `timm/ViT-SO400M-14-SigLIP2-378` and
-        # open_clip's hf-hub: schema passes the identifier
-        # straight through to hf_hub_download as `repo_id`, so
-        # we need to include the `timm/` namespace prefix.
-        arch_tag="timm/ViT-SO400M-14-SigLIP2-378",
+        # The repo path is `timm/ViT-SO400M-16-SigLIP2-384` (patch
+        # size 16, 384 input). This is the model the kernel's
+        # `name` field (`ViT-so400m-patch16-384`) refers to, and the
+        # weights open_clip downloads under the `webli` pretrained
+        # tag. The earlier `timm/ViT-SO400M-14-SigLIP2-378` arch_tag
+        # was a different architecture (patch size 14, 378 input)
+        # that produced vectors in the wrong embedding space;
+        # vectors written under that arch_tag are not compatible
+        # with the patch16 model and must be re-indexed.
+        arch_tag="timm/ViT-SO400M-16-SigLIP2-384",
         pretrained="webli",
         dim=1152,
         resolution=384,
