@@ -3,8 +3,7 @@
 Module-by-module reference for the three runnable halves (`search/`,
 `indexer/`, `image_search_kernel/`) and the SvelteKit frontend.
 
-For the *why* behind each decision, see the ADRs in
-[`adr/`](./adr/). For the wire-format side of the API, see the
+For the wire-format side of the API, see the
 generated OpenAPI at `/openapi.json` (dev: <http://localhost:8000/openapi.json>).
 
 ---
@@ -41,7 +40,7 @@ host the SPA build. The SvelteKit frontend talks to it over HTTP/JSON.
   Reads from process env (which `.env` populates via `python-dotenv`).
 - **`search/middleware.py`** — request logging + CORS.
 - **`search/qdrant_client.py`** — async wrapper around the Qdrant
-  client. See [ADR-0006](./adr/0006-async-qdrant-client.md).
+  client.
 - **`search/text_encoder.py`** — SigLIP2 text encoder wrapper. Mirrors
   the indexer's vision encoder so queries and points live in the same
   space. Returns unit-norm vectors.
@@ -62,8 +61,7 @@ host the SPA build. The SvelteKit frontend talks to it over HTTP/JSON.
 - **`search/lazy_index_cache.py`** — B5 contract wrapper around
   `IndexDB`. Startup completes *without* hydrating from Qdrant; the
   first read triggers hydration, and the app serves from a stale
-  (possibly empty) cache while a background task refreshes. See
-  [ADR-0005](./adr/0005-lazy-cache-refresh.md).
+  (possibly empty) cache while a background task refreshes.
 
 - **`search/image_resolver.py`** — turns a stored absolute path into
   the public `/photo/{id}/raw` URL the frontend embeds. Honors the
@@ -185,8 +183,7 @@ The indexer resolves `--model` to an `Embedder` via
 `image_search_kernel.registry.get()`. Default variant is set by the
 `SIGLIP_VARIANT` env var (defaults to `so400m/16-384`,
 `ViT-so400m-patch16-384`, 1152-dim). For the full variant table see
-`search/config.py:SIGLIP_VARIANTS`. See [ADR-0003](./adr/0003-model-registry.md)
-for how to add another.
+`search/config.py:SIGLIP_VARIANTS`.
 
 ---
 
@@ -200,8 +197,7 @@ halves cannot drift.
 - **`image_search_kernel/payload_schema.py`** — the canonical
   `Payload` TypedDict, the `SCHEMA_VERSION = 1` constant, and every
   `FIELD_*` string constant used in the Qdrant payload. The prose
-  mirror is [`SCHEMA.md`](./SCHEMA.md). See
-  [ADR-0002](./adr/0002-schema-versioning.md).
+  mirror is [`SCHEMA.md`](./SCHEMA.md).
 - **`image_search_kernel/registry.py`** — `Model` dataclass,
   `Embedder` Protocol, `MockEmbedder` (deterministic, no weights),
   the `register()` decorator, and `get(name)`. Indexer and search
@@ -215,8 +211,6 @@ halves cannot drift.
   real SigLIP2 weights via `open_clip`. Only invoked on first
   `registry.get(name)` call after `torch` is imported. Safe to import
   in tests; the loader no-ops if torch isn't available.
-
-See [ADR-0001](./adr/0001-shared-kernel-package.md) for the rationale.
 
 ---
 
