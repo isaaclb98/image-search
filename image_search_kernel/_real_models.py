@@ -182,6 +182,17 @@ class OpenClipEmbedder:
         import torch as _torch
         tensors = [self._preprocess(img) for img in images]
         batch = _torch.stack(tensors, dim=0).to(self._device)
+        # VRAM monitor: log peak GPU memory per forward pass so the
+        # indexer can see whether batch size + autocast settings
+        # actually fit before the next batch fires. Disabled when
+        # LOG_EMBED_VRAM=0 (or unset, off by default).
+        log_vram = __import__(
+            "os"
+        ).environ.get("LOG_EMBED_VRAM", "0").lower() in ("1", "true", "yes", "on")
+        if log_vram and self._device == "cuda":
+            from contextlib import suppress
+            with suppress(Exception):
+                _torch.cuda.reset_peak_memory_stats()
         with _torch.no_grad():
             if self._autocast_enabled:
                 with _torch.autocast(device_type="cuda", dtype=_torch.float16):
@@ -189,6 +200,20 @@ class OpenClipEmbedder:
             else:
                 features = self._model.encode_image(batch)
             features = features / features.norm(dim=-1, keepdim=True)
+        if log_vram and self._device == "cuda":
+            from contextlib import suppress as _suppress
+            with _suppress(Exception):
+                peak_mb = _torch.cuda.max_memory_allocated() / (1024 * 1024)
+                # Cheap print on every batch is too noisy for the prod
+                # log; gate on >50MB increments. Use the stdout stream
+                # the rest of the indexer uses.
+                import sys as _sys
+                print(
+                    f"[embed_vram] batch={len(images)} device={self._device} "
+                    f"peak={peak_mb:.0f}MB autocast={self._autocast_enabled}",
+                    file=_sys.stderr,
+                    flush=True,
+                )
         return features.cpu().tolist()
 
 
