@@ -3,41 +3,53 @@
 Module-by-module reference for the three runnable halves (`search/`,
 `indexer/`, `image_search_kernel/`) and the SvelteKit frontend.
 
-For the *why* behind each decision, see
-[`backend-refactor-plan.md`](./backend-refactor-plan.md) and the ADRs
-in [`adr/`](./adr/). For the wire-format side of the API, see the
+For the *why* behind each decision, see the ADRs in
+[`adr/`](./adr/). For the wire-format side of the API, see the
 generated OpenAPI at `/openapi.json` (dev: <http://localhost:8000/openapi.json>).
+
+---
+
+## Top-level shape
+
+- **One image, one port.** `docker/Dockerfile.search` builds the
+  SvelteKit SPA with `adapter-static`, bakes it in, and FastAPI serves
+  both `/api/*` and the SPA from `:8000`. No nginx, no separate SPA
+  container. See `docker/docker-compose.yml` for the production topology.
+- **Qdrant sidecar.** Vector store runs in its own container;
+  `QDRANT_URL` env var tells the backend where to reach it.
+- **No auth.** The frontend never sees a login screen, the backend
+  exposes no auth router, there's no `search/auth.py`. Deploy behind a
+  reverse proxy (caddy, oauth2-proxy, tailscale serve) if access
+  control is needed. See `README.md` ("Auth: None").
 
 ---
 
 ## `search/` — FastAPI app
 
 The search side is a pure JSON API. It does not serve HTML, it does not
-host the SPA build. The SvelteKit frontend talks to it over HTTP/JSON
-and proxies through SvelteKit's server-side fetch in production.
+host the SPA build. The SvelteKit frontend talks to it over HTTP/JSON.
 
 ### App wiring
 
-- **`search/app.py`** — `create_app()` factory. Wires the Qdrant client,
-  IndexDB, middleware (auth, CORS, logging), the static mount for SPA
-  fallback, and every router from `search/routers/`. Also owns the
+- **`search/app.py`** — `create_app()` factory. Wires the Qdrant
+  client, IndexDB, middleware (CORS, request logging), the static mount
+  for SPA fallback, and every router from `search/routers/`. Owns the
   `/api/photo/{point_id}` JSON endpoint, the `/photo/{id}/raw` image
   streamer (with cache headers and path-liveness checks), and the two
   streaming ZIPs (`/favorites/download.zip`, `/albums/{id}/download.zip`).
 - **`search/config.py`** — env-var parsing and `AppConfig` dataclass.
   Reads from process env (which `.env` populates via `python-dotenv`).
-- **`search/middleware.py`** — request logging, CORS, session-cookie
-  attach, and the auth gate for non-public routes.
-- **`search/auth.py`** — bcrypt password hashing + itsdangerous-signed
-  session cookie. Single-user app login; see `AUTH_*` in `.env.example`.
+- **`search/middleware.py`** — request logging + CORS.
 - **`search/qdrant_client.py`** — async wrapper around the Qdrant
-  client (see [ADR-0006](./adr/0006-async-qdrant-client.md)).
+  client. See [ADR-0006](./adr/0006-async-qdrant-client.md).
 - **`search/text_encoder.py`** — SigLIP2 text encoder wrapper. Mirrors
   the indexer's vision encoder so queries and points live in the same
   space. Returns unit-norm vectors.
 
-### Dual store: Qdrant + IndexDB
+### Dual store: Qdrant + SQLite
 
+- **Qdrant** is the source of truth for vectors + payload. All search
+  reads go through it.
 - **`search/index_db.py`** — SQLite store. Holds two kinds of state:
   - **Rebuildable** cache of photo metadata that exists in Qdrant but
     is hot in the request path (folder, blurhash, mtime, etc.).
@@ -50,8 +62,8 @@ and proxies through SvelteKit's server-side fetch in production.
 - **`search/lazy_index_cache.py`** — B5 contract wrapper around
   `IndexDB`. Startup completes *without* hydrating from Qdrant; the
   first read triggers hydration, and the app serves from a stale
-  (possibly empty) cache while a background task refreshes.
-  See [ADR-0005](./adr/0005-lazy-cache-refresh.md).
+  (possibly empty) cache while a background task refreshes. See
+  [ADR-0005](./adr/0005-lazy-cache-refresh.md).
 
 - **`search/image_resolver.py`** — turns a stored absolute path into
   the public `/photo/{id}/raw` URL the frontend embeds. Honors the
@@ -60,26 +72,24 @@ and proxies through SvelteKit's server-side fetch in production.
 
 ### Ranking & feature compute
 
-The big read-side features follow a `compute.py` ↔ service-module split
-from [phase B3](./backend-refactor-plan.md):
+The big read-side features follow a `compute.py` ↔ service-module split:
 
 - **`search/diversity.py`** + **`search/diversity_compute.py`** — applies
   byte-exact and perceptual-hash deduplication plus a relevance-drop
-  MMR pass to ordinary search results. Tunable via
-  `DIVERSITY_*` env vars.
+  MMR pass to ordinary search results. Tunable via `DIVERSITY_*` env vars.
 - **`search/centroids.py`** + **`search/centroids_compute.py`** —
-  loads `.pt` centroid files emitted by `isaac-image-scoring`'s
-  `extract` command, serves them as query vectors. Mutually exclusive
-  with text prompts.
-- **`search/discover.py`** + **`search/discover_compute.py`** — the
-  Discover rabbithole. Burst-based seed-then-recommend sampling with
-  MMR diversity inside the burst pool. See `DISCOVER_*` env vars.
-- **`search/for_you.py`** + **`search/for_you_compute.py`** — a
-  personal feed scored from the user's favorites/dislikes centroid.
-- **`search/centroids_compute.py`** etc. are **pure functions** —
-  vectors in, vectors/masks out, no I/O, no globals, no logging beyond
-  debug invariants. Unit-tested in isolation; the I/O module is a thin
-  orchestrator on top.
+  centroid-driven queries (search by an album centroid instead of a
+  text prompt).
+- **`search/for_you.py`** + **`search/for_you_compute.py`** — the
+  personalized feed that combines likes/dislikes with MMR over the
+  library.
+- **`search/random.py`** — uniform random sampling with optional
+  folder bias.
+
+The `compute.py` modules are pure functions (vectors + masks in, vectors
++ masks out, no I/O, no globals, no logging beyond debug invariants).
+The service module is a thin orchestrator on top. Unit-tested in
+isolation.
 
 ### Routing
 
@@ -92,17 +102,17 @@ factory pattern lets tests inject mock dependencies.
 | `search.py` | `GET /api/search` | Text + image + filename filter. The hot path. |
 | `similar.py` | `GET /api/similar/{point_id}` | "More like this" by Qdrant Recommend. |
 | `random.py` | `GET /api/random` | Uniformly random, optional folder bias. |
-| `for_you.py` | `GET /api/for-you/{state,feed}`, `POST /api/for-you/reset` | Personal feed. |
-| `discover.py` | `POST /api/discover/{start,pick}` | Two-image pick rabbithole. |
+| `for_you.py` | `GET /api/for-you/feed`, `POST /api/for-you/reset` | Personal feed. |
 | `favorites.py` | `POST/GET/DELETE /api/favorites[...]` | Per-photo favorite toggle + list + ZIP. |
 | `dislikes.py` | `POST/GET/DELETE /api/dislikes[...]` | Per-photo dislike + list. |
 | `albums.py` | `POST/GET/PATCH/DELETE /api/albums[...]` | Named user-curated sets; ZIP download. |
 | `saved_searches.py` | `POST/GET/DELETE /api/saved-searches[...]` | Named search recipes. |
 | `centroids_list.py` | `GET /api/centroids` | List loaded centroids. |
 | `centroids_search.py` | `GET /api/centroids/{name}/search` | Search with a centroid as the query vector. |
-| `centroids.py` | `POST /api/centroids/reload` | Re-scan the centroids dir without restarting. |
 | `collections.py` | `GET /api/collections` | List Qdrant collections (admin). |
 | `system.py` | `GET /api/system[...]` | Version, model name, schema version. |
+| `thumbnails.py` | `GET /thumb/{point_id}?w=…` | Pre-generated WebP thumbnails. 404-falls back to canonical. |
+| `admin_index.py` | `GET /api/admin/index/...` | Indexer status, log, start/cancel. |
 
 The `system` router also exposes the version banner and schema-version
 negotiation handshake.
@@ -110,8 +120,7 @@ negotiation handshake.
 ### Dev server
 
 - **`search/dev_server.py`** — `python -m search.dev_server`. Flags:
-  - `--no-model` — swap in the deterministic mock text encoder; skip
-    the SigLIP2 download entirely.
+  - `--no-model` — boot without loading SigLIP2 (~3 GB HF cache save).
   - `--demo-data` — boot an in-memory Qdrant collection seeded with N
     synthetic photos. Combine with `--no-model` to iterate on the UI
     without a GPU or a real library.
@@ -122,6 +131,11 @@ negotiation handshake.
 
 Runs on the GPU host, where the NAS is mounted and CUDA is available.
 Has no FastAPI, no HTTP, no async — purely synchronous batch embedding.
+The same `ghcr.io/isaaclb98/image-search:latest` image ships the
+indexer as `python -m indexer.local_sync` (or `run_pipeline`) — invoke
+it from the host's Python env, not as a container. The
+`--profile indexer` service in `docker/docker-compose.yml` is the
+optional containerized path.
 
 ### Entry points
 
@@ -133,8 +147,7 @@ Has no FastAPI, no HTTP, no async — purely synchronous batch embedding.
   - Backfill: re-embed using a different model.
 - **`indexer/run_pipeline.py`** — `python -m indexer.run_pipeline`.
   Thin wrapper around `IndexerPipeline`. No change detection, no prune,
-  no backfill. The right shape for a desktop "Index this folder"
-  button.
+  no backfill. Right shape for a desktop "Index this folder" button.
 
 ### Pipeline
 
@@ -151,25 +164,28 @@ Has no FastAPI, no HTTP, no async — purely synchronous batch embedding.
 - **`indexer/blurhash.py`** — LQIP placeholder encoder. Stored as
   `blurhash` payload field; the frontend decodes client-side.
 - **`indexer/vision_encoder.py`** — SigLIP2 vision-encoder wrapper.
-  Batches up to `INDEXER_BATCH_SIZE` (default 16 on a 24 GB GPU).
+  Batches up to `INDEXER_BATCH_SIZE` (default 8, see `search/config.py`).
 - **`indexer/upsert.py`** — builds the canonical `Payload` from
   per-file metadata + fingerprints + blurhash + model metadata, then
   upserts to Qdrant in batches.
-- **`indexer/cache.py`** — SQLite cache of "what's already in Qdrant",
-  replaces the prior JSON implementation (phase B4). Atomic writes,
-  faster lookups, and the same public API (`load / save / has / add /
-  remove_missing / rebuild_from_qdrant`).
+- **`indexer/cache.py`** — SQLite cache of "what's already in Qdrant".
+  Atomic writes, faster lookups, and the same public API
+  (`load / save / has / add / remove_missing / rebuild_from_qdrant`).
 - **`indexer/heal.py`** — runs a healing sweep over a collection to
   repair missing fields (e.g. older points without `_schema_version`).
-- **`indexer/migrate_source_from_path.py`** — one-shot tool for
-  re-pointing existing points at a new filesystem path.
+- **`indexer/thumbnails.py`** — generates pre-baked WebP thumbnails
+  (384×384, q80) at index time. The frontend's `?w=` request picks a
+  size; the canonical file is always written.
+- **`indexer/sync_meta.py`** — `local_sync` metadata (last-run
+  timestamp, source list) persistence.
 
 ### Model registry
 
 The indexer resolves `--model` to an `Embedder` via
-`image_search_kernel.registry.get()`. The default
-`ViT-gopt-16-SigLIP2-384` (open_clip `webli` pretrained) is the only
-production model today. See [ADR-0003](./adr/0003-model-registry.md)
+`image_search_kernel.registry.get()`. Default variant is set by the
+`SIGLIP_VARIANT` env var (defaults to `so400m/16-384`,
+`ViT-so400m-patch16-384`, 1152-dim). For the full variant table see
+`search/config.py:SIGLIP_VARIANTS`. See [ADR-0003](./adr/0003-model-registry.md)
 for how to add another.
 
 ---
@@ -183,22 +199,22 @@ halves cannot drift.
 
 - **`image_search_kernel/payload_schema.py`** — the canonical
   `Payload` TypedDict, the `SCHEMA_VERSION = 1` constant, and every
-  `FIELD_*` string constant used in the Qdrant payload. The
-  prose mirror is [`SCHEMA.md`](../SCHEMA.md). See
+  `FIELD_*` string constant used in the Qdrant payload. The prose
+  mirror is [`SCHEMA.md`](./SCHEMA.md). See
   [ADR-0002](./adr/0002-schema-versioning.md).
 - **`image_search_kernel/registry.py`** — `Model` dataclass,
   `Embedder` Protocol, `MockEmbedder` (deterministic, no weights),
   the `register()` decorator, and `get(name)`. Indexer and search
   both resolve models through this.
-- **`image_search_kernel/vectors.py`** — `l2_normalize`,
-  `mean_vector` (with per-vector weights), `cosine`. Pure NumPy /
-  Torch, no I/O.
-- **`image_search_kernel/qdrant_url.py`** — `client_kwargs()` turns
-  a `QDRANT_URL` env var into a QdrantClient kwargs dict (host vs.
-  URL detection, optional API key).
-- **`image_search_kernel/migrate.py`** — `migrate_collection()` —
-  copies vectors and applies registered field transforms to promote
-  a collection from one `_schema_version` to another.
+- **`image_search_kernel/vectors.py`** — vector primitives (unit-norm
+  enforcement, batched ops). Used by both sides.
+- **`image_search_kernel/qdrant_url.py`** — URL parsing for the
+  `QDRANT_URL` env var. (Historically was shared across both sides;
+  still pulled in by tests.)
+- **`image_search_kernel/_real_models.py`** — lazy loader for the
+  real SigLIP2 weights via `open_clip`. Only invoked on first
+  `registry.get(name)` call after `torch` is imported. Safe to import
+  in tests; the loader no-ops if torch isn't available.
 
 See [ADR-0001](./adr/0001-shared-kernel-package.md) for the rationale.
 
@@ -212,16 +228,14 @@ The SPA consumes the search JSON API. Type safety end-to-end:
 2. `cd frontend && npm run gen:openapi` refreshes the pinned copy.
 3. `npm run gen:types` emits TypeScript types.
 4. `npm run gen:zod` validates hand-written Zod parsers against
-  `openapi.json` (drift check).
+   `openapi.json` (drift check).
 
 ### File-based routes
 
 | Path | Purpose |
 |---|---|
 | `/` | Home — default search. |
-| `/login` | App login (single-user, bcrypt + signed cookie). |
 | `/photo/[id]` | Single-photo detail page. |
-| `/search` | Saved-search landing. |
 | `/similar/[id]` | "More like this" landing. |
 | `/random` | Random surf. |
 | `/for-you` | Personal feed. |
@@ -229,6 +243,7 @@ The SPA consumes the search JSON API. Type safety end-to-end:
 | `/albums/[id]` | Album detail. |
 | `/albums/likes` | Favorites. |
 | `/albums/dislikes` | Dislikes. |
+| `/settings` | Settings + index status. |
 
 ### Generated / hand-rolled
 
@@ -243,22 +258,23 @@ The SPA consumes the search JSON API. Type safety end-to-end:
 
 ### Tests
 
-- `npm run test:unit` — Vitest unit + component tests (27 tests across
-  3 files: typed client, Zod schema parsers, primitives).
-- `npm run test:e2e` — Playwright (14 tests against the live SPA).
-- `npm run check` — `svelte-check` over the whole tree.
+- `npm run test:unit` — Vitest unit + component tests.
+- `npm run test:e2e` — Playwright against the live SPA. See
+  `frontend/e2e/README.md` for the two-tier organization (fundamental
+  = CI gate, exploratory = human triage).
+- `npm run check` — `svelte-check` over the whole TS surface.
 
 ---
 
 ## Data flow: a search query, end to end
 
 1. User types "sunset over mountains" in the SPA.
-2. SPA `POST`s to `/api/search?prompt=...` (debounced) via the typed
+2. SPA `GET`s `/api/search?prompt=...` (debounced) via the typed
    client in `src/lib/api/`.
 3. `search/routers/search.py` validates the query, calls the
    `diversity` service.
 4. `search/diversity_compute.py`:
-   - Calls `search/text_encoder.py` → SigLIP2 text encoder → 1536-dim
+   - Calls `search/text_encoder.py` → SigLIP2 text encoder → variant-dim
      unit-norm query vector.
    - Calls Qdrant with `query_points(vector, limit=BIG, with_payload=True)`.
    - Drops exact (`content_sha256`) and near (`dhash` Hamming ≤ threshold)
@@ -273,3 +289,13 @@ The SPA consumes the search JSON API. Type safety end-to-end:
    `/photo/[id]`, which lazy-fetches `/api/photo/{id}` for the full
    metadata panel and renders `<img src="/photo/{id}/raw">` for the
    full-resolution image.
+
+---
+
+## Thumbnail serving
+
+`/thumb/{point_id}?w=…` returns a pre-baked WebP. The indexer writes a
+canonical 384×384 file at index time (`indexer/thumbnails.py`); the
+router accepts any `?w=` in [64, 384] and 404s if the requested size
+doesn't exist on disk, so the browser falls back to the canonical. See
+`search/routers/thumbnails.py`.

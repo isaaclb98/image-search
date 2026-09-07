@@ -2,7 +2,7 @@
 
 The canonical reference for every field stored on a Qdrant point by the
 `indexer/` writer. The single source of truth for field names lives in
-[`image_search_kernel/payload_schema.py`](./image_search_kernel/payload_schema.py) —
+[`image_search_kernel/payload_schema.py`](../image_search_kernel/payload_schema.py) —
 this doc is the prose mirror and is updated alongside it.
 
 If you're adding a field, edit the kernel module first, then update the
