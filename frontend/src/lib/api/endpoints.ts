@@ -138,6 +138,49 @@ export function random(params: RandomParams | number = {}, signal?: AbortSignal)
   });
 }
 
+// ---------- Shuffled For You ----------
+
+export interface ShuffledForYouParams {
+  /** Percentile of library to use as the random pool. Default 1.0.
+   * At 800k library: 1% → 8000 candidates. */
+  top_pct?: number;
+  /** Number of photos per page. 1..100. Default 30. */
+  limit?: number;
+  /** Zero-based offset into the shuffled pool. */
+  page?: number;
+  /** Result view: 'grid' (default) or 'feed'. */
+  view?: string;
+  /** Abort the request. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Shuffled For You — like /random but the pool is constrained to
+ * the top `top_pct`% of library ranked by relevance-to-taste (so
+ * every photo is something the user would probably have liked
+ * anyway, just served in a random walk instead of always the
+ * top hits).
+ *
+ * Each request reshuffles the pool server-side. Refresh the page
+ * to get a fresh shuffle. session_id from the response is always
+ * None (this endpoint doesn't track sessions server-side).
+ *
+ * See: docs/architecture.md and search/shuffled_for_you.py.
+ */
+export function shuffledForYou(params: ShuffledForYouParams = {}, signal?: AbortSignal) {
+  const sig = signal ?? params.signal;
+  const search = new URLSearchParams();
+  if (params.top_pct !== undefined) search.set('top_pct', String(params.top_pct));
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+  if (params.page !== undefined) search.set('page', String(params.page));
+  if (params.view !== undefined) search.set('view', params.view);
+  return apiGet<SearchResponse>(`/api/shuffled-for-you/feed?${search.toString()}`, {
+    signal: sig,
+    schema: Z.SearchResponse,
+    schemaName: 'SearchResponse (shuffled-for-you)'
+  });
+}
+
 /**
  * Most-similar photos for a given point ID — nearest neighbours in
  * the SigLIP2 embedding space. Reached by clicking "Most similar"
