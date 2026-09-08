@@ -44,3 +44,23 @@ def pool_k_default(limit: int) -> int:
     if limit <= 0:
         raise ValueError(f"limit must be positive (got {limit})")
     return max(limit * 4, 80)
+
+
+def explore_pool_size(library_size: int, top_pct: float) -> int:
+    """Pool size for the shuffled-for-you feed: top `top_pct`% of library.
+
+    Computes `round(library_size × top_pct / 100)` with a floor of 1
+    so an empty library doesn't produce a degenerate 0-size pool.
+    No ceiling (per Isaac: "no pool ceiling"). A `top_pct=5` over
+    an 800k library will fetch 40k candidates at ~5-10s; the
+    caller is expected to budget that latency.
+
+    Pure function of two numbers. Lives here (not in
+    shuffled_for_you.py) so tests can pin the math without
+    spinning up the qdrant fixture.
+    """
+    if library_size < 0:
+        raise ValueError(f"library_size must be non-negative (got {library_size})")
+    if top_pct <= 0 or top_pct > 100:
+        raise ValueError(f"top_pct must be in (0, 100] (got {top_pct})")
+    return max(round(library_size * top_pct / 100), 1)
