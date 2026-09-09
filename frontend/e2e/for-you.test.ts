@@ -101,8 +101,9 @@ test.describe('For You (round 22 shuffled pool — round 33 replaced the diversi
     // we have enough headroom to slice `limit=5` from offset=0 and
     // offset=5 both yielding 5 items. (top_pct=1 → pool=2, too
     // small for `limit=5` pages.)
-    const p0 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&page=0&limit=5`)).json();
-    const p1 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&page=1&limit=5`)).json();
+    const SEED = 'walk-test-seed';
+    const p0 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&page=0&limit=5&seed=${SEED}`)).json();
+    const p1 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&page=1&limit=5&seed=${SEED}`)).json();
 
     // The two pages overlap zero ids (cached pool, server slices
     // start..start+limit deterministically).
@@ -115,6 +116,31 @@ test.describe('For You (round 22 shuffled pool — round 33 replaced the diversi
     for (const id of ids0) {
       expect(ids1.has(id)).toBe(false);
     }
+  });
+
+  test('same seed returns same shuffle; different seeds differ', async ({ page }) => {
+    // Regression guard for the round-34 bug where the 5-min TTL
+    // cache kept the same shuffle alive across page reloads.
+    // Same seed → same shuffle (coherent walk); different seeds
+    // → different shuffles (fresh on reload).
+    const SEED_A = 'reload-A';
+    const SEED_B = 'reload-B';
+    const a = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&limit=10&seed=${SEED_A}`)).json();
+    const a2 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&limit=10&seed=${SEED_A}`)).json();
+    const b = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&limit=10&seed=${SEED_B}`)).json();
+
+    const aIds = (a.results as Array<{ id: string }>).map((r) => r.id);
+    const a2Ids = (a2.results as Array<{ id: string }>).map((r) => r.id);
+    const bIds = (b.results as Array<{ id: string }>).map((r) => r.id);
+
+    // Same seed → identical order (server cache hit)
+    expect(aIds).toEqual(a2Ids);
+    // Different seeds → same set (deterministic pool size) but
+    // different order. With 200 demo photos and top_pct=50, the
+    // pool has 100 ids and a 6-of-6 birthday-paradox match is
+    // essentially impossible for random.shuffle.
+    expect(aIds).not.toEqual(bIds);
+    expect(new Set(aIds)).toEqual(new Set(bIds));
   });
 
   test('validation errors return 422', async ({ page }) => {

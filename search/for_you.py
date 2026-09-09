@@ -73,7 +73,7 @@ the same PhotoGrid component without bespoke sizing."""
 # ---------------------------------------------------------------------------
 
 _for_you_cache: dict[
-    tuple[tuple[str, ...], tuple[str, ...], float],
+    tuple[tuple[str, ...], tuple[str, ...], float, str],
     tuple[float, list[str]],
 ] | None = None
 
@@ -143,10 +143,17 @@ def build_for_you_pool(
     index_db: Any,
     top_pct: float = DEFAULT_FOR_YOU_TOP_PCT,
     rng: random.Random | None = None,
+    cache_key_extra: str = "",
 ) -> list[str]:
     """Return the top `top_pct`% of library by relevance-to-taste,
     uniformly shuffled. Cached for `_FOR_YOU_TTL_SECONDS` keyed by
-    (fav_ids, dis_ids, top_pct).
+    (fav_ids, dis_ids, top_pct, cache_key_extra).
+
+    `cache_key_extra` is an opaque string the caller controls.
+    Pass a fresh random seed on each page reload so the user sees
+    a different shuffle on every reload; reuse the same seed for
+    paginated scroll calls within the same page-mount to keep the
+    walk coherent across page=0, page=1, ...
 
     `rng` accepts a `random.Random` instance for deterministic
     shuffling in tests; production callers leave it None and get a
@@ -157,7 +164,10 @@ def build_for_you_pool(
     if _for_you_cache is None:
         _for_you_cache = {}
 
-    cache_key = (tuple(fav_ids), tuple(dis_ids), float(top_pct))
+    cache_key = (
+        tuple(fav_ids), tuple(dis_ids), float(top_pct),
+        cache_key_extra or "",
+    )
     now = _time.monotonic()
     cached = _for_you_cache.get(cache_key)
     if cached is not None and (now - cached[0]) < _FOR_YOU_TTL_SECONDS:
@@ -199,15 +209,20 @@ def rank_for_you(
     page: int = 0,
     top_pct: float = DEFAULT_FOR_YOU_TOP_PCT,
     rng: random.Random | None = None,
+    seed: str | None = None,
 ) -> tuple[list, int, bool]:
     """Slice a page of `limit` items starting at `page * limit` from
-    a freshly-shuffled pool. Returns (hits, pool_total, has_more).
+    a shuffled pool. Returns (hits, pool_total, has_more).
 
-    Each call reshuffles by default (no caller-provided session id).
-    Per-page slicing reuses the same shuffled pool across `page`
-    values within a single call only — the next request gets a
-    fresh shuffle. This mirrors /random's behaviour without the
-    session cursor (cursor was Isaac's "manual refresh" requirement).
+    `seed` is an opaque string the caller controls. Pass a fresh
+    random value on every page reload; reuse the same value for
+    paginated scroll calls within the same page-mount. Different
+    seeds = different cache entries = different shuffles; same seed
+    = same cached shuffle = coherent walk across page=0, page=1, ...
+
+    Without a seed, the cache falls back to a global key and the
+    same shuffle is reused across all requests until the TTL
+    expires. Tests should always pass a seed to keep isolation.
 
     `limit` is clamped to [1, FOR_YOU_MAX_LIMIT]. `page` is
     clamped to >= 0. `top_pct` is validated (0, 100].
@@ -224,6 +239,7 @@ def rank_for_you(
         index_db=index_db,
         top_pct=top_pct,
         rng=rng,
+        cache_key_extra=seed or "",
     )
     pool_total = len(pool)
     if pool_total == 0:

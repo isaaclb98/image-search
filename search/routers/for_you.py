@@ -116,14 +116,29 @@ def build_for_you_router(
             int,
             Query(ge=0, description="Zero-based offset into the shuffled pool."),
         ] = 0,
+        seed: Annotated[
+            str | None,
+            Query(
+                description=(
+                    "Optional opaque string. Frontend passes a fresh "
+                    "random value on every page reload so the user "
+                    "sees a different shuffle each time; reuse the same "
+                    "value for paginated scroll calls within a single "
+                    "page-mount to walk through the same shuffle across "
+                    "page=0, page=1, ... Different seeds produce different "
+                    "shuffles (server-side cached keyed on this value)."
+                ),
+            ),
+        ] = None,
     ) -> SearchResponse:
         """Materialise the top `top_pct`% of library by taste,
         uniformly shuffle, return `limit` ids starting at `page`.
 
-        The pool reshuffles on every fresh request. A client that
-        keeps the same `(fav_ids, dis_ids, top_pct)` and walks
-        through multiple `page` values within the 5-min cache TTL
-        sees the same shuffle across all those calls.
+        The shuffle is keyed by `(fav_ids, dis_ids, top_pct, seed)`.
+        A client that keeps all four stable across multiple `page`
+        values walks through the same shuffle. A new `seed` produces
+        a fresh shuffle. If no seed is supplied, all requests share
+        the same cached shuffle until the TTL expires.
         """
         try:
             fav_ids, dis_ids = await asyncio.gather(
@@ -144,6 +159,7 @@ def build_for_you_router(
                 limit=limit,
                 page=page,
                 top_pct=top_pct,
+                seed=seed,
             )
         except Exception:
             logger.exception("for-you: rank failed")

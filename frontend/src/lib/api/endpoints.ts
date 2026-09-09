@@ -147,6 +147,11 @@ export function random(params: RandomParams | number = {}, signal?: AbortSignal)
  * swap from diversity rerank to shuffled pool: the new
  * /api/for-you/feed ranks the top `top_pct`% of library by your
  * taste direction and returns a random walk, no MMR.
+ *
+ * `seed` is an opaque string forwarded to the server. Pass a
+ * fresh random value on every page reload so the user sees a
+ * different shuffle; reuse the same value for paginated scroll
+ * calls within the same page-mount to keep the walk coherent.
  */
 export interface ForYouFeedParams {
   /** Photos per page. 1..100. Default 30. */
@@ -158,6 +163,8 @@ export interface ForYouFeedParams {
   top_pct?: number;
   /** Result view: 'grid' (default) or 'feed'. */
   view?: string;
+  /** Opaque shuffle seed. See interface docstring. */
+  seed?: string;
   /** Abort the request. */
   signal?: AbortSignal;
 }
@@ -166,9 +173,10 @@ export interface ForYouFeedParams {
  * For You — random walk through the top `top_pct`% of library
  * ranked by your taste direction. Like /random but constrained
  * to "photos you'd probably have liked anyway, in a different
- * order." Each request reshuffles server-side; refresh the page
- * for a fresh shuffle. session_id is always null (no server-side
- * session cursor).
+ * order." The server caches the shuffled pool keyed by
+ * (fav_ids, dis_ids, top_pct, seed): same seed → same shuffle
+ * (coherent pagination), different seed → fresh shuffle (page
+ * reload).
  *
  * See: docs/architecture.md and search/for_you.py.
  */
@@ -179,6 +187,7 @@ export function forYouFeed(params: ForYouFeedParams = {}, signal?: AbortSignal) 
   if (params.page !== undefined) search.set('page', String(params.page));
   if (params.top_pct !== undefined) search.set('top_pct', String(params.top_pct));
   if (params.view !== undefined) search.set('view', params.view);
+  if (params.seed !== undefined) search.set('seed', params.seed);
   return apiGet<SearchResponse>(`/api/for-you/feed?${search.toString()}`, {
     signal: sig,
     schema: Z.SearchResponse,

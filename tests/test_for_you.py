@@ -14,6 +14,7 @@ Three test groups:
 from __future__ import annotations
 
 import random
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -481,6 +482,99 @@ def _wrap(router):
     app = FastAPI()
     app.include_router(router)
     return app
+
+
+class TestSeedShuffle:
+    """Same seed → same shuffle, different seed → different shuffle.
+
+    This is the regression guard for the round-34 bug where the
+    5-min TTL cache kept the same shuffle alive across page
+    reloads (commit 7cfcfcc documented the same fix for the prior
+    diversity-rerank implementation; we ported it to the new
+    shuffled-pool ranker).
+    """
+
+    def setup_method(self) -> None:
+        invalidate_for_you_cache()
+
+    def teardown_method(self) -> None:
+        invalidate_for_you_cache()
+
+    def _build_qdrant(self, pool_ids: list[str]) -> Any:
+        qdrant = MagicMock()
+        pool = [_hit(i) for i in pool_ids]
+        qdrant.recommend.return_value = pool
+        qdrant.search.return_value = (pool, False)
+        qdrant.retrieve_batch.side_effect = lambda ids: [
+            next(h for h in pool if h.id == i) for i in ids
+        ]
+        return qdrant
+
+    def _build_index_db(self, n: int) -> Any:
+        index_db = MagicMock()
+        index_db.qdrant_point_count.return_value = n
+        return index_db
+
+    def test_same_seed_same_shuffle(self) -> None:
+        """Two rank calls with the same seed return identical pool order."""
+        qdrant = self._build_qdrant([f"id-{i}" for i in range(10)])
+        index_db = self._build_index_db(n=1000)  # top_pct=1 → pool=10
+
+        a, _, _ = rank_for_you(
+            fav_ids=[], dis_ids=[], qdrant=qdrant,
+            index_db=index_db, limit=5, page=0, top_pct=1.0, seed="seed-A",
+        )
+        b, _, _ = rank_for_you(
+            fav_ids=[], dis_ids=[], qdrant=qdrant,
+            index_db=index_db, limit=5, page=0, top_pct=1.0, seed="seed-A",
+        )
+        a_ids = [h.id for h in a]
+        b_ids = [h.id for h in b]
+        assert a_ids == b_ids
+        # And we did not call Qdrant twice for the same pool.
+        # Cold-start path (no fav_ids) uses qdrant.search(); recommend
+        # is the fav_ids path. With seed-A reused, only the first call
+        # should hit Qdrant.
+        assert qdrant.search.call_count == 1
+        assert qdrant.recommend.call_count == 0
+
+    def test_different_seed_different_shuffle(self) -> None:
+        """Two rank calls with different seeds return different pool order."""
+        qdrant = self._build_qdrant([f"id-{i}" for i in range(10)])
+        index_db = self._build_index_db(n=1000)
+
+        a, _, _ = rank_for_you(
+            fav_ids=[], dis_ids=[], qdrant=qdrant,
+            index_db=index_db, limit=10, page=0, top_pct=1.0, seed="seed-A",
+        )
+        b, _, _ = rank_for_you(
+            fav_ids=[], dis_ids=[], qdrant=qdrant,
+            index_db=index_db, limit=10, page=0, top_pct=1.0, seed="seed-B",
+        )
+        a_ids = [h.id for h in a]
+        b_ids = [h.id for h in b]
+        # Different seeds, same pool size = same set, but different order
+        assert set(a_ids) == set(b_ids)
+        assert a_ids != b_ids
+        # And we DID call Qdrant twice (once per seed)
+        assert qdrant.search.call_count == 2
+
+    def test_same_seed_paginated_walks_through_pool(self) -> None:
+        """Same seed, page=0 + page=1 give distinct, non-overlapping ids."""
+        qdrant = self._build_qdrant([f"id-{i}" for i in range(20)])
+        index_db = self._build_index_db(n=2000)  # top_pct=1 → pool=20
+
+        page_0, _, _ = rank_for_you(
+            fav_ids=[], dis_ids=[], qdrant=qdrant,
+            index_db=index_db, limit=5, page=0, top_pct=1.0, seed="walk",
+        )
+        page_1, _, _ = rank_for_you(
+            fav_ids=[], dis_ids=[], qdrant=qdrant,
+            index_db=index_db, limit=5, page=1, top_pct=1.0, seed="walk",
+        )
+        p0_ids = {h.id for h in page_0}
+        p1_ids = {h.id for h in page_1}
+        assert p0_ids.isdisjoint(p1_ids)
 
 
 class TestRouter:
