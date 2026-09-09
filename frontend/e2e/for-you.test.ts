@@ -97,8 +97,12 @@ test.describe('For You (round 22 shuffled pool — round 33 replaced the diversi
   });
 
   test('page=1 returns a different page than page=0', async ({ page }) => {
-    const p0 = await (await page.request.get(`${APP}/api/for-you/feed?page=0&limit=5`)).json();
-    const p1 = await (await page.request.get(`${APP}/api/for-you/feed?page=1&limit=5`)).json();
+    // Demo data has ~200 photos; use top_pct=50 so pool=100 and
+    // we have enough headroom to slice `limit=5` from offset=0 and
+    // offset=5 both yielding 5 items. (top_pct=1 → pool=2, too
+    // small for `limit=5` pages.)
+    const p0 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&page=0&limit=5`)).json();
+    const p1 = await (await page.request.get(`${APP}/api/for-you/feed?top_pct=50&page=1&limit=5`)).json();
 
     // The two pages overlap zero ids (cached pool, server slices
     // start..start+limit deterministically).
