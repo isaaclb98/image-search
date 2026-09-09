@@ -236,15 +236,16 @@ test.describe('For You feed', () => {
     await expect(page.getByRole('heading', { name: /for you/i })).toBeVisible();
   });
 
-  test('For You page has a Diversity control', async ({ page }) => {
+  test('For You page has no Diversity control (round 33)', async ({ page }) => {
     await page.goto(`${APP}/for-you`);
     await appReady(page);
 
-    // The Diversity select should be accessible
-    const diversitySelect = page.getByRole('combobox', { name: /diversity/i }).first();
-    if (await diversitySelect.count() > 0) {
-      await expect(diversitySelect).toBeVisible();
-    }
+    // Round 33 replaced the diversity-rerank For You with the
+    // shuffled-pool ranker. The diversity combobox used to live on
+    // this page; assert it's gone.
+    await expect(
+      page.getByRole('combobox', { name: /diversity/i })
+    ).toHaveCount(0);
   });
 });
 

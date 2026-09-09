@@ -910,7 +910,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
         "parameters": [
           {
             "in": "path",
@@ -941,7 +941,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
         "parameters": [
           {
             "in": "path",
@@ -1415,7 +1415,7 @@
     },
     "/api/cache/refresh": {
       "get": {
-        "operationId": "api_cache_refresh_api_cache_refresh_get",
+        "operationId": "api_cache_refresh_api_cache_refresh_post",
         "responses": {
           "200": {
             "content": {
@@ -1429,7 +1429,7 @@
         "summary": "Api Cache Refresh"
       },
       "post": {
-        "operationId": "api_cache_refresh_api_cache_refresh_get_1",
+        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
         "responses": {
           "200": {
             "content": {
@@ -1879,92 +1879,50 @@
         "summary": "Mark Favorite"
       }
     },
-    "/api/for-you/diversity": {
-      "get": {
-        "description": "Expose the active Diversity defaults + valid choices to the UI.",
-        "operationId": "for_you_diversity_api_for_you_diversity_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response For You Diversity Api For You Diversity Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "For You Diversity"
-      }
-    },
     "/api/for-you/feed": {
       "get": {
-        "description": "Paginated, server-side for-you feed.\n\nDiversity is resolved against the app\u2011wide `cfg.diversity`\ndefault; `diversity_depth` is accepted for API parity but\nignored (only the discovery rabbithole uses depth today).\n\n`limit` is clamped to [1, 100] silently inside the handler\nso callers can ask for `limit=999` and get the largest valid\npage rather than a 422.",
-        "operationId": "for_you_feed_api_for_you_feed_get",
+        "description": "Materialise the top `top_pct`% of library by taste,\nuniformly shuffle, return `limit` ids starting at `page`.\n\nThe pool reshuffles on every fresh request. A client that\nkeeps the same `(fav_ids, dis_ids, top_pct)` and walks\nthrough multiple `page` values within the 5-min cache TTL\nsees the same shuffle across all those calls.",
+        "operationId": "shuffled_for_you_feed_api_for_you_feed_get",
         "parameters": [
           {
-            "description": "max recommendations per page",
+            "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
+            "in": "query",
+            "name": "top_pct",
+            "required": false,
+            "schema": {
+              "default": 1.0,
+              "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
+              "maximum": 100.0,
+              "minimum": 0.001,
+              "title": "Top Pct",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Photos per page.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "default": 30,
-              "description": "max recommendations per page",
+              "description": "Photos per page.",
+              "maximum": 100,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
             }
           },
           {
-            "description": "zero-based page index",
+            "description": "Zero-based offset into the shuffled pool.",
             "in": "query",
             "name": "page",
             "required": false,
             "schema": {
               "default": 0,
-              "description": "zero-based page index",
+              "description": "Zero-based offset into the shuffled pool.",
               "minimum": 0,
               "title": "Page",
               "type": "integer"
-            }
-          },
-          {
-            "description": "diversity mode",
-            "in": "query",
-            "name": "diversity",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "diversity mode",
-              "title": "Diversity"
-            }
-          },
-          {
-            "description": "ignored on /for-you",
-            "in": "query",
-            "name": "diversity_depth",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "ignored on /for-you",
-              "title": "Diversity Depth"
             }
           }
         ],
@@ -1973,9 +1931,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response For You Feed Api For You Feed Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SearchResponse"
                 }
               }
             },
@@ -1992,40 +1948,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "For You Feed"
-      }
-    },
-    "/api/for-you/reset": {
-      "post": {
-        "description": "Invalidate the cached user signal + favourites centroid.",
-        "operationId": "for_you_reset_api_for_you_reset_post",
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          }
-        },
-        "summary": "For You Reset"
-      }
-    },
-    "/api/for-you/state": {
-      "get": {
-        "description": "Cheap signal snapshot for the header chip and empty-state.",
-        "operationId": "for_you_state_api_for_you_state_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response For You State Api For You State Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "For You State"
+        "summary": "Shuffled For You Feed"
       }
     },
     "/api/photo/{point_id}": {
@@ -2480,78 +2403,6 @@
         "summary": "Api Search"
       }
     },
-    "/api/shuffled-for-you/feed": {
-      "get": {
-        "description": "Materialise the top `top_pct`% of library by taste,\nuniformly shuffle, return `limit` ids starting at `page`.\n\nThe pool reshuffles on every fresh request. A client that\nkeeps the same `(fav_ids, dis_ids, top_pct)` and walks\nthrough multiple `page` values within the 5-min cache TTL\nsees the same shuffle across all those calls.",
-        "operationId": "shuffled_for_you_feed_api_shuffled_for_you_feed_get",
-        "parameters": [
-          {
-            "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
-            "in": "query",
-            "name": "top_pct",
-            "required": false,
-            "schema": {
-              "default": 1.0,
-              "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
-              "maximum": 100.0,
-              "minimum": 0.001,
-              "title": "Top Pct",
-              "type": "number"
-            }
-          },
-          {
-            "description": "Photos per page.",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 30,
-              "description": "Photos per page.",
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Zero-based offset into the shuffled pool.",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "description": "Zero-based offset into the shuffled pool.",
-              "minimum": 0,
-              "title": "Page",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Shuffled For You Feed"
-      }
-    },
     "/api/similar/{point_id}": {
       "get": {
         "description": "Most-similar photos: nearest neighbours of `point_id`.",
@@ -2684,7 +2535,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get",
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2693,7 +2544,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
         "responses": {
           "200": {
             "description": "Successful Response"

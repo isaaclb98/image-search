@@ -106,11 +106,15 @@ test.describe('Full User Experience E2E Tests', () => {
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test('For You page loads and exposes diversity controls', async ({ page }) => {
+  test('For You page loads (round 33: shuffled pool, no diversity controls)', async ({ page }) => {
     await page.goto('/for-you');
     await appReady(page);
     await expect(page.getByRole('heading', { name: /For you/i })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: /Diversity mode/i })).toBeVisible();
+    // Round 33 dropped the diversity controls from this page —
+    // the new endpoint takes `top_pct`/`page`/`limit`, no
+    // user-facing tuning of diversity rerank. Confirm there's no
+    // legacy combobox visible.
+    await expect(page.getByRole('combobox', { name: /Diversity mode/i })).toHaveCount(0);
   });
 
   test('Albums page loads', async ({ page }) => {
