@@ -23,7 +23,6 @@ from fastapi.testclient import TestClient
 
 from search.for_you_compute import explore_pool_size
 from search.for_you import (
-    FOR_YOU_MAX_LIMIT,
     build_for_you_pool,
     invalidate_for_you_cache,
     rank_for_you,
@@ -372,9 +371,9 @@ class TestRank:
         assert has_more is False
 
     def test_limit_not_capped_to_max(self) -> None:
-        """Round-35: limit cap was dropped. limit > FOR_YOU_MAX_LIMIT
-        is honoured — the caller gets as many hits as the pool has,
-        limited only by their limit request.
+        """Round-35: limit cap was dropped entirely. Any limit
+        value is honoured — the caller gets as many hits as the
+        pool has, limited only by their limit request.
         """
         qdrant = MagicMock()
         pool_ids = [f"id-{i}" for i in range(50)]
@@ -388,7 +387,7 @@ class TestRank:
             dis_ids=[],
             qdrant=qdrant,
             index_db=index_db,
-            limit=FOR_YOU_MAX_LIMIT + 50,  # 150, > the old cap
+            limit=150,  # arbitrary value > pool, no cap exists anymore
             page=0,
             top_pct=1.0,
             rng=random.Random(0),  # noqa: S311

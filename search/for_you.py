@@ -66,15 +66,6 @@ At an 800k library, 1% yields 8000 candidates — fast (~1-3s
 recommend) and large enough that uniform shuffle gives real
 variety per page refresh."""
 
-FOR_YOU_MAX_LIMIT = 100
-"""DEPRECATED. Removed when the per-page limit cap was dropped
-(round-35, Isaac: "there should be no limit"). The Query on
-limit is now bound only by ge=1; the natural cap is pool size.
-
-Kept as an exported name for any code that imported it; new
-code should not depend on a per-page response limit at all.
-"""
-
 # ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------
