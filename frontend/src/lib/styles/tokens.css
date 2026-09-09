@@ -134,6 +134,22 @@
      exact. */
   --grid-gutter: 4px;
 
+  /* layout shell — vertical rhythm + max content width.
+     Single unit (24px) shared by --shell-pad-x, --shell-pad-y,
+     --shell-gap so every page inherits consistent padding and
+     section spacing instead of each page picking its own.
+     Applied via the `.shell` wrapper in +layout.svelte; every
+     page section lives inside it. */
+  --shell-pad-x: 24px;
+  --shell-pad-y: 24px;
+  --shell-gap: 24px;
+
+  /* topbar visibility — was rgba(14,15,20,0.12) hardcoded in
+     TopBar.svelte, which disappeared against bg-0. 0.32 keeps
+     the underlying photo-tint bleed visible while giving the
+     bar real weight. */
+  --topbar-alpha: 0.32;
+
   /* motion */
   --ease-out: cubic-bezier(0.16, 0.84, 0.32, 1);
   --t-fast: 120ms;

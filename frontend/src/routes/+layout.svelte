@@ -166,7 +166,7 @@
         document.documentElement.style.setProperty('--grid-width', gridWidth + 'px');
       }
     });
-    const main = document.querySelector('.app-main');
+    const main = document.querySelector('.shell');
     if (main) ro.observe(main);
     return () => ro.disconnect();
   });
@@ -224,7 +224,7 @@
   <div class="bg-tint" aria-hidden="true"></div>
 
   <TopBar />
-  <main class="app-main">
+  <main class="shell">
     {@render children?.()}
   </main>
   <Toaster />
@@ -276,25 +276,32 @@
       rgba(8, 10, 16, 0.55) 100%
     );
   }
-  .app-main,
+  .shell,
   :global(.topbar) {
     position: relative;
     z-index: 2;
   }
-  .app-main {
+  .shell {
+    /* Round-1 polish: vertical rhythm owned here, not per-page.
+       Padding + gap come from shell tokens so every route inherits
+       the same spacing. Section gap (--shell-gap, 24px) controls
+       the space between PageHeader and the content below it. */
     min-height: calc(100vh - var(--topbar-h));
-    padding: 24px 24px 64px;
+    padding: var(--shell-pad-y) var(--shell-pad-x) calc(var(--shell-pad-y) * 2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--shell-gap);
     /* Round‑36: raised from 1600 to 2400 so the grid can lay out
        6×384px tiles cleanly on 4K/2K monitors without big empty
        margins on either side. Content below 2400px stays
        viewport-natural. PhotoGrid's grid uses fixed 384px tiles
        (matches the 384px thumbnail source 1:1), so beyond this
-       cap we'd just be adding whitespace — there's no benefit to
-       an even higher cap until the design supports 7+ columns. */
+       cap we'd just be adding whitespace — no benefit to raising
+       further until the design supports 7+ columns. */
     max-width: 2400px;
     margin: 0 auto;
   }
   @media (max-width: 640px) {
-    .app-main { padding: 16px 12px 48px; }
+    .shell { padding: 16px 12px 48px; }
   }
 </style>

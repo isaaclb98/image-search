@@ -588,7 +588,7 @@
        card grid. Keep this in sync with the JS-side `GAP`
        constant above so virtualizer row-height math is exact. */
     gap: var(--grid-gutter, 4px);
-    /* No horizontal padding here — `.app-main` already provides
+    /* No horizontal padding here — `.shell` already provides
        24px of side padding, and the row belongs to the wrapper
        which fills main's content area. Adding more here would
        double-inset the grid (48px total side padding) and make

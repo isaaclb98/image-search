@@ -53,9 +53,13 @@
 <style>
   .head {
     /* Standard page-header geometry. Aligned to the photo grid
-       below via --grid-width so the chrome edges line up. */
-    margin: 16px auto 24px;
-    padding: 22px 26px;
+       below via --grid-width so the chrome edges line up. Round-1
+       polish: tightened padding (was 22/26) and dropped top/bottom
+       margins — the surrounding .shell owns vertical rhythm via
+       flex gap, so the header itself should be flush with the
+       shell padding. */
+    margin: 0;
+    padding: 14px 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -69,7 +73,9 @@
   }
   h1 {
     margin: 0;
-    font-size: var(--fs-2xl);
+    /* Round-1 polish: was --fs-2xl (28px), now --fs-xl (22px) —
+       less demo-y, more "shipping product". */
+    font-size: var(--fs-xl);
     font-weight: 600;
     display: inline-flex;
     align-items: center;
@@ -79,6 +85,9 @@
   p {
     margin: 4px 0 0;
     color: var(--fg-2);
+    /* Round-1 polish: subtitle one step smaller so the h1/subtitle
+       hierarchy reads cleaner. */
+    font-size: var(--fs-sm);
   }
   .meta {
     color: var(--fg-3);

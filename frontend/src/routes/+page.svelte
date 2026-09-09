@@ -445,11 +445,14 @@
   .hero {
     /* Matches the .head width on the other grid pages (random,
        for-you, albums, similar, ...). All page-level "sections"
-       span --grid-width so they line up visually. */
+       span --grid-width so they line up visually. Round-1 polish:
+       dropped horizontal padding (shell owns it via --shell-pad-x),
+       trimmed top padding (was 40px → 8px) since the shell already
+       provides --shell-pad-y + --shell-gap before this section. */
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: 40px 16px 28px;
+    padding: 8px 0 24px;
     text-align: center;
   }
 

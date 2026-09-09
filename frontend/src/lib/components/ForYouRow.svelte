@@ -42,11 +42,11 @@
       // CSS: `grid-template-columns: repeat(auto-fill, 384px)`
       // (fixed tiles, not minmax) — see PhotoGrid. With gap=4:
       //   cols = floor((wrapperW + 4) / (384 + 4))
-      // .app-main is capped at 2400px (Round‑36), so the wrapper
+      // .shell is capped at 2400px (Round‑36), so the wrapper
       // width is min(viewport - 48, 2352).
       const TILE = 384;
       const GAP = 4; // matches --grid-gutter
-      const MAIN_PAD = 48; // 24px each side, matches `.app-main`
+      const MAIN_PAD = 48; // 24px each side, matches `.shell`
       const MAIN_MAX = 2352; // 2400px cap minus padding
       const wrapperW = Math.min(window.innerWidth - MAIN_PAD, MAIN_MAX);
       const cols = Math.max(1, Math.floor((wrapperW + GAP) / (TILE + GAP)));
@@ -153,7 +153,7 @@
 <style>
   .row-section {
     margin-top: var(--s-5);
-    /* No horizontal padding — `.app-main` already provides 24px
+    /* No horizontal padding — `.shell` already provides 24px
        of side padding for the whole page. Adding it here too
        double-insets this section (48px total) and makes it look
        narrower than the search grid above it. */

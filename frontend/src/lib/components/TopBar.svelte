@@ -75,20 +75,25 @@
 
 <style>
   /* Heavy frosted glass header. Sits on top of the full-viewport
-     backdrop (see +layout.svelte) — only 12% dark overlay + heavy
+     backdrop (see +layout.svelte) — alpha overlay + heavy
      backdrop-filter creates the frosted look with the colour tint
-     bleeding through from the current photo. */
+     bleeding through from the current photo. Round-1 polish:
+     alpha bumped from 0.12 → 0.32 (was tokenless, now
+     --topbar-alpha) so the bar reads as a real surface against
+     bg-0 instead of flat text. */
   .topbar {
-    /* Static (scrolls away with the page) — the user explicitly
-       asked for the top tab bar to NOT follow the screen. The
-       floating scroll-to-top button restores navigation reach
-       after a long scroll. */
-    position: static;
+    /* Round-1 polish: sticky so the brand + tabs stay reachable
+       while scrolling. The scroll-to-top button stays — its job
+       is to scroll the page back to the top, not restore topbar
+       visibility (different concern). */
+    position: sticky;
+    top: 0;
+    z-index: 100;
     /* Heavy glass tier — the topbar sits on top of the photo
        backdrop and needs the strongest frost to read clearly. */
-    background-color: rgba(14,15,20,0.12);
-    backdrop-filter: var(--glass-medium);
-    -webkit-backdrop-filter: var(--glass-medium);
+    background-color: rgba(14,15,20, var(--topbar-alpha));
+    backdrop-filter: var(--glass-heavy);
+    -webkit-backdrop-filter: var(--glass-heavy);
     border-bottom: 1px solid var(--glass-edge);
     overflow: hidden;
     box-shadow: var(--shadow-glass);
@@ -98,7 +103,7 @@
     display: flex;
     align-items: center;
     gap: var(--s-4);
-    padding: 0 24px;
+    padding: 0 var(--shell-pad-x);
     /* Match the page header card width via --grid-width so the
        brand mark and tabs stay vertically aligned with the random
        / for-you / albums header below. The hardcoded 1600px that
