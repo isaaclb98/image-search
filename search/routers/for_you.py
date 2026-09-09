@@ -19,9 +19,10 @@ Query params
         Qdrant (recommend() is the dominant cost: ~1-3s for
         8000, ~5-10s for 40000).
 
-    limit : int, default 30, range [1, FOR_YOU_MAX_LIMIT].
-        Max photos returned per page. Matches /api/for-you/feed
-        and /api/random so the frontend uses one PhotoGrid.
+    limit : int, default 30, ge=1.
+        Photos per page. No upper bound — the natural limit is the
+        pool size (top_pct × library size). Asking for limit > pool
+        size returns the entire pool.
 
     page : int, default 0, range [0, ∞).
         Zero-based offset into the cached shuffled pool.
@@ -58,7 +59,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from search.for_you import DEFAULT_FOR_YOU_TOP_PCT, FOR_YOU_MAX_LIMIT, rank_for_you
+from search.for_you import DEFAULT_FOR_YOU_TOP_PCT, rank_for_you
 from search.models import ErrorResponse, SearchResponse
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ def build_for_you_router(
         ] = DEFAULT_FOR_YOU_TOP_PCT,
         limit: Annotated[
             int,
-            Query(ge=1, le=FOR_YOU_MAX_LIMIT, description="Photos per page."),
+            Query(ge=1, description="Photos per page. No upper bound."),
         ] = 30,
         page: Annotated[
             int,

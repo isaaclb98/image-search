@@ -371,26 +371,31 @@ class TestRank:
         assert pool_total == 4
         assert has_more is False
 
-    def test_limit_clamped_to_max(self) -> None:
-        """limit > FOR_YOU_MAX_LIMIT → silently clamped to FOR_YOU_MAX_LIMIT."""
+    def test_limit_not_capped_to_max(self) -> None:
+        """Round-35: limit cap was dropped. limit > FOR_YOU_MAX_LIMIT
+        is honoured — the caller gets as many hits as the pool has,
+        limited only by their limit request.
+        """
         qdrant = MagicMock()
-        qdrant.recommend.return_value = [_hit(f"id-{i}") for i in range(50)]
-        qdrant.retrieve_batch.return_value = [_hit(f"id-{i}") for i in range(50)]
+        pool_ids = [f"id-{i}" for i in range(50)]
+        qdrant.recommend.return_value = [_hit(i) for i in pool_ids]
+        qdrant.retrieve_batch.return_value = [_hit(i) for i in pool_ids]
         index_db = MagicMock()
-        index_db.qdrant_point_count.return_value = 5000
+        index_db.qdrant_point_count.return_value = 5000  # pool=50
 
-        rank_for_you(
+        hits, pool_total, _ = rank_for_you(
             fav_ids=["fav"],
             dis_ids=[],
             qdrant=qdrant,
             index_db=index_db,
-            limit=FOR_YOU_MAX_LIMIT + 50,
+            limit=FOR_YOU_MAX_LIMIT + 50,  # 150, > the old cap
             page=0,
             top_pct=1.0,
             rng=random.Random(0),  # noqa: S311
         )
-        called_ids = qdrant.retrieve_batch.call_args.args[0]
-        assert len(called_ids) <= FOR_YOU_MAX_LIMIT
+        # All 50 pool items returned — no clamp.
+        assert len(hits) == 50
+        assert pool_total == 50
 
     def test_retrieve_batch_in_pool_order(self) -> None:
         """Returned hits are in the shuffled pool order, not arbitrary."""

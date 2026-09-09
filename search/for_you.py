@@ -66,10 +66,14 @@ At an 800k library, 1% yields 8000 candidates — fast (~1-3s
 recommend) and large enough that uniform shuffle gives real
 variety per page refresh."""
 
-FOR_YOU_MAX_LIMIT: int = 100
-"""Maximum photos returned per page. Matches the existing
-/api/for-you/feed and /api/random caps so the frontend can use
-the same PhotoGrid component without bespoke sizing."""
+FOR_YOU_MAX_LIMIT = 100
+"""DEPRECATED. Removed when the per-page limit cap was dropped
+(round-35, Isaac: "there should be no limit"). The Query on
+limit is now bound only by ge=1; the natural cap is pool size.
+
+Kept as an exported name for any code that imported it; new
+code should not depend on a per-page response limit at all.
+"""
 
 # ---------------------------------------------------------------------------
 # Cache
@@ -226,12 +230,12 @@ def rank_for_you(
     same shuffle is reused across all requests until the TTL
     expires. Tests should always pass a seed to keep isolation.
 
-    `limit` is clamped to [1, FOR_YOU_MAX_LIMIT]. `page` is
-    clamped to >= 0. `top_pct` is validated (0, 100].
+    `limit` is clamped to >= 1 (no upper bound — the natural cap is
+    pool size). `page` is clamped to >= 0. `top_pct` is validated
+    (0, 100].
     """
     if limit <= 0:
         limit = 1
-    limit = min(limit, FOR_YOU_MAX_LIMIT)
     page = max(page, 0)
 
     pool = build_for_you_pool(
