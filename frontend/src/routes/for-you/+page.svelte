@@ -5,11 +5,12 @@
    *
    * On page mount we generate a fresh random `seed` and pass it
    * to every /api/for-you/feed request within this page-mount.
-   * The server caches the shuffled pool keyed on (fav_ids, dis_ids,
-   * top_pct, seed). Same seed → same shuffle (so paginated scroll
-   * walks forward through page=0, page=1, ... with no overlap).
-   * A new seed (new mount) → fresh shuffle, so reloading the page
-   * always shows a different set of photos.
+   * The server caches the shuffled pool keyed on
+   * (fav_ids, dis_ids, top_pct, seed). Same seed → same shuffle
+   * (so paginated scroll walks forward through page=0, page=1,
+   * ... with no overlap). A new seed (new mount) → fresh
+   * shuffle, so reloading the page always shows a different
+   * set of photos.
    */
   import { onMount } from 'svelte';
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';

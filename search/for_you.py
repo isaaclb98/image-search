@@ -3,31 +3,35 @@ search/for_you.py — For You feed service.
 
 Public API
 ----------
-    build_for_you_pool(fav_ids, dis_ids, qdrant, top_pct=1.0, rng=None) -> list[str]
+    build_for_you_pool(fav_ids, dis_ids, qdrant, top_pct=1.0, rng=None,
+                       cache_key_extra="") -> list[str]
         Materialise the top `top_pct`% of library by relevance-to-taste,
         uniformly shuffled. Cached for `_FOR_YOU_TTL_SECONDS` keyed by
-        (fav_ids, dis_ids, top_pct); invalidated by
+        (fav_ids, dis_ids, top_pct, cache_key_extra); invalidated by
         invalidate_for_you_cache().
 
-    rank_for_you(..., limit=30, page=0) -> tuple[list[SearchHit], int, bool]
-        Slice `limit` ids from `page * limit` of the cached shuffled
-        pool, fetch their payloads via qdrant.retrieve_batch, return
-        (hits, total, has_more). Re-shuffles on every fresh request
-        (per Isaac's design call: "on page reload").
+    rank_for_you(..., limit=30, page=0, seed=None) -> tuple[list, int, bool]
+        Slice `limit` ids from `page * limit` of the shuffled pool,
+        fetch their payloads via qdrant.retrieve_batch, return
+        (hits, total, has_more). Pass a fresh `seed` on each page
+        reload for a fresh shuffle; reuse the same `seed` for
+        paginated scroll calls within a single page-mount to walk
+        forward through the same shuffle coherently.
 
     invalidate_for_you_cache() -> None
         Drop the cache. Called from the favorites/dislikes routes
-        whenever the user changes their feedback so the next /shuffled
-        page sees fresh ranking signal.
+        whenever the user changes their feedback so the next
+        /api/for-you/feed request sees fresh ranking signal.
 
 Design notes
 ------------
-The pool is built once per request via qdrant.recommend(positive=fav,
-negative=dis, limit=pool_size) and then uniform-random shuffled. The
-"top top_pct%" semantic is approximate: it is whatever Qdrant returns
-for the top-`pool_size` candidates by recommend() score. This is the
-fast path (1-3s on 800k library). A separate, slower precomputed-score
-path is a future concern.
+The pool is built once per (fav_ids, dis_ids, top_pct, seed) tuple
+via qdrant.recommend(positive=fav, negative=dis, limit=pool_size) and
+then uniform-random shuffled. The "top top_pct%" semantic is
+approximate: it is whatever Qdrant returns for the top-`pool_size`
+candidates by recommend() score. This is the fast path (1-3s on
+800k library). A separate, slower precomputed-score path is a
+future concern.
 
 Cold start (no favorites yet) falls back to a zero-vector search
 because Qdrant recommend() requires non-empty positives. The result
@@ -47,15 +51,14 @@ logger = logging.getLogger(__name__)
 
 
 _FOR_YOU_TTL_SECONDS: float = 300.0
-"""Default cache TTL for the shuffled pool. 5 min — long enough that
-scrolling through one pool across multiple page requests doesn't
-re-trigger the Qdrant recommend call, short enough that the pool
-eventually evolves as the embedding drift stabilises.
+"""Default cache TTL for a single shuffled pool entry.
 
-Pool invalidation on like/dislike changes happens via
-`invalidate_for_you_cache()` (called from the favorites/dislikes
-routes) so the TTL is a backstop, not the primary freshness
-mechanism."""
+The cache is keyed by `(fav_ids, dis_ids, top_pct, seed)` — same key
+reuses the same cached shuffle, different key builds a fresh one.
+The TTL bounds the cache lifetime so an unused entry is eventually
+reaped. Pool invalidation on like/dislike changes happens via
+`invalidate_for_you_cache()` (called from the favorites and dislikes
+routes), which clears all entries regardless of TTL."""
 
 DEFAULT_FOR_YOU_TOP_PCT: float = 1.0
 """Default percentile of library to use as the random pool.
@@ -79,13 +82,12 @@ _for_you_cache: dict[
 
 
 def invalidate_for_you_cache() -> None:
-    """Drop the cached shuffled pool. Call after every Like/Dislike
-    write so the next /shuffled-for-you request sees fresh ranking
+    """Drop all cached shuffled pools. Call after every Like/Dislike
+    write so the next /api/for-you/feed request sees fresh ranking
     signal. Wired from the favorites and dislikes routes.
     """
     global _for_you_cache
     _for_you_cache = None
-
 
 # ---------------------------------------------------------------------------
 # Pool construction
@@ -103,7 +105,7 @@ def _library_size(index_db: Any) -> int:
     try:
         n = int(index_db.qdrant_point_count())
     except Exception:  # noqa: BLE001
-        logger.warning("shuffled_for_you: library size lookup failed; treating as 0")
+        logger.warning("for_you: library size lookup failed; treating as 0")
         return 0
     return max(n, 0)
 

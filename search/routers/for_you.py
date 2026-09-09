@@ -1,21 +1,14 @@
 """search/routers/for_you.py — /api/for-you/feed.
 
-GET /api/for-you/feed?top_pct=1&limit=30&page=0:
-    A shuffled walk through the top `top_pct`% of library ranked
-    by the user's taste direction. Like /random but with the pool
-    constrained to "points that match your likes minus dislikes."
+GET /api/for-you/feed?top_pct=1&limit=30&page=0&seed=<opaque>:
+    Walk through the top `top_pct`% of library ranked by the user's
+    taste direction. Like /random but with the pool constrained
+    to "points that match your likes minus dislikes."
 
-    Each request materialises a fresh shuffled pool and returns
-    `limit` ids starting at `page * limit`. The pool is cached for
-    5 minutes per (fav_ids, dis_ids, top_pct) tuple so a single
-    page that walks through multiple `page` values within 5 min
-    gets the same shuffle (otherwise each call reshuffles —
-    matches /random's "reshuffle on refresh" UX without a session
-    cursor).
-
-    The motivation is a "personal random" view: photos that the
-    user would have liked anyway, but in a random walk so a
-    scrolling user sees variety instead of always the same top-30.
+    The shuffled pool is cached server-side, keyed by
+    `(fav_ids, dis_ids, top_pct, seed)`. A new `seed` produces a
+    fresh shuffle; reusing the same `seed` walks forward through
+    the same shuffle across paginated scroll calls.
 
 Query params
 ------------
@@ -33,6 +26,13 @@ Query params
     page : int, default 0, range [0, ∞).
         Zero-based offset into the cached shuffled pool.
 
+    seed : string, optional.
+        Opaque caller-supplied shuffle key. Pass a fresh random
+        value on every page reload for a fresh shuffle; reuse
+        the same value for paginated scroll calls to walk through
+        the same shuffle. Without a seed, all callers share the
+        cached shuffle until the TTL expires (legacy behaviour).
+
 Response
 --------
     Same SearchResponse shape as /api/random — the frontend can
@@ -44,9 +44,10 @@ Response
 Cold start
 ----------
     No favorites yet → falls back to a zero-vector search instead
-    of recommend() (Qdrant requires non-empty positives). Result
-    is functionally identical to /random for fresh users; taste
-    kicks in as soon as they like something.
+    of recommend(). The result is the full library ranked by
+    relevance-to-zero (effectively random order), which mirrors
+    /api/random for fresh users. The endpoint shape and
+    semantics are otherwise identical to the recommend() path.
 """
 from __future__ import annotations
 
@@ -95,7 +96,7 @@ def build_for_you_router(
     _web_ui_url = cfg.web_ui_url
 
     @router.get("/api/for-you/feed", response_model=SearchResponse)
-    async def shuffled_for_you_feed(
+    async def for_you_feed(
         top_pct: Annotated[
             float,
             Query(

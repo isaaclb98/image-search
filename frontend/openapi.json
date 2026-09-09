@@ -910,7 +910,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
         "parameters": [
           {
             "in": "path",
@@ -941,7 +941,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
         "parameters": [
           {
             "in": "path",
@@ -1882,7 +1882,7 @@
     "/api/for-you/feed": {
       "get": {
         "description": "Materialise the top `top_pct`% of library by taste,\nuniformly shuffle, return `limit` ids starting at `page`.\n\nThe shuffle is keyed by `(fav_ids, dis_ids, top_pct, seed)`.\nA client that keeps all four stable across multiple `page`\nvalues walks through the same shuffle. A new `seed` produces\na fresh shuffle. If no seed is supplied, all requests share\nthe same cached shuffle until the TTL expires.",
-        "operationId": "shuffled_for_you_feed_api_for_you_feed_get",
+        "operationId": "for_you_feed_api_for_you_feed_get",
         "parameters": [
           {
             "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
@@ -1966,7 +1966,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Shuffled For You Feed"
+        "summary": "For You Feed"
       }
     },
     "/api/photo/{point_id}": {
@@ -2553,7 +2553,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get",
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2562,7 +2562,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
         "responses": {
           "200": {
             "description": "Successful Response"

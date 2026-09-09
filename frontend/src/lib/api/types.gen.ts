@@ -210,10 +210,10 @@ export interface paths {
             cookie?: never;
         };
         /** Api Cache Refresh */
-        get: operations["api_cache_refresh_api_cache_refresh_post"];
+        get: operations["api_cache_refresh_api_cache_refresh_get"];
         put?: never;
         /** Api Cache Refresh */
-        post: operations["api_cache_refresh_api_cache_refresh_post_1"];
+        post: operations["api_cache_refresh_api_cache_refresh_get_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -401,16 +401,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Shuffled For You Feed
+         * For You Feed
          * @description Materialise the top `top_pct`% of library by taste,
          *     uniformly shuffle, return `limit` ids starting at `page`.
          *
-         *     The pool reshuffles on every fresh request. A client that
-         *     keeps the same `(fav_ids, dis_ids, top_pct)` and walks
-         *     through multiple `page` values within the 5-min cache TTL
-         *     sees the same shuffle across all those calls.
+         *     The shuffle is keyed by `(fav_ids, dis_ids, top_pct, seed)`.
+         *     A client that keeps all four stable across multiple `page`
+         *     values walks through the same shuffle. A new `seed` produces
+         *     a fresh shuffle. If no seed is supplied, all requests share
+         *     the same cached shuffle until the TTL expires.
          */
-        get: operations["shuffled_for_you_feed_api_for_you_feed_get"];
+        get: operations["for_you_feed_api_for_you_feed_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1574,7 +1575,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post: {
+    api_cache_refresh_api_cache_refresh_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1594,7 +1595,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post_1: {
+    api_cache_refresh_api_cache_refresh_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1932,7 +1933,7 @@ export interface operations {
             };
         };
     };
-    shuffled_for_you_feed_api_for_you_feed_get: {
+    for_you_feed_api_for_you_feed_get: {
         parameters: {
             query?: {
                 /** @description Percentile of library to use as the random pool. Default 1.0 (1% → 8000 candidates at 800k library). No ceiling; large values fetch proportionally more. */
@@ -1941,6 +1942,8 @@ export interface operations {
                 limit?: number;
                 /** @description Zero-based offset into the shuffled pool. */
                 page?: number;
+                /** @description Optional opaque string. Frontend passes a fresh random value on every page reload so the user sees a different shuffle each time; reuse the same value for paginated scroll calls within a single page-mount to walk through the same shuffle across page=0, page=1, ... Different seeds produce different shuffles (server-side cached keyed on this value). */
+                seed?: string | null;
             };
             header?: never;
             path?: never;
