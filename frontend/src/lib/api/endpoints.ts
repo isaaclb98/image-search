@@ -20,23 +20,9 @@ export type SavedSearch = components['schemas']['SavedSearch'];
 export type AlbumSummary = components['schemas']['AlbumSummary'];
 export type AlbumDetail = components['schemas']['AlbumDetailResponse'];
 
-// For-you endpoints are loosely typed on the backend (no schema
-// component), so we describe the shape here and rely on the zod
-// validator in dev mode for drift detection.
-export type ForYouFeedResponse = {
-  results: SearchResult[];
-  has_more?: boolean;
-  n_likes?: number;
-  n_dislikes?: number;
-  freshest_feedback_ts?: string | null;
-  ranker_state?: Record<string, unknown>;
-};
-export type ForYouState = {
-  seen_count: number;
-  liked_count: number;
-  disliked_count: number;
-  last_seen_at?: string | null;
-};
+// For-you endpoint returns SearchResponse (same shape as /api/random
+// and /api/search). The Zod schema for SearchResponse (in schemas.ts)
+// is used directly — no separate For You type needed.
 
 // ---------- Search ----------
 
