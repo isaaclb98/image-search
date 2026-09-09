@@ -51,7 +51,7 @@
       const wrapperW = Math.min(window.innerWidth - MAIN_PAD, MAIN_MAX);
       const cols = Math.max(1, Math.floor((wrapperW + GAP) / (TILE + GAP)));
       const want = cols * 3;
-      const res = await forYouFeed(poolSize);
+      const res = await forYouFeed({ limit: poolSize });
       const pool = res?.results ?? [];
       // Pick `want` items uniformly without replacement, shuffle first.
       const shuffled = [...pool].sort(() => Math.random() - 0.5);

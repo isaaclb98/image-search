@@ -37,7 +37,7 @@ from search.diversity import (
     DiversityResultCache,
     DiversityStats,
 )
-from search.for_you import invalidate_signal_cache as _for_you_invalidate_signal
+from search.for_you import invalidate_for_you_cache as _for_you_invalidate_pool
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
@@ -47,7 +47,6 @@ from search.models import (
 )
 from search.qdrant_client import QdrantSearch
 from search.random import RandomPicker
-from search.shuffled_for_you import invalidate_pool_cache as _shuffled_invalidate_pool
 from search.sync import SyncManager
 
 logger = logging.getLogger(__name__)
@@ -939,7 +938,6 @@ def create_app(
     from search.routers.random import build_random_router
     from search.routers.saved_searches import build_saved_searches_router
     from search.routers.search import build_search_router
-    from search.routers.shuffled_for_you import build_shuffled_for_you_router
     from search.routers.similar import build_similar_router
     from search.routers.system import build_system_router
     from search.routers.thumbnails import build_thumbnails_router
@@ -951,7 +949,7 @@ def create_app(
         index_db=index_db,
     ))
     app.include_router(build_random_router(index_db=index_db, cfg=_cfg))
-    app.include_router(build_shuffled_for_you_router(
+    app.include_router(build_for_you_router(
         index_db=index_db,
         qdrant=qdrant,
         cfg=_cfg,
@@ -960,23 +958,19 @@ def create_app(
         index_db=index_db,
         qdrant=qdrant,
         cfg=_cfg,
-        invalidate_likes_centroid=_invalidate_likes_centroid,
-        invalidate_for_you_signal=_for_you_invalidate_signal,
     ))
     app.include_router(build_favorites_router(
         index_db=index_db,
         cfg=_cfg,
         invalidate_likes_centroid=_invalidate_likes_centroid,
-        invalidate_for_you_signal=_for_you_invalidate_signal,
-        invalidate_shuffled_for_you=_shuffled_invalidate_pool,
+        invalidate_for_you=_for_you_invalidate_pool,
     ))
     app.include_router(build_dislikes_router(
         index_db=index_db,
         cfg=_cfg,
         invalidate_likes_centroid=_invalidate_likes_centroid,
-        invalidate_for_you_signal=_for_you_invalidate_signal,
         invalidate_dislikes_centroid=_invalidate_dislikes_centroid,  # round‑29
-        invalidate_shuffled_for_you=_shuffled_invalidate_pool,
+        invalidate_for_you=_for_you_invalidate_pool,
     ))
     app.include_router(build_albums_router(
         index_db=index_db,

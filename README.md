@@ -2,12 +2,16 @@
 
 Self-hosted semantic image search over a local photo library.
 
-- **Embeddings:** SigLIP2 (open_clip `webli` pretrained).
+- **Embeddings:** SigLIP2 (open_clip `webli` pretrained). Default variant
+  is `so400m/16-384` (`ViT-so400m-patch16-384`, 1152-dim, 384px input). Set
+  `SIGLIP_VARIANT` to switch to `B/16-256` (768-dim), `L/16-256` (1024-dim),
+  or `gopt/16-384` (1536-dim) — see `search/config.py:SIGLIP_VARIANTS`.
 - **Vector store:** Qdrant (local container in dev, HTTPS reverse proxy in prod).
 - **Backend:** FastAPI, single container, gunicorn + uvicorn workers.
 - **Frontend:** SvelteKit 2 + Svelte 5 + TypeScript SPA. Speaks to the backend over an OpenAPI-typed client.
 - **Auth:** None. Deploy behind a reverse proxy (caddy auth, oauth2-proxy, tailscale, etc.) if access control is needed.
 - **Side store:** SQLite `index.db` for folder metadata, favorites, dislikes, saved searches, album membership. Background-refreshed from Qdrant.
+- **Thumbnails:** Pre-baked WebP at 384×384, q80. Generated at index time, served from `/thumb/{id}?w=…`. See `indexer/thumbnails.py`.
 
 ## Set up
 

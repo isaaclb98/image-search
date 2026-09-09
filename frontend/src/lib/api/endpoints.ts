@@ -138,16 +138,24 @@ export function random(params: RandomParams | number = {}, signal?: AbortSignal)
   });
 }
 
-// ---------- Shuffled For You ----------
+// ---------- For You (shuffled-pool ranker) ----------
 
-export interface ShuffledForYouParams {
-  /** Percentile of library to use as the random pool. Default 1.0.
-   * At 800k library: 1% → 8000 candidates. */
-  top_pct?: number;
-  /** Number of photos per page. 1..100. Default 30. */
+/**
+ * Parameters for forYouFeed.
+ *
+ * `diversity` / `diversity_depth` were removed in the round-33
+ * swap from diversity rerank to shuffled pool: the new
+ * /api/for-you/feed ranks the top `top_pct`% of library by your
+ * taste direction and returns a random walk, no MMR.
+ */
+export interface ForYouFeedParams {
+  /** Photos per page. 1..100. Default 30. */
   limit?: number;
   /** Zero-based offset into the shuffled pool. */
   page?: number;
+  /** Percentile of library to use as the random pool. (0, 100].
+   * Default 1.0 (1% → 8000 candidates at 800k library). */
+  top_pct?: number;
   /** Result view: 'grid' (default) or 'feed'. */
   view?: string;
   /** Abort the request. */
@@ -155,38 +163,28 @@ export interface ShuffledForYouParams {
 }
 
 /**
- * Shuffled For You — like /random but the pool is constrained to
- * the top `top_pct`% of library ranked by relevance-to-taste (so
- * every photo is something the user would probably have liked
- * anyway, just served in a random walk instead of always the
- * top hits).
+ * For You — random walk through the top `top_pct`% of library
+ * ranked by your taste direction. Like /random but constrained
+ * to "photos you'd probably have liked anyway, in a different
+ * order." Each request reshuffles server-side; refresh the page
+ * for a fresh shuffle. session_id is always null (no server-side
+ * session cursor).
  *
- * Each request reshuffles the pool server-side. Refresh the page
- * to get a fresh shuffle. session_id from the response is always
- * None (this endpoint doesn't track sessions server-side).
- *
- * See: docs/architecture.md and search/shuffled_for_you.py.
+ * See: docs/architecture.md and search/for_you.py.
  */
-export function shuffledForYou(params: ShuffledForYouParams = {}, signal?: AbortSignal) {
+export function forYouFeed(params: ForYouFeedParams = {}, signal?: AbortSignal) {
   const sig = signal ?? params.signal;
   const search = new URLSearchParams();
-  if (params.top_pct !== undefined) search.set('top_pct', String(params.top_pct));
   if (params.limit !== undefined) search.set('limit', String(params.limit));
   if (params.page !== undefined) search.set('page', String(params.page));
+  if (params.top_pct !== undefined) search.set('top_pct', String(params.top_pct));
   if (params.view !== undefined) search.set('view', params.view);
-  return apiGet<SearchResponse>(`/api/shuffled-for-you/feed?${search.toString()}`, {
+  return apiGet<SearchResponse>(`/api/for-you/feed?${search.toString()}`, {
     signal: sig,
     schema: Z.SearchResponse,
-    schemaName: 'SearchResponse (shuffled-for-you)'
+    schemaName: 'SearchResponse (for-you)'
   });
 }
-
-/**
- * Most-similar photos for a given point ID — nearest neighbours in
- * the SigLIP2 embedding space. Reached by clicking "Most similar"
- * in the Lightbox; navigates to /similar/{id} which renders up to
- * GRID_PAGE_SIZE results in a dedicated page.
- */
 export function similarPhotos(
   pointId: string,
   limit = GRID_PAGE_SIZE,
@@ -196,44 +194,6 @@ export function similarPhotos(
     `/api/similar/${encodeURIComponent(pointId)}?limit=${limit}`,
     { signal, schema: Z.SearchResponse, schemaName: 'SearchResponse (similar)' }
   );
-}
-
-export function forYouFeed(
-  limit = GRID_PAGE_SIZE,
-  diversity = 'balanced',
-  diversityDepth = 'auto',
-  signal?: AbortSignal,
-  /**
-   * Zero‑based page index. The backend returns a sliced batch
-   * sized to `limit` and a `has_more` flag so the frontend can
-   * append on scroll without deduping.
-   */
-  page = 0
-) {
-  const qs = new URLSearchParams();
-  qs.set('limit', String(limit));
-  qs.set('page', String(page));
-  if (diversity && diversity !== 'off') qs.set('diversity', diversity);
-  if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
-  return apiGet<ForYouFeedResponse>(
-    `/api/for-you/feed?${qs.toString()}`,
-    {
-      signal,
-      schema: Z.ForYouFeedResponse,
-      schemaName: 'ForYouFeedResponse'
-    }
-  );
-}
-
-export function forYouState() {
-  return apiGet<ForYouState>('/api/for-you/state', {
-    schema: Z.ForYouState,
-    schemaName: 'ForYouState'
-  });
-}
-
-export async function resetForYou() {
-  await apiPost('/api/for-you/reset');
 }
 
 export async function dislikePoint(pointId: string) {

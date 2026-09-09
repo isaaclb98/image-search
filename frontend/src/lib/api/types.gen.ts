@@ -393,26 +393,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/for-you/diversity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * For You Diversity
-         * @description Expose the active Diversity defaults + valid choices to the UI.
-         */
-        get: operations["for_you_diversity_api_for_you_diversity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/for-you/feed": {
         parameters: {
             query?: never;
@@ -421,58 +401,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * For You Feed
-         * @description Paginated, server-side for-you feed.
+         * Shuffled For You Feed
+         * @description Materialise the top `top_pct`% of library by taste,
+         *     uniformly shuffle, return `limit` ids starting at `page`.
          *
-         *     Diversity is resolved against the app‑wide `cfg.diversity`
-         *     default; `diversity_depth` is accepted for API parity but
-         *     ignored (only the discovery rabbithole uses depth today).
-         *
-         *     `limit` is clamped to [1, 100] silently inside the handler
-         *     so callers can ask for `limit=999` and get the largest valid
-         *     page rather than a 422.
+         *     The pool reshuffles on every fresh request. A client that
+         *     keeps the same `(fav_ids, dis_ids, top_pct)` and walks
+         *     through multiple `page` values within the 5-min cache TTL
+         *     sees the same shuffle across all those calls.
          */
-        get: operations["for_you_feed_api_for_you_feed_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/for-you/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * For You Reset
-         * @description Invalidate the cached user signal + favourites centroid.
-         */
-        post: operations["for_you_reset_api_for_you_reset_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/for-you/state": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * For You State
-         * @description Cheap signal snapshot for the header chip and empty-state.
-         */
-        get: operations["for_you_state_api_for_you_state_get"];
+        get: operations["shuffled_for_you_feed_api_for_you_feed_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1994,39 +1932,15 @@ export interface operations {
             };
         };
     };
-    for_you_diversity_api_for_you_diversity_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    for_you_feed_api_for_you_feed_get: {
+    shuffled_for_you_feed_api_for_you_feed_get: {
         parameters: {
             query?: {
-                /** @description max recommendations per page */
+                /** @description Percentile of library to use as the random pool. Default 1.0 (1% → 8000 candidates at 800k library). No ceiling; large values fetch proportionally more. */
+                top_pct?: number;
+                /** @description Photos per page. */
                 limit?: number;
-                /** @description zero-based page index */
+                /** @description Zero-based offset into the shuffled pool. */
                 page?: number;
-                /** @description diversity mode */
-                diversity?: string | null;
-                /** @description ignored on /for-you */
-                diversity_depth?: string | null;
             };
             header?: never;
             path?: never;
@@ -2040,9 +1954,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SearchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2052,46 +1964,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    for_you_reset_api_for_you_reset_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    for_you_state_api_for_you_state_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
         };

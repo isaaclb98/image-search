@@ -100,6 +100,17 @@
   // estimate just gets more accurate.
   const GAP = 4; // px, matches --grid-gutter
 
+  // Mirrors +layout.svelte's TILE constant. We need it here so
+  // the column count math agrees with the layout-level --grid-width
+  // computation. Changing this requires changing both files.
+  const TILE = 240;
+  // Cap on the number of columns regardless of viewport size. Keeps
+  // /random, /albums, /for-you etc. at the same density on huge
+  // monitors (no 9-10-col wall at 2510px) and lets the per-page
+  // chrome (header, filters, action row) stay a reasonable width
+  // instead of stretching to fill the whole screen.
+  const MAX_COLS = 6;
+
   // Number of skeleton placeholder rows rendered while a fetch
   // is in flight. Sized to roughly one viewport at the typical
   // rowHeight (388px = 384 tile + 4 gap): 3 rows ≈ 1164px, which
@@ -136,10 +147,10 @@
   // tileSize drives the virtualizer's rowHeight (= tileSize + GAP).
   // The CSS grid decides the actual tile width (auto-fill means it
   // changes with viewport), so we read it directly off a rendered
-  // `.grid-tile`. Until the first tile mounts we fall back to the
-  // ESTIMATED_ROW_HEIGHT — the ResizeObserver fires within one
-  // frame and the $effect below re-measures.
-  let tileSize = $derived(renderedTileSize > 0 ? renderedTileSize : ESTIMATED_ROW_HEIGHT);
+  // `.grid-tile`. Until the first tile mounts we fall back to TILE
+  // (the canonical CSS tile width) — the ResizeObserver fires within
+  // one frame and the $effect below re-measures.
+  let tileSize = $derived(renderedTileSize > 0 ? renderedTileSize : TILE);
   let rowHeight = $derived(tileSize + GAP);
 
   // Derive column count from the same math the CSS uses:
@@ -154,7 +165,10 @@
   // last columns of every row stay empty.
   let columns = $derived(
     tileSize > 0 && containerWidth > 0
-      ? Math.max(1, Math.floor((containerWidth + GAP) / (tileSize + GAP)))
+      ? Math.max(
+          1,
+          Math.min(MAX_COLS, Math.floor((containerWidth + GAP) / (TILE + GAP)))
+        )
       : ESTIMATED_COLUMNS
   );
 
@@ -242,7 +256,7 @@
   // fallback handles the empty-items case.
   let gridWidth = $derived(
     columns > 0 && containerWidth > 0
-      ? Math.min(containerWidth, columns * 384 + (columns - 1) * GAP)
+      ? Math.min(containerWidth, columns * tileSize + (columns - 1) * GAP)
       : 0
   );
 
@@ -562,7 +576,7 @@
        container → 3 cols of 384 with 232px slack) stays empty
        rather than stretching tiles. Round‑36 container cap is
        2400px, so 6 cols fit cleanly at the 2352px wrapper width. */
-    grid-template-columns: repeat(auto-fill, 384px);
+    grid-template-columns: repeat(auto-fill, 240px);
     /* Center the row when the container is wider than the tile
        grid (the common case on viewports >1548px). Without this,
        CSS Grid's default `justify-content: start` packs cols to

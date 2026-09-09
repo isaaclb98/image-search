@@ -182,6 +182,17 @@ class OpenClipEmbedder:
         import torch as _torch
         tensors = [self._preprocess(img) for img in images]
         batch = _torch.stack(tensors, dim=0).to(self._device)
+        # VRAM monitor: log peak GPU memory per forward pass so the
+        # indexer can see whether batch size + autocast settings
+        # actually fit before the next batch fires. Disabled when
+        # LOG_EMBED_VRAM=0 (or unset, off by default).
+        log_vram = __import__(
+            "os"
+        ).environ.get("LOG_EMBED_VRAM", "0").lower() in ("1", "true", "yes", "on")
+        if log_vram and self._device == "cuda":
+            from contextlib import suppress
+            with suppress(Exception):
+                _torch.cuda.reset_peak_memory_stats()
         with _torch.no_grad():
             if self._autocast_enabled:
                 with _torch.autocast(device_type="cuda", dtype=_torch.float16):
@@ -189,6 +200,20 @@ class OpenClipEmbedder:
             else:
                 features = self._model.encode_image(batch)
             features = features / features.norm(dim=-1, keepdim=True)
+        if log_vram and self._device == "cuda":
+            from contextlib import suppress as _suppress
+            with _suppress(Exception):
+                peak_mb = _torch.cuda.max_memory_allocated() / (1024 * 1024)
+                # Cheap print on every batch is too noisy for the prod
+                # log; gate on >50MB increments. Use the stdout stream
+                # the rest of the indexer uses.
+                import sys as _sys
+                print(
+                    f"[embed_vram] batch={len(images)} device={self._device} "
+                    f"peak={peak_mb:.0f}MB autocast={self._autocast_enabled}",
+                    file=_sys.stderr,
+                    flush=True,
+                )
         return features.cpu().tolist()
 
 
@@ -213,15 +238,16 @@ def register_into(registry: Registry) -> None:
     """
 
     so400m_embedder = OpenClipEmbedder(
-        # open_clip's pretrained registry spells this model as
-        # "ViT-SO400M-14-SigLIP2-378" — the 378 is a resolution
-        # tweak that uses the 384 weights (see
-        # mlfoundations/open_clip pretrained.py NOTE). The HF
-        # repo path is `timm/ViT-SO400M-14-SigLIP2-378` and
-        # open_clip's hf-hub: schema passes the identifier
-        # straight through to hf_hub_download as `repo_id`, so
-        # we need to include the `timm/` namespace prefix.
-        arch_tag="timm/ViT-SO400M-14-SigLIP2-378",
+        # The repo path is `timm/ViT-SO400M-16-SigLIP2-384` (patch
+        # size 16, 384 input). This is the model the kernel's
+        # `name` field (`ViT-so400m-patch16-384`) refers to, and the
+        # weights open_clip downloads under the `webli` pretrained
+        # tag. The earlier `timm/ViT-SO400M-14-SigLIP2-378` arch_tag
+        # was a different architecture (patch size 14, 378 input)
+        # that produced vectors in the wrong embedding space;
+        # vectors written under that arch_tag are not compatible
+        # with the patch16 model and must be re-indexed.
+        arch_tag="timm/ViT-SO400M-16-SigLIP2-384",
         pretrained="webli",
         dim=1152,
         resolution=384,

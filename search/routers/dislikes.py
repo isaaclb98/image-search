@@ -91,9 +91,8 @@ def build_dislikes_router(
     index_db: Any,
     cfg: Any,
     invalidate_likes_centroid: Callable[[], None],
-    invalidate_for_you_signal: Callable[[], None],
     invalidate_dislikes_centroid: Callable[[], None] | None = None,  # round‑29
-    invalidate_shuffled_for_you: Callable[[], None] | None = None,
+    invalidate_for_you: Callable[[], None] | None = None,
 ) -> APIRouter:
     """Build the dislikes router with the live dependencies."""
     router = APIRouter()
@@ -106,24 +105,21 @@ def build_dislikes_router(
         )
         # Same invalidation shape as mark_favorite — every dislike moves
         # the user preference vector (just in the negative direction).
-        # Same for the shuffled-for-you pool cache — the recommend()
-        # seed changed.
+        # Same for the for_you pool cache — the recommend() seed changed.
         invalidate_likes_centroid()
-        invalidate_for_you_signal()
         if invalidate_dislikes_centroid is not None:
             invalidate_dislikes_centroid()
-        if invalidate_shuffled_for_you is not None:
-            invalidate_shuffled_for_you()
+        if invalidate_for_you is not None:
+            invalidate_for_you()
 
     @router.delete("/api/dislikes/{point_id}", status_code=204)
     async def unmark_dislike(point_id: str) -> None:
         await asyncio.to_thread(index_db.unmark_dislike, point_id)
         invalidate_likes_centroid()
-        invalidate_for_you_signal()
         if invalidate_dislikes_centroid is not None:
             invalidate_dislikes_centroid()
-        if invalidate_shuffled_for_you is not None:
-            invalidate_shuffled_for_you()
+        if invalidate_for_you is not None:
+            invalidate_for_you()
 
     @router.get("/api/dislikes")
     async def list_dislikes(
