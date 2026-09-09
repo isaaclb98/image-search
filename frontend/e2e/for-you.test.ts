@@ -135,12 +135,18 @@ test.describe('For You (round 22 shuffled pool — round 33 replaced the diversi
 
     // Same seed → identical order (server cache hit)
     expect(aIds).toEqual(a2Ids);
-    // Different seeds → same set (deterministic pool size) but
-    // different order. With 200 demo photos and top_pct=50, the
-    // pool has 100 ids and a 6-of-6 birthday-paradox match is
-    // essentially impossible for random.shuffle.
+    // Different seeds → different order. Pool size = round(200 ×
+    // 50 / 100) = 100 with limit=10, so we sample 10 random items
+    // from 100. Two shuffles of the same pool produce different
+    // orderings of those 10 items with overwhelming probability
+    // (1 / 10! ≈ 2.7e-7 chance of a coincidence on a single shuffle).
     expect(aIds).not.toEqual(bIds);
-    expect(new Set(aIds)).toEqual(new Set(bIds));
+    // Both seeds draw from the same underlying pool (same Qdrant
+    // recommend result); the *overlap* between two random 10-item
+    // samples of 100 is small but non-zero (expected ≈ 1).
+    // Confirm at least one shared id (proves they share a pool).
+    const overlap = aIds.filter((id) => bIds.includes(id));
+    expect(overlap.length).toBeGreaterThan(0);
   });
 
   test('validation errors return 422', async ({ page }) => {
