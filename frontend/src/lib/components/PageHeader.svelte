@@ -57,8 +57,15 @@
        polish: tightened padding (was 22/26) and dropped top/bottom
        margins — the surrounding .shell owns vertical rhythm via
        flex gap, so the header itself should be flush with the
-       shell padding. */
-    margin: 0;
+       shell padding.
+
+       margin: 0 auto centers inside .shell so the header card
+       aligns with TopBar.bar and PhotoGrid.grid (both also
+       width: var(--grid-width) + margin: 0 auto). Without auto
+       margins the .head sits flush-left of .shell — at wide
+       viewports this puts the page-title card visibly to the
+       left of the brand mark and tabs above it. */
+    margin: 0 auto;
     padding: 14px 18px;
     display: flex;
     align-items: center;
