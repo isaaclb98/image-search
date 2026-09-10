@@ -18,11 +18,10 @@ html, body {
   font-family: var(--font-stack);
   font-size: var(--fs-md);
   line-height: var(--lh-body);
-  /* subtle radial — keeps the page from feeling flat */
-  background-image:
-    radial-gradient(1200px 600px at 12% -10%, rgba(108,198,255,0.06), transparent 60%),
-    radial-gradient(900px 480px at 92% 110%, rgba(255,122,138,0.05), transparent 60%);
-  background-attachment: fixed;
+  /* Solid base. Static radial gradients here competed with the
+     photo-derived backdrop tint and produced visible radiating
+     colour bands. The colour now comes entirely from .bg-backdrop,
+     and the panels get their warmth from the new glass fill. */
 }
 
 /* Inter OpenType — cleaner geometric character shapes (single-storey
@@ -58,19 +57,61 @@ input, textarea {
 ::selection { background: var(--accent-soft); }
 
 /* utility — keep these small; most styling belongs on components.
-   Heavy frosted glass. The full-viewport photo backdrop (set in
-   +layout.svelte as a heavily blurred image) shows through because the
-   surface is only 15% opaque. backdrop-filter adds the frost.
-   Tier choice is per role — see tokens.css for the tier catalog. */
+  Frosted glass: visible panel with edge highlights and a subtle
+  frosted noise texture. The full-viewport photo backdrop (set in
+  +layout.svelte as a heavily blurred image) shows through because
+  the fill is partially transparent; the noise overlay sells
+  "frosted" rather than "just blurred".
+
+  The .glass surface is now a material, not a hole: a vertical
+  gradient (light at the top edge, dim at the bottom) plus a 1px
+  highlight on the top inner edge makes the panel feel lifted off
+  the page. isolation:isolate scopes the noise blend inside the
+  panel and stops paint bleed to siblings.
+
+  backdrop-filter is inlined at one tier heavier than --glass-medium
+  so the panel feels more frosted than the smaller surfaces inside
+  it (button, input). The visual hierarchy is intentional: panel
+  (most frosted) > control (less frost) > plain background. */
 .glass {
   position: relative;
-  background: rgba(14, 15, 20, 0.15);
-  backdrop-filter: var(--glass-medium);
-  -webkit-backdrop-filter: var(--glass-medium);
+  isolation: isolate;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(20, 22, 28, 0.45) 100%
+    );
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
   border: 1px solid var(--glass-edge);
   border-radius: var(--r-3);
   overflow: hidden;
-  box-shadow: var(--shadow-glass);
+  /* Top highlight + bottom shade = the linear/app-store cue for a
+     lifted glass surface. Stays below the existing drop-shadow
+     which provides the lifted-off-page shadow. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.20),
+    var(--shadow-glass);
+}
+
+/* Frosted noise overlay — the difference between "blurred" and
+  "frosted". Inline SVG turbulence tile, ~5% opacity overlaid on
+  the panel so the surface texture reads as glass rather than as
+  empty space. mix-blend-mode: overlay (not soft-light) so the
+  noise never produces visible gradient banding. */
+.glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-repeat: repeat;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
 }
 
 /* Same shape as .glass but with heavier blur/saturation for
@@ -143,22 +184,9 @@ input, textarea {
   animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-@layer components {
-  .glass-tint {
-    position: relative;
-    z-index: 0;
-  }
-  .glass-tint::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: var(--glass-tint, transparent) no-repeat center / cover;
-    opacity: 0.15;
-    mix-blend-mode: soft-light;
-    filter: blur(12px);
-    z-index: -1;
-    pointer-events: none;
-    transition: opacity var(--t-slow);
-  }
-}
+/* The previous .glass-tint / .glass-tint::before rule was dead —
+  no element ever carried the .glass-tint class. The lightbox's
+  .tint div sets its own background-image via the --glass-tint
+  CSS var directly, so the pseudo-element path was unused.
+  Removed; the --glass-tint token in tokens.css stays (still wired
+  to the lightbox). */

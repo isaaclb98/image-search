@@ -781,7 +781,15 @@
   }
 .tint {
     position: absolute;
-    inset: -40px;
+    /* inset: 0 — the previous `inset: -40px` made the tint div
+       spill 40px outside the overlay on every side, and the
+       60px blur on its background then bled back across the
+       viewport edge as a visible colour ring. Containing it
+       inside the overlay stops that ring without losing the
+       tint (the .overlay's 40% dark scrim still lets it read
+       through — what you see is the same colour, minus the
+       harsh edge). */
+    inset: 0;
     /* background-image is set via inline style from the JS blurhash
        decode; the rest of the shorthand stays here so the inline
        style only has to ship the data-URL, not repeat the layout
@@ -791,14 +799,22 @@
     background-repeat: no-repeat;
     background-position: center;
     background-size: cover;
-    filter: blur(60px) saturate(1.5) brightness(0.55);
+    /* Lower saturation than before (1.5 → 1.2) so the colour
+       stays a wash rather than a saturated hot band. brightness
+       0.55 → 0.7 keeps the colour bright enough to read but
+       stops punching through as a ring. */
+    filter: blur(60px) saturate(1.2) brightness(0.7);
     opacity: 0;
     transition: opacity 150ms var(--ease-out);
     pointer-events: none;
     z-index: -1;
   }
   .tint.tint-ready {
-    opacity: 0.65;
+    /* 0.65 → 0.5 — the .overlay's own dark scrim (0.4) does
+       most of the opacity work; the tint layer doesn't need
+       to push hard. Lower opacity means less visible band
+       edges where the tint transitions to outside-overlay. */
+    opacity: 0.5;
   }
   .content {
     /* Fill the first (1fr) row of the overlay grid. The grid

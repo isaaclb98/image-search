@@ -219,9 +219,6 @@
       <img class="bg-img" class:active={activeLayer === 'b'} src={layerB} alt="" />
     {/if}
   </div>
-  <!-- Vignette overlay keeps text readable while letting colour
-       bleed through; mostly transparent in the centre. -->
-  <div class="bg-tint" aria-hidden="true"></div>
 
   <TopBar />
   <main class="shell">
@@ -252,30 +249,25 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Heavier blur + lower opacity so the photo reads as ambient
-       atmosphere rather than a featured picture. The tint is there
-       but it doesn't dominate. */
-    filter: blur(60px) saturate(180%) brightness(0.7);
-    transform: scale(1.2);
+    /* Pastel wash, not a featured photo. Heavier blur + much
+       lower saturation than before so the background reads as
+       atmosphere rather than as the photo itself. No scale(1.2)
+       — that pushed the photo's centre colour off-screen, and
+       when the photo's bright/saturated regions bled back into
+       view through the blur they produced visible radiating
+       "bands" of colour. With blur(90px) the screen-space
+       gradients are smooth enough on their own. */
+    filter: blur(90px) saturate(110%) brightness(0.85);
     opacity: 0;
     transition: opacity 800ms ease-out;
   }
   .bg-backdrop .bg-img.active {
-    opacity: 0.45;
+    opacity: 0.3;
   }
-  .bg-tint {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 1;
-    /* Subtle vignette so the photo sits behind everything as
-       atmosphere rather than competing for attention. */
-    background: radial-gradient(
-      ellipse at center,
-      rgba(8, 10, 16, 0.2) 0%,
-      rgba(8, 10, 16, 0.55) 100%
-    );
-  }
+  /* The previous .bg-tint rule (radial vignette darkening edges)
+     was removed: it competed with the photo-derived tint and
+     produced edge bands that fought the colour wash. The solid
+     .app-shell base is the only thing behind the content now. */
   .shell,
   :global(.topbar) {
     position: relative;
