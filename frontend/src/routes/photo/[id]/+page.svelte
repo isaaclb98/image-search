@@ -408,17 +408,21 @@
   }
 
   .frame {
-    position: relative;
-    overflow: hidden;
-    border-radius: 12px;
-    /* Cap the photo height so on huge displays it doesn't push the
-       sidebar off-screen. The actual image fits inside this box. */
-    max-height: calc(100vh - var(--topbar-height, 64px) - 48px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-  }
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      /* Fixed 3:2 container. The photo fits inside via
+         object-fit: contain; the blurhash tint stretches behind it. */
+      aspect-ratio: 3 / 2;
+      /* Cap photo height on huge displays so it doesn't push the
+         sidebar off-screen. When the cap binds, the ratio yields —
+         the frame gets shorter but keeps the column width. */
+      max-height: calc(100vh - var(--topbar-height, 64px) - 48px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.4);
+    }
 
   .blur {
     position: absolute;
@@ -436,7 +440,11 @@
     position: relative;
     display: block;
     max-width: 100%;
-    max-height: calc(100vh - var(--topbar-height, 64px) - 48px);
+    /* Frame owns the outer box (3:2 + viewport cap); the hero just
+       fits inside it. object-fit: contain keeps the photo's native
+       ratio — landscape photos letterbox vertically, portrait
+       photos pillarbox horizontally, all over the blurhash tint. */
+    max-height: 100%;
     object-fit: contain;
   }
 
