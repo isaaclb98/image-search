@@ -48,7 +48,6 @@
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';
-  import PageHeader from '$lib/components/PageHeader.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
 
@@ -264,10 +263,6 @@
       <Button variant="ghost" href="/">Back to home</Button>
     </div>
   {:else if photo}
-    <PageHeader
-      title={photo.path.split('/').pop() ?? photo.id}
-      subtitle={photo.folder}
-    />
     <div class="layout">
       <!-- Photo column: large image with blurhash placeholder -->
       <section class="frame glass" aria-label="Photo viewer">
