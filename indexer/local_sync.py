@@ -198,6 +198,13 @@ except ValueError:
 _LOAD_POOL_SIZE = max(1, min(_LOAD_POOL_SIZE, 32))
 
 
+# Cap the per-run "id_mismatch" sample so a 1M-file run doesn't
+# emit a multi-MB progress payload. 20 is enough to see the
+# pattern (path → id, id_alt, recorded mtime/size, current mtime/size)
+# without dominating the runner's stdout buffer.
+_ID_MISMATCH_SAMPLE_MAX = 20
+
+
 def _load_batch_concurrent(paths):
     """Decode `paths` into `(path, image, source_w, source_h)` tuples concurrently.
 
@@ -372,6 +379,14 @@ def main(argv=None):
     last_written_ids: list = []
     total_skipped = 0
     total_errors = 0
+    # Diagnostic for the "indexer re-embeds everything on no-op runs"
+    # investigation. When the indexer treats a file as new (id not in
+    # source_meta) but the same path resolves to an id that IS in the
+    # collection, we record a sample entry. If this counter is large
+    # on a no-change run, the root cause is path normalisation
+    # (resolve() vs as_posix() vs trailing slash, etc.).
+    total_id_mismatch = 0
+    id_mismatch_sample: list = []
     t0 = time.time()
 
     # Emit the "start" event for the runner. Doing it here (after the
@@ -547,6 +562,7 @@ def main(argv=None):
                 to_embed = [(p, "new") for p in batch]
                 n_new = len(batch)
                 n_changed = 0
+                n_id_mismatch = 0
             else:
                 ids = [upsert.id_for(p) for p in batch]
                 # Change detection: pull mtime/size for points that already
@@ -591,8 +607,50 @@ def main(argv=None):
                 to_embed: list = []
                 n_new = 0
                 n_changed = 0
+                n_id_mismatch = 0
                 for path, pid in zip(batch, ids, strict=False):
                     if pid not in existing_meta:
+                        # Diagnostic: when the indexer treats a file as
+                        # new (id not in the batch-filtered dict), check
+                        # the *source-scoped* scroll dict for the same
+                        # path under a different id. If found, the file
+                        # is already indexed but the indexer can't see
+                        # it via its own id computation — the smoking
+                        # gun for a path-normalisation drift. We
+                        # surface a sample so a follow-up can see the
+                        # raw strings that produced each id.
+                        #
+                        # We deliberately check `source_meta` (the
+                        # pre-scrolled source-level dict), not
+                        # `existing_meta` (the batch-filtered dict):
+                        # the latter only contains ids that appear in
+                        # the current batch, so it can never contain
+                        # the alternate id we're looking for. The
+                        # fallback path (per-batch retrieve) is
+                        # excluded here because it doesn't build a
+                        # source-level view.
+                        if not source_meta_failed:
+                            try:
+                                pid_alt = upsert.id_for(path.resolve())
+                            except OSError:
+                                pid_alt = pid
+                            # DEBUG
+                            if pid_alt != pid and pid_alt in source_meta:
+                                n_id_mismatch += 1
+                                total_id_mismatch += 1
+                                if len(id_mismatch_sample) < _ID_MISMATCH_SAMPLE_MAX:
+                                    rec = source_meta[pid_alt]
+                                    cur = path.stat()
+                                    id_mismatch_sample.append({
+                                        "path": str(path),
+                                        "path_resolved": str(path.resolve()),
+                                        "id": pid,
+                                        "id_alt": pid_alt,
+                                        "recorded_mtime": rec[0] if rec else None,
+                                        "recorded_size": rec[1] if rec else None,
+                                        "current_mtime": int(cur.st_mtime),
+                                        "current_size": int(cur.st_size),
+                                    })
                         to_embed.append((path, "new"))
                         n_new += 1
                         continue
@@ -613,9 +671,10 @@ def main(argv=None):
                         total_skipped += 1
 
             logger.info(
-                "batch %d: %d new, %d changed, %d up-to-date",
+                "batch %d: %d new, %d changed, %d up-to-date, %d id_mismatch",
                 i // args.batch_size + 1, n_new, n_changed,
                 len(batch) - n_new - n_changed,
+                n_id_mismatch,
             )
 
             if not to_embed:
@@ -787,13 +846,26 @@ def main(argv=None):
 
 
     dt = time.time() - t0
-    print(f"Done indexed={total_indexed} re-embedded={total_reembedded} skipped={total_skipped} errors={total_errors} ({dt:.1f}s)")
+    print(
+        f"Done indexed={total_indexed} re-embedded={total_reembedded} "
+        f"skipped={total_skipped} errors={total_errors} "
+        f"id_mismatch={total_id_mismatch} ({dt:.1f}s)"
+    )
     _emit_progress({
         "event": "done",
         "indexed": total_indexed,
         "reembedded": total_reembedded,
         "skipped": total_skipped,
         "errors": total_errors,
+        # Diagnostic for path-normalisation regressions: when the
+        # indexer re-embeds a file that's already in the collection
+        # under a different id, the count of files actually re-uploaded
+        # (`reembedded`) climbs even though no content changed. The
+        # sample shows the raw strings that produced each id so we can
+        # see whether the divergence is from trailing slashes,
+        # resolve() vs as_posix(), drive-letter case, etc.
+        "id_mismatch": total_id_mismatch,
+        "id_mismatch_sample": id_mismatch_sample,
         "duration_s": dt,
     })
     return 0
