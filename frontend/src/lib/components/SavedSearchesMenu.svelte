@@ -204,8 +204,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
+    gap: var(--s-3);
+    padding: var(--s-1) var(--s-3);
     border-radius: var(--r-2);
     color: var(--fg-1);
     transition: background var(--t-fast);
@@ -224,7 +224,7 @@
   .empty {
     color: var(--fg-3);
     font-size: var(--fs-sm);
-    padding: 14px 12px;
+    padding: var(--s-3) var(--s-3);
     text-align: center;
   }
 </style>

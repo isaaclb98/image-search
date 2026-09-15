@@ -453,7 +453,7 @@
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: 8px 0 24px;
+    padding: var(--s-1) 0 var(--s-4);
     text-align: center;
   }
 
@@ -551,9 +551,5 @@
     transition: color var(--t-fast);
   }
   .surprise-link:hover { color: var(--fg-1); }
-  .results { margin-top: 8px; }
-  .error {
-    padding: 14px 18px;
-    color: var(--negative);
-  }
+  .results { margin-top: var(--s-1); }
 </style>

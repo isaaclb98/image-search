@@ -202,6 +202,12 @@
     margin: 0 auto;
   }
   @media (max-width: 640px) {
-    .shell { padding: 16px 12px 48px; }
+    /* Mobile breakpoint: tighter shell padding because the 32/40
+       budget at desktop sizes eats too much of a 375px viewport.
+       Snap to var(--s-3) top, var(--s-2) sides, --shell-pad-y x2
+       bottom to keep the same proportions on a small screen. */
+    .shell {
+      padding: var(--s-3) var(--s-2) calc(var(--shell-pad-y) * 1.5);
+    }
   }
 </style>

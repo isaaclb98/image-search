@@ -94,7 +94,7 @@
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
-    padding: 4px 10px 4px 8px;
+    padding: var(--s-0) var(--s-3) var(--s-0) var(--s-2);
     font-size: var(--fs-sm);
     line-height: 1;
     height: 28px;

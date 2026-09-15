@@ -90,7 +90,7 @@
     color: var(--fg-1);
   }
   p {
-    margin: 4px 0 0;
+    margin: var(--s-0) 0 0;
     color: var(--fg-2);
     /* Round-1 polish: subtitle one step smaller so the h1/subtitle
        hierarchy reads cleaner. */

@@ -67,7 +67,7 @@
     border: 1px solid var(--glass-edge-strong);
     color: var(--fg-1);
     border-radius: var(--r-pill);
-    padding: 10px 18px;
+    padding: var(--s-3) var(--s-4);
     min-width: 220px;
     max-width: 540px;
     box-shadow: var(--shadow-glass);

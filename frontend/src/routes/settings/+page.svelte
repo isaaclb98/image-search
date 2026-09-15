@@ -122,7 +122,7 @@
 <PageHeader title="Settings" />
 
 <div class="settings-page">
-  <section class="card">
+  <section class="card glass">
     <h2 class="card-title">Index</h2>
     <p class="card-desc">
       Walk the photo library, embed every image, and write it to the
@@ -212,7 +212,7 @@
     {/if}
   </section>
 
-  <section class="card">
+  <section class="card glass">
     <h2 class="card-title">Slideshow</h2>
     <p class="card-desc">
       How long each photo stays up during Lightbox auto-advance
@@ -267,27 +267,20 @@
     gap: var(--s-4);
   }
 
-  .card {
-    /* Matches the light-theme glass panel vocabulary used by
-       PageHeader and the album cards: white fill, hairline border,
-       lit-from-above highlight + subtle drop shadow. The previous
-       version used dark-theme glass-1 / backdrop-filter which
-       doesn't read on a light pastel backdrop. */
-    background: var(--bg-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    padding: var(--card-pad);
+  /* Cards use the shared .glass panel vocabulary (background,
+     hairline border, lit-from-above highlight, soft shadow,
+     rounded). No bespoke card chrome here. The flex layout
+     + inter-child gap is page-local since not every card needs
+     it (album cards stack title + desc + footer via the
+     .card rule in the albums page). */
+  .card.glass {
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      0 1px 2px rgba(0, 0, 0, 0.04),
-      0 4px 12px rgba(0, 0, 0, 0.06);
   }
 
   .card-title {
-    font-size: 18px;
+    font-size: var(--fs-lg);
     font-weight: 500;
     margin: 0;
     color: var(--fg-1);
@@ -296,7 +289,7 @@
   .card-desc {
     margin: 0;
     color: var(--fg-2);
-    font-size: 14px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
   }
 
@@ -307,7 +300,7 @@
     padding: var(--s-2) var(--s-3);
     background: var(--glass-2);
     border-radius: var(--r-2);
-    font-size: 14px;
+    font-size: var(--fs-sm);
     color: var(--fg-1);
   }
 
@@ -381,12 +374,12 @@
   }
 
   .menu-item-title {
-    font-size: 14px;
+    font-size: var(--fs-sm);
     font-weight: 500;
   }
 
   .menu-item-desc {
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--fg-3);
   }
 
@@ -397,7 +390,7 @@
   .log-section summary {
     cursor: pointer;
     color: var(--fg-2);
-    font-size: 13px;
+    font-size: var(--fs-sm);
     user-select: none;
   }
 
@@ -408,24 +401,11 @@
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-2);
     color: var(--fg-2);
-    font-size: 12px;
+    font-size: var(--fs-xs);
     max-height: 240px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
-  }
-
-  .error {
-    color: var(--danger);
-    font-size: 13px;
-    padding: var(--s-2);
-    background: rgba(255, 93, 108, 0.1);
-    border-radius: var(--r-2);
-  }
-
-  .muted {
-    color: var(--fg-3);
-    font-size: 14px;
   }
 
   /* Slideshow preset row. Five pill buttons in a single horizontal
@@ -446,7 +426,7 @@
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
-    padding: 0 16px;
+    padding: 0 var(--s-3);
     height: 32px;
     font: inherit;
     font-size: 0.9rem;

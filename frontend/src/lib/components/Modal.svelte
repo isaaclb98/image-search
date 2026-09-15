@@ -197,10 +197,10 @@
     /* matte-dialog / glass-dialog supply radius via tokens;
        override here only if a particular dialog wants tighter. */
     border-radius: var(--r-2);
-    padding: 22px 22px 18px;
+    padding: var(--s-4) var(--s-4) var(--s-3);
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--s-3);
     color: var(--fg-1);
     animation: dialog-in 180ms var(--ease-out, ease);
   }
