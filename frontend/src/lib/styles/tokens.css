@@ -165,6 +165,26 @@
      `12px 0 18px` per-page override is replaced with this. */
   --card-section-gap: 16px;
 
+  /* overlay pill — the floating meta badges that sit on top of
+     photo tiles (score, liked, disliked, remove). Used inside
+     tile.chrome regardless of the photo's average luminance:
+     dark semi-transparent fill + light text + faint white border
+     for legibility on either end of the spectrum. Every tile
+     pill (PhotoTile .score / .fav / .neg-badge / .remove-btn,
+     album .built-in / .del) reads from these tokens. */
+  --pill-bg: rgba(14, 15, 20, 0.55);
+  --pill-bg-strong: rgba(14, 15, 20, 0.7);
+  --pill-bg-hover: rgba(14, 15, 20, 0.8);
+  --pill-fg: rgba(255, 255, 255, 0.95);
+  --pill-border: rgba(255, 255, 255, 0.18);
+  --pill-blur: blur(10px);
+
+  /* primary button halo — the cyan radial shadow under the home
+     search button. Applied via the .primary variant on Button.svelte
+     so it shows up once and only once (only the home primary needs
+     the halo glow). */
+  --shadow-button: 0 4px 18px rgba(108, 198, 255, 0.30);
+
   /* page header typography — bumped for editorial feel (round 38) */
   --page-title-size: 32px;
 

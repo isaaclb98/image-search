@@ -114,6 +114,36 @@ input, textarea {
   box-shadow: var(--shadow-glass-strong);
 }
 
+/* state messages — loading / empty / error placeholder blocks.
+   Every page that shows "Loading…", "No X yet", or "Couldn't
+   load X" uses this same chrome, so the wording can vary (and
+   the colors hint at severity) without the chrome drifting
+   between pages. Apply via:
+     <div class="state">Loading…</div>
+     <div class="state empty">No likes yet — like a photo to save it.</div>
+     <div class="state error">Couldn't load likes: {message}</div>
+   When the state should span the grid row, add `state-wide` to
+   render a grid-column: 1 / -1 wrapper (for use inside a
+   PhotoGrid / album grid). */
+.state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--card-pad);
+  text-align: center;
+  color: var(--fg-2);
+  font-size: var(--fs-sm);
+  background: var(--bg-1);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-3);
+}
+.state.empty { color: var(--fg-3); }
+.state.error { color: var(--negative); background: var(--negative-soft); border-color: color-mix(in srgb, var(--negative) 30%, transparent); }
+.state-wide {
+  grid-column: 1 / -1;
+}
+
 /* scrollbars — slim, on-brand */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
