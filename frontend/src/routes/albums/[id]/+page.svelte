@@ -185,12 +185,12 @@
 <style>
   .back {
     display: inline-block;
-    margin: 12px 0 18px;
+    margin: var(--s-2) 0 var(--s-3);
     color: var(--fg-2);
   }
   .back:hover { color: var(--fg-1); }
   .zip {
-    padding: 8px 16px;
+    padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
     background: var(--accent);
     color: #fff;
@@ -199,7 +199,7 @@
   }
   .zip:hover { background: var(--accent-2); }
   .placeholder {
-    padding: 32px 24px;
+    padding: var(--card-pad);
     text-align: center;
     color: var(--fg-2);
   }

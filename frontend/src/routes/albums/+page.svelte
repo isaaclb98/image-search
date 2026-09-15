@@ -334,7 +334,7 @@
 <style>
   .new {
     height: 40px;
-    padding: 0 18px;
+    padding: 0 var(--s-3);
     border-radius: var(--r-pill);
     background: var(--accent);
     color: var(--fg-on-accent);
@@ -349,7 +349,7 @@
     margin-top: auto;
     align-self: stretch;
     height: 32px;
-    padding: 0 14px;
+    padding: 0 var(--s-3);
     border-radius: var(--r-2);
     background: transparent;
     color: var(--fg-1);
@@ -460,14 +460,14 @@
       var(--glass-2) 100%
     );
   }
-  /* The card's existing horizontal padding was 16px 18px — pull
-     the title/desc/footer back to that left+right gutter. */
+  /* The card's horizontal padding sits between the full-bleed
+     cover and the title/desc/footer — pulled in to that gutter. */
   .card .title,
   .card .desc,
   .card footer,
   .card .search-row {
-    margin-left: 18px;
-    margin-right: 18px;
+    margin-left: var(--s-3);
+    margin-right: var(--s-3);
   }
   /* Individual buttons inside .search-row don't need the side
      margin — the row already has it, and a second layer of

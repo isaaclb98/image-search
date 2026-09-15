@@ -138,7 +138,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin: 12px 0 18px;
+    margin: var(--s-2) 0 var(--s-3);
     color: var(--fg-2);
     background: transparent;
     border: 0;
@@ -150,7 +150,7 @@
 
   .placeholder {
     color: var(--fg-3);
-    padding: 28px 16px;
+    padding: var(--card-pad);
     background: var(--glass-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-3);

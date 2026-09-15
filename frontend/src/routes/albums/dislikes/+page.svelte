@@ -143,12 +143,12 @@
 <style>
   .back {
     display: inline-block;
-    margin: 12px 0 18px;
+    margin: var(--s-2) 0 var(--s-3);
     color: var(--fg-2);
   }
   .back:hover { color: var(--fg-1); }
   .placeholder {
-    padding: 32px 24px;
+    padding: var(--card-pad);
     text-align: center;
     color: var(--fg-2);
   }
