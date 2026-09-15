@@ -258,7 +258,7 @@
 
 <main class="page">
   {#if errorMsg}
-    <div class="placeholder error">
+    <div class="state error">
       <p>{errorMsg}</p>
       <Button variant="ghost" href="/">Back to home</Button>
     </div>

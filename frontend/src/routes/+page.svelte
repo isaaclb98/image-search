@@ -427,7 +427,7 @@
 <section class="results">
   {#if hasSearched}
     {#if error}
-      <div class="error glass">Couldn't load results: {error}</div>
+      <div class="state error">Couldn't load results: {error}</div>
     {:else}
       <PhotoGrid
         items={items}

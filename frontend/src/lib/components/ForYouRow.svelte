@@ -133,9 +133,9 @@
   </header>
 
   {#if loading && items.length === 0}
-    <p class="placeholder empty">Loading recommendations…</p>
+    <p class="state">Loading recommendations…</p>
   {:else if items.length === 0}
-    <p class="placeholder empty">No recommendations yet — like or dislike a few photos to seed the signal.</p>
+    <p class="state empty">No recommendations yet — like or dislike a few photos to seed the signal.</p>
   {:else}
     <PhotoGrid
       {items}
@@ -162,7 +162,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 4px 12px;
+    padding: 0 var(--s-0) var(--s-3);
   }
   .head h2 {
     font-size: var(--fs-xl);
@@ -178,13 +178,6 @@
   }
   .more:hover { color: var(--fg-1); }
 
-  .placeholder {
-    color: var(--fg-3);
-    padding: 28px 16px;
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    text-align: center;
-    font-size: var(--fs-sm);
-  }
+  /* Loading / empty states use the shared .state classes in
+     global.css; no page-level placeholder styles needed. */
 </style>

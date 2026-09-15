@@ -300,12 +300,12 @@
     left: 8px;
     padding: var(--s-0) var(--s-2);
     font-size: var(--fs-xs);
-    color: var(--fg-1);
-    background: rgba(14,15,20,0.55);
-    border: 1px solid var(--glass-edge);
+    color: var(--pill-fg);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
     border-radius: var(--r-pill);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--pill-blur);
+    -webkit-backdrop-filter: var(--pill-blur);
     opacity: 0;
     transition: opacity var(--t-fast) var(--ease-out);
   }
@@ -318,15 +318,15 @@
     right: 8px;
     width: 24px; height: 24px;
     border-radius: 50%;
-    background: rgba(14,15,20,0.55);
-    border: 1px solid var(--glass-edge);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
     color: var(--warn);
     font-size: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--pill-blur);
+    -webkit-backdrop-filter: var(--pill-blur);
   }
   .neg-badge {
     position: absolute;
@@ -334,16 +334,16 @@
     right: 8px;
     width: 24px; height: 24px;
     border-radius: 50%;
-    background: rgba(14,15,20,0.55);
-    border: 1px solid rgba(140, 160, 200, 0.55);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
     color: #c9d3e6;
     font-size: 16px;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--pill-blur);
+    -webkit-backdrop-filter: var(--pill-blur);
   }
   /* Remove-from-set button — same corner slot as the persistent
    * fav/dislike badges, but interactive and only revealed on

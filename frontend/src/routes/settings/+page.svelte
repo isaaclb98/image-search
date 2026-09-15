@@ -131,7 +131,7 @@
     </p>
 
     {#if loading}
-      <div class="muted">Loading…</div>
+      <div class="state">Loading…</div>
     {:else if status}
       <div class="status-row" data-state={status.state}>
         <span class="status-dot" aria-hidden="true"></span>
@@ -153,7 +153,7 @@
       </div>
 
       {#if errorMessage}
-        <div class="error">{errorMessage}</div>
+        <div class="state error">{errorMessage}</div>
       {/if}
 
       <div class="actions">

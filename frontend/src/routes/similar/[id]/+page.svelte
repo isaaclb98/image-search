@@ -104,13 +104,11 @@
 />
 
 {#if loading && items.length === 0}
-  <div class="placeholder">Finding visually similar photos…</div>
+  <div class="state">Finding visually similar photos…</div>
 {:else if error}
-  <div class="placeholder error">Couldn't load similar photos: {error}</div>
+  <div class="state error">Couldn't load similar photos: {error}</div>
 {:else if items.length === 0}
-  <div class="placeholder empty">
-    No similar photos found for this image.
-  </div>
+  <div class="state empty">No similar photos found for this image.</div>
 {:else}
   <section>
     <PhotoGrid
@@ -125,15 +123,6 @@
 {/if}
 
 <style>
-  .placeholder {
-    color: var(--fg-3);
-    padding: var(--card-pad);
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    text-align: center;
-    font-size: var(--fs-sm);
-  }
-  .placeholder.empty,
-  .placeholder.error { color: var(--fg-2); }
+  /* Loading / empty / error states use the shared .state classes
+     in global.css; no page-level placeholder styles needed. */
 </style>

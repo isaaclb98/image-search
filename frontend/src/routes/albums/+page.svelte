@@ -278,7 +278,7 @@
   </article>
 
   {#if loading}
-    <div class="placeholder">Loading albums…</div>
+    <div class="state state-wide">Loading albums…</div>
   {:else if albums.length > 0}
     {#each albums as a (a.id)}
       <article class="card glass">
@@ -478,20 +478,8 @@
   .del {
     font-size: var(--fs-sm);
     color: var(--fg-3);
-    padding: 4px 8px;
+    padding: var(--s-0) var(--s-2);
     border-radius: var(--r-pill);
   }
   .del:hover { background: var(--negative-soft); color: var(--negative); }
-  .placeholder {
-    /* Spans the full grid row so the loading message reads as a
-       page-level state, not a card. */
-    grid-column: 1 / -1;
-    color: var(--fg-3);
-    padding: var(--card-pad);
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    text-align: center;
-    font-size: var(--fs-sm);
-  }
 </style>

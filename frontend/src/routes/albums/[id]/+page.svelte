@@ -150,9 +150,9 @@
 </svelte:head>
 
 {#if loading}
-  <div class="placeholder">Loading…</div>
+  <div class="state">Loading…</div>
 {:else if error || !detail}
-  <div class="placeholder error">Couldn't load album: {error ?? 'not found'}</div>
+  <div class="state error">Couldn't load album: {error ?? 'not found'}</div>
 {:else}
   <PageHeader
     title={detail.name}
@@ -189,10 +189,4 @@
     font-weight: 500;
   }
   .zip:hover { background: var(--accent-2); }
-  .placeholder {
-    padding: var(--card-pad);
-    text-align: center;
-    color: var(--fg-2);
-  }
-  .placeholder.error { color: var(--accent); }
 </style>

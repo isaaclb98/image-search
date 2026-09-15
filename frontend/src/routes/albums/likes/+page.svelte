@@ -130,13 +130,11 @@
 />
 
 {#if loading}
-  <div class="placeholder">Loading…</div>
+  <div class="state">Loading…</div>
 {:else if error}
-  <div class="placeholder error">Couldn't load likes: {error}</div>
+  <div class="state error">Couldn't load likes: {error}</div>
 {:else if items.length === 0}
-  <div class="placeholder empty">
-    No likes yet. Tap the heart on any photo to save it here.
-  </div>
+  <div class="state empty">No likes yet — tap the heart on any photo to save it here.</div>
 {:else}
   <section>
     <PhotoGrid
@@ -152,11 +150,6 @@
 {/if}
 
 <style>
-  .placeholder {
-    padding: var(--card-pad);
-    text-align: center;
-    color: var(--fg-2);
-  }
-  .placeholder.error { color: var(--accent); }
-  .placeholder.empty { color: var(--fg-3); }
+  /* Loading / empty / error states use the shared .state classes
+     in global.css; no page-level placeholder styles needed. */
 </style>
