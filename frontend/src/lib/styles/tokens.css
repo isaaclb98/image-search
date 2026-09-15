@@ -84,15 +84,16 @@
   --s-5: 32px;
   --s-6: 48px;
 
-  /* type — Karla stack. Self-hosted woff2 via @fontsource
+  /* type — Public Sans stack. Self-hosted woff2 via @fontsource
      (300 light, 400 regular, 500 medium — see global.css).
-     Karla replaces Public Sans after Isaac said Public Sans
-     wasn't feeling right. Karla is a distinctively grotesque
-     sans-serif — slightly less geometric than Inter/Manrope,
-     warmer than Public Sans. Reads as 'editorial / photo
-     magazine' rather than 'SaaS admin panel'. Capped at 500
-     (light + medium) to match the soft pastel aesthetic. */
-  --font-stack: 'Karla', 'Public Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+     Public Sans replaces Manrope after Isaac said Manrope
+     didn't feel right and the bold (600) weights were too
+     assertive. Public Sans is GitHub's UI font: clean without
+     being cold, professional without being geometric.
+     Capped at 500 — the design system uses light (300) and
+     medium (500) only; bold weights were dropped because
+     they didn't suit the soft pastel aesthetic. */
+  --font-stack: 'Public Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
                 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;
