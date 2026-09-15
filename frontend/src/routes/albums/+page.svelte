@@ -446,13 +446,16 @@
     );
   }
   /* The card's horizontal padding sits between the full-bleed
-     cover and the title/desc/footer — pulled in to that gutter. */
+     cover and the title/desc/footer. Round‑48: tightened to 20px
+     (was 16) to match the --card-pad token used by Settings cards
+     and the photo sidebar — same inner content edge across every
+     panel in the app. */
   .card .title,
   .card .desc,
   .card footer,
   .card .search-row {
-    margin-left: var(--s-3);
-    margin-right: var(--s-3);
+    margin-left: var(--card-pad-x, 20px);
+    margin-right: var(--card-pad-x, 20px);
   }
   /* Individual buttons inside .search-row don't need the side
      margin — the row already has it, and a second layer of

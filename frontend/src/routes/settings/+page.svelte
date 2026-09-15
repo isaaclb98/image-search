@@ -253,7 +253,7 @@
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: var(--s-4);
+    gap: var(--shell-gap);
   }
 
   /* Cards use the shared .glass panel vocabulary (background,

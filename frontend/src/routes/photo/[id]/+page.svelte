@@ -462,7 +462,7 @@
 
   .sidebar {
     border-radius: var(--r-2);
-    padding: var(--card-pad-tight);
+    padding: var(--card-pad);
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
