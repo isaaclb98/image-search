@@ -208,10 +208,13 @@
     <a class="title" href="/albums/likes">
       <span>Likes</span>
     </a>
-    <p class="desc">Photos you've liked. Built-in, always here.</p>
+    <!-- Round-61: removed the description ("Photos you've liked.
+         Built-in, always here."). The title "Likes" already says
+         what the album is; "Built-in, always here" was filler
+         text that pushed the card taller and added 50px of
+         whitespace below the cover when the album was empty. -->
     <footer>
       <span class="count">{likesCount} photo{likesCount === 1 ? '' : 's'}</span>
-      <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
     </footer>
     <!-- Round‑29: search button on every album card. The Likes
          centroid is named "likes" on the backend (round‑29b);
@@ -250,10 +253,11 @@
     <a class="title" href="/albums/dislikes">
       <span>Dislikes</span>
     </a>
-    <p class="desc">Photos you've disliked. Built-in, always here.</p>
+    <!-- Round-61: removed the description ("Photos you've
+         disliked. Built-in, always here.") and the "built-in"
+         pill. The title is self-explanatory. -->
     <footer>
       <span class="count">{dislikesCount} photo{dislikesCount === 1 ? '' : 's'}</span>
-      <span class="built-in" aria-label="Built-in, non-removable">built-in</span>
     </footer>
     <div class="search-row">
       <button
@@ -412,8 +416,11 @@
     /* No horizontal padding — the cover spans full width. Vertical
        padding only sits between the cover and the title. Round‑47:
        tightened from 16px to 12px (--s-2) — the cover-to-title
-       gap felt airy when titles were short. */
-    padding: 0 0 var(--s-3);
+       gap felt airy when titles were short. Round‑61:
+       bottom padding tightened from var(--s-3) (16) to
+       var(--s-2) (8) to match the search-row margin-top
+       above — same scale, balanced chrome. */
+    padding: 0 0 var(--s-2);
     display: flex;
     flex-direction: column;
     /* Round-49: per-section rhythm replaces the uniform 8px
@@ -441,10 +448,17 @@
                                    the buttons read as actions
                                    not as more metadata
      Margins, not flex gap — gap is uniform across siblings. */
+  /* Round-61: cover→title 16px (unchanged). Removed the
+     title→desc 4px gap and desc→footer 12px gap because
+     Likes/Dislikes no longer render a description. footer→search
+     stays 16px. search-row gets margin-top: auto so it pins to
+     the bottom of the card — any leftover vertical space in a
+     row-stretched card lands between footer and search-row, not
+     below the search-row. */
   .card .title { margin: var(--s-3) 0 0; }
   .card .desc { margin: var(--s-0) 0 var(--s-2); }
   .card footer { margin-top: 0; }
-  .card .search-row { margin-top: var(--s-3); }
+  .card .search-row { margin-top: auto; }
   .card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-2);
@@ -456,7 +470,12 @@
   .cover {
     display: block;
     width: 100%;
-    aspect-ratio: 4 / 3;
+    /* Round-61: 3/2 ratio instead of 4/3 — covers are
+       shorter (173px at 260px wide vs 195px before) which
+       leaves more room for the content section underneath.
+       Pair with the smaller bottom padding below so cards
+       feel balanced instead of cover-dominant. */
+    aspect-ratio: 3 / 2;
     object-fit: cover;
     background: var(--glass-1);
     border-bottom: 1px solid var(--glass-edge);
