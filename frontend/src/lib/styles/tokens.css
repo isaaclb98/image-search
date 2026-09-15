@@ -84,17 +84,14 @@
   --s-5: 32px;
   --s-6: 48px;
 
-  /* type — Public Sans stack. Self-hosted woff2 via @fontsource
-     (300 light, 400 regular, 500 medium — see global.css).
-     Public Sans replaces Manrope after Isaac said Manrope
-     didn't feel right and the bold (600) weights were too
-     assertive. Public Sans is GitHub's UI font: clean without
-     being cold, professional without being geometric.
-     Capped at 500 — the design system uses light (300) and
-     medium (500) only; bold weights were dropped because
-     they didn't suit the soft pastel aesthetic. */
-  --font-stack: 'Public Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
-                'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* type — Roboto Flex stack. Variable woff2 via
+     @fontsource-variable. Google's modern UI font (2022) —
+     variable axes for weight, width, optical size, grade.
+     Used on Android, Chrome OS, Google Photos, Gmail, etc.
+     Chosen when Isaac asked for the most Google-like font.
+     Capped at weight 500 per earlier feedback. */
+  --font-stack: 'Roboto Flex', 'Roboto', system-ui, -apple-system, BlinkMacSystemFont,
+                'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;
   --fs-xs: 12px;

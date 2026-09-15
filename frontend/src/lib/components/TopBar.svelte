@@ -27,7 +27,7 @@
   const tabs: Tab[] = [
     { href: '/', label: 'Home', reset: true },
     { href: '/random', label: 'Random' },
-    { href: '/for-you', label: 'For You' },
+    { href: '/for-you', label: 'For you' },
     { href: '/albums', label: 'Albums' },
     { href: '/settings', label: 'Settings' }
   ];
