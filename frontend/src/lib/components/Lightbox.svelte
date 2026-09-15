@@ -750,11 +750,17 @@
     inset: 0;
     /* Above the top bar (z-50) and every other layer. */
     z-index: 500;
-    /* Lightbox overlay uses the heavy glass tier (strongest
-       frost) because the photo behind the action bar is
-       the highest-contrast content in the app — the bar
-       needs every bit of frost to stay legible. */
-    background: var(--scrim);
+    /* Round-66: frosted glass over the page (was a dark
+       rgba(0,0,0,0.45) scrim that read as "dark surface"
+       against the rest of the light-themed app). The new
+       value is the same glass vocabulary as the home page
+       SearchComposer card — semi-transparent white over a
+       heavy backdrop blur. The page shows through as a
+       soft pastel wash instead of being blacked out,
+       matching the glass aesthetic Isaac called out. The
+       photo cell below stays near-opaque so the actual
+       image isn't tinted by the overlay. */
+    background: rgba(255, 255, 255, 0.4);
     backdrop-filter: var(--glass-heavy);
     -webkit-backdrop-filter: var(--glass-heavy);
     /* Two stacked rows: the image region (content) and the action
@@ -830,7 +836,7 @@
     place-items: center;
     border-radius: var(--r-3);
     overflow: hidden;
-    background: var(--scrim-cell);
+    background: var(--bg-1);
     border: 1px solid var(--glass-edge);
   }
   .photo {
