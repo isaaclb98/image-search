@@ -106,6 +106,17 @@ def parse_args(argv=None):
     p.add_argument("--qdrant-url", type=str, default=os.environ.get("QDRANT_URL", "http://localhost:6333"))
     p.add_argument("--qdrant-api-key", type=str, default=os.environ.get("QDRANT_API_KEY") or None)
     p.add_argument("--qdrant-collection", type=str, default=os.environ.get("QDRANT_COLLECTION", "images"))
+    p.add_argument(
+        "--qdrant-read-collection", type=str, default=None,
+        help="Collection to query for change-detection (mtime/size of "
+             "already-indexed points). Defaults to the same value as "
+             "--qdrant-collection. Set this when the indexer writes to "
+             "a staging area (e.g. images_pending) but should compare "
+             "against the canonical, search-side collection (e.g. "
+             "images) — otherwise every walk classifies every file as "
+             "new because the staging area holds only in-flight points, "
+             "not the already-indexed corpus.",
+    )
     p.add_argument("--qdrant-in-memory", action="store_true")
     p.add_argument(
         "--reblurhash",
@@ -304,6 +315,12 @@ def _scroll_existing_meta(client, collection, src_name):
 def main(argv=None):
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args(argv)
+    # --qdrant-read-collection defaults to --qdrant-collection so callers
+    # that don't separate read/write see no behaviour change. Resolved
+    # here (not in argparse) so `--qdrant-collection X --qdrant-read-collection`
+    # can fall through to X at use time.
+    if not args.qdrant_read_collection:
+        args.qdrant_read_collection = args.qdrant_collection
 
     # Wire subprocess-level concerns (cancel signals, JSON progress) BEFORE
     # any work begins. Both are no-ops if their respective flags are off.
@@ -429,15 +446,18 @@ def main(argv=None):
 
     for src_path, src_name in zip(args.source, source_names, strict=True):
         logger.info("=== %s -> %s ===", src_path, src_name)
-        # Estimate the total for this source from Qdrant's per-source
-        # point count (cheap: filtered count against the `source`
-        # payload index) so the walk progress can show a time-to-go.
+        # Estimate the total for this source from the READ collection's
+        # per-source point count (cheap: filtered count against the
+        # `collection` payload index) so the walk progress can show a
+        # time-to-go. Counts against the read collection (the canonical,
+        # search-side one) so the ETA reflects the work the indexer has
+        # yet to do, not the in-flight write collection.
         expected_total = None
         if not args.dry_run:
             try:
                 from qdrant_client.http import models as _qm
                 cnt = client.count(
-                    collection_name=args.qdrant_collection,
+                    collection_name=args.qdrant_read_collection,
                     count_filter=_qm.Filter(
                         must=[
                             _qm.FieldCondition(
@@ -455,16 +475,26 @@ def main(argv=None):
         # Round-perf (issue #1): cache the change-detection metadata
         # for this entire source in one scroll, then look up per
         # batch from the in-memory dict. The previous per-batch
-        # `client.retrieve(...)` issued one round-trip per batch —
-        # on a 902k-photo corpus that's ~900 RTTs to Qdrant per
-        # source. The single scroll replaces them all (paginated,
-        # but O(pages), not O(batches)).
+        # `client.retrieve(...)` issued one round-trip per batch — on
+        # a 902k-photo corpus that's ~900 RTTs to Qdrant per source.
+        # The single scroll replaces them all (paginated, but
+        # O(pages), not O(batches)).
+        #
+        # NB: queries the READ collection, not the write collection.
+        # In prod the indexer writes to `images_pending` (a staging
+        # area the search side reads from via `images` + a background
+        # SyncManager). Querying `images_pending` for change-detection
+        # would always return ~30 in-flight points — change-detection
+        # would classify every already-indexed file as new and
+        # re-embed it on every run. The read collection holds the
+        # canonical, search-side corpus; that's where the mtime/size
+        # comparison has to happen.
         source_meta: dict = {}
         source_meta_failed = False
         if not args.rebuild and not args.dry_run:
             try:
                 source_meta = _scroll_existing_meta(
-                    client, args.qdrant_collection, src_name,
+                    client, args.qdrant_read_collection, src_name,
                 )
                 logger.debug(
                     "scrolled %d existing points for source %s",
@@ -492,7 +522,7 @@ def main(argv=None):
                 if not source_meta:
                     try:
                         if client.get_collection(
-                            args.qdrant_collection
+                            args.qdrant_read_collection
                         ).points_count > 0:
                             logger.warning(
                                 "source-scoped scroll returned 0 points "
@@ -577,12 +607,16 @@ def main(argv=None):
                 # loop) instead of a per-batch `client.retrieve(...)`.
                 # On a 902k corpus that's ~900 fewer RTTs per source.
                 # Falls back to the old per-batch retrieve if the
-                # source scroll failed above.
+                # source scroll failed above. NB: queries the READ
+                # collection, not the write collection, for the same
+                # reason as the scroll above — otherwise the staging
+                # area (which only holds in-flight points) would never
+                # have the already-indexed corpus.
                 existing_meta: dict = {}
                 if source_meta_failed:
                     try:
                         points = client.retrieve(
-                            collection_name=args.qdrant_collection,
+                            collection_name=args.qdrant_read_collection,
                             ids=ids,
                             with_payload=["mtime", "size"],
                         )

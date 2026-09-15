@@ -702,6 +702,13 @@ def create_app(
     # SSH/host-side venv. Subprocess isolation = a torch deadlock or OOM
     # in the indexer can never take down the search backend.
     from search.indexer_runner import IndexerRunner, default_indexer_command_factory
+    # `qdrant_collection` (write target) is the staging area
+    # (`images_pending`) — that's where new points land before the
+    # background SyncManager moves them to the canonical read
+    # collection (`images`). `qdrant_read_collection` is the
+    # canonical collection — change-detection compares against it,
+    # otherwise every walk classifies every file as "new" because
+    # the staging area only holds ~30 in-flight points.
     indexer_cmd_factory = default_indexer_command_factory(
         python=sys.executable,
         sources=_cfg.indexer_sources,
@@ -710,6 +717,7 @@ def create_app(
         qdrant_url=_cfg.qdrant_url,
         qdrant_api_key=_cfg.qdrant_api_key,
         qdrant_collection=_cfg.qdrant_write_collection,
+        qdrant_read_collection=_cfg.qdrant_collection,
         batch_size=_cfg.indexer_batch_size,
     )
     indexer_runner = IndexerRunner(command_factory=indexer_cmd_factory)
