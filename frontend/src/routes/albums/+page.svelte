@@ -199,8 +199,8 @@
   {/snippet}
 </PageHeader>
 
-<section class="system" aria-label="Built-in albums">
-  <article class="card glass system-like">
+<div class="grid" aria-label="Albums">
+  <article class="card glass">
     {#if likesFirstId}
       <img class="cover" src={thumbUrl(likesFirstId)} alt="" loading="lazy" />
     {:else}
@@ -243,7 +243,7 @@
       >Surprise</button>
     </div>
   </article>
-  <article class="card glass system-dislike">
+  <article class="card glass">
     {#if dislikesFirstId}
       <img class="cover" src={thumbUrl(dislikesFirstId)} alt="" loading="lazy" />
     {:else}
@@ -279,15 +279,10 @@
       >Surprise</button>
     </div>
   </article>
-</section>
 
-{#if loading}
-  <div class="placeholder">Loading albums…</div>
-{:else if albums.length === 0}
-  <div class="placeholder empty">No custom albums yet — create one to group your photos.</div>
-{:else}
-  <h2 class="section-title">Your albums</h2>
-  <div class="grid">
+  {#if loading}
+    <div class="placeholder">Loading albums…</div>
+  {:else if albums.length > 0}
     {#each albums as a (a.id)}
       <article class="card glass">
         {#if a.first_member_id}
@@ -328,8 +323,8 @@
         </div>
       </article>
     {/each}
-  </div>
-{/if}
+  {/if}
+</div>
 
 <style>
   .new {
@@ -397,31 +392,15 @@
     border-color: var(--accent);
   }
 
-  /* System albums — pinned to the top, never deletable.
-     Width mirrors the PageHeader above so the chrome edges
-     (card outline, header outline) line up. */
-  .system {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: var(--grid-gutter);
-    margin: 0 auto 24px;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
-  .section-title {
-    font-size: var(--fs-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--fg-2);
-    margin: 0 auto 12px;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
+  /* System albums (Likes, Dislikes) live in the same grid as the
+     user-created albums below. They are pinned to the top of the
+     flow by virtue of being declared first in the template; the
+     `built-in` pill in the footer marks them visually. */
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--grid-gutter);
-    margin: 0 auto 24px;
+    margin: 0 auto var(--s-4);
     width: var(--grid-width, 100%);
     max-width: 100%;
   }
@@ -510,13 +489,15 @@
   }
   .del:hover { background: var(--negative-soft); color: var(--negative); }
   .placeholder {
+    /* Spans the full grid row so the loading message reads as a
+       page-level state, not a card. */
+    grid-column: 1 / -1;
     color: var(--fg-3);
-    padding: 32px 16px;
+    padding: var(--card-pad);
     background: var(--glass-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-3);
     text-align: center;
     font-size: var(--fs-sm);
   }
-  .placeholder.empty { color: var(--fg-2); }
 </style>
