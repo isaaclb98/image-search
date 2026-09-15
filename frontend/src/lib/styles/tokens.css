@@ -146,7 +146,7 @@
      Applied via the `.shell` wrapper in +layout.svelte; every
      page section lives inside it. */
   --shell-pad-x: 32px;
-  --shell-pad-y: 24px;
+  --shell-pad-y: 16px;
   --shell-gap: 16px;
 
   /* card padding — canonical padding for the page-header card and

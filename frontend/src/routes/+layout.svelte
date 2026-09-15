@@ -207,7 +207,7 @@
        Snap to var(--s-3) top, var(--s-2) sides, --shell-pad-y x2
        bottom to keep the same proportions on a small screen. */
     .shell {
-      padding: var(--s-2) var(--s-2) var(--shell-pad-y);
+      padding: var(--shell-pad-y) var(--s-2) var(--shell-pad-y);
     }
   }
 </style>
