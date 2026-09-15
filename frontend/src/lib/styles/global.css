@@ -1,12 +1,12 @@
 @import './tokens.css';
-/* Geist Sans — three weights we actually use (400 regular, 500
+/* Manrope — three weights we actually use (400 regular, 500
    medium, 600 semibold). Self-hosted woff2 via @fontsource — no
    CDN, no FOIT. Skips 700+; the design system doesn't reach for
    bold. Imported here so the @font-face declarations register
    before any component CSS reads --font-stack. */
-@import '@fontsource/geist-sans/400.css';
-@import '@fontsource/geist-sans/500.css';
-@import '@fontsource/geist-sans/600.css';
+@import '@fontsource/manrope/400.css';
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
 
 * { box-sizing: border-box; }
 
@@ -27,12 +27,11 @@ html, body {
      light — borders carry the surface separation. */
 }
 
-/* Inter OpenType — cleaner geometric character shapes (single-storey
-   g via cv01, curved f via ss03) + standard kerning/ligatures.
-   Linear + Raycast pattern; zero visual cost. Inter-only; if a
-   non-Inter font is ever introduced, gate via @supports. */
+/* Standard OpenType — contextual alternates + kerning. Manrope
+   has its own stylistic sets but the base "calt" + "kern"
+   work cleanly across both Manrope and the system fallback. */
 html {
-  font-feature-settings: "cv01", "ss03", "calt", "kern";
+  font-feature-settings: "calt", "kern";
 }
 
 a { color: var(--accent); text-decoration: none; }

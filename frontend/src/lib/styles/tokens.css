@@ -84,10 +84,14 @@
   --s-5: 32px;
   --s-6: 48px;
 
-  /* type — Inter stack. The Geist @font-face rules stay in
-     global.css for now; system fallbacks handle the brief
-     moment before the woff2 lands. */
-  --font-stack: 'Inter', 'Geist Sans', system-ui, -apple-system, BlinkMacSystemFont,
+  /* type — Manrope stack. Self-hosted woff2 via @fontsource
+     (400/500/600 — see global.css). Manrope replaces Inter
+     after Isaac said the Inter stack felt too generic for a
+     photo gallery app — Manrope has slightly more personality
+     (geometric with a touch of humanist warmth) without going
+     playful. The Geist @font-face rules are gone; system
+     fallbacks handle the brief moment before the woff2 lands. */
+  --font-stack: 'Manrope', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
                 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;
