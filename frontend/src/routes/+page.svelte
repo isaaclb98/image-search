@@ -457,15 +457,27 @@
     text-align: center;
   }
 
+  /* Round-54: empty-index notification banner.
+     Previously inline-flex content-sized pill — width depended on
+     text length and didn't match the rest of the hero
+     (h1 full-width, .sub max-width: 56ch). Now: block, centered
+     in a fixed-width banner matching the subtitle column so the
+     hero reads as three stacked, consistently-aligned rows
+     (prompt banner, h1, sub). Border-radius drops from pill to
+     var(--r-2) (12px) since it's no longer a pill. Padding
+     matches --card-pad-tight (16 12) so it shares the chrome
+     vocabulary with the photo sidebar and other tight panels. */
   .empty-prompt {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--s-2);
     padding: var(--s-2) var(--s-3);
     margin: 0 auto var(--s-3);
+    max-width: 56ch;
     background: var(--accent-soft);
     border: 1px solid var(--accent);
-    border-radius: var(--r-pill);
+    border-radius: var(--r-2);
     color: var(--fg-1);
     font-size: var(--fs-sm);
   }
@@ -477,14 +489,18 @@
   .empty-prompt a:hover {
     text-decoration: underline;
   }
+  /* Dismiss button: was hardcoded font-size: 18px + padding: 0
+     var(--s-0) (4px). Now uses the standard --fs-md size and
+     --s-2 padding so the click target matches other small
+     buttons in the app. Same color as muted text until hover. */
   .empty-prompt .dismiss {
     background: none;
     border: none;
     color: var(--fg-2);
     cursor: pointer;
-    font-size: 18px;
+    font-size: var(--fs-md);
     line-height: 1;
-    padding: 0 var(--s-0);
+    padding: 0 var(--s-1);
   }
   .empty-prompt .dismiss:hover {
     color: var(--fg-1);
