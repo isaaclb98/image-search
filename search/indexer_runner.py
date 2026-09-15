@@ -452,7 +452,6 @@ def default_indexer_command_factory(
     batch_size: int,
     indexer_module: str = "indexer.local_sync",
     extra_args: Iterable[str] = (),
-    qdrant_read_collection: str | None = None,
 ) -> CommandFactory:
     """Build the default CommandFactory used by the search backend.
 
@@ -466,14 +465,9 @@ def default_indexer_command_factory(
     responsibility (via `HOST_PATH_PREFIX` env var). The indexer
     stores absolute paths as-is.
 
-    `qdrant_read_collection` is forwarded as `--qdrant-read-collection`
-    to the indexer. When None, the indexer falls back to its
-    `--qdrant-collection` flag (single-collection mode), so callers
-    that don't separate read/write see no behaviour change. The
-    search backend passes both because it writes to `images_pending`
-    (a staging area) and reads from `images` (the canonical
-    collection) — without separate read, change-detection never
-    sees the already-indexed corpus.
+    Option B (Sept 2026): the indexer writes directly to the
+    canonical collection (no staging area, no read/write split).
+    `qdrant_collection` is the only flag forwarded.
     """
     sources_list = list(sources)
 
@@ -496,11 +490,6 @@ def default_indexer_command_factory(
         ]
         if qdrant_api_key:
             argv += ["--qdrant-api-key", qdrant_api_key]
-        if qdrant_read_collection and qdrant_read_collection != qdrant_collection:
-            # Only forward when distinct — passing the same value as
-            # `--qdrant-collection` is the default and adds noise to the
-            # indexer's argparse error messages if it ever rejects it.
-            argv += ["--qdrant-read-collection", qdrant_read_collection]
         for s in sources_list:
             argv += ["--source", s]
         if mode == "rebuild":
