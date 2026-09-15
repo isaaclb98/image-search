@@ -96,7 +96,12 @@
   // wall of photos instead of an airy card layout. ESTIMATED_ROW_HEIGHT
   // stays at 280 since it was already larger than tileSize + GAP — the
   // estimate just gets more accurate.
-  const GAP = 4; // px, matches --grid-gutter
+  // Round-55: was hardcoded 4 while the CSS gap (--grid-gutter)
+  // renders 14. Math/render mismatch → only 4 cols fit in the
+  // 1216px chrome instead of the intended 5. Now matches --grid-
+  // gutter at 14. Affects rowHeight (tileSize + GAP) for the
+  // virtualizer; horizontal gutters are unchanged at 14px.
+  const GAP = 14;
 
   // Mirrors +layout.svelte's TILE constant. We need it here so
   // the column count math agrees with the layout-level --grid-width

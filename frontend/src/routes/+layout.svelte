@@ -89,7 +89,15 @@
   // starts trading crispness for over-density (12+ cols at 220px).
   const MAX_COLS = 6;
   const TILE = 240;
-  const GAP = 4;
+  // Round-55: GAP must match the actual CSS gap on .grid-row
+  // which is var(--grid-gutter) = 14. Previously GAP was 4 here
+  // while the CSS rendered 14, so the math said 5 cols fit in
+  // 1216px but the grid actually only fit 4 (because the 14px
+  // gap pushed the 5th col out). Math and render now agree at
+  // GAP=14 → 5 cols × 240 + 4 × 14 = 1256px fits, and --grid-
+  // width = 1256 (was 1216) so every chrome surface aligns to
+  // a true 5-tile row.
+  const GAP = 14;
 
   // Compute and publish `--grid-width` on :root so any page
   // element (header bar, filters panel, etc.) can size to match
