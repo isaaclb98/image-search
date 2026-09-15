@@ -842,7 +842,7 @@
        translucent white fill (0.4) keeps the inner cell
        as a glass surface but the underlying page stays
        sharp. */
-    background: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.65);
     border: 1px solid var(--glass-edge);
   }
   .photo {
