@@ -11,10 +11,12 @@
    */
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { getAlbum, removePhotoFromAlbum } from '$lib/api/endpoints';
+  import { goto } from '$app/navigation';
+  import { getAlbum, removePhotoFromAlbum, deleteAlbum } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
+  import { dialog } from '$lib/components/Dialog.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
 
@@ -143,6 +145,29 @@
       });
     }
   }
+
+  /** Delete the current album. Same dialog pattern as the list
+   * page's remove() — confirm the destructive action, then
+   * navigate back to /albums once the backend acknowledges. */
+  async function onDeleteAlbum() {
+    if (!detail) return;
+    const ok = await dialog.confirm({
+      title: 'Delete album',
+      body: `Delete album "${detail.name}"? This can't be undone. Photos in the album are not deleted — they stay in your library.`,
+      confirmLabel: 'Delete',
+      kind: 'danger'
+    });
+    if (!ok) return;
+    try {
+      await deleteAlbum(detail.id);
+      toast.show(`Deleted "${detail.name}".`, { kind: 'success' });
+      goto('/albums');
+    } catch (e: any) {
+      toast.show(`Failed to delete: ${e?.message ?? 'unknown error'}`, {
+        kind: 'error',
+      });
+    }
+  }
 </script>
 
 <svelte:head>
@@ -160,11 +185,16 @@
     meta="{detail.member_total ?? members.length} photos"
   >
     {#snippet actions()}
-      {#if detail && detail.id && (detail.member_total ?? members.length) > 0}
-        <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
-          Download zip
-        </a>
-      {/if}
+      <div class="actions">
+        {#if detail && detail.id && (detail.member_total ?? members.length) > 0}
+          <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
+            Download zip
+          </a>
+        {/if}
+        <button class="del" type="button" onclick={onDeleteAlbum} aria-label="Delete album {detail?.name ?? ''}">
+          Delete album
+        </button>
+      </div>
     {/snippet}
   </PageHeader>
   {#if items().length === 0 && !loadingMore}
@@ -184,6 +214,15 @@
 {/if}
 
 <style>
+  /* Wrap the header actions so Download + Delete sit on the
+     same row with consistent spacing. The .actions wrapper
+     fills the role of the gutter that was implicit when only
+     Download was present. */
+  .actions {
+    display: flex;
+    gap: var(--s-2);
+    align-items: center;
+  }
   .zip {
     padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
@@ -193,4 +232,25 @@
     font-weight: 500;
   }
   .zip:hover { background: var(--accent-2); }
+  /* Delete button: ghost-style until hovered, then red. Same
+     shape/size as .zip so they read as sibling actions on the
+     page header. Idle state stays neutral (borderless, fg-3)
+     so the destructive intent only reveals on hover. */
+  .del {
+    padding: var(--s-1) var(--s-3);
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--fg-3);
+    border: 1px solid var(--glass-edge);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease-out),
+                color var(--t-fast) var(--ease-out),
+                border-color var(--t-fast) var(--ease-out);
+  }
+  .del:hover {
+    background: var(--negative-soft);
+    color: var(--negative);
+    border-color: var(--negative);
+  }
 </style>
