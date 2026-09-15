@@ -85,7 +85,18 @@
   /* sizes */
   .sm { height: 30px; padding: 0 12px; font-size: var(--fs-sm); }
   .md { height: 38px; padding: 0 16px; font-size: var(--fs-md); }
-  .lg { height: 46px; padding: 0 22px; font-size: var(--fs-lg); }
+  /* The .lg size carries the cyan halo shadow — used only on the
+     home page's primary Search button. The halo was previously
+     hardcoded inside the home page; promoting it to the
+     component makes the design intent visible in one place. */
+  .lg {
+    height: 46px;
+    padding: 0 24px;
+    font-size: var(--fs-lg);
+    box-shadow: var(--shadow-button);
+  }
+  .lg:disabled,
+  .lg[aria-disabled='true'] { box-shadow: none; }
 
   /* variants */
   .primary {

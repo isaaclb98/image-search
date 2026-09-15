@@ -33,6 +33,7 @@
   import type { SavedSearch } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import { toast } from '$lib/components/Toaster.svelte';
+  import Button from '$lib/components/Button.svelte';
 
   type Item = {
     id: string;
@@ -411,15 +412,15 @@
           negatives = [...s.negatives];
         }}
       />
-      <button
-        type="button"
-        class="primary"
+      <Button
+        variant="primary"
+        size="lg"
         onclick={reload}
         disabled={!positives.length && !negatives.length && !filename.trim() && !collections.length || loading}
         title="Run search"
       >
         Search
-      </button>
+      </Button>
     </div>
   {/if}
 </section>
@@ -466,7 +467,7 @@
     border: 1px solid var(--accent);
     border-radius: var(--r-pill);
     color: var(--fg-1);
-    font-size: 14px;
+    font-size: var(--fs-sm);
   }
   .empty-prompt a {
     color: var(--accent);
@@ -497,24 +498,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--s-2);
-  }
-  .primary {
-    height: 44px;
-    padding: 0 var(--s-5);
-    border-radius: var(--r-pill);
-    background: var(--accent);
-    color: var(--fg-on-accent);
-    font-weight: 600;
-    font-size: var(--fs-md);
-    transition: background var(--t-fast);
-    box-shadow: 0 4px 18px rgba(108,198,255,0.30);
-  }
-  .primary:hover { background: var(--accent-2); }
-  .primary:disabled {
-    background: var(--glass-1);
-    color: var(--fg-3);
-    box-shadow: none;
-    cursor: not-allowed;
   }
   .hero h1 {
     font-size: var(--fs-3xl);
