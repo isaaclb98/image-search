@@ -383,17 +383,30 @@
       border-color var(--t-fast),
       color var(--t-fast);
   }
+  /* Round-68: active preset now uses the same chrome as the
+     TopBar active tab (accent-soft fill + accent border + accent
+     text). The previous version used a hollow accent border on
+     a transparent fill, which Isaac read as 'inconsistent
+     outline' — it looked like an outlined button, not a
+     selected state.
+
+     --glass-3 and --fg-0 were undefined tokens (the rule
+     resolved to initial values, so the active button was
+     hollow). Replaced with --glass-2 (closest existing tier)
+     and --fg-1 (standard primary text). The data-active state
+     overrides both anyway. */
   .preset:hover {
     background: var(--glass-2);
-    color: var(--fg-0);
+    color: var(--fg-1);
   }
   .preset:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+    border-radius: var(--r-pill);
   }
   .preset[data-active='true'] {
-    background: var(--glass-3);
+    background: var(--accent-soft);
     border-color: var(--accent);
-    color: var(--fg-0);
+    color: var(--accent);
   }
 </style>
