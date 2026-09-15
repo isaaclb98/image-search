@@ -946,7 +946,7 @@
   .count {
     color: var(--fg-2);
     font-size: var(--fs-sm);
-    padding: 0 6px;
+    padding: 0 var(--s-1);
     /* Same rationale as .action: never wrap "1" and "/ 20" onto
        separate lines when the bar is tight. */
     white-space: nowrap;
