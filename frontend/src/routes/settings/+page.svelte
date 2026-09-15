@@ -14,6 +14,7 @@
   import type { components } from '$lib/api/types.gen';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import Dropdown from '$lib/components/Dropdown.svelte';
   import {
     preferences,
     SLIDESHOW_PRESETS,
@@ -28,7 +29,6 @@
   let logText = $state<string>('');
   let loading = $state(true);
   let busy = $state(false);
-  let popoverOpen = $state(false);
   let errorMessage = $state<string | null>(null);
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -81,7 +81,6 @@
   async function startIndex(mode: 'incremental' | 'rebuild') {
     busy = true;
     errorMessage = null;
-    popoverOpen = false;
     try {
       status = await apiPost<IndexerStatusResponse>('/api/admin/index', { mode });
       startPolling();
@@ -160,46 +159,36 @@
         {#if isRunning(status.state)}
           <Button onclick={cancelIndex} disabled={busy}>Cancel</Button>
         {:else}
-          <div class="popover-wrap">
-            <!-- Plain <button> (not the Button primitive) so we can
-                 pass aria-expanded / aria-haspopup for the menu trigger. -->
-            <button
-              class="btn btn-secondary btn-md"
-              type="button"
-              disabled={busy}
-              aria-expanded={popoverOpen}
-              aria-haspopup="menu"
-              onclick={() => (popoverOpen = !popoverOpen)}
-            >
-              Index
-            </button>
-            {#if popoverOpen}
-              <div class="popover" role="menu">
-                <button
-                  class="menu-item"
-                  role="menuitem"
-                  onclick={() => startIndex('incremental')}
-                >
-                  <span class="menu-item-title">Index new &amp; changed files</span>
-                  <span class="menu-item-desc">
-                    Safe to spam. Embeds only files that are new or
-                    have changed since the last index run.
-                  </span>
-                </button>
-                <button
-                  class="menu-item"
-                  role="menuitem"
-                  onclick={() => startIndex('rebuild')}
-                >
-                  <span class="menu-item-title">Rebuild from scratch</span>
-                  <span class="menu-item-desc">
-                    Wipes the index and your favourites, albums, and
-                    saved searches, then re-embeds every photo.
-                  </span>
-                </button>
-              </div>
-            {/if}
-          </div>
+          <Dropdown
+            label="Index mode"
+            align="down"
+            items={[
+              {
+                id: 'incremental',
+                label: 'Index new & changed files',
+                description:
+                  'Safe to spam. Embeds only files that are new or have changed since the last index run.',
+              },
+              {
+                id: 'rebuild',
+                label: 'Rebuild from scratch',
+                description:
+                  'Wipes the index and your favourites, albums, and saved searches, then re-embeds every photo.',
+              },
+            ]}
+            onPick={(it) => startIndex(it.id as 'incremental' | 'rebuild')}
+          >
+            {#snippet trigger({ toggle })}
+              <Button
+                variant="secondary"
+                disabled={busy}
+                aria-haspopup="menu"
+                onclick={toggle}
+              >
+                Index
+              </Button>
+            {/snippet}
+          </Dropdown>
         {/if}
       </div>
 
@@ -333,56 +322,6 @@
   .actions {
     display: flex;
     gap: var(--s-2);
-    position: relative;
-  }
-
-  .popover-wrap {
-    position: relative;
-  }
-
-  .popover {
-    position: absolute;
-    top: calc(100% + var(--s-1));
-    left: 0;
-    background: var(--bg-1);
-    border: 1px solid var(--glass-edge-strong);
-    border-radius: var(--r-2);
-    padding: var(--s-1);
-    min-width: 280px;
-    z-index: 10;
-    backdrop-filter: var(--glass-medium);
-    -webkit-backdrop-filter: var(--glass-medium);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .menu-item {
-    background: none;
-    border: none;
-    color: var(--fg-1);
-    text-align: left;
-    padding: var(--s-2);
-    border-radius: var(--r-1);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-0);
-    font-family: inherit;
-  }
-
-  .menu-item:hover {
-    background: var(--glass-2);
-  }
-
-  .menu-item-title {
-    font-size: var(--fs-sm);
-    font-weight: 500;
-  }
-
-  .menu-item-desc {
-    font-size: var(--fs-xs);
-    color: var(--fg-3);
   }
 
   .log-section {
