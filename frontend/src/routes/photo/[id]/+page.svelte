@@ -388,23 +388,36 @@
     justify-content: center;
     gap: var(--s-3);
     min-height: 50vh;
-    color: var(--fg-2, #6b7280);
+    color: var(--fg-2);
   }
   .placeholder.error {
-    color: var(--negative, #ef4444);
+    color: var(--negative);
   }
 
   .layout {
     display: grid;
-    /* Round‑48: sidebar widened from 360 to 400px because shell-
-       pad-x dropped from 40 to 32 — the previous 360 left more
-       horizontal real estate on wide displays than the layout
-       could use. Gap between photo and sidebar tightened from
-       --s-4 (24px) to --s-3 (16px) so the photo and sidebar read
-       as a paired unit, not two separate panels. */
+    /* Round-55: width matches --grid-width (1216px) so the
+       photo + sidebar layout aligns with every other chrome
+       surface (TopBar, PageHeader, Random/Albums/For You
+       grids, Settings cards, Home hero + composer). Previously
+       the layout extended past grid-width (1344 = 1376 shell
+       content area − 32px page padding on each side) because
+       the .shell and .page were stacking their own padding.
+       Forcing width: var(--grid-width) + margin: 0 auto
+       centers the photo + sidebar pair in the same column as
+       every other page element.
+
+       Grid math:
+         1216 = frame (1fr) + 16 gap + 400 sidebar
+         →   frame = 800px (was 928px). The frame's 3:2 aspect
+       ratio (declared on .frame) gives 800×533 — slightly
+       narrower than before but matches the rest of the app's
+       column. */
     grid-template-columns: minmax(0, 1fr) 400px;
     gap: var(--s-3);
     align-items: start;
+    width: var(--grid-width);
+    margin: 0 auto;
   }
 
   /* Single column on narrow screens — sidebar drops below the photo. */
@@ -478,9 +491,9 @@
 
   .filename {
     margin: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
-    color: var(--fg-1, #1a1a1a);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+    color: var(--fg-1);
     word-break: break-all;
   }
 
@@ -494,8 +507,8 @@
     border-radius: var(--r-1);
     padding: var(--s-1) var(--s-2);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.8rem;
-    color: var(--fg-2, #aaa);
+    font-size: var(--fs-xs);
+    color: var(--fg-2);
     cursor: pointer;
     transition:
       background 120ms ease,
@@ -506,7 +519,7 @@
     border-color: var(--glass-edge-strong);
   }
   .path .folder {
-    color: var(--fg-3, #777);
+    color: var(--fg-3);
   }
 
   .actions {
@@ -517,11 +530,11 @@
 
   .meta h3 {
     margin: 0 0 var(--s-1) 0;
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--fg-3, #777);
+    letter-spacing: var(--ls-widest);
+    color: var(--fg-3);
   }
 
   .meta dl {
@@ -529,13 +542,13 @@
     display: grid;
     grid-template-columns: 90px 1fr;
     gap: var(--s-1) var(--s-2);
-    font-size: 0.85rem;
+    font-size: var(--fs-sm);
   }
   .meta dt {
-    color: var(--fg-3, #777);
+    color: var(--fg-3);
   }
   .meta dd {
     margin: 0;
-    color: var(--fg-1, #1a1a1a);
+    color: var(--fg-1);
   }
 </style>

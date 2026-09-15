@@ -136,7 +136,7 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 12px 16px;
+    padding: var(--s-2) var(--s-3);
     color: var(--fg-1);
     font-weight: 500;
   }
@@ -147,8 +147,8 @@
   .body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 14px;
-    padding: 4px 16px 16px;
+    gap: var(--s-3);
+    padding: var(--s-0) var(--s-3) var(--s-3);
     border-top: 1px solid var(--glass-edge);
   }
   /* Inline label + control pattern, matching /for-you. The label
@@ -178,7 +178,7 @@
     background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
-    padding: 0 12px;
+    padding: 0 var(--s-2);
     height: 36px;
     color: var(--fg-1);
     transition: border-color var(--t-fast);
@@ -207,7 +207,7 @@
   .row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--s-2);
   }
   select {
     height: 36px;
@@ -215,7 +215,7 @@
     background: var(--bg-1);
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
-    padding: 0 12px;
+    padding: 0 var(--s-2);
     /* Fill the grid cell so dropdowns match the text input width
        in their row. Without this, the <select> shrinks to fit
        its current value (e.g. "Balanced") and looks pinched

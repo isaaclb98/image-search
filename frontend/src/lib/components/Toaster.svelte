@@ -89,7 +89,7 @@
   .text { flex: 1; }
   .close {
     color: var(--fg-3);
-    font-size: 18px;
+    font-size: var(--fs-lg);
     line-height: 1;
     padding: 0 4px;
   }

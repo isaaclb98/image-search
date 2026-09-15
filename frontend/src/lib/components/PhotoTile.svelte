@@ -249,8 +249,12 @@
      the feedback state is visible without being loud. (Round-6
      issue #3 — applies to every page the tile appears on.) */
   .tile.disliked {
-    border-color: color-mix(in srgb, #8ca0c8 45%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, #8ca0c8 30%, transparent);
+    /* Round-65: was #8ca0c8 - a custom blue-gray focus ring
+       that did not match the rest of the app accent. Now
+       uses --accent for the focus state so the ring is
+       on-brand. */
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
     opacity: 0.72;
   }
   .tile.disliked .full,
@@ -265,8 +269,12 @@
      the disliked styling so the "I hid this from recommendations"
      message wins. */
   .tile.disliked.favorite {
-    border-color: rgba(140, 160, 200, 0.45);
-    box-shadow: 0 0 0 1px rgba(140, 160, 200, 0.30);
+    /* Round-65: was rgba(140,160,200) — a custom blue-gray
+       used only on the .disliked.favorite mixed state. Now
+       derives from --accent so this rare state still reads
+       as on-brand. */
+    border-color: var(--mixed-tile-border);
+    box-shadow: 0 0 0 1px var(--mixed-tile-ring);
     opacity: 0.72;
   }
   .ph, .full {
@@ -289,8 +297,8 @@
   .fallback {
     background: linear-gradient(
       135deg,
-      rgba(108,198,255,0.10),
-      rgba(255,122,138,0.08)
+      rgba(var(--halo), 0.10),
+      var(--empty-tile-accent)
     );
   }
 
@@ -336,7 +344,12 @@
     border-radius: 50%;
     background: var(--pill-bg);
     border: 1px solid var(--pill-border);
-    color: #c9d3e6;
+    /* Round-64: was #c9d3e6 — a light blue-gray meant to read
+       on the old dark pill background. White pills make this
+       look washed-out, so use the negative token (red) so
+       the dislike badge reads as a state, not as a neutral
+       icon. Matches the heart-filled favorite (var(--warn)). */
+    color: var(--negative);
     font-size: 16px;
     font-weight: 500;
     display: inline-flex;

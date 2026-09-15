@@ -96,7 +96,12 @@
   // wall of photos instead of an airy card layout. ESTIMATED_ROW_HEIGHT
   // stays at 280 since it was already larger than tileSize + GAP — the
   // estimate just gets more accurate.
-  const GAP = 4; // px, matches --grid-gutter
+  // Round-55: was hardcoded 4 while the CSS gap (--grid-gutter)
+  // renders 14. Math/render mismatch → only 4 cols fit in the
+  // 1216px chrome instead of the intended 5. Now matches --grid-
+  // gutter at 14. Affects rowHeight (tileSize + GAP) for the
+  // virtualizer; horizontal gutters are unchanged at 14px.
+  const GAP = 14;
 
   // Mirrors +layout.svelte's TILE constant. We need it here so
   // the column count math agrees with the layout-level --grid-width
@@ -563,8 +568,8 @@
     max-width: 100%;
     margin: 0 auto;
     padding: var(--s-6, 48px) var(--s-4, 24px);
-    color: var(--fg-3, #7e8290);
-    font-size: 0.95rem;
+    color: var(--fg-3);
+    font-size: var(--fs-sm);
   }
 
   .sentinel {
@@ -573,8 +578,8 @@
   }
 
   .loading {
-    color: var(--fg-3, #7e8290);
-    font-size: 0.9rem;
+    color: var(--fg-3);
+    font-size: var(--fs-sm);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -584,8 +589,8 @@
   .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid var(--glass-edge, rgba(255, 255, 255, 0.1));
-    border-top-color: var(--accent, #6cc6ff);
+    border: 3px solid var(--glass-edge);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -619,7 +624,7 @@
   }
   .skeleton-tile {
     /* Inherits aspect-ratio: 1 from .grid-tile. */
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--skeleton-base);
     border-radius: var(--r-md, 8px);
     overflow: hidden;
     position: relative;
@@ -630,9 +635,9 @@
     inset: 0;
     background: linear-gradient(
       100deg,
-      rgba(255, 255, 255, 0) 20%,
-      rgba(255, 255, 255, 0.08) 50%,
-      rgba(255, 255, 255, 0) 80%
+      var(--skeleton-track) 20%,
+      var(--skeleton-peak) 50%,
+      var(--skeleton-track) 80%
     );
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s infinite linear;

@@ -176,8 +176,15 @@
     inset: 0;
     /* Scrim — light enough that the page is visible through
        it (the "glass" aesthetic), heavy enough to clearly
-       defocus the content behind the dialog. */
-    background: rgba(8, 8, 12, var(--glass-alpha-scrim));
+       defocus the content behind the dialog.
+
+       Round-64: was rgba(8, 8, 12, var(--glass-alpha-scrim))
+       — a near-black dark-theme tone. New value is a neutral
+       scrim matching the Lightbox overlay (rgba(0, 0, 0,
+       0.45)): still darkens the page so the dialog pops, but
+       reads as "dimming" not "dark surface" against the rest
+       of the light-themed app. */
+    background: var(--scrim);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -188,7 +195,7 @@
     animation: backdrop-in 150ms var(--ease-out, ease);
   }
   .backdrop.danger .dialog {
-    border-color: rgba(220, 95, 95, 0.5);
+    border-color: color-mix(in srgb, var(--negative) 50%, transparent);
   }
   .dialog {
     width: min(440px, 100%);
@@ -208,17 +215,17 @@
     margin: 0;
     font-size: var(--fs-md, 16px);
     font-weight: 500;
-    letter-spacing: 0.01em;
+    letter-spacing: var(--ls-default);
   }
   .body {
-    font-size: 14px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
     color: var(--fg-2);
   }
   .footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: var(--s-2);
     margin-top: 4px;
   }
   @keyframes backdrop-in {

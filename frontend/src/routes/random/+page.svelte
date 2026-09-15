@@ -165,3 +165,15 @@
   {/if}
 </section>
 
+<style>
+  /* Round-58: constrain the .grid-wrap to the 5-tile grid width
+     so the section reads at the same width as PageHeader and
+     the photo grid below it. Without this, the section fills
+     the shell content area (1376px) and bleeds 60px past the
+     chrome on each side. */
+  .grid-wrap {
+    width: var(--grid-width);
+    max-width: 100%;
+    margin: 0 auto;
+  }
+</style>

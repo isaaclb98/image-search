@@ -168,7 +168,7 @@
     font-size: var(--fs-xl);
     font-weight: 500;
     margin: 0;
-    letter-spacing: -0.01em;
+    letter-spacing: var(--ls-tighter);
   }
   .more {
     color: var(--fg-2);

@@ -32,7 +32,7 @@
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--s-1);
     background: var(--glass-1);
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);

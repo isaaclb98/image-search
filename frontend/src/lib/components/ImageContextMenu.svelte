@@ -226,7 +226,7 @@
     -webkit-backdrop-filter: var(--glass-heavy);
     border: 1px solid var(--glass-edge-strong);
     border-radius: var(--r-3);
-    box-shadow: var(--shadow-3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    box-shadow: var(--shadow-3), 0 0 0 1px var(--glass-edge-bright);
   }
   .item {
     display: flex;
@@ -252,7 +252,7 @@
     width: 18px;
     text-align: center;
     color: var(--fg-2);
-    font-size: 14px;
+    font-size: var(--fs-sm);
   }
   .sep {
     height: 1px;
@@ -265,7 +265,7 @@
   .submenu-host .caret {
     margin-left: auto;
     color: var(--fg-2);
-    font-size: 12px;
+    font-size: var(--fs-xs);
   }
   .submenu {
     /* Default: pop to the right of the parent item. */
@@ -280,7 +280,7 @@
     -webkit-backdrop-filter: var(--glass-heavy);
     border: 1px solid var(--glass-edge-strong);
     border-radius: var(--r-3);
-    box-shadow: var(--shadow-3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    box-shadow: var(--shadow-3), 0 0 0 1px var(--glass-edge-bright);
     z-index: 1;
   }
   /* If the menu is anchored near the right edge, flip the submenu

@@ -27,6 +27,69 @@
   /* glass — borders (Linear/Immich subtlety, now dark hairlines) */
   --glass-edge: rgba(0,0,0,0.06);        /* hairline */
   --glass-edge-strong: rgba(0,0,0,0.12);  /* hover/focus border */
+  /* accent-cyan — the "halo" / highlight blue used by:
+     - the home search button's cyan glow (--shadow-button)
+     - Dropdown item hover and selected backgrounds
+     - PhotoTile skeleton loader gradient
+     A lighter, more cyan blue than --accent (#2563eb, rgb 37,99,235).
+     Use --halo for the rgb tuple, then rgba(var(--halo), α) for
+     custom alphas. */
+  --halo: 108, 198, 255;
+
+  /* glass-fill — white-with-alpha panel fills.
+     Used for the same purpose as --glass-* backdrop-filter tiers
+     but on surfaces that don't need backdrop-filter (pills, nav
+     buttons, dropdown items). Three tiers:
+       light   — pills, lightbox nav buttons (0.85)
+       medium  — dialogs, dense action surfaces (0.94)
+       heavy   — full opacity, opaque panels (1)
+     Replaces ad-hoc rgba(255,255,255,0.85/0.94/1) in components. */
+  --glass-fill-light: rgba(255, 255, 255, 0.85);
+  --glass-fill-medium: rgba(255, 255, 255, 0.94);
+  --glass-fill-heavy: rgba(255, 255, 255, 1);
+
+  /* scrollbar — low-alpha dark thumb on a light track. Tuned for
+     the same aesthetic as the rest of the app: subtle, not a
+     chrome element. */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.28);
+
+  /* glass-inset — the top 1px white highlight on glass surfaces
+     (gives them their "lit from above" quality). */
+  --glass-inset: rgba(255, 255, 255, 0.7);
+
+  /* glass-edge-bright — the 1px white inner ring on menu surfaces
+     (gives them a subtle "card" edge). */
+  --glass-edge-bright: rgba(255, 255, 255, 0.04);
+
+  /* scrim — neutral dimming overlay used by Modal and Lightbox.
+     The overlay (rgba(0, 0, 0, 0.45)) and photo cell
+     (rgba(0, 0, 0, 0.25)) both share this scale. */
+  --scrim: rgba(0, 0, 0, 0.45);
+  --scrim-cell: rgba(0, 0, 0, 0.25);
+
+  /* skeleton — skeleton loader shimmer gradient stops.
+     Three alphas: track (almost invisible), highlight (peak),
+     fall-off (transparent). */
+  --skeleton-track: rgba(255, 255, 255, 0);
+  --skeleton-base: rgba(255, 255, 255, 0.05);
+  --skeleton-peak: rgba(255, 255, 255, 0.08);
+
+  /* mixed-state tile chrome — the rare case where a tile is both
+     liked and disliked (stale render). Used by
+     .tile.disliked.favorite in PhotoTile.svelte. Was a custom
+     blue-gray (rgba(140,160,200)) — now derives from --accent
+     via color-mix so it follows the rest of the accent. */
+  --mixed-tile-border: color-mix(in srgb, var(--accent) 45%, transparent);
+  --mixed-tile-ring: color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* empty-tile accent — the peach gradient endpoint for the
+     fallback tile background (visible only when a tile has no
+     thumbnail). */
+  --empty-tile-accent: rgba(255, 122, 138, 0.08);
+
+
+
 
   /* glass — backdrop-filter tiers. Use these on glass surfaces
      instead of blur(…) directly so a single token retunes
@@ -47,8 +110,8 @@
   --glass-alpha-panel-focus: 0.7;
 
   /* glass — matte fill for center shells (no backdrop-filter) */
-  --matte-fill: rgba(255, 255, 255, 0.88);
-  --dialog-fill: rgba(255, 255, 255, 0.94);
+  --matte-fill: var(--glass-fill-medium);
+  --dialog-fill: var(--glass-fill-medium);
 
   /* text — dark on light */
   --fg-1: #1a1a1a;          /* primary */
@@ -94,6 +157,23 @@
                 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;
+  /* letter-spacing - four tiers.
+     tighter  - large display headlines (slight negative)
+     default  - buttons, card titles (slight positive)
+     wider    - tabs, small caps, monospace-feel labels
+     widest   - small uppercase metadata */
+  /* font-weight - capped at medium (500) per earlier round.
+     300 light is reserved for body text only; 500 is the only
+     emphatic weight in the design system. */
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+
+  --ls-tighter: -0.01em;
+  --ls-default: 0.01em;
+  --ls-wider: 0.02em;
+  --ls-widest: 0.05em;
+
   --fs-xs: 12px;
   --fs-sm: 13px;
   --fs-md: 15px;
@@ -169,24 +249,34 @@
   --card-section-gap: 16px;
 
   /* overlay pill — the floating meta badges that sit on top of
-     photo tiles (score, liked, disliked, remove). Used inside
-     tile.chrome regardless of the photo's average luminance:
-     dark semi-transparent fill + light text + faint white border
-     for legibility on either end of the spectrum. Every tile
-     pill (PhotoTile .score / .fav / .neg-badge / .remove-btn,
-     album .built-in / .del) reads from these tokens. */
-  --pill-bg: rgba(14, 15, 20, 0.55);
-  --pill-bg-strong: rgba(14, 15, 20, 0.7);
-  --pill-bg-hover: rgba(14, 15, 20, 0.8);
-  --pill-fg: rgba(255, 255, 255, 0.95);
-  --pill-border: rgba(255, 255, 255, 0.18);
+     photo tiles (score, liked, disliked, remove).
+
+     Round-64: was dark semi-transparent (rgba(14,15,20))
+     + white text — a dark-theme tone that read as a "dark
+     surface" against the light-themed app. Now white glass
+     + fg-1 text + glass-edge border: same chrome vocabulary
+     as every other panel in the app (TopBar, cards, lightbox
+     nav buttons after Round-63). Hairline border + 85% white
+     fill keeps them readable against both light and dark
+     photos because the white fill is opaque enough to read
+     on dark photos while the soft border doesn't fight
+     light photos.
+
+     Every tile pill (PhotoTile .score / .fav / .neg-badge /
+     .remove-btn, album .built-in / .del) reads from these
+     tokens. */
+  --pill-bg: var(--glass-fill-light);
+  --pill-bg-strong: var(--glass-fill-medium);
+  --pill-bg-hover: var(--glass-fill-heavy);
+  --pill-fg: var(--fg-1);
+  --pill-border: var(--glass-edge);
   --pill-blur: blur(10px);
 
   /* primary button halo — the cyan radial shadow under the home
      search button. Applied via the .primary variant on Button.svelte
      so it shows up once and only once (only the home primary needs
      the halo glow). */
-  --shadow-button: 0 4px 18px rgba(108, 198, 255, 0.30);
+  --shadow-button: 0 4px 18px rgba(var(--halo), 0.30);
 
   /* page header typography — bumped for editorial feel (round 38) */
   --page-title-size: 32px;
@@ -199,5 +289,5 @@
     radial-gradient(ellipse 40% 35% at 92% 20%, rgba(255, 225, 175, 0.40), transparent 60%),
     radial-gradient(ellipse 45% 40% at 85% 85%, rgba(190, 225, 215, 0.40), transparent 60%),
     radial-gradient(ellipse 50% 45% at 15% 90%, rgba(210, 215, 250, 0.40), transparent 60%),
-    #fafaf7;
+    var(--bg-0);
 }

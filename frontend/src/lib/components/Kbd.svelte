@@ -32,7 +32,7 @@
     padding: 0 0.4em;
     background: var(--glass-1);
     border: 1px solid var(--glass-edge);
-    border-radius: 4px;
+    border-radius: var(--r-1);
     color: var(--fg-2);
     font-family: var(--font-mono-stack);
     font-size: 0.85em;
@@ -41,7 +41,7 @@
        family — Inter's tabular numerals + the slight letter-spacing
        shift below make ⌘ / arrows read distinctly. */
     font-feature-settings: "tnum";
-    letter-spacing: 0.02em;
+    letter-spacing: var(--ls-wider);
     box-shadow: 0 1px 0 var(--glass-edge-strong) inset;
   }
 </style>

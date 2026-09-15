@@ -34,6 +34,7 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import { toast } from '$lib/components/Toaster.svelte';
   import Button from '$lib/components/Button.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
 
   type Item = {
     id: string;
@@ -335,32 +336,41 @@
       <button class="dismiss" onclick={() => (indexIsEmpty = false)} aria-label="Dismiss">×</button>
     </div>
   {/if}
+  <!-- Round-56: every page's title block now lives in a
+       <PageHeader> card for full-app consistency. The home was
+       the last holdout — the h1 + .sub were plain centered text
+       while /random, /for-you, /albums, /albums/[id], /albums/likes,
+       /albums/dislikes, /settings, /similar all used PageHeader.
+       Now both default and centroid modes of / use the same chrome
+       (glass card, .head padding, --page-header-pad) as every
+       other page.
+
+       Centroid mode: title "Searching by album", subtitle shows
+       the centroid info, action slot carries the "← Back to
+       albums" link so the chrome and the nav share a single
+       card.
+       Default mode: title "Find photos by what they look like.",
+       subtitle "Type what you remember. Save what you love." —
+       no actions slot, no left-aligned CTA. The composer lives
+       below the header. -->
   {#if activeCentroid}
-    <!-- Round‑29: search-by-album mode hides the prompt composer.
-         The album's centroid IS the query; there's nothing to type.
-         Round‑34: when in sample mode (from /albums "Surprise me"
-         button), surface the active mode so the user knows why
-         results are different from the deterministic centroid. -->
-    <h1>Searching by album</h1>
-    <p class="sub">
-      {#if centroidMode === 'sample'}
-        Sample mode — based on a random {SAMPLE_K} photos from <code>{activeCentroid}</code>.
-        Refresh to re-roll, or
-        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}" class="back-link">
-          switch back to the full mean
-        </a>.
-      {:else}
-        Showing the photos closest to the average of <code>{activeCentroid}</code>.
-        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}&mode=sample" class="surprise-link">
-          Surprise me
-        </a> · <a href="/albums" class="back-link">← Back to albums</a>
-      {/if}
-    </p>
+    <PageHeader
+      title="Searching by album"
+      subtitle={centroidMode === 'sample'
+        ? `Sample mode — based on a random ${SAMPLE_K} photos from ${activeCentroid}. Refresh to re-roll.`
+        : `Showing the photos closest to the average of ${activeCentroid}.`}
+    >
+      {#snippet actions()}
+        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}{centroidMode === 'sample' ? '' : '&mode=sample'}" class="surprise-link">
+          {centroidMode === 'sample' ? 'Switch to full mean' : 'Surprise me'}
+        </a>
+      {/snippet}
+    </PageHeader>
   {:else}
-    <h1>Find photos by what they look like.</h1>
-    <p class="sub">
-      Type what you remember. Save what you love.
-    </p>
+    <PageHeader
+      title="Find photos by what they look like."
+      subtitle="Type what you remember. Save what you love."
+    />
   {/if}
   {#if !activeCentroid}
     <SearchComposer
@@ -449,42 +459,62 @@
        span --grid-width so they line up visually. Round-1 polish:
        dropped horizontal padding (shell owns it via --shell-pad-x),
        trimmed top padding (was 40px → 8px) since the shell already
-       provides --shell-pad-y + --shell-gap before this section. */
+       provides --shell-pad-y + --shell-gap before this section.
+       Round-56: dropped text-align: center — the home's title
+       block is now a <PageHeader> card with default left-aligned
+       text, matching every other page in the app. The composer,
+       filters, and saved-searches below keep their own internal
+       alignment via their own component CSS. */
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
     padding: var(--s-1) 0 var(--s-4);
-    text-align: center;
   }
 
+  /* Round-54: empty-index notification banner.
+     Previously inline-flex content-sized pill — width depended on
+     text length and didn't match the rest of the hero
+     (h1 full-width, .sub max-width: 56ch). Now: block, centered
+     in a fixed-width banner matching the subtitle column so the
+     hero reads as three stacked, consistently-aligned rows
+     (prompt banner, h1, sub). Border-radius drops from pill to
+     var(--r-2) (12px) since it's no longer a pill. Padding
+     matches --card-pad-tight (16 12) so it shares the chrome
+     vocabulary with the photo sidebar and other tight panels. */
   .empty-prompt {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--s-2);
     padding: var(--s-2) var(--s-3);
     margin: 0 auto var(--s-3);
+    max-width: 56ch;
     background: var(--accent-soft);
     border: 1px solid var(--accent);
-    border-radius: var(--r-pill);
+    border-radius: var(--r-2);
     color: var(--fg-1);
     font-size: var(--fs-sm);
   }
   .empty-prompt a {
     color: var(--accent);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: var(--fw-medium);
   }
   .empty-prompt a:hover {
     text-decoration: underline;
   }
+  /* Dismiss button: was hardcoded font-size: 18px + padding: 0
+     var(--s-0) (4px). Now uses the standard --fs-md size and
+     --s-2 padding so the click target matches other small
+     buttons in the app. Same color as muted text until hover. */
   .empty-prompt .dismiss {
     background: none;
     border: none;
     color: var(--fg-2);
     cursor: pointer;
-    font-size: 18px;
+    font-size: var(--fs-md);
     line-height: 1;
-    padding: 0 var(--s-0);
+    padding: 0 var(--s-1);
   }
   .empty-prompt .dismiss:hover {
     color: var(--fg-1);
@@ -499,26 +529,13 @@
     justify-content: flex-end;
     gap: var(--s-2);
   }
-  .hero h1 {
-    font-size: var(--fs-3xl);
-    font-weight: 500;
-    margin: 0 0 var(--s-1);
-    letter-spacing: -0.01em;
-    line-height: var(--lh-tight);
-  }
-  .hero .sub {
-    color: var(--fg-muted);
-    margin: 0 auto var(--s-4);
-    max-width: 56ch;
-    line-height: var(--lh-prose);
-  }
-  .hero .sub code {
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-1);
-    padding: 1px 6px;
-    font-size: 0.9em;
-  }
+  /* Round-56: h1 + .sub removed — the title block is now in a
+     <PageHeader> card with its own chrome. The .hero still owns
+     the hero stack layout (gap between PageHeader, composer,
+     AdditionalFilters, search-actions) but the title typography
+     and chrome live in PageHeader. The `code` styling inside
+     the centroid-mode subtitle is preserved on PageHeader's p
+     via the global `code` rule in tokens. */
   /* Spacing inside the hero stack:
        composer (PromptChips + CollectionsChips)
          ↓ 14px
@@ -529,27 +546,29 @@
      read as one block), subtitle→composer is 28px (separate
      chunk), and these middle gaps give each card its own
      breathing room instead of stacking them flush. */
+  /* Round-67: hero stack rhythm — same --s-3 (16px) between
+     every section so the stack reads as one consistent
+     rhythm. Previously the three gaps were --s-3 → --s-2 → --s-1,
+     a stair-step that read as inconsistent. */
   .hero > :global(.filters) {
     margin-top: var(--s-3);
   }
   .search-actions {
-    margin-top: var(--s-2);
+    margin-top: var(--s-3);
   }
-  .back-link {
-    color: var(--fg-2);
-    text-decoration: none;
-    margin-left: var(--s-1);
-    transition: color var(--t-fast);
-  }
-  .back-link:hover { color: var(--fg-1); }
-  /* Round‑34: "Surprise me" link in the album-search header. Same
-     colour as .back-link so the two actions read as siblings,
-     but no extra margin (the `·` separator handles the gap). */
+  /* Round-34: "Surprise me" link in the album-search header.
+     Round-57: sibling "Back to albums" link removed (the Albums
+     tab in the TopBar serves the same role — no need for a
+     redundant in-page nav). Same colour as the old .back-link
+     (fg-2) so it reads as a quiet secondary action on the
+     header. */
   .surprise-link {
     color: var(--fg-2);
     text-decoration: none;
     transition: color var(--t-fast);
   }
   .surprise-link:hover { color: var(--fg-1); }
-  .results { margin-top: var(--s-1); }
+  /* Round-67: same --s-3 between search-actions and the
+     results grid below. */
+  .results { margin-top: var(--s-3); }
 </style>

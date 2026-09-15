@@ -78,7 +78,7 @@ input, textarea {
      shadow gives the panel the macOS window-chrome read on a
      light surface. */
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 1px 0 var(--glass-inset),
     0 1px 2px rgba(0, 0, 0, 0.04),
     0 4px 12px rgba(0, 0, 0, 0.06);
 }
@@ -127,15 +127,39 @@ input, textarea {
 .state {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--s-2);
   padding: var(--card-pad);
-  text-align: center;
+  text-align: left;
   color: var(--fg-2);
   font-size: var(--fs-sm);
   background: var(--bg-1);
   border: 1px solid var(--glass-edge);
-  border-radius: var(--r-3);
+  border-radius: var(--r-2);
+  /* Round-58: cap state messages at the 5-tile grid width
+     (var(--grid-width) = 1256px) so every loading / empty /
+     error banner shares the same column as the photo grid
+     and PageHeader card. Before this rule, .state messages
+     inherited the parent container width (.shell content
+     area = 1376px, .grid-wrap on Random = 1376px) which
+     read as inconsistent — banners stuck out 120px past
+     the rest of the chrome on each side. Using max-width
+     (not width) means narrow parents (cards, modals) still
+     get a tight fit, while wide parents snap to 1256 and
+     center the banner. .state-wide keeps grid-column: 1 /
+     -1 so it can still span a full grid row. */
+  max-width: var(--grid-width);
+  margin: 0 auto;
+  /* width: 100% makes the .state fill the parent flex track
+     before max-width clamps it. Without this, the .state
+     collapses to its intrinsic content width inside a
+     `display: flex` parent (e.g. .shell) because flex
+     children default to flex-basis: auto = content size.
+     With width: 100% + max-width: var(--grid-width), the
+     .state fills 100% in narrow parents (cards) and caps
+     at 1256 in wide parents (.shell content area, .results,
+     .grid-wrap) — matching the 5-tile grid column. */
+  width: 100%;
 }
 .state.empty { color: var(--fg-3); }
 .state.error { color: var(--negative); background: var(--negative-soft); border-color: color-mix(in srgb, var(--negative) 30%, transparent); }
@@ -147,10 +171,10 @@ input, textarea {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.18);
+  background: var(--scrollbar-thumb);
   border-radius: var(--r-pill);
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.28); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* focus — single visible style */
 :focus-visible {

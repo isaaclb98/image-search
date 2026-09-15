@@ -154,7 +154,7 @@
   .saved-search {
     position: relative;
     display: inline-flex;
-    gap: 6px;
+    gap: var(--s-1);
   }
   .trigger {
     height: 38px;
@@ -165,7 +165,7 @@
     color: var(--fg-1);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--s-1);
     font-size: var(--fs-sm);
     transition: background var(--t-fast);
   }
@@ -180,7 +180,7 @@
     color: var(--fg-1);
     border-color: var(--accent-soft);
   }
-  .caret { color: var(--fg-2); font-size: 12px; }
+  .caret { color: var(--fg-2); font-size: var(--fs-xs); }
   .pop {
     position: absolute;
     top: calc(100% + 6px);
@@ -188,7 +188,7 @@
     min-width: 220px;
     max-height: 320px;
     overflow: auto;
-    padding: 6px;
+    padding: var(--s-1);
     z-index: 100;
     box-shadow: var(--shadow-2);
   }
@@ -196,7 +196,7 @@
   .item-row {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--s-0);
   }
   .item {
     flex: 1;

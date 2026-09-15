@@ -115,14 +115,14 @@
     background: var(--glass-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-3);
-    padding: 14px 14px 12px;
+    padding: var(--s-3) var(--s-3) var(--s-2);
     backdrop-filter: var(--glass-medium);
     -webkit-backdrop-filter: var(--glass-medium);
   }
   .row {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--s-1);
     min-height: 28px;
     padding-bottom: 10px;
   }
@@ -136,7 +136,7 @@
     background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
-    padding: 4px 6px 4px 4px;
+    padding: var(--s-0) var(--s-1) var(--s-0) var(--s-0);
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
   .toggle {
@@ -155,9 +155,14 @@
     font-weight: 500;
     font-size: var(--fs-md);
   }
+  /* Round-69: segmented control active state matches
+     other ON-state chrome in the app (TopBar tab, Settings
+     preset, ActionButton aria-pressed): accent-soft fill +
+     accent text. Was solid accent fill which read as a
+     primary action not a selected segment. */
   .seg.active {
-    background: var(--accent);
-    color: var(--fg-on-accent);
+    background: var(--accent-soft);
+    color: var(--accent);
   }
   .composer-input {
     flex: 1;

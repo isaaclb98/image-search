@@ -750,20 +750,31 @@
     inset: 0;
     /* Above the top bar (z-50) and every other layer. */
     z-index: 500;
-    /* Lightbox overlay uses the heavy glass tier (strongest
-       frost) because the photo behind the action bar is
-       the highest-contrast content in the app — the bar
-       needs every bit of frost to stay legible. */
-    background: rgba(8,8,12, var(--glass-alpha-scrim));
-    backdrop-filter: var(--glass-heavy);
-    -webkit-backdrop-filter: var(--glass-heavy);
+    /* Round-66: frosted glass over the page (was a dark
+       rgba(0,0,0,0.45) scrim that read as "dark surface"
+       against the rest of the light-themed app). The new
+       value is the same glass vocabulary as the home page
+       SearchComposer card — semi-transparent white over a
+       heavy backdrop blur. The page shows through as a
+       soft pastel wash instead of being blacked out,
+       matching the glass aesthetic Isaac called out. The
+       photo cell below stays near-opaque so the actual
+       image isn't tinted by the overlay. */
+    /* Round-66d: outer overlay is transparent — the
+       page/grid below shows through normally, no dimming.
+       Isaac: 'outer part shouldn't be transparent. It should
+       just be grid as normal.' The focus on the photo comes
+       from the chrome (nav buttons, action bar) and the
+       glass photo cell on top, not from dimming the page.
+       No backdrop-filter either — there's nothing to blur. */
+    background: transparent;
     /* Two stacked rows: the image region (content) and the action
        bar. The row-gap is the sole source of spacing between
        them — .content has no border or margin contributing extra
        space. */
     display: grid;
     grid-template-rows: 1fr auto;
-    row-gap: 16px;
+    row-gap: var(--s-3);
     padding: var(--s-4);
     box-sizing: border-box;
     animation: fade var(--t-med) var(--ease-out);
@@ -799,22 +810,18 @@
     background-repeat: no-repeat;
     background-position: center;
     background-size: cover;
-    /* Lower saturation than before (1.5 → 1.2) so the colour
-       stays a wash rather than a saturated hot band. brightness
-       0.55 → 0.7 keeps the colour bright enough to read but
-       stops punching through as a ring. */
-    filter: blur(60px) saturate(1.2) brightness(0.7);
+    /* Round-66d: outer overlay is transparent, so the .tint
+       layer (blurhash-tinted blur) no longer makes sense —
+       there's no scrim to colour-wash. The layer is kept in
+       the DOM (the JS still sets the blurhash background-image)
+       but with opacity 0 so it's invisible. The page grid
+       below shows through normally, exactly as Isaac asked. */
     opacity: 0;
-    transition: opacity 150ms var(--ease-out);
     pointer-events: none;
     z-index: -1;
   }
   .tint.tint-ready {
-    /* 0.65 → 0.5 — the .overlay's own dark scrim (0.4) does
-       most of the opacity work; the tint layer doesn't need
-       to push hard. Lower opacity means less visible band
-       edges where the tint transitions to outside-overlay. */
-    opacity: 0.5;
+    opacity: 0;
   }
   .content {
     /* Fill the first (1fr) row of the overlay grid. The grid
@@ -830,7 +837,22 @@
     place-items: center;
     border-radius: var(--r-3);
     overflow: hidden;
-    background: rgba(8,8,12,0.4);
+    /* Round-66d: removed backdrop-filter. Isaac wanted the
+       page grid to show through normally (no blur); the
+       translucent white fill (0.4) keeps the inner cell
+       as a glass surface but the underlying page stays
+       sharp. */
+    /* Round-70b: match the home page PromptChips glass
+       vocabulary. The composer card is the canonical glass
+       surface on the home page (rgba(0,0,0,0.03) wash over
+       backdrop-filter blur(20px) saturate(1.6)). Lightbox
+       .content now uses the same chrome: faint dark wash
+       over heavy backdrop blur. Page behind shows as a
+       soft pastel wash through the glass instead of as
+       sharp grid lines. */
+    background: var(--glass-1);
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
     border: 1px solid var(--glass-edge);
   }
   .photo {
@@ -891,9 +913,11 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: rgba(14,15,20,0.65);
-    border: 1px solid var(--glass-edge-strong);
+    background: var(--glass-fill-light);
+    border: 1px solid var(--glass-edge);
     color: var(--fg-1);
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
     font-size: 26px;
     display: inline-flex;
     align-items: center;
@@ -901,7 +925,11 @@
     transition: background var(--t-fast);
     z-index: 1;
   }
-  .nav:hover { background: rgba(14,15,20,0.85); }
+  .nav:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
   .nav:disabled { opacity: 0.3; cursor: not-allowed; }
   .prev { left: 12px; }
   .next { right: 12px; }
@@ -919,7 +947,7 @@
     justify-self: center;
     align-self: center;
     display: flex;
-    gap: 12px;
+    gap: var(--s-3);
     align-items: center;
     padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
@@ -928,7 +956,7 @@
   .count {
     color: var(--fg-2);
     font-size: var(--fs-sm);
-    padding: 0 6px;
+    padding: 0 var(--s-1);
     /* Same rationale as .action: never wrap "1" and "/ 20" onto
        separate lines when the bar is tight. */
     white-space: nowrap;
