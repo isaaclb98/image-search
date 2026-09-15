@@ -1,14 +1,13 @@
 @import './tokens.css';
-/* Public Sans — three weights we actually use (300 light, 400
-   regular, 500 medium). Self-hosted woff2 via @fontsource — no
-   CDN, no FOIT. Bold (600+) was dropped after Isaac said the
-   bold weights felt too assertive for a photo gallery app.
-   Hierarchy now comes from weight 300/500 + size variation,
-   not from bold. Imported here so the @font-face declarations
+/* Karla — three weights we actually use (300 light, 400 regular,
+   500 medium). Self-hosted woff2 via @fontsource — no CDN, no
+   FOIT. Bold (600+) was dropped because it felt too assertive
+   for a photo gallery app. Hierarchy comes from 300/500 + size
+   variation. Imported here so the @font-face declarations
    register before any component CSS reads --font-stack. */
-@import '@fontsource/public-sans/300.css';
-@import '@fontsource/public-sans/400.css';
-@import '@fontsource/public-sans/500.css';
+@import '@fontsource/karla/300.css';
+@import '@fontsource/karla/400.css';
+@import '@fontsource/karla/500.css';
 
 * { box-sizing: border-box; }
 
