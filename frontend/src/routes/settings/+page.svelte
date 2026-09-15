@@ -244,11 +244,18 @@
 </script>
 
 <style>
-  /* The Settings header chrome (PageHeader above) goes wide like
-     every other page. The form cards below stay constrained to a
-     reading-friendly column — same pattern as Vercel / Linear. */
+  /* Settings sits in the same column as every other page — the
+     page header (PageHeader), the grid (Random / For you /
+     Albums), and these form cards all share --grid-width
+     (1216px at desktop). Previously this wrapper was
+     unconstrained (1376px — full shell content), which made
+     the cards wider than the rest of the app's content.
+     Before that it was 720px centered, which made the cards
+     narrower. Both wrong. Now: width: var(--grid-width) +
+     margin: 0 auto matches the photo-grid width and the
+     header chrome, like every other page in the app. */
   .settings-page {
-    max-width: 720px;
+    width: var(--grid-width);
     margin: 0 auto;
     display: flex;
     flex-direction: column;
