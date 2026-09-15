@@ -35,12 +35,19 @@
     label: string;
     disabled?: boolean;
     /**
+     * Optional secondary line below the label. Rendered in the
+     * menu as muted small text. Used by Settings' Index popover
+     * to surface the "Safe to spam..." / "Wipes the index..." copy
+     * without making the trigger itself wider than it needs to be.
+     */
+    description?: string;
+    /**
      * Optional membership flag. When set (via the
      * `memberOf` prop on the Dropdown), the item renders a
      * checked indicator on the right and the click handler
      * treats it as a toggle rather than a plain pick. Used by
-     * the Add-to-album dropdown to render "already in this
-     * album" rows in a distinct style.
+     * the Add-to-album dropdown to render "already
+     * in this album" rows.
      */
     isMember?: boolean;
   };
@@ -155,11 +162,11 @@
       // Default: menu's bottom edge sits GAP above the trigger's top
       // edge. We anchor via `top` (the menu's top edge) — but we
       // don't know the menu's height until after mount, so this
-      // helper just sets the right-aligned initial guess. The
+      // helper just sets the left-aligned initial guess. The
       // two-pass post-mount clamp in toggle() corrects the top.
-      pos = { top: rect.top - GAP, left: rect.right };
+      pos = { top: rect.top - GAP, left: rect.left };
     } else {
-      pos = { top: rect.bottom + GAP, left: rect.right };
+      pos = { top: rect.bottom + GAP, left: rect.left };
     }
   }
 
@@ -183,13 +190,14 @@
           pos = { ...pos, top: triggerR.top - GAP - menuRect.height };
         }
         // Keep menu within the viewport horizontally. Default
-        // alignment is right-edge flush with trigger's right; shift
-        // left if it would overflow, or right if it would clip.
-        let left = triggerR.right - menuRect.width;
-        if (left < GAP) left = GAP;
+        // alignment is left-edge flush with trigger's left; shift
+        // left if it would overflow the right edge, or right if
+        // it would clip the left edge.
+        let left = triggerR.left;
         if (left + menuRect.width > window.innerWidth - GAP) {
           left = window.innerWidth - GAP - menuRect.width;
         }
+        if (left < GAP) left = GAP;
         pos = { ...pos, left };
       }
       // Focus first item for keyboard users.
@@ -266,7 +274,12 @@
             close();
           }}
         >
-          <span class="label">{it.label}</span>
+          <span class="label">
+            <span class="label-title">{it.label}</span>
+            {#if it.description}
+              <span class="label-desc">{it.description}</span>
+            {/if}
+          </span>
           {#if it.isMember}
             <span class="check" aria-hidden="true">
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -327,8 +340,8 @@
     position: fixed;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 6px;
+    gap: var(--s-0);
+    padding: var(--s-1);
     border-radius: var(--r-2);
     z-index: 510;
     box-shadow: var(--shadow-2);
@@ -347,7 +360,7 @@
     background: transparent;
     border: 1px solid transparent;
     color: var(--fg-1);
-    padding: 8px 12px;
+    padding: var(--s-2) var(--s-3);
     border-radius: var(--r-1);
     text-align: left;
     font: inherit;
@@ -359,7 +372,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: var(--s-2);
   }
   .item:hover,
   .item:focus-visible {
@@ -370,6 +383,26 @@
   .item:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  /* Rich menu-item layout: the .label wrapper holds a title +
+     optional description, stacked vertically. Items without
+     a description fall back to the previous single-line layout
+     (title only). */
+  .label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-0);
+    min-width: 0;
+    flex: 1;
+  }
+  .label-title {
+    font-weight: 500;
+    color: var(--fg-1);
+  }
+  .label-desc {
+    font-size: var(--fs-xs);
+    color: var(--fg-3);
+    line-height: 1.4;
   }
   /* Membership state: photo is already in this album. The
    * indicator is a soft glass-2 fill plus a check glyph on the
@@ -394,7 +427,7 @@
     flex-shrink: 0;
   }
   .empty {
-    padding: 12px;
+    padding: var(--s-2) var(--s-3);
     font-size: var(--fs-sm);
     color: var(--fg-3);
     text-align: center;

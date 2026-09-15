@@ -151,16 +151,17 @@
 <PageHeader title="Random" subtitle="Random photos from your library. Scroll for more." />
 
 <section class="grid-wrap">
-  <PhotoGrid
-    {items}
-    {loading}
-    {hasMore}
-    onLoadMore={loadMore}
-    {onToggleFavorite}
-    {onDislike}
-  />
+  {#if items.length === 0 && !loading}
+    <div class="state empty">No photos in your library yet — index your library from Settings.</div>
+  {:else}
+    <PhotoGrid
+      {items}
+      {loading}
+      {hasMore}
+      onLoadMore={loadMore}
+      {onToggleFavorite}
+      {onDislike}
+    />
+  {/if}
 </section>
 
-<style>
-  .grid-wrap { padding-top: 8px; }
-</style>

@@ -33,6 +33,7 @@
   import type { SavedSearch } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import { toast } from '$lib/components/Toaster.svelte';
+  import Button from '$lib/components/Button.svelte';
 
   type Item = {
     id: string;
@@ -411,15 +412,15 @@
           negatives = [...s.negatives];
         }}
       />
-      <button
-        type="button"
-        class="primary"
+      <Button
+        variant="primary"
+        size="lg"
         onclick={reload}
         disabled={!positives.length && !negatives.length && !filename.trim() && !collections.length || loading}
         title="Run search"
       >
         Search
-      </button>
+      </Button>
     </div>
   {/if}
 </section>
@@ -427,7 +428,7 @@
 <section class="results">
   {#if hasSearched}
     {#if error}
-      <div class="error glass">Couldn't load results: {error}</div>
+      <div class="state error">Couldn't load results: {error}</div>
     {:else}
       <PhotoGrid
         items={items}
@@ -452,7 +453,7 @@
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: 8px 0 24px;
+    padding: var(--s-1) 0 var(--s-4);
     text-align: center;
   }
 
@@ -466,7 +467,7 @@
     border: 1px solid var(--accent);
     border-radius: var(--r-pill);
     color: var(--fg-1);
-    font-size: 14px;
+    font-size: var(--fs-sm);
   }
   .empty-prompt a {
     color: var(--accent);
@@ -496,36 +497,18 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 10px;
-  }
-  .primary {
-    height: 44px;
-    padding: 0 28px;
-    border-radius: var(--r-pill);
-    background: var(--accent);
-    color: var(--fg-on-accent);
-    font-weight: 600;
-    font-size: var(--fs-md);
-    transition: background var(--t-fast);
-    box-shadow: 0 4px 18px rgba(108,198,255,0.30);
-  }
-  .primary:hover { background: var(--accent-2); }
-  .primary:disabled {
-    background: var(--glass-1);
-    color: var(--fg-3);
-    box-shadow: none;
-    cursor: not-allowed;
+    gap: var(--s-2);
   }
   .hero h1 {
     font-size: var(--fs-3xl);
-    font-weight: 600;
-    margin: 0 0 6px;
+    font-weight: 500;
+    margin: 0 0 var(--s-1);
     letter-spacing: -0.01em;
     line-height: var(--lh-tight);
   }
   .hero .sub {
     color: var(--fg-muted);
-    margin: 0 auto 28px;
+    margin: 0 auto var(--s-4);
     max-width: 56ch;
     line-height: var(--lh-prose);
   }
@@ -547,15 +530,15 @@
      chunk), and these middle gaps give each card its own
      breathing room instead of stacking them flush. */
   .hero > :global(.filters) {
-    margin-top: 14px;
+    margin-top: var(--s-3);
   }
   .search-actions {
-    margin-top: 10px;
+    margin-top: var(--s-2);
   }
   .back-link {
     color: var(--fg-2);
     text-decoration: none;
-    margin-left: 8px;
+    margin-left: var(--s-1);
     transition: color var(--t-fast);
   }
   .back-link:hover { color: var(--fg-1); }
@@ -568,9 +551,5 @@
     transition: color var(--t-fast);
   }
   .surprise-link:hover { color: var(--fg-1); }
-  .results { margin-top: 8px; }
-  .error {
-    padding: 14px 18px;
-    color: var(--negative);
-  }
+  .results { margin-top: var(--s-1); }
 </style>

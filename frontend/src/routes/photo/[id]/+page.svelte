@@ -50,7 +50,6 @@
   import Dropdown from '$lib/components/Dropdown.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
-  import { pageTint } from '$lib/stores/tint';
 
   type PhotoMeta = {
     id: string;
@@ -104,10 +103,11 @@
   // if decoding fails (no blurhash, malformed, etc.).
   let blurTint = $state<string | null>(null);
 
-  // Blurhash decode runs on mount; the +page.ts load already
-  // pre-populated `photo`. We still need this for the pageTint
-  // backdrop effect — same logic as before, just kicked off
-  // by mount instead of the fetch.
+  // Decode the photo's blurhash for the local LQIP frame tint.
+  // Round-37: this no longer writes to the global pageTint store —
+  // the page-level backdrop is a flat dark base, and the per-photo
+  // blurhash only paints behind the photo frame (the `.blur` div
+  // inside `.frame`).
   onMount(() => {
     const data = photo;
     if (data?.blurhash) {
@@ -115,7 +115,6 @@
         .then((url) => {
           if (url && photo && photo.id === data.id) {
             blurTint = url;
-            pageTint.set(url);
           }
         })
         .catch(() => {
@@ -259,7 +258,7 @@
 
 <main class="page">
   {#if errorMsg}
-    <div class="placeholder error">
+    <div class="state error">
       <p>{errorMsg}</p>
       <Button variant="ghost" href="/">Back to home</Button>
     </div>
@@ -374,9 +373,11 @@
   .page {
     width: 100%;
     /* The TopBar is 64px; we want the photo + sidebar to fill the
-       remaining vertical space. */
+       remaining vertical space. Round‑48 tightened padding to
+       --s-3 (16px) from --s-4 (24px) — the .shell already supplies
+       24px top/bottom, so the .page was double-padding on top. */
     min-height: calc(100vh - var(--topbar-height, 64px));
-    padding: 24px;
+    padding: 0 var(--s-3);
     box-sizing: border-box;
   }
 
@@ -385,18 +386,24 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: var(--s-3);
     min-height: 50vh;
-    color: var(--fg-2, #888);
+    color: var(--fg-2, #6b7280);
   }
   .placeholder.error {
-    color: var(--err, #c44);
+    color: var(--negative, #ef4444);
   }
 
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 24px;
+    /* Round‑48: sidebar widened from 360 to 400px because shell-
+       pad-x dropped from 40 to 32 — the previous 360 left more
+       horizontal real estate on wide displays than the layout
+       could use. Gap between photo and sidebar tightened from
+       --s-4 (24px) to --s-3 (16px) so the photo and sidebar read
+       as a paired unit, not two separate panels. */
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: var(--s-3);
     align-items: start;
   }
 
@@ -410,18 +417,23 @@
   .frame {
       position: relative;
       overflow: hidden;
-      border-radius: 12px;
+      border-radius: var(--r-2);
       /* Fixed 3:2 container. The photo fits inside via
          object-fit: contain; the blurhash tint stretches behind it. */
       aspect-ratio: 3 / 2;
       /* Cap photo height on huge displays so it doesn't push the
          sidebar off-screen. When the cap binds, the ratio yields —
          the frame gets shorter but keeps the column width. */
-      max-height: calc(100vh - var(--topbar-height, 64px) - 48px);
+      max-height: calc(100vh - var(--topbar-height, 64px) - var(--s-6));
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.4);
+      /* Round-38: was rgba(0,0,0,0.4) (dark fill behind photo on
+         dark theme). On light theme, use a soft dark wash so the
+         photo frame still reads as a contained surface against the
+         mesh-gradient backdrop. */
+      background: rgba(20, 22, 28, 0.06);
+      border: 1px solid var(--glass-edge);
     }
 
   .blur {
@@ -449,11 +461,11 @@
   }
 
   .sidebar {
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: var(--r-2);
+    padding: var(--card-pad);
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--s-3);
     /* Allow long file paths to wrap instead of overflowing. */
     overflow-wrap: anywhere;
   }
@@ -461,14 +473,14 @@
   .block {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--s-1);
   }
 
   .filename {
     margin: 0;
     font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--fg, #eee);
+    font-weight: 500;
+    color: var(--fg-1, #1a1a1a);
     word-break: break-all;
   }
 
@@ -479,8 +491,8 @@
     text-align: left;
     background: color-mix(in srgb, var(--fg-1) 4%, transparent);
     border: 1px solid var(--glass-edge);
-    border-radius: 8px;
-    padding: 8px 10px;
+    border-radius: var(--r-1);
+    padding: var(--s-1) var(--s-2);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8rem;
     color: var(--fg-2, #aaa);
@@ -500,11 +512,11 @@
   .actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: var(--s-1);
   }
 
   .meta h3 {
-    margin: 0 0 8px 0;
+    margin: 0 0 var(--s-1) 0;
     font-size: 0.75rem;
     font-weight: 500;
     text-transform: uppercase;
@@ -516,7 +528,7 @@
     margin: 0;
     display: grid;
     grid-template-columns: 90px 1fr;
-    gap: 6px 12px;
+    gap: var(--s-1) var(--s-2);
     font-size: 0.85rem;
   }
   .meta dt {
@@ -524,6 +536,6 @@
   }
   .meta dd {
     margin: 0;
-    color: var(--fg, #eee);
+    color: var(--fg-1, #1a1a1a);
   }
 </style>

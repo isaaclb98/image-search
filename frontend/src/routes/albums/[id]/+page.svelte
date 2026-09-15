@@ -1,8 +1,7 @@
 <script lang="ts">
   /**
    * Album detail — grid of photos in this album, with a
-   * "Download zip" link to /albums/{id}/download.zip and
-   * a back link to /albums.
+   * "Download zip" link to /albums/{id}/download.zip.
    *
    * Infinite scroll: walks /api/albums/{id}?limit=&offset= in
    * batches of GRID_PAGE_SIZE so the UI keeps working no matter
@@ -150,12 +149,10 @@
   <title>{detail?.name ?? 'Album'} · Image Search</title>
 </svelte:head>
 
-<a class="back" href="/albums">← All albums</a>
-
 {#if loading}
-  <div class="placeholder">Loading…</div>
+  <div class="state">Loading…</div>
 {:else if error || !detail}
-  <div class="placeholder error">Couldn't load album: {error ?? 'not found'}</div>
+  <div class="state error">Couldn't load album: {error ?? 'not found'}</div>
 {:else}
   <PageHeader
     title={detail.name}
@@ -163,45 +160,37 @@
     meta="{detail.member_total ?? members.length} photos"
   >
     {#snippet actions()}
-      {#if detail && detail.id}
+      {#if detail && detail.id && (detail.member_total ?? members.length) > 0}
         <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
           Download zip
         </a>
       {/if}
     {/snippet}
   </PageHeader>
-  <section>
-    <PhotoGrid
-      items={items()}
-      loading={loadingMore}
-      {hasMore}
-      onLoadMore={loadMore}
-      onRemove={onRemoveFromAlbum}
-      removeLabel="Remove from album"
-    />
-  </section>
+  {#if items().length === 0 && !loadingMore}
+    <div class="state empty">No photos in this album yet. Open a photo to add it from the lightbox.</div>
+  {:else}
+    <section>
+      <PhotoGrid
+        items={items()}
+        loading={loadingMore}
+        {hasMore}
+        onLoadMore={loadMore}
+        onRemove={onRemoveFromAlbum}
+        removeLabel="Remove from album"
+      />
+    </section>
+  {/if}
 {/if}
 
 <style>
-  .back {
-    display: inline-block;
-    margin: 12px 0 18px;
-    color: var(--fg-2);
-  }
-  .back:hover { color: var(--fg-1); }
   .zip {
-    padding: 8px 16px;
+    padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
     background: var(--accent);
-    color: #fff;
+    color: var(--fg-on-accent);
     text-decoration: none;
     font-weight: 500;
   }
-  .zip:hover { background: var(--accent-strong); }
-  .placeholder {
-    padding: 32px 24px;
-    text-align: center;
-    color: var(--fg-2);
-  }
-  .placeholder.error { color: var(--accent); }
+  .zip:hover { background: var(--accent-2); }
 </style>

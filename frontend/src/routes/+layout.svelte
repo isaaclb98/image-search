@@ -5,75 +5,26 @@
   import Toaster from '$lib/components/Toaster.svelte';
   import ScrollToTop from '$lib/components/ScrollToTop.svelte';
   import Dialog from '$lib/components/Dialog.svelte';
-  import { pageTint } from '$lib/stores/tint';
   import { onNavigate } from '$app/navigation';
   import { onMount } from 'svelte';
 
   let { children } = $props();
 
-  // Two-layer page-tint crossfade. Previously a single <img> swapped
-  // src instantly when pageTint changed (PhotoGrid fires it on every
-  // scroll-driven row mount, so /random was thrashing the backdrop
-  // colour continuously). Even with the 800ms opacity transition the
-  // underlying image cut hard — felt amateurish.
-  //
-  // Now we keep two img slots, preload the new tint into the inactive
-  // slot, then flip which slot is .active. Both opacities transition
-  // on the same 800ms axis so the user sees one coordinated crossfade
-  // rather than two stacked layer changes. The cleanup timer nulls
-  // the now-invisible slot 800ms after the swap to free memory.
-  //
-  // On rapid scroll (multiple pageTint updates per second) the latest
-  // preload wins; in-flight crossfades get cancelled via clearTimeout
-  // and a fresh swap kicks off from whatever opacity we're at. The
-  // result feels continuous rather than jumpy.
-  const FADE_MS = 800;
-  let layerA = $state<string | null>(null);
-  let layerB = $state<string | null>(null);
-  let activeLayer = $state<'a' | 'b'>('a');
-  let fadeTimer: ReturnType<typeof setTimeout> | null = null;
-
-  $effect(() => {
-    const newUrl = $pageTint;
-    if (!newUrl) {
-      // Lightbox closed / navigated away from a gallery. Clear both
-      // layers so the page returns to the deep base color.
-      if (fadeTimer) clearTimeout(fadeTimer);
-      layerA = null;
-      layerB = null;
-      activeLayer = 'a';
-      return;
-    }
-    // No-op if the active layer already shows this URL.
-    const activeUrl = activeLayer === 'a' ? layerA : layerB;
-    if (activeUrl === newUrl) return;
-    // Preload the new image so it's painted by the time we flip
-    // active layers (otherwise the new slot shows blank during the
-    // fade-in — that's the original bug, just on a different layer).
-    const pre = new Image();
-    pre.onload = () => {
-      if (fadeTimer) clearTimeout(fadeTimer);
-      const inactiveLayer = activeLayer === 'a' ? 'b' : 'a';
-      if (inactiveLayer === 'a') layerA = newUrl;
-      else layerB = newUrl;
-      // Force a paint at the current opacity first — without this
-      // rAF the browser batches the src change + the class swap and
-      // skips the transition (same trick the Lightbox uses with its
-      // tintReady gate).
-      requestAnimationFrame(() => {
-        activeLayer = inactiveLayer;
-        fadeTimer = setTimeout(() => {
-          const oldLayer = inactiveLayer === 'a' ? 'b' : 'a';
-          if (oldLayer === 'a') layerA = null;
-          else layerB = null;
-        }, FADE_MS);
-      });
-    };
-    pre.src = newUrl;
-  });
-  // Svelte 5 reactive store binding: $pageTint tracks the writable value.
-  // The store carries a photo URL (relative path) which the backdrop
-  // element renders behind everything as a heavily blurred colour wash.
+  // Round-37: dropped the photo-derived backdrop tint. The previous
+  // design pushed the first-visible row's blurhash to a global
+  // backdrop element on every IntersectionObserver tick, which
+  // caused two visible problems:
+  //   - the backdrop colour shifted continuously as the user
+  //     scrolled (the anchor row changed, the blurhash changed,
+  //     the wash followed);
+  //   - the photo's saturated regions bled through the 90px blur
+  //     as radiating colour bands.
+  // Per-panel colour still comes from `.glass-tint::before` (each
+  // tile's surrounding glass picks up a soft-light sample from the
+  // photo inside). The page-level backdrop goes back to a single
+  // flat dark base. AGENTS.md: prefer elegant mathematical
+  // relationships over hardcoded values; "no tint" is the most
+  // elegant relationship for a flat backdrop.
 
   // Round-8: Cmd/Ctrl+K focuses the search composer input.
   // The convention is shared with GitHub, Linear, Vercel, and
@@ -207,19 +158,7 @@
   });
 </script>
 
-<div class="app-shell" class:has-tint={!!(layerA || layerB)}>
-  <!-- Backdrop first so its painted pixels live behind everything
-       that follows. position:fixed, full viewport. The two-layer
-       crossfade logic in the script block above drives these. -->
-  <div class="bg-backdrop" aria-hidden="true">
-    {#if layerA}
-      <img class="bg-img" class:active={activeLayer === 'a'} src={layerA} alt="" />
-    {/if}
-    {#if layerB}
-      <img class="bg-img" class:active={activeLayer === 'b'} src={layerB} alt="" />
-    {/if}
-  </div>
-
+<div class="app-shell">
   <TopBar />
   <main class="shell">
     {@render children?.()}
@@ -233,41 +172,10 @@
   .app-shell {
     min-height: 100vh;
     position: relative;
-    background: #0a0e16; /* deep base — visible only on first paint
-                            before the photo loads */
+    background: transparent; /* body supplies the mesh-gradient;
+                               app-shell stays transparent so the
+                               gradient shows through. Round-38. */
   }
-  .bg-backdrop {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-    z-index: 0;
-  }
-  .bg-backdrop .bg-img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    /* Pastel wash, not a featured photo. Heavier blur + much
-       lower saturation than before so the background reads as
-       atmosphere rather than as the photo itself. No scale(1.2)
-       — that pushed the photo's centre colour off-screen, and
-       when the photo's bright/saturated regions bled back into
-       view through the blur they produced visible radiating
-       "bands" of colour. With blur(90px) the screen-space
-       gradients are smooth enough on their own. */
-    filter: blur(90px) saturate(110%) brightness(0.85);
-    opacity: 0;
-    transition: opacity 800ms ease-out;
-  }
-  .bg-backdrop .bg-img.active {
-    opacity: 0.3;
-  }
-  /* The previous .bg-tint rule (radial vignette darkening edges)
-     was removed: it competed with the photo-derived tint and
-     produced edge bands that fought the colour wash. The solid
-     .app-shell base is the only thing behind the content now. */
   .shell,
   :global(.topbar) {
     position: relative;
@@ -279,7 +187,7 @@
        the same spacing. Section gap (--shell-gap, 24px) controls
        the space between PageHeader and the content below it. */
     min-height: calc(100vh - var(--topbar-h));
-    padding: var(--shell-pad-y) var(--shell-pad-x) calc(var(--shell-pad-y) * 2);
+    padding: var(--shell-pad-y) var(--shell-pad-x) var(--shell-pad-y);
     display: flex;
     flex-direction: column;
     gap: var(--shell-gap);
@@ -290,10 +198,16 @@
        (matches the 384px thumbnail source 1:1), so beyond this
        cap we'd just be adding whitespace — no benefit to raising
        further until the design supports 7+ columns. */
-    max-width: 2400px;
+    max-width: 2200px;
     margin: 0 auto;
   }
   @media (max-width: 640px) {
-    .shell { padding: 16px 12px 48px; }
+    /* Mobile breakpoint: tighter shell padding because the 32/40
+       budget at desktop sizes eats too much of a 375px viewport.
+       Snap to var(--s-3) top, var(--s-2) sides, --shell-pad-y x2
+       bottom to keep the same proportions on a small screen. */
+    .shell {
+      padding: var(--shell-pad-y) var(--s-2) var(--shell-pad-y);
+    }
   }
 </style>

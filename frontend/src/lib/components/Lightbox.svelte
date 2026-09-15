@@ -764,7 +764,7 @@
     display: grid;
     grid-template-rows: 1fr auto;
     row-gap: 16px;
-    padding: 16px;
+    padding: var(--s-4);
     box-sizing: border-box;
     animation: fade var(--t-med) var(--ease-out);
   }
@@ -921,7 +921,7 @@
     display: flex;
     gap: 12px;
     align-items: center;
-    padding: 8px 14px;
+    padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
     box-shadow: var(--shadow-2);
   }

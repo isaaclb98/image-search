@@ -66,11 +66,11 @@
        viewports this puts the page-title card visibly to the
        left of the brand mark and tabs above it. */
     margin: 0 auto;
-    padding: 14px 18px;
+    padding: var(--page-header-pad);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--s-4);
     width: var(--grid-width, 100%);
     max-width: 100%;
   }
@@ -83,14 +83,14 @@
     /* Round-1 polish: was --fs-2xl (28px), now --fs-xl (22px) —
        less demo-y, more "shipping product". */
     font-size: var(--fs-xl);
-    font-weight: 600;
+    font-weight: 500;
     display: inline-flex;
     align-items: center;
     gap: 8px;
     color: var(--fg-1);
   }
   p {
-    margin: 4px 0 0;
+    margin: var(--s-0) 0 0;
     color: var(--fg-2);
     /* Round-1 polish: subtitle one step smaller so the h1/subtitle
        hierarchy reads cleaner. */

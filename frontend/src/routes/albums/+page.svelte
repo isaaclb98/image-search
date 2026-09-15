@@ -25,8 +25,6 @@
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
-  import { pushRandomTint } from '$lib/components/blurhash-bg';
-  import Icon from '$lib/components/Icon.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
@@ -181,11 +179,9 @@
     // so the page reaches a fully-populated state in max(t1, t2)
     // instead of t1 + t2. (Tier 1.5.)
     Promise.all([refresh(), refreshSystemCounts()]);
-    // Round‑31: /albums doesn't render a PhotoGrid so the
-    // backdrop-tint effect in PhotoGrid doesn't fire here.
-    // Push a random photo's blurhash-derived colour tint so the
-    // page has a colour wash instead of solid black.
-    void pushRandomTint();
+    // Round-37: removed pushRandomTint() — the page-level
+    // backdrop is a flat dark base (see +layout.svelte), no per-
+    // page tint fetch needed.
   });
 </script>
 
@@ -202,15 +198,14 @@
   {/snippet}
 </PageHeader>
 
-<section class="system" aria-label="Built-in albums">
-  <article class="card glass system-like">
+<div class="grid" aria-label="Albums">
+  <article class="card glass">
     {#if likesFirstId}
       <img class="cover" src={thumbUrl(likesFirstId)} alt="" loading="lazy" />
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
     <a class="title" href="/albums/likes">
-      <Icon name="heart-filled" size={18} />
       <span>Likes</span>
     </a>
     <p class="desc">Photos you've liked. Built-in, always here.</p>
@@ -246,14 +241,13 @@
       >Surprise</button>
     </div>
   </article>
-  <article class="card glass system-dislike">
+  <article class="card glass">
     {#if dislikesFirstId}
       <img class="cover" src={thumbUrl(dislikesFirstId)} alt="" loading="lazy" />
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
     <a class="title" href="/albums/dislikes">
-      <Icon name="minus" size={18} />
       <span>Dislikes</span>
     </a>
     <p class="desc">Photos you've disliked. Built-in, always here.</p>
@@ -282,15 +276,10 @@
       >Surprise</button>
     </div>
   </article>
-</section>
 
-{#if loading}
-  <div class="placeholder">Loading albums…</div>
-{:else if albums.length === 0}
-  <div class="placeholder empty">No custom albums yet — create one to group your photos.</div>
-{:else}
-  <h2 class="section-title">Your albums</h2>
-  <div class="grid">
+  {#if loading}
+    <div class="state state-wide">Loading albums…</div>
+  {:else if albums.length > 0}
     {#each albums as a (a.id)}
       <article class="card glass">
         {#if a.first_member_id}
@@ -331,17 +320,17 @@
         </div>
       </article>
     {/each}
-  </div>
-{/if}
+  {/if}
+</div>
 
 <style>
   .new {
     height: 40px;
-    padding: 0 18px;
+    padding: 0 var(--s-3);
     border-radius: var(--r-pill);
     background: var(--accent);
     color: var(--fg-on-accent);
-    font-weight: 600;
+    font-weight: 500;
   }
   .new:hover { background: var(--accent-2); }
 
@@ -352,7 +341,7 @@
     margin-top: auto;
     align-self: stretch;
     height: 32px;
-    padding: 0 14px;
+    padding: 0 var(--s-3);
     border-radius: var(--r-2);
     background: transparent;
     color: var(--fg-1);
@@ -400,44 +389,62 @@
     border-color: var(--accent);
   }
 
-  /* System albums — pinned to the top, never deletable.
-     Width mirrors the PageHeader above so the chrome edges
-     (card outline, header outline) line up. */
-  .system {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: var(--grid-gutter);
-    margin: 0 auto 24px;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
-  .section-title {
-    font-size: var(--fs-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--fg-2);
-    margin: 0 auto 12px;
-    width: var(--grid-width, 100%);
-    max-width: 100%;
-  }
+  /* System albums (Likes, Dislikes) live in the same grid as the
+     user-created albums below. They are pinned to the top of the
+     flow by virtue of being declared first in the template; the
+     `built-in` pill in the footer marks them visually. */
+  /* Album cards (Likes/Dislikes + user albums) in a single auto-fit
+     grid. auto-fit collapses empty tracks when item count is below
+     the column count, so a sparse row (e.g. 2 user albums) centers
+     the filled cards rather than leaving an empty band on the right.
+     With 4+ items (the common case), all tracks fill and the grid
+     reads as a continuous wall, same as auto-fill behavior. */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, 260px);
     gap: var(--grid-gutter);
-    margin: 0 auto 24px;
+    margin: 0 auto var(--s-4);
     width: var(--grid-width, 100%);
     max-width: 100%;
+    justify-content: center;
   }
   .card {
     /* No horizontal padding — the cover spans full width. Vertical
-       padding only sits between the cover and the title. */
-    padding: 0 0 16px;
+       padding only sits between the cover and the title. Round‑47:
+       tightened from 16px to 12px (--s-2) — the cover-to-title
+       gap felt airy when titles were short. */
+    padding: 0 0 var(--s-3);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    /* Round-49: per-section rhythm replaces the uniform 8px
+       gap. Cover→title (16px) gets the most breathing room
+       because the cover is the focal point and the text needs
+       a clear entry; title→desc (4px) sits tight as a single
+       "title block"; desc→footer (12px) medium separation;
+       footer→search (16px) more before the action buttons so
+       the buttons read as actions, not as more metadata.
+       The uniform 8px rhythm read as cramped and monotonous
+       — different gaps create visual hierarchy between the
+       five sections. Implemented as per-child margins; flex
+       gap is 0 so the margins are the only thing applying. */
+    gap: 0;
     overflow: hidden; /* rounded corners on the cover */
     transition: transform var(--t-fast), box-shadow var(--t-fast);
   }
+  /* Round-49: per-section rhythm on .card's five children.
+     Cover is full-bleed (no top padding on .card). Gaps:
+       cover → title:    16px (var(--s-3))
+       title → desc:     4px  (var(--s-0)) — tight, they're
+                                   one "title block"
+       desc → footer:    12px (var(--s-2))
+       footer → search:  16px (var(--s-3)) — more space so
+                                   the buttons read as actions
+                                   not as more metadata
+     Margins, not flex gap — gap is uniform across siblings. */
+  .card .title { margin: var(--s-3) 0 0; }
+  .card .desc { margin: var(--s-0) 0 var(--s-2); }
+  .card footer { margin-top: 0; }
+  .card .search-row { margin-top: var(--s-3); }
   .card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-2);
@@ -463,14 +470,17 @@
       var(--glass-2) 100%
     );
   }
-  /* The card's existing horizontal padding was 16px 18px — pull
-     the title/desc/footer back to that left+right gutter. */
+  /* The card's horizontal padding sits between the full-bleed
+     cover and the title/desc/footer. Round‑48: tightened to 20px
+     (was 16) to match the --card-pad token used by Settings cards
+     and the photo sidebar — same inner content edge across every
+     panel in the app. */
   .card .title,
   .card .desc,
   .card footer,
   .card .search-row {
-    margin-left: 18px;
-    margin-right: 18px;
+    margin-left: var(--card-pad-x, 20px);
+    margin-right: var(--card-pad-x, 20px);
   }
   /* Individual buttons inside .search-row don't need the side
      margin — the row already has it, and a second layer of
@@ -481,14 +491,11 @@
   }
   .title {
     font-size: var(--fs-lg);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--fg-1);
-    /* Icon + label side by side; the icon is inline-block via
-       the Icon component's default rendering and the span
-       keeps the text on one line. */
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--s-1);
   }
   .desc {
     margin: 0;
@@ -508,18 +515,8 @@
   .del {
     font-size: var(--fs-sm);
     color: var(--fg-3);
-    padding: 4px 8px;
+    padding: var(--s-0) var(--s-2);
     border-radius: var(--r-pill);
   }
   .del:hover { background: var(--negative-soft); color: var(--negative); }
-  .placeholder {
-    color: var(--fg-3);
-    padding: 32px 16px;
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    text-align: center;
-    font-size: var(--fs-sm);
-  }
-  .placeholder.empty { color: var(--fg-2); }
 </style>

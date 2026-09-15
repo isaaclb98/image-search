@@ -217,19 +217,23 @@
     position: relative;
     display: block;
     aspect-ratio: 1 / 1;
-    border-radius: var(--r-2);
+    border-radius: var(--r-1);
     overflow: hidden;
     background: var(--bg-1);
     border: 1px solid var(--glass-edge);
+    /* Round-38: lighter shadow on hover (was --shadow-glass-strong
+       which was tuned for dark surfaces). New tokens give a 1-2px
+       subtle shadow + 8px ambient that's right for light theme. */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
     transition: transform var(--t-fast) var(--ease-out),
                 border-color var(--t-fast) var(--ease-out),
                 box-shadow var(--t-fast) var(--ease-out),
                 opacity var(--t-fast) var(--ease-out);
   }
   .tile:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
     border-color: var(--glass-edge-strong);
-    box-shadow: var(--shadow-glass-strong);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.06);
   }
   .tile.menu-open {
     border-color: var(--accent);
@@ -294,14 +298,14 @@
     position: absolute;
     top: 8px;
     left: 8px;
-    padding: 4px 9px;
+    padding: var(--s-0) var(--s-2);
     font-size: var(--fs-xs);
-    color: var(--fg-1);
-    background: rgba(14,15,20,0.55);
-    border: 1px solid var(--glass-edge);
+    color: var(--pill-fg);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
     border-radius: var(--r-pill);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--pill-blur);
+    -webkit-backdrop-filter: var(--pill-blur);
     opacity: 0;
     transition: opacity var(--t-fast) var(--ease-out);
   }
@@ -314,15 +318,15 @@
     right: 8px;
     width: 24px; height: 24px;
     border-radius: 50%;
-    background: rgba(14,15,20,0.55);
-    border: 1px solid var(--glass-edge);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
     color: var(--warn);
     font-size: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--pill-blur);
+    -webkit-backdrop-filter: var(--pill-blur);
   }
   .neg-badge {
     position: absolute;
@@ -330,16 +334,16 @@
     right: 8px;
     width: 24px; height: 24px;
     border-radius: 50%;
-    background: rgba(14,15,20,0.55);
-    border: 1px solid rgba(140, 160, 200, 0.55);
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
     color: #c9d3e6;
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 500;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: var(--pill-blur);
+    -webkit-backdrop-filter: var(--pill-blur);
   }
   /* Remove-from-set button — same corner slot as the persistent
    * fav/dislike badges, but interactive and only revealed on

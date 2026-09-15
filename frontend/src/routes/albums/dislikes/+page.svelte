@@ -22,7 +22,6 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
-  import Icon from '$lib/components/Icon.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
   type Item = {
@@ -106,26 +105,18 @@
   <title>Dislikes · Image Search</title>
 </svelte:head>
 
-<a class="back" href="/albums">← All albums</a>
-
 <PageHeader
+  title="Dislikes"
   subtitle="Photos you've marked as not interested. Built-in, always here."
   meta="{items.length} photo{items.length === 1 ? '' : 's'}"
->
-  {#snippet title()}
-    <Icon name="minus" size={24} />
-    <span>Dislikes</span>
-  {/snippet}
-</PageHeader>
+/>
 
 {#if loading}
-  <div class="placeholder">Loading…</div>
+  <div class="state">Loading…</div>
 {:else if error}
-  <div class="placeholder error">Couldn't load dislikes: {error}</div>
+  <div class="state error">Couldn't load dislikes: {error}</div>
 {:else if items.length === 0}
-  <div class="placeholder empty">
-    No dislikes yet. Tap the minus on any photo to mark it.
-  </div>
+  <div class="state empty">No dislikes yet — tap the minus on any photo to mark it.</div>
 {:else}
   <section>
     <PhotoGrid
@@ -141,17 +132,6 @@
 {/if}
 
 <style>
-  .back {
-    display: inline-block;
-    margin: 12px 0 18px;
-    color: var(--fg-2);
-  }
-  .back:hover { color: var(--fg-1); }
-  .placeholder {
-    padding: 32px 24px;
-    text-align: center;
-    color: var(--fg-2);
-  }
-  .placeholder.error { color: var(--accent); }
-  .placeholder.empty { color: var(--fg-3); }
+  /* Loading / empty / error states use the shared .state classes
+     in global.css; no page-level placeholder styles needed. */
 </style>

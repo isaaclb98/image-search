@@ -217,7 +217,7 @@
     position: fixed;
     z-index: 200;
     min-width: 220px;
-    padding: 6px;
+    padding: var(--s-1);
     /* Solid-ish glass — visible against any photo. We sacrifice
        some "frosty" look for legibility (a translucent menu over
        bright sky/clouds disappears). */
@@ -231,9 +231,9 @@
   .item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--s-2);
     width: 100%;
-    padding: 10px 14px;
+    padding: var(--s-2) var(--s-3);
     color: var(--fg-1);
     border-radius: var(--r-2);
     text-align: left;
@@ -246,7 +246,7 @@
   }
   .item:hover {
     background: var(--glass-2);
-    color: #fff;
+    color: var(--fg-1);
   }
   .i {
     width: 18px;
@@ -274,7 +274,7 @@
     left: 100%;
     margin-left: 4px;
     min-width: 200px;
-    padding: 6px;
+    padding: var(--s-1);
     background: var(--dialog-fill);
     backdrop-filter: var(--glass-heavy);
     -webkit-backdrop-filter: var(--glass-heavy);
@@ -295,7 +295,7 @@
     margin-left: 4px;
   }
   .submenu-empty {
-    padding: 10px 14px;
+    padding: var(--s-2) var(--s-3);
     color: var(--fg-2);
     font-size: var(--fs-sm);
   }

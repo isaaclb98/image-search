@@ -11,7 +11,6 @@
    * text dynamically reflects what's been loaded.
    */
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import {
     similarPhotos,
@@ -97,14 +96,6 @@
   <title>Most similar · Image Search</title>
 </svelte:head>
 
-<button
-  type="button"
-  class="back"
-  onclick={() => (history.length > 1 ? history.back() : goto('/random'))}
->
-  ← Back
-</button>
-
 <PageHeader
   title="Most similar"
   subtitle={items.length === 0
@@ -113,13 +104,11 @@
 />
 
 {#if loading && items.length === 0}
-  <div class="placeholder">Finding visually similar photos…</div>
+  <div class="state">Finding visually similar photos…</div>
 {:else if error}
-  <div class="placeholder error">Couldn't load similar photos: {error}</div>
+  <div class="state error">Couldn't load similar photos: {error}</div>
 {:else if items.length === 0}
-  <div class="placeholder empty">
-    No similar photos found for this image.
-  </div>
+  <div class="state empty">No similar photos found for this image.</div>
 {:else}
   <section>
     <PhotoGrid
@@ -134,29 +123,6 @@
 {/if}
 
 <style>
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 12px 0 18px;
-    color: var(--fg-2);
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    font-size: var(--fs-sm);
-  }
-  .back:hover { color: var(--fg-1); }
-
-  .placeholder {
-    color: var(--fg-3);
-    padding: 28px 16px;
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    text-align: center;
-    font-size: var(--fs-sm);
-  }
-  .placeholder.empty,
-  .placeholder.error { color: var(--fg-2); }
+  /* Loading / empty / error states use the shared .state classes
+     in global.css; no page-level placeholder styles needed. */
 </style>

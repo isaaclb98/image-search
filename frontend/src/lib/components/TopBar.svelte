@@ -27,7 +27,7 @@
   const tabs: Tab[] = [
     { href: '/', label: 'Home', reset: true },
     { href: '/random', label: 'Random' },
-    { href: '/for-you', label: 'For You' },
+    { href: '/for-you', label: 'For you' },
     { href: '/albums', label: 'Albums' },
     { href: '/settings', label: 'Settings' }
   ];
@@ -74,34 +74,33 @@
 </header>
 
 <style>
-  /* Heavy frosted glass header. Sits on top of the full-viewport
-     backdrop (see +layout.svelte) — alpha overlay + heavy
-     backdrop-filter creates the frosted look with the colour tint
-     bleeding through from the current photo. Round-1 polish:
-     alpha bumped from 0.12 → 0.32 (was tokenless, now
-     --topbar-alpha) so the bar reads as a real surface against
-     bg-0 instead of flat text. */
+  /* Solid tinted header. Round-38 switched from dark glass to
+     light Immich-style. The topbar is a translucent white pill
+     with hairline border — it sits on the mesh-gradient
+     backdrop, lets the colour wash show through, and uses a
+     border (not a shadow) to separate from content below. */
   .topbar {
-    /* Round-1 polish: sticky so the brand + tabs stay reachable
-       while scrolling. The scroll-to-top button stays — its job
-       is to scroll the page back to the top, not restore topbar
-       visibility (different concern). */
     position: sticky;
     top: 0;
     z-index: 100;
-    /* Heavy glass tier — the topbar sits on top of the photo
-       backdrop and needs the strongest frost to read clearly. */
-    background-color: rgba(14,15,20, var(--topbar-alpha));
-    backdrop-filter: var(--glass-heavy);
-    -webkit-backdrop-filter: var(--glass-heavy);
+    background-color: rgba(255,255,255,0.7);
     border-bottom: 1px solid var(--glass-edge);
-    overflow: hidden;
+    /* Box-shadow gives the topbar the impression of a surface
+       floating just above the page — without the backdrop-filter
+       frost, this is what sells the "layer above content" read. */
     box-shadow: var(--shadow-glass);
   }
   .bar {
     height: var(--topbar-h);
     display: flex;
     align-items: center;
+    justify-content: center;
+    /* Brand + tabs together as one unit, centered in the bar.
+       Round-52: justify-content: center puts the entire
+       brand-and-tabs cluster at the dead-center of the bar.
+       Brand sits immediately to the left of the tabs nav
+       (gap: 24px), and the whole cluster is centered as one
+       block. Symmetric whitespace on both sides. */
     gap: var(--s-4);
     padding: 0 var(--shell-pad-x);
     /* Match the page header card width via --grid-width so the
@@ -120,7 +119,7 @@
     align-items: center;
     gap: var(--s-1);
     color: var(--fg-1);
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.02em;
   }
   .brand:hover { color: var(--fg-1); }
@@ -148,10 +147,15 @@
     background: var(--glass-1);
     color: var(--fg-1);
   }
+  /* Active tab: soft blue wash + accent text. This is the
+     Immich-style "you are here" affordance — not a solid blue
+     pill, but a tinted backdrop with the accent colour text on
+     top. Reads as "selected" without competing with the page
+     content. */
   .tab.active {
-    background: var(--glass-2);
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge-strong);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid transparent;
   }
   @media (max-width: 640px) {
     .bar { padding: 0 12px; gap: var(--s-2); }

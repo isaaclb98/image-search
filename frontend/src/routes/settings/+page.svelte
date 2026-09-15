@@ -13,6 +13,8 @@
   import { apiGet, apiPost, ApiError } from '$lib/api/client';
   import type { components } from '$lib/api/types.gen';
   import Button from '$lib/components/Button.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import Dropdown from '$lib/components/Dropdown.svelte';
   import {
     preferences,
     SLIDESHOW_PRESETS,
@@ -27,7 +29,6 @@
   let logText = $state<string>('');
   let loading = $state(true);
   let busy = $state(false);
-  let popoverOpen = $state(false);
   let errorMessage = $state<string | null>(null);
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -80,7 +81,6 @@
   async function startIndex(mode: 'incremental' | 'rebuild') {
     busy = true;
     errorMessage = null;
-    popoverOpen = false;
     try {
       status = await apiPost<IndexerStatusResponse>('/api/admin/index', { mode });
       startPolling();
@@ -119,9 +119,8 @@
 </svelte:head>
 
 <div class="settings-page">
-  <h1 class="page-title">Settings</h1>
-
-  <section class="card">
+  <PageHeader title="Settings" />
+  <section class="card glass">
     <h2 class="card-title">Index</h2>
     <p class="card-desc">
       Walk the photo library, embed every image, and write it to the
@@ -130,7 +129,7 @@
     </p>
 
     {#if loading}
-      <div class="muted">Loading…</div>
+      <div class="state">Loading…</div>
     {:else if status}
       <div class="status-row" data-state={status.state}>
         <span class="status-dot" aria-hidden="true"></span>
@@ -152,53 +151,43 @@
       </div>
 
       {#if errorMessage}
-        <div class="error">{errorMessage}</div>
+        <div class="state error">{errorMessage}</div>
       {/if}
 
       <div class="actions">
         {#if isRunning(status.state)}
           <Button onclick={cancelIndex} disabled={busy}>Cancel</Button>
         {:else}
-          <div class="popover-wrap">
-            <!-- Plain <button> (not the Button primitive) so we can
-                 pass aria-expanded / aria-haspopup for the menu trigger. -->
-            <button
-              class="btn btn-secondary btn-md"
-              type="button"
-              disabled={busy}
-              aria-expanded={popoverOpen}
-              aria-haspopup="menu"
-              onclick={() => (popoverOpen = !popoverOpen)}
-            >
-              Index
-            </button>
-            {#if popoverOpen}
-              <div class="popover" role="menu">
-                <button
-                  class="menu-item"
-                  role="menuitem"
-                  onclick={() => startIndex('incremental')}
-                >
-                  <span class="menu-item-title">Index new &amp; changed files</span>
-                  <span class="menu-item-desc">
-                    Safe to spam. Embeds only files that are new or
-                    have changed since the last index run.
-                  </span>
-                </button>
-                <button
-                  class="menu-item"
-                  role="menuitem"
-                  onclick={() => startIndex('rebuild')}
-                >
-                  <span class="menu-item-title">Rebuild from scratch</span>
-                  <span class="menu-item-desc">
-                    Wipes the index and your favourites, albums, and
-                    saved searches, then re-embeds every photo.
-                  </span>
-                </button>
-              </div>
-            {/if}
-          </div>
+          <Dropdown
+            label="Index mode"
+            align="down"
+            items={[
+              {
+                id: 'incremental',
+                label: 'Index new & changed files',
+                description:
+                  'Safe to spam. Embeds only files that are new or have changed since the last index run.',
+              },
+              {
+                id: 'rebuild',
+                label: 'Rebuild from scratch',
+                description:
+                  'Wipes the index and your favourites, albums, and saved searches, then re-embeds every photo.',
+              },
+            ]}
+            onPick={(it) => startIndex(it.id as 'incremental' | 'rebuild')}
+          >
+            {#snippet trigger({ toggle })}
+              <Button
+                variant="secondary"
+                disabled={busy}
+                aria-haspopup="menu"
+                onclick={toggle}
+              >
+                Index
+              </Button>
+            {/snippet}
+          </Dropdown>
         {/if}
       </div>
 
@@ -211,7 +200,7 @@
     {/if}
   </section>
 
-  <section class="card">
+  <section class="card glass">
     <h2 class="card-title">Slideshow</h2>
     <p class="card-desc">
       How long each photo stays up during Lightbox auto-advance
@@ -255,36 +244,40 @@
 </script>
 
 <style>
+  /* Settings sits in the same column as every other page — the
+     page header (PageHeader), the grid (Random / For you /
+     Albums), and these form cards all share --grid-width
+     (1216px at desktop). Previously this wrapper was
+     unconstrained (1376px — full shell content), which made
+     the cards wider than the rest of the app's content.
+     Before that it was 720px centered, which made the cards
+     narrower. Both wrong. Now: width: var(--grid-width) +
+     margin: 0 auto matches the photo-grid width and the
+     header chrome, like every other page in the app. */
   .settings-page {
-    max-width: 720px;
+    width: var(--grid-width);
     margin: 0 auto;
-    padding: var(--s-5) var(--s-3);
     display: flex;
     flex-direction: column;
-    gap: var(--s-4);
+    gap: var(--shell-gap);
   }
 
-  .page-title {
-    font-size: 28px;
-    font-weight: 400;
-    margin: 0 0 var(--s-2) 0;
-    color: var(--fg-1);
-  }
-
-  .card {
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
-    padding: var(--s-4);
+  /* Cards use the shared .glass panel vocabulary (background,
+     hairline border, lit-from-above highlight, soft shadow,
+     rounded). No bespoke card chrome here. The flex layout
+     + inter-child gap is page-local since not every card needs
+     it (album cards stack title + desc + footer via the
+     .card rule in the albums page). .glass does not carry
+     its own padding — that's the page-local concern. */
+  .card.glass {
+    padding: var(--card-pad);
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
-    backdrop-filter: var(--glass-light);
-    -webkit-backdrop-filter: var(--glass-light);
   }
 
   .card-title {
-    font-size: 18px;
+    font-size: var(--fs-lg);
     font-weight: 500;
     margin: 0;
     color: var(--fg-1);
@@ -293,7 +286,7 @@
   .card-desc {
     margin: 0;
     color: var(--fg-2);
-    font-size: 14px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
   }
 
@@ -304,7 +297,7 @@
     padding: var(--s-2) var(--s-3);
     background: var(--glass-2);
     border-radius: var(--r-2);
-    font-size: 14px;
+    font-size: var(--fs-sm);
     color: var(--fg-1);
   }
 
@@ -335,56 +328,6 @@
   .actions {
     display: flex;
     gap: var(--s-2);
-    position: relative;
-  }
-
-  .popover-wrap {
-    position: relative;
-  }
-
-  .popover {
-    position: absolute;
-    top: calc(100% + var(--s-1));
-    left: 0;
-    background: var(--bg-1);
-    border: 1px solid var(--glass-edge-strong);
-    border-radius: var(--r-2);
-    padding: var(--s-1);
-    min-width: 280px;
-    z-index: 10;
-    backdrop-filter: var(--glass-medium);
-    -webkit-backdrop-filter: var(--glass-medium);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .menu-item {
-    background: none;
-    border: none;
-    color: var(--fg-1);
-    text-align: left;
-    padding: var(--s-2);
-    border-radius: var(--r-1);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-0);
-    font-family: inherit;
-  }
-
-  .menu-item:hover {
-    background: var(--glass-2);
-  }
-
-  .menu-item-title {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .menu-item-desc {
-    font-size: 12px;
-    color: var(--fg-3);
   }
 
   .log-section {
@@ -394,7 +337,7 @@
   .log-section summary {
     cursor: pointer;
     color: var(--fg-2);
-    font-size: 13px;
+    font-size: var(--fs-sm);
     user-select: none;
   }
 
@@ -405,24 +348,11 @@
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-2);
     color: var(--fg-2);
-    font-size: 12px;
+    font-size: var(--fs-xs);
     max-height: 240px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
-  }
-
-  .error {
-    color: var(--danger);
-    font-size: 13px;
-    padding: var(--s-2);
-    background: rgba(255, 93, 108, 0.1);
-    border-radius: var(--r-2);
-  }
-
-  .muted {
-    color: var(--fg-3);
-    font-size: 14px;
   }
 
   /* Slideshow preset row. Five pill buttons in a single horizontal
@@ -443,7 +373,7 @@
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
-    padding: 0 16px;
+    padding: 0 var(--s-3);
     height: 32px;
     font: inherit;
     font-size: 0.9rem;

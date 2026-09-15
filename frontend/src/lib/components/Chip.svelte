@@ -37,7 +37,7 @@
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
-    padding: 4px 8px 4px 12px;
+    padding: var(--s-0) var(--s-2) var(--s-0) var(--s-3);
     font-size: var(--fs-sm);
     line-height: 1;
     height: 28px;
@@ -52,7 +52,7 @@
   .chip.neg:hover { background: color-mix(in srgb, var(--negative) 30%, transparent); }
   .minus {
     color: var(--negative);
-    font-weight: 600;
+    font-weight: 500;
   }
   .text { white-space: nowrap; }
   .x {
