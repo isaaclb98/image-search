@@ -364,8 +364,6 @@
         <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}{centroidMode === 'sample' ? '' : '&mode=sample'}" class="surprise-link">
           {centroidMode === 'sample' ? 'Switch to full mean' : 'Surprise me'}
         </a>
-        <span class="sep" aria-hidden="true">·</span>
-        <a href="/albums" class="back-link">← Back to albums</a>
       {/snippet}
     </PageHeader>
   {:else}
@@ -554,16 +552,12 @@
   .search-actions {
     margin-top: var(--s-2);
   }
-  .back-link {
-    color: var(--fg-2);
-    text-decoration: none;
-    margin-left: var(--s-1);
-    transition: color var(--t-fast);
-  }
-  .back-link:hover { color: var(--fg-1); }
-  /* Round‑34: "Surprise me" link in the album-search header. Same
-     colour as .back-link so the two actions read as siblings,
-     but no extra margin (the `·` separator handles the gap). */
+  /* Round-34: "Surprise me" link in the album-search header.
+     Round-57: sibling "Back to albums" link removed (the Albums
+     tab in the TopBar serves the same role — no need for a
+     redundant in-page nav). Same colour as the old .back-link
+     (fg-2) so it reads as a quiet secondary action on the
+     header. */
   .surprise-link {
     color: var(--fg-2);
     text-decoration: none;
