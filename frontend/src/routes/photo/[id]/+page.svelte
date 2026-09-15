@@ -396,15 +396,28 @@
 
   .layout {
     display: grid;
-    /* Round‑48: sidebar widened from 360 to 400px because shell-
-       pad-x dropped from 40 to 32 — the previous 360 left more
-       horizontal real estate on wide displays than the layout
-       could use. Gap between photo and sidebar tightened from
-       --s-4 (24px) to --s-3 (16px) so the photo and sidebar read
-       as a paired unit, not two separate panels. */
+    /* Round-55: width matches --grid-width (1216px) so the
+       photo + sidebar layout aligns with every other chrome
+       surface (TopBar, PageHeader, Random/Albums/For You
+       grids, Settings cards, Home hero + composer). Previously
+       the layout extended past grid-width (1344 = 1376 shell
+       content area − 32px page padding on each side) because
+       the .shell and .page were stacking their own padding.
+       Forcing width: var(--grid-width) + margin: 0 auto
+       centers the photo + sidebar pair in the same column as
+       every other page element.
+
+       Grid math:
+         1216 = frame (1fr) + 16 gap + 400 sidebar
+         →   frame = 800px (was 928px). The frame's 3:2 aspect
+       ratio (declared on .frame) gives 800×533 — slightly
+       narrower than before but matches the rest of the app's
+       column. */
     grid-template-columns: minmax(0, 1fr) 400px;
     gap: var(--s-3);
     align-items: start;
+    width: var(--grid-width);
+    margin: 0 auto;
   }
 
   /* Single column on narrow screens — sidebar drops below the photo. */
