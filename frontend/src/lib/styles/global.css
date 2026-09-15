@@ -127,15 +127,15 @@ input, textarea {
 .state {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--s-2);
   padding: var(--card-pad);
-  text-align: center;
+  text-align: left;
   color: var(--fg-2);
   font-size: var(--fs-sm);
   background: var(--bg-1);
   border: 1px solid var(--glass-edge);
-  border-radius: var(--r-3);
+  border-radius: var(--r-2);
   /* Round-58: cap state messages at the 5-tile grid width
      (var(--grid-width) = 1256px) so every loading / empty /
      error banner shares the same column as the photo grid
