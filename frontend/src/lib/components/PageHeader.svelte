@@ -66,11 +66,11 @@
        viewports this puts the page-title card visibly to the
        left of the brand mark and tabs above it. */
     margin: 0 auto;
-    padding: 14px 18px;
+    padding: var(--page-header-pad);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--s-4);
     width: var(--grid-width, 100%);
     max-width: 100%;
   }
