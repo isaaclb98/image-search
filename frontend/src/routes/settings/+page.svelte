@@ -13,6 +13,7 @@
   import { apiGet, apiPost, ApiError } from '$lib/api/client';
   import type { components } from '$lib/api/types.gen';
   import Button from '$lib/components/Button.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
   import {
     preferences,
     SLIDESHOW_PRESETS,
@@ -118,9 +119,9 @@
   <title>Settings · Image Search</title>
 </svelte:head>
 
-<div class="settings-page">
-  <h1 class="page-title">Settings</h1>
+<PageHeader title="Settings" />
 
+<div class="settings-page">
   <section class="card">
     <h2 class="card-title">Index</h2>
     <p class="card-desc">
@@ -255,32 +256,34 @@
 </script>
 
 <style>
+  /* The Settings header chrome (PageHeader above) goes wide like
+     every other page. The form cards below stay constrained to a
+     reading-friendly column — same pattern as Vercel / Linear. */
   .settings-page {
     max-width: 720px;
     margin: 0 auto;
-    padding: var(--s-5) var(--s-3);
     display: flex;
     flex-direction: column;
     gap: var(--s-4);
   }
 
-  .page-title {
-    font-size: 28px;
-    font-weight: 400;
-    margin: 0 0 var(--s-2) 0;
-    color: var(--fg-1);
-  }
-
   .card {
-    background: var(--glass-1);
+    /* Matches the light-theme glass panel vocabulary used by
+       PageHeader and the album cards: white fill, hairline border,
+       lit-from-above highlight + subtle drop shadow. The previous
+       version used dark-theme glass-1 / backdrop-filter which
+       doesn't read on a light pastel backdrop. */
+    background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-3);
-    padding: var(--s-4);
+    padding: var(--card-pad);
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
-    backdrop-filter: var(--glass-light);
-    -webkit-backdrop-filter: var(--glass-light);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.06);
   }
 
   .card-title {
