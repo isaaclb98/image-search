@@ -760,7 +760,7 @@
        matching the glass aesthetic Isaac called out. The
        photo cell below stays near-opaque so the actual
        image isn't tinted by the overlay. */
-    background: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.15);
     backdrop-filter: var(--glass-heavy);
     -webkit-backdrop-filter: var(--glass-heavy);
     /* Two stacked rows: the image region (content) and the action
