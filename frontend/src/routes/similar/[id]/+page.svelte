@@ -11,7 +11,6 @@
    * text dynamically reflects what's been loaded.
    */
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import {
     similarPhotos,
@@ -97,14 +96,6 @@
   <title>Most similar · Image Search</title>
 </svelte:head>
 
-<button
-  type="button"
-  class="back"
-  onclick={() => (history.length > 1 ? history.back() : goto('/random'))}
->
-  ← Back
-</button>
-
 <PageHeader
   title="Most similar"
   subtitle={items.length === 0
@@ -134,20 +125,6 @@
 {/if}
 
 <style>
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: var(--s-2) 0 var(--s-3);
-    color: var(--fg-2);
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    font-size: var(--fs-sm);
-  }
-  .back:hover { color: var(--fg-1); }
-
   .placeholder {
     color: var(--fg-3);
     padding: var(--card-pad);

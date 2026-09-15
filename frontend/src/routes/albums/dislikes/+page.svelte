@@ -105,8 +105,6 @@
   <title>Dislikes · Image Search</title>
 </svelte:head>
 
-<a class="back" href="/albums">← All albums</a>
-
 <PageHeader
   title="Dislikes"
   subtitle="Photos you've marked as not interested. Built-in, always here."
@@ -136,12 +134,6 @@
 {/if}
 
 <style>
-  .back {
-    display: inline-block;
-    margin: var(--s-2) 0 var(--s-3);
-    color: var(--fg-2);
-  }
-  .back:hover { color: var(--fg-1); }
   .placeholder {
     padding: var(--card-pad);
     text-align: center;

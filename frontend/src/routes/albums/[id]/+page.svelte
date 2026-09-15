@@ -1,8 +1,7 @@
 <script lang="ts">
   /**
    * Album detail — grid of photos in this album, with a
-   * "Download zip" link to /albums/{id}/download.zip and
-   * a back link to /albums.
+   * "Download zip" link to /albums/{id}/download.zip.
    *
    * Infinite scroll: walks /api/albums/{id}?limit=&offset= in
    * batches of GRID_PAGE_SIZE so the UI keeps working no matter
@@ -150,8 +149,6 @@
   <title>{detail?.name ?? 'Album'} · Image Search</title>
 </svelte:head>
 
-<a class="back" href="/albums">← All albums</a>
-
 {#if loading}
   <div class="placeholder">Loading…</div>
 {:else if error || !detail}
@@ -183,12 +180,6 @@
 {/if}
 
 <style>
-  .back {
-    display: inline-block;
-    margin: var(--s-2) 0 var(--s-3);
-    color: var(--fg-2);
-  }
-  .back:hover { color: var(--fg-1); }
   .zip {
     padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
