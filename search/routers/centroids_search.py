@@ -82,7 +82,9 @@ from search.centroids import (
     filter_near_duplicates,
 )
 from search.centroids_compute import (
+    DEFAULT_CLUSTER_SAMPLE_N,
     DEFAULT_SAMPLE_K,
+    cluster_then_sample_centroid,
     sample_centroid,
 )
 from search.models import SearchResponse, SearchResult
@@ -135,8 +137,16 @@ def build_centroids_search_router(
         sample_k: int = Query(
             DEFAULT_SAMPLE_K,
             description=(
-                "K for sample mode. Defaults to "
-                f"{DEFAULT_SAMPLE_K}. Only used when mode=sample."
+                "Cluster count (k-means K) for sample mode. Defaults to "
+                f"{DEFAULT_SAMPLE_K}. Only used when mode=sample. Round-75."
+            ),
+        ),
+        sample_n: int = Query(
+            DEFAULT_CLUSTER_SAMPLE_N,
+            description=(
+                "Number of cluster centroids to average per request. "
+                f"Defaults to {DEFAULT_CLUSTER_SAMPLE_N}. Must satisfy 1 <= n <= sample_k. "
+                "Only used when mode=sample. Round-75."
             ),
         ),
     ) -> SearchResponse:
@@ -154,6 +164,12 @@ def build_centroids_search_router(
             )  # type: ignore[return-value]
         if sample_k <= 0:
             return bad_request("sample_k must be > 0")  # type: ignore[return-value]
+        if sample_n <= 0:
+            return bad_request("sample_n must be > 0")  # type: ignore[return-value]
+        if sample_n > sample_k:
+            return bad_request(  # type: ignore[return-value]
+                f"sample_n ({sample_n}) must be <= sample_k ({sample_k})"
+            )
         # Look up static first; fall back to dynamic (registry does
         # lazy compute + cache). This keeps the route's contract
         # the same regardless of which backend the centroid came from.
@@ -220,8 +236,14 @@ def build_centroids_search_router(
                             f"could not retrieve seed vectors for "
                             f"centroid {name!r}"
                         )
-                    vector, _picked_count, picked_seed_ids = sample_centroid(
-                        picked_ids, picked_vecs, k=sample_k,
+                    # Round-75: cluster the seed set into K groups,
+                    # then average N of those cluster centroids per
+                    # request. Each cluster represents one visual
+                    # mode of the album, so the sub-centroid blends
+                    # those modes instead of relying on which photos
+                    # happened to land in the random K-sample.
+                    vector, _picked_count, picked_seed_ids = cluster_then_sample_centroid(
+                        picked_ids, picked_vecs, k=sample_k, n=sample_n,
                     )
                     # Use the picked subset as the exclude list so
                     # the results don't echo back the sample itself.
