@@ -512,14 +512,16 @@
 
   .grid-row {
     display: grid;
-    /* Round‑36: fixed 384px tiles (was auto-fill minmax(180, 1fr)
-       → 8 cols at ~183px). Fixed 384 matches the thumbnail source
-       1:1 — no upscale, no downscale. auto-fill + fixed track size
-       packs as many 384px cols as fit; leftover space (e.g. 1392px
-       container → 3 cols of 384 with 232px slack) stays empty
-       rather than stretching tiles. Round‑36 container cap is
-       2400px, so 6 cols fit cleanly at the 2352px wrapper width. */
-    grid-template-columns: repeat(auto-fill, 240px);
+    /* Round‑36: fixed 240px tiles (was auto-fill minmax(180, 1fr)
+       → 8 cols at ~183px). Fixed 240 matches the thumbnail source
+       1:1 — no upscale, no downscale. auto-fit (not auto-fill)
+       collapses empty tracks when the item count is below the
+       column count, so sparse pages (For You with 2 photos)
+       center the filled tiles rather than leaving an empty band
+       on the right. Dense pages (Random with 40+ photos) hit
+       auto-fill's full-track behavior because all tracks are
+       occupied — same look as before. */
+    grid-template-columns: repeat(auto-fit, 240px);
     /* Center the row when the container is wider than the tile
        grid (the common case on viewports >1548px). Without this,
        CSS Grid's default `justify-content: start` packs cols to

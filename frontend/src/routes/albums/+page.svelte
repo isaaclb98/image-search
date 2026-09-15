@@ -393,13 +393,20 @@
      user-created albums below. They are pinned to the top of the
      flow by virtue of being declared first in the template; the
      `built-in` pill in the footer marks them visually. */
+  /* Album cards (Likes/Dislikes + user albums) in a single auto-fit
+     grid. auto-fit collapses empty tracks when item count is below
+     the column count, so a sparse row (e.g. 2 user albums) centers
+     the filled cards rather than leaving an empty band on the right.
+     With 4+ items (the common case), all tracks fill and the grid
+     reads as a continuous wall, same as auto-fill behavior. */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, 260px);
     gap: var(--grid-gutter);
     margin: 0 auto var(--s-4);
     width: var(--grid-width, 100%);
     max-width: 100%;
+    justify-content: center;
   }
   .card {
     /* No horizontal padding — the cover spans full width. Vertical
