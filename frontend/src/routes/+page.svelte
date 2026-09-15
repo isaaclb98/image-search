@@ -48,12 +48,16 @@
 
   const PAGE = GRID_PAGE_SIZE;
 
-  // Round‑34: sample-centroid K. Mirrors the backend default
-  // (`DEFAULT_SAMPLE_K` in `search/centroids_compute.py`).
-  // Surface this constant in the home-page header so the
-  // "Sample mode — based on a random N photos" copy stays
-  // honest if the backend default ever changes.
+  // Round-75: cluster count (K) and per-request pick (N) for
+  // sample-centroid retrieval. Mirror the backend defaults
+  // (`DEFAULT_SAMPLE_K` / `DEFAULT_CLUSTER_SAMPLE_N` in
+  // `search/centroids_compute.py`). Each refresh of /albums →
+  // Surprise me picks a fresh N of K cluster centroids to
+  // average — clusters are visual modes of the album, so the
+  // sub-centroid blends those modes rather than averaging K
+  // random photos.
   const SAMPLE_K = 10;
+  const SAMPLE_N = 3;
 
   // Composer state (hoisted from SearchComposer).
   let positives = $state<string[]>([]);
@@ -357,12 +361,26 @@
     <PageHeader
       title="Searching by album"
       subtitle={centroidMode === 'sample'
-        ? `Sample mode — based on a random ${SAMPLE_K} photos from ${activeCentroid}. Refresh to re-roll.`
+        ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}. Re-roll to pick a different blend.`
         : `Showing the photos closest to the average of ${activeCentroid}.`}
     >
       {#snippet actions()}
-        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}{centroidMode === 'sample' ? '' : '&mode=sample'}" class="surprise-link">
-          {centroidMode === 'sample' ? 'Switch to full mean' : 'Surprise me'}
+        <!-- Round-75: "Surprise me" was a toggle between full-mean
+             and sample modes. Renamed to "Re-roll" and now just
+             refreshes the sample-mode URL with a fresh N (so the
+             next k-means cluster pick gives a different blend).
+             Full-mean mode stays accessible via the URL. -->
+        <!-- Round-75: re-roll. data-sveltekit-reload forces a
+             full page reload so the backend re-clusters + picks
+             a fresh N clusters. The ?seed= param is included so
+             the URL changes per click (without it, same URL =
+             no navigation, no reload). -->
+        <a
+          href="/?centroid={encodeURIComponent(activeCentroid ?? '')}&mode=sample&sample_n={SAMPLE_N}&sample_k={SAMPLE_K}&seed={Math.random().toString(36).slice(2, 8)}"
+          class="surprise-link"
+          data-sveltekit-reload
+        >
+          Re-roll
         </a>
       {/snippet}
     </PageHeader>

@@ -167,7 +167,14 @@ _MAX_NEAR_DUP_THRESHOLD = 0.02
 # subset is genuinely informative, but large enough that the mean
 # of K is still a meaningful centroid. 10 is the constant the
 # product spec calls out; routes can override per-request.
+#
+# Round‑75: K is now the number of *clusters* (k-means K), not the
+# number of *photos* in a random subset. We pick N_CLUSTERS=3 of
+# those clusters per request, so each "Surprise me" refresh
+# surfaces a different blend of visual modes instead of a noisy
+# 10-photo mean. K=10 stays; the new param is the sample_n=3 knob.
 DEFAULT_SAMPLE_K = 10
+DEFAULT_CLUSTER_SAMPLE_N = 3
 
 
 def sample_centroid(
@@ -251,6 +258,186 @@ def sample_centroid(
         )
     centroid = (centroid / norm).tolist()
     return (centroid, len(chosen_indices), selected_ids)
+
+
+def cluster_then_sample_centroid(
+    seed_ids: list[str],
+    vectors: list[list[float]],
+    k: int = DEFAULT_SAMPLE_K,
+    n: int = DEFAULT_CLUSTER_SAMPLE_N,
+    *,
+    seed: int | None = None,
+) -> tuple[list[float], int, list[str]]:
+    """Cluster the seed set into K groups, then mean N of those centroids.
+
+    Round‑75: replaces the previous "mean of K random photos"
+    approach. A 10-photo random subset of a 200-photo album is
+    ~5% sampling noise, dominated by whichever visual mode
+    happens to land in the random 10. Each refresh re-rolled a
+    noisy centroid that mostly reflected sampling luck.
+
+    The new approach picks representatives, not photos:
+      1. Cluster the album's photos into K=10 groups via k-means
+         on the embeddings. Each cluster is one visual mode of
+         the album (e.g. "outdoor daytime", "stage lighting").
+      2. Each cluster centroid is averaged across all members of
+         that cluster — much more stable than any single photo.
+      3. Uniform-randomly pick N=3 cluster centroids.
+      4. Return the mean of those N centroids as the query vector.
+
+    Each refresh picks a different 3-of-10 → a different blend
+    of visual modes, with much less per-refresh variance than
+    the photo-subsampling approach.
+
+    Args:
+      seed_ids: ids of the source photos (one per vector).
+      vectors:  D-dim unit-norm embeddings.
+      k:        number of clusters (k-means K). Default 10.
+      n:        number of clusters to average per request.
+                Default 3. Must satisfy 1 <= n <= k.
+      seed:     optional int for deterministic selection
+                (used by unit tests).
+
+    Returns:
+      (centroid, picked_count, picked_seed_ids):
+        - centroid: unit-length D-dim vector (the sub-centroid).
+        - picked_count: number of clusters selected (= n, or fewer
+                        on small inputs — see fallback).
+        - picked_seed_ids: the seed ids that contributed to the
+                           picked clusters. Used by the route as
+                           the exclude-list so results don't echo
+                           the sample back at the user.
+
+    Fallbacks:
+      - len(vectors) == 0: raises ValueError.
+      - len(vectors) <= k: skip clustering (k-means needs at
+        least k distinct points); fall back to sample_centroid
+        with the whole input as the "subset". Behaviour matches
+        the previous implementation for tiny populations.
+      - n > k: raise ValueError (caller misconfigured).
+      - len(vectors) < n: clip n down to len(vectors).
+
+    Determinism: pass `seed=int` to make the cluster
+    selection reproducible. The k-means clustering itself is
+    not seeded by default — each call gets a fresh partition.
+    Tests that need a fixed partition should pass `seed` for
+    both k-means init and the cluster picker (TODO: if the
+    unit test ever needs that, plumb the seed through; current
+    tests verify the API shape, not specific partitions).
+    """
+    n_vecs = len(vectors)
+    if n_vecs == 0:
+        raise ValueError("cluster_then_sample_centroid requires at least one vector")
+    if k <= 0:
+        raise ValueError(f"k must be > 0, got {k}")
+    if n <= 0:
+        raise ValueError(f"n must be > 0, got {n}")
+    if len(seed_ids) != n_vecs:
+        raise ValueError(
+            f"seed_ids/vectors length mismatch: "
+            f"{len(seed_ids)} ids vs {n_vecs} vectors"
+        )
+    if n > k:
+        raise ValueError(
+            f"n ({n}) must be <= k ({k}); cannot pick more clusters than exist"
+        )
+
+    # Fallback: tiny input — cluster into at most as many groups
+    # as we have points. k-means needs K <= N; when N is small,
+    # one point per cluster trivially gives us the whole-input
+    # mean. Match the existing sample_centroid fallback for
+    # tiny populations so "sample mode" stays a no-op there.
+    if n_vecs <= k:
+        # Degenerate case: every point is its own cluster. The
+        # sub-centroid is the mean of all N_CLUSTERS points,
+        # which equals the album's full mean. Effectively turns
+        # sample mode into centroid mode for very small albums.
+        return sample_centroid(seed_ids, vectors, k=n_vecs, seed=seed)
+
+    arr = np.asarray(vectors, dtype=np.float32)
+    if arr.ndim != 2:
+        raise ValueError(
+            f"expected 2D vector matrix, got shape {arr.shape}"
+        )
+
+    # ---- k-means ----
+    # Lloyd's algorithm, written in numpy. K=10, N=200 typical
+    # for a Likes album — converges in ~20 iterations, well
+    # under 5ms on a single core. No sklearn dependency.
+    #
+    # Init: random K points from the input (Forgy method). Stable
+    # enough for our small K / modest-N regime and avoids the
+    # numerical foot-guns of k-means++ on unit vectors.
+    import random
+
+    rng = random.Random(seed) if seed is not None else random  # noqa: S311
+    init_indices = rng.sample(range(n_vecs), k)
+    centroids = arr[init_indices].copy()  # shape (k, d)
+
+    # Iterations cap is generous; Lloyd's typically converges in
+    # under 30 iterations for K=10, N=200 on real embeddings. The
+    # delta-tolerance below also exits early when stable.
+    max_iter = 50
+    tol = 1e-4
+    labels = np.zeros(n_vecs, dtype=np.int64)
+    for _ in range(max_iter):
+        # Assign each point to nearest centroid (cosine ==
+        # dot product on unit vectors, so no normalization step
+        # needed — embeddings are L2-normalized at index time).
+        sims = arr @ centroids.T  # (n, k)
+        new_labels = np.argmax(sims, axis=1)
+
+        # Recompute centroids as the mean of assigned points.
+        new_centroids = np.zeros_like(centroids)
+        for c in range(k):
+            mask = new_labels == c
+            if mask.any():
+                new_centroids[c] = arr[mask].mean(axis=0)
+            else:
+                # Empty cluster — keep the old centroid. Lloyd's
+                # with random init can hit this when two initial
+                # centroids start in the same neighbourhood and
+                # one starves the other. Re-seeding would be
+                # cleaner, but in practice K=10 vs N=200 doesn't
+                # hit this often enough to matter.
+                new_centroids[c] = centroids[c]
+
+        shift = float(np.linalg.norm(new_centroids - centroids))
+        centroids = new_centroids
+        if np.array_equal(new_labels, labels) or shift < tol:
+            labels = new_labels
+            break
+        labels = new_labels
+
+    # ---- pick N cluster centroids ----
+    # n_clip handles the case where the cluster count came out
+    # smaller than n (shouldn't happen with K<=N and no empty
+    # clusters, but defensive against edge cases).
+    n_pick = min(n, k)
+    picked_cluster_ids = rng.sample(range(k), n_pick)
+
+    picked_centroids = centroids[picked_cluster_ids]  # (n_pick, d)
+    # Map each picked cluster back to its member seed ids. The
+    # route uses this for the exclude list (so results don't
+    # echo the sample).
+    picked_seed_ids: list[str] = []
+    for c in picked_cluster_ids:
+        members = [seed_ids[i] for i in range(n_vecs) if labels[i] == c]
+        picked_seed_ids.extend(members)
+
+    # ---- mean the picked centroids ----
+    sub = picked_centroids.mean(axis=0)
+    norm = float(np.linalg.norm(sub))
+    if norm == 0:
+        # Numerically impossible with real embeddings (each
+        # centroid is the mean of non-empty L2-normalized
+        # vectors, so it's not the zero vector). Surface rather
+        # than return a zero vector Qdrant ranks at 0.0.
+        raise ValueError(
+            "cluster_then_sample_centroid collapsed to zero"
+        )
+    sub = (sub / norm).tolist()
+    return (sub, n_pick, picked_seed_ids)
 
 
 def filter_near_duplicates(

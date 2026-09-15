@@ -20,7 +20,7 @@
   --bg-1: #ffffff;          /* panel background, white */
   --bg-2: #f3f1ed;          /* soft secondary surface */
   /* glass — alpha layers tuned for white-on-light (was white-on-dark) */
-  --glass-1: rgba(0,0,0,0.03);       /* default panel */
+  --glass-1: rgba(255, 255, 255, 0.85);      /* default panel - mostly opaque white with a hint of translucency */
   --glass-2: rgba(0,0,0,0.06);       /* raised panel / hovered */
   --glass-tint: transparent;
 
@@ -98,10 +98,10 @@
        medium  — panels, inputs (default for .glass)
        heavy   — modals, floating menus
        dialog  — dialog/dropdown content boxes */
-  --glass-light: blur(12px) saturate(140%);
-  --glass-medium: blur(20px) saturate(160%);
-  --glass-heavy: blur(32px) saturate(180%);
-  --glass-dialog: blur(18px) saturate(180%);
+  --glass-light: blur(4px);
+  --glass-medium: blur(6px);
+  --glass-heavy: blur(10px);
+  --glass-dialog: blur(6px);
 
   /* glass — alpha multipliers for rgba(var(--…-rgb), α) patterns.
      Lets a single component tune tint without re-tuning blur. */

@@ -42,11 +42,24 @@ export type SearchParams = {
   /**
    * Retrieval mode for centroid searches. Only meaningful when
    * `centroid` is also set. `centroid` (default) uses the full
-   * mean of the seed set; `sample` picks a random K-subset and
-   * uses the mean of THAT subset, re-rolled per request. The
-   * backend's static .pt centroids reject `sample` with 400.
+   * mean of the seed set; `sample` (Round-75) clusters the seed
+   * set into K groups via k-means, then averages N of those
+   * cluster centroids per request. Each refresh picks a fresh
+   * subset of clusters. The backend's static .pt centroids
+   * reject `sample` with 400.
    */
   centroidMode?: CentroidMode;
+  /**
+   * Round-75: cluster count (k-means K) when centroidMode='sample'.
+   * Defaults to 10 on the backend. Mirrors `DEFAULT_SAMPLE_K`.
+   */
+  sampleK?: number;
+  /**
+   * Round-75: number of cluster centroids to average per request
+   * when centroidMode='sample'. Defaults to 3 on the backend.
+   * Mirrors `DEFAULT_CLUSTER_SAMPLE_N`. Must satisfy 1 <= n <= K.
+   */
+  sampleN?: number;
   /** Restrict to one or more `collection` payload values. Empty/undefined = whole library. */
   collections?: string[];
 };
@@ -72,6 +85,13 @@ export function search(params: SearchParams, signal?: AbortSignal) {
     // Only attach `mode=` for centroid searches — /api/search
     // doesn't accept it, and a stray `?mode=` there would 400.
     qs.set('mode', params.centroidMode);
+    // Round-75: K and N for sample mode. Both default to the
+    // backend's values when omitted (10 and 3 respectively), so
+    // existing URLs keep working.
+    if (params.centroidMode === 'sample') {
+      if (params.sampleK !== undefined) qs.set('sample_k', String(params.sampleK));
+      if (params.sampleN !== undefined) qs.set('sample_n', String(params.sampleN));
+    }
   }
   const base = params.centroid
     ? `/api/centroids/${encodeURIComponent(params.centroid)}/search`
