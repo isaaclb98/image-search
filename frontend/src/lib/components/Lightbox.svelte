@@ -754,7 +754,7 @@
        frost) because the photo behind the action bar is
        the highest-contrast content in the app — the bar
        needs every bit of frost to stay legible. */
-    background: rgba(8,8,12, var(--glass-alpha-scrim));
+    background: rgba(0, 0, 0, 0.45);
     backdrop-filter: var(--glass-heavy);
     -webkit-backdrop-filter: var(--glass-heavy);
     /* Two stacked rows: the image region (content) and the action
@@ -830,7 +830,7 @@
     place-items: center;
     border-radius: var(--r-3);
     overflow: hidden;
-    background: rgba(8,8,12,0.4);
+    background: rgba(0, 0, 0, 0.25);
     border: 1px solid var(--glass-edge);
   }
   .photo {
@@ -891,9 +891,11 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: rgba(14,15,20,0.65);
-    border: 1px solid var(--glass-edge-strong);
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid var(--glass-edge);
     color: var(--fg-1);
+    backdrop-filter: var(--glass-medium);
+    -webkit-backdrop-filter: var(--glass-medium);
     font-size: 26px;
     display: inline-flex;
     align-items: center;
@@ -901,7 +903,11 @@
     transition: background var(--t-fast);
     z-index: 1;
   }
-  .nav:hover { background: rgba(14,15,20,0.85); }
+  .nav:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
   .nav:disabled { opacity: 0.3; cursor: not-allowed; }
   .prev { left: 12px; }
   .next { right: 12px; }
