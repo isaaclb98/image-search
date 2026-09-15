@@ -249,8 +249,12 @@
      the feedback state is visible without being loud. (Round-6
      issue #3 — applies to every page the tile appears on.) */
   .tile.disliked {
-    border-color: color-mix(in srgb, #8ca0c8 45%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, #8ca0c8 30%, transparent);
+    /* Round-65: was #8ca0c8 - a custom blue-gray focus ring
+       that did not match the rest of the app accent. Now
+       uses --accent for the focus state so the ring is
+       on-brand. */
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
     opacity: 0.72;
   }
   .tile.disliked .full,

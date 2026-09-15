@@ -891,7 +891,7 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--glass-fill-light);
     border: 1px solid var(--glass-edge);
     color: var(--fg-1);
     backdrop-filter: var(--glass-medium);

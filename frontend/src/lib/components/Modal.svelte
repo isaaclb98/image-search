@@ -195,7 +195,7 @@
     animation: backdrop-in 150ms var(--ease-out, ease);
   }
   .backdrop.danger .dialog {
-    border-color: rgba(220, 95, 95, 0.5);
+    border-color: color-mix(in srgb, var(--negative) 50%, transparent);
   }
   .dialog {
     width: min(440px, 100%);

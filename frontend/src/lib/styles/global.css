@@ -171,10 +171,10 @@ input, textarea {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.18);
+  background: var(--scrollbar-thumb);
   border-radius: var(--r-pill);
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.28); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* focus — single visible style */
 :focus-visible {
