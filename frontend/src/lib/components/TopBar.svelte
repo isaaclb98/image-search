@@ -92,22 +92,16 @@
   }
   .bar {
     height: var(--topbar-h);
-    display: grid;
-    /* Two-column grid: brand on the left (auto), tabs take the
-       remaining 1fr and center themselves within it. This
-       balances the visual whitespace around the tabs — brand
-       on left, ~213px gap, tabs centered, ~382px gap, empty
-       right edge. The tabs sit at x ≈ 561-1015 in a 1216-wide
-       bar, visually centered in the space to the right of the
-       brand rather than in the full bar width. Previous
-       (justify-content: center on a flex parent) put the tabs
-       at x ≈ 493-946 — centered in the full bar but visually
-       shifted right of center because the brand takes the
-       left third. Isaac called the prior layout 'arbitrary';
-       this version has clear left/right whitespace symmetry
-       relative to the tabs. */
-    grid-template-columns: auto 1fr;
+    display: flex;
+    /* Brand on far left, tabs at far right (justify-content:
+       space-between). Empty middle space reads as deliberate
+       separation rather than arbitrary drift. Tabs are anchored
+       to the right edge, which is a common chat-app / doc-tool
+       pattern (Discord, Slack, Linear's signed-out nav). The
+       middle space between brand and tabs is the visual cue
+       that these are two distinct roles: identity vs navigation. */
     align-items: center;
+    justify-content: space-between;
     padding: 0 var(--shell-pad-x);
     width: var(--grid-width, 100%);
     max-width: 100%;
@@ -127,11 +121,6 @@
    * color drives it; alignment with the text comes from the
    * Icon's own viewBox + the .brand flex layout. */
   .tabs {
-    /* Sits in the second grid column (1fr) and centers itself
-       within that column — visually balanced in the space to
-       the right of the brand. */
-    grid-column: 2;
-    justify-self: center;
     display: flex;
     gap: var(--s-1);
     align-items: center;
