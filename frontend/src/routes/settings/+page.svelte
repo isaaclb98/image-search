@@ -118,9 +118,8 @@
   <title>Settings · Image Search</title>
 </svelte:head>
 
-<PageHeader title="Settings" />
-
 <div class="settings-page">
+  <PageHeader title="Settings" />
   <section class="card glass">
     <h2 class="card-title">Index</h2>
     <p class="card-desc">
