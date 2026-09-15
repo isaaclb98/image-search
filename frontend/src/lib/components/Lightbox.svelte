@@ -600,14 +600,14 @@
       aria-hidden="true"
     ></div>
   {/if}
-  <div class="content" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
-    <button class="nav close" type="button" onclick={onClose} aria-label="Close">
+  <div class="content" onclick={onClose} oncontextmenu={(e) => e.preventDefault()}>
+    <button class="nav close" type="button" onclick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">
       <Icon name="close" size={20} />
     </button>
     <button
       class="nav prev"
       type="button"
-      onclick={prev}
+      onclick={(e) => { e.stopPropagation(); prev(); }}
       disabled={!playing && idx === 0}
       aria-label="Previous"
     >
@@ -665,7 +665,7 @@
     <button
       class="nav next"
       type="button"
-      onclick={next}
+      onclick={(e) => { e.stopPropagation(); next(); }}
       disabled={!playing && idx === items.length - 1}
       aria-label="Next"
     >
