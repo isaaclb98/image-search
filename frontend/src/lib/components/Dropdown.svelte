@@ -162,11 +162,11 @@
       // Default: menu's bottom edge sits GAP above the trigger's top
       // edge. We anchor via `top` (the menu's top edge) — but we
       // don't know the menu's height until after mount, so this
-      // helper just sets the right-aligned initial guess. The
+      // helper just sets the left-aligned initial guess. The
       // two-pass post-mount clamp in toggle() corrects the top.
-      pos = { top: rect.top - GAP, left: rect.right };
+      pos = { top: rect.top - GAP, left: rect.left };
     } else {
-      pos = { top: rect.bottom + GAP, left: rect.right };
+      pos = { top: rect.bottom + GAP, left: rect.left };
     }
   }
 
@@ -190,13 +190,14 @@
           pos = { ...pos, top: triggerR.top - GAP - menuRect.height };
         }
         // Keep menu within the viewport horizontally. Default
-        // alignment is right-edge flush with trigger's right; shift
-        // left if it would overflow, or right if it would clip.
-        let left = triggerR.right - menuRect.width;
-        if (left < GAP) left = GAP;
+        // alignment is left-edge flush with trigger's left; shift
+        // left if it would overflow the right edge, or right if
+        // it would clip the left edge.
+        let left = triggerR.left;
         if (left + menuRect.width > window.innerWidth - GAP) {
           left = window.innerWidth - GAP - menuRect.width;
         }
+        if (left < GAP) left = GAP;
         pos = { ...pos, left };
       }
       // Focus first item for keyboard users.
