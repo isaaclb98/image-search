@@ -14,7 +14,6 @@
   import { onMount } from 'svelte';
   import { forYouFeed, likePoint, unlikePoint, dislikePoint, listAlbums } from '$lib/api/endpoints';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
 
   type Tile = {
     id: string;
@@ -65,7 +64,6 @@
       }));
     } catch (e) {
       console.error('ForYouRow: feed fetch failed', e);
-      toast.show('Could not load recommendations.', { kind: 'error' });
     } finally {
       loading = false;
     }
@@ -95,7 +93,6 @@
       // paging through photos with arrow keys. The visual feedback
       // (filled heart) is enough.
     } catch {
-      toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
@@ -108,7 +105,6 @@
       // Round‑28: same — keep the lightbox open. The user can close
       // it themselves or page to the next photo.
     } catch {
-      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 

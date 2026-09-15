@@ -23,7 +23,6 @@
     listDislikes,
     thumbUrl
   } from '$lib/api/endpoints';
-  import { toast } from '$lib/components/Toaster.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
@@ -75,7 +74,6 @@
       const res = (await listAlbums()) as { albums: AlbumSummary[] };
       albums = res?.albums ?? [];
     } catch (e: any) {
-      toast.show('Failed to load albums', { kind: 'error' });
     } finally {
       loading = false;
     }
@@ -152,9 +150,7 @@
     try {
       await createAlbum({ name: name.trim() });
       await refresh();
-      toast.show('Album created.', { kind: 'success' });
     } catch {
-      toast.show('Create failed.', { kind: 'error' });
     }
   }
 
@@ -170,7 +166,6 @@
       await deleteAlbum(id);
       albums = albums.filter((a) => a.id !== id);
     } catch {
-      toast.show('Delete failed.', { kind: 'error' });
     }
   }
 

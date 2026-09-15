@@ -20,7 +20,6 @@
   } from '$lib/api/endpoints';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
     id: string;
@@ -63,7 +62,6 @@
         x.id === id ? { ...x, is_favorite: !liked } : x
       );
     } catch {
-      toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
@@ -76,7 +74,6 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
-      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 

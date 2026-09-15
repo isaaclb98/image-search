@@ -15,7 +15,6 @@
   import { getAlbum, removePhotoFromAlbum, deleteAlbum } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
@@ -130,7 +129,6 @@
     }
     try {
       await removePhotoFromAlbum(Number(albumId), pointId);
-      toast.show('Removed from album.', { kind: 'success' });
     } catch (e: any) {
       // Restore the previous state.
       members = before;
@@ -140,9 +138,6 @@
           member_total: detail.member_total + 1,
         };
       }
-      toast.show(`Failed to remove: ${e?.message ?? 'unknown error'}`, {
-        kind: 'error',
-      });
     }
   }
 
@@ -160,12 +155,8 @@
     if (!ok) return;
     try {
       await deleteAlbum(detail.id);
-      toast.show(`Deleted "${detail.name}".`, { kind: 'success' });
       goto('/albums');
     } catch (e: any) {
-      toast.show(`Failed to delete: ${e?.message ?? 'unknown error'}`, {
-        kind: 'error',
-      });
     }
   }
 </script>

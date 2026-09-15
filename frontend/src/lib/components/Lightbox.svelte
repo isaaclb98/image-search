@@ -36,8 +36,6 @@
   import { blurhashToDataUrl } from './blurhash-bg';
   import ActionButton from './ActionButton.svelte';
   import Dropdown from './Dropdown.svelte';
-  import { toast } from './Toaster.svelte';
-
   function goSimilar(id: string) {
     onClose();
     goto(`/similar/${encodeURIComponent(id)}`);
@@ -250,14 +248,11 @@
     try {
       if (inThisAlbum) {
         await removePhotoFromAlbum(albumId, it.id);
-        toast.show(`Removed from "${albumName}"`, { kind: 'success' });
       } else {
         await addPhotoToAlbum(albumId, it.id);
-        toast.show(`Added to "${albumName}"`, { kind: 'success' });
       }
     } catch {
       memberOf = before;
-      toast.show(`Could not update "${albumName}"`, { kind: 'error' });
     }
   }
 

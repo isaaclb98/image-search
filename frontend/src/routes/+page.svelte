@@ -32,7 +32,6 @@
   } from '$lib/api/endpoints';
   import type { SavedSearch } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
-  import { toast } from '$lib/components/Toaster.svelte';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -255,7 +254,6 @@
         x.id === id ? { ...x, is_favorite: !liked } : x
       );
     } catch {
-      toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
@@ -266,7 +264,6 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
-      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 
