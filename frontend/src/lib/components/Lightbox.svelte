@@ -760,9 +760,14 @@
        matching the glass aesthetic Isaac called out. The
        photo cell below stays near-opaque so the actual
        image isn't tinted by the overlay. */
-    background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: var(--glass-heavy);
-    -webkit-backdrop-filter: var(--glass-heavy);
+    /* Round-66d: outer overlay is transparent — the
+       page/grid below shows through normally, no dimming.
+       Isaac: 'outer part shouldn't be transparent. It should
+       just be grid as normal.' The focus on the photo comes
+       from the chrome (nav buttons, action bar) and the
+       glass photo cell on top, not from dimming the page.
+       No backdrop-filter either — there's nothing to blur. */
+    background: transparent;
     /* Two stacked rows: the image region (content) and the action
        bar. The row-gap is the sole source of spacing between
        them — .content has no border or margin contributing extra
@@ -805,22 +810,18 @@
     background-repeat: no-repeat;
     background-position: center;
     background-size: cover;
-    /* Lower saturation than before (1.5 → 1.2) so the colour
-       stays a wash rather than a saturated hot band. brightness
-       0.55 → 0.7 keeps the colour bright enough to read but
-       stops punching through as a ring. */
-    filter: blur(60px) saturate(1.2) brightness(0.7);
+    /* Round-66d: outer overlay is transparent, so the .tint
+       layer (blurhash-tinted blur) no longer makes sense —
+       there's no scrim to colour-wash. The layer is kept in
+       the DOM (the JS still sets the blurhash background-image)
+       but with opacity 0 so it's invisible. The page grid
+       below shows through normally, exactly as Isaac asked. */
     opacity: 0;
-    transition: opacity 150ms var(--ease-out);
     pointer-events: none;
     z-index: -1;
   }
   .tint.tint-ready {
-    /* 0.65 → 0.5 — the .overlay's own dark scrim (0.4) does
-       most of the opacity work; the tint layer doesn't need
-       to push hard. Lower opacity means less visible band
-       edges where the tint transitions to outside-overlay. */
-    opacity: 0.5;
+    opacity: 0;
   }
   .content {
     /* Fill the first (1fr) row of the overlay grid. The grid
@@ -836,9 +837,12 @@
     place-items: center;
     border-radius: var(--r-3);
     overflow: hidden;
+    /* Round-66d: removed backdrop-filter. Isaac wanted the
+       page grid to show through normally (no blur); the
+       translucent white fill (0.4) keeps the inner cell
+       as a glass surface but the underlying page stays
+       sharp. */
     background: rgba(255, 255, 255, 0.4);
-    backdrop-filter: var(--glass-medium);
-    -webkit-backdrop-filter: var(--glass-medium);
     border: 1px solid var(--glass-edge);
   }
   .photo {
