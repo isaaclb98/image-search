@@ -269,8 +269,12 @@
      the disliked styling so the "I hid this from recommendations"
      message wins. */
   .tile.disliked.favorite {
-    border-color: rgba(140, 160, 200, 0.45);
-    box-shadow: 0 0 0 1px rgba(140, 160, 200, 0.30);
+    /* Round-65: was rgba(140,160,200) — a custom blue-gray
+       used only on the .disliked.favorite mixed state. Now
+       derives from --accent so this rare state still reads
+       as on-brand. */
+    border-color: var(--mixed-tile-border);
+    box-shadow: 0 0 0 1px var(--mixed-tile-ring);
     opacity: 0.72;
   }
   .ph, .full {
@@ -294,7 +298,7 @@
     background: linear-gradient(
       135deg,
       rgba(var(--halo), 0.10),
-      rgba(255,122,138,0.08)
+      var(--empty-tile-accent)
     );
   }
 

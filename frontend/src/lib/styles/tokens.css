@@ -75,6 +75,20 @@
   --skeleton-base: rgba(255, 255, 255, 0.05);
   --skeleton-peak: rgba(255, 255, 255, 0.08);
 
+  /* mixed-state tile chrome — the rare case where a tile is both
+     liked and disliked (stale render). Used by
+     .tile.disliked.favorite in PhotoTile.svelte. Was a custom
+     blue-gray (rgba(140,160,200)) — now derives from --accent
+     via color-mix so it follows the rest of the accent. */
+  --mixed-tile-border: color-mix(in srgb, var(--accent) 45%, transparent);
+  --mixed-tile-ring: color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* empty-tile accent — the peach gradient endpoint for the
+     fallback tile background (visible only when a tile has no
+     thumbnail). */
+  --empty-tile-accent: rgba(255, 122, 138, 0.08);
+
+
 
 
   /* glass — backdrop-filter tiers. Use these on glass surfaces
