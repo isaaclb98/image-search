@@ -454,10 +454,10 @@
 
   .sidebar {
     border-radius: var(--r-2);
-    padding: var(--s-4);
+    padding: var(--card-pad-tight);
     display: flex;
     flex-direction: column;
-    gap: var(--s-4);
+    gap: var(--s-3);
     /* Allow long file paths to wrap instead of overflowing. */
     overflow-wrap: anywhere;
   }

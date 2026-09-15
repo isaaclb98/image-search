@@ -147,7 +147,7 @@
      page section lives inside it. */
   --shell-pad-x: 40px;
   --shell-pad-y: 32px;
-  --shell-gap: 28px;
+  --shell-gap: 20px;
 
   /* card padding — canonical padding for the page-header card and
      section cards inside a page. Three of five album-style pages
@@ -155,14 +155,14 @@
      28px 16px, albums root 32px 16px) snap to this. Every page
      that uses PageHeader or the `.glass` panel vocabulary applies
      these — never hand-pick padding values. */
-  --page-header-pad: 32px 24px;
-  --card-pad: 32px 24px;
+  --page-header-pad: 24px 24px;
+  --card-pad: 24px 24px;
   /* Tight card padding for compact blocks: tag chips, breadcrumb
-     pills, score badges, secondary action rows. */
+    pills, score badges, secondary action rows. */
   --card-pad-tight: 20px 16px;
   /* Vertical gap between sections inside a card (e.g. between
-     the title row and the body content). The repeated
-     `12px 0 18px` per-page override is replaced with this. */
+    the title row and the body content). The repeated
+    `12px 0 18px` per-page override is replaced with this. */
   --card-section-gap: 16px;
 
   /* overlay pill — the floating meta badges that sit on top of

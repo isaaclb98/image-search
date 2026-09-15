@@ -410,11 +410,13 @@
   }
   .card {
     /* No horizontal padding — the cover spans full width. Vertical
-       padding only sits between the cover and the title. */
-    padding: 0 0 16px;
+       padding only sits between the cover and the title. Round‑47:
+       tightened from 16px to 12px (--s-2) — the cover-to-title
+       gap felt airy when titles were short. */
+    padding: 0 0 var(--s-2);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--s-1);
     overflow: hidden; /* rounded corners on the cover */
     transition: transform var(--t-fast), box-shadow var(--t-fast);
   }

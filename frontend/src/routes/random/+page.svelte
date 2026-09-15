@@ -165,6 +165,3 @@
   {/if}
 </section>
 
-<style>
-  .grid-wrap { padding-top: 8px; }
-</style>
