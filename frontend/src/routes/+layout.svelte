@@ -187,7 +187,7 @@
        the same spacing. Section gap (--shell-gap, 24px) controls
        the space between PageHeader and the content below it. */
     min-height: calc(100vh - var(--topbar-h));
-    padding: var(--shell-pad-y) var(--shell-pad-x) calc(var(--shell-pad-y) * 2);
+    padding: var(--shell-pad-y) var(--shell-pad-x) var(--shell-pad-y);
     display: flex;
     flex-direction: column;
     gap: var(--shell-gap);
@@ -198,7 +198,7 @@
        (matches the 384px thumbnail source 1:1), so beyond this
        cap we'd just be adding whitespace — no benefit to raising
        further until the design supports 7+ columns. */
-    max-width: 2400px;
+    max-width: 2200px;
     margin: 0 auto;
   }
   @media (max-width: 640px) {
@@ -207,7 +207,7 @@
        Snap to var(--s-3) top, var(--s-2) sides, --shell-pad-y x2
        bottom to keep the same proportions on a small screen. */
     .shell {
-      padding: var(--s-3) var(--s-2) calc(var(--shell-pad-y) * 1.5);
+      padding: var(--s-2) var(--s-2) var(--shell-pad-y);
     }
   }
 </style>

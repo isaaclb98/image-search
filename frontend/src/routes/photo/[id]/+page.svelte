@@ -373,9 +373,11 @@
   .page {
     width: 100%;
     /* The TopBar is 64px; we want the photo + sidebar to fill the
-       remaining vertical space. */
+       remaining vertical space. Round‑48 tightened padding to
+       --s-3 (16px) from --s-4 (24px) — the .shell already supplies
+       24px top/bottom, so the .page was double-padding on top. */
     min-height: calc(100vh - var(--topbar-height, 64px));
-    padding: var(--s-4);
+    padding: 0 var(--s-3);
     box-sizing: border-box;
   }
 
@@ -394,8 +396,14 @@
 
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: var(--s-4);
+    /* Round‑48: sidebar widened from 360 to 400px because shell-
+       pad-x dropped from 40 to 32 — the previous 360 left more
+       horizontal real estate on wide displays than the layout
+       could use. Gap between photo and sidebar tightened from
+       --s-4 (24px) to --s-3 (16px) so the photo and sidebar read
+       as a paired unit, not two separate panels. */
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: var(--s-3);
     align-items: start;
   }
 
