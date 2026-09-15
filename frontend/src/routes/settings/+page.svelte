@@ -272,8 +272,10 @@
      rounded). No bespoke card chrome here. The flex layout
      + inter-child gap is page-local since not every card needs
      it (album cards stack title + desc + footer via the
-     .card rule in the albums page). */
+     .card rule in the albums page). .glass does not carry
+     its own padding — that's the page-local concern. */
   .card.glass {
+    padding: var(--card-pad);
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
