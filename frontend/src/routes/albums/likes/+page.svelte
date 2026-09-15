@@ -21,7 +21,6 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
-  import Icon from '$lib/components/Icon.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
   type Item = {
@@ -127,14 +126,10 @@
 <a class="back" href="/albums">← All albums</a>
 
 <PageHeader
+  title="Likes"
   subtitle="Photos you've liked. Built-in, always here."
   meta="{items.length} photo{items.length === 1 ? '' : 's'}"
->
-  {#snippet title()}
-    <Icon name="heart-filled" size={24} />
-    <span>Likes</span>
-  {/snippet}
-</PageHeader>
+/>
 
 {#if loading}
   <div class="placeholder">Loading…</div>

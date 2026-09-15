@@ -25,7 +25,6 @@
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
-  import Icon from '$lib/components/Icon.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
@@ -207,7 +206,6 @@
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
     <a class="title" href="/albums/likes">
-      <Icon name="heart-filled" size={18} />
       <span>Likes</span>
     </a>
     <p class="desc">Photos you've liked. Built-in, always here.</p>
@@ -250,7 +248,6 @@
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
     <a class="title" href="/albums/dislikes">
-      <Icon name="minus" size={18} />
       <span>Dislikes</span>
     </a>
     <p class="desc">Photos you've disliked. Built-in, always here.</p>
@@ -459,12 +456,9 @@
     font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--fg-1);
-    /* Icon + label side by side; the icon is inline-block via
-       the Icon component's default rendering and the span
-       keeps the text on one line. */
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--s-1);
   }
   .desc {
     margin: 0;
