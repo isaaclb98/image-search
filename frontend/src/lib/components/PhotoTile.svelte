@@ -336,7 +336,12 @@
     border-radius: 50%;
     background: var(--pill-bg);
     border: 1px solid var(--pill-border);
-    color: #c9d3e6;
+    /* Round-64: was #c9d3e6 — a light blue-gray meant to read
+       on the old dark pill background. White pills make this
+       look washed-out, so use the negative token (red) so
+       the dislike badge reads as a state, not as a neutral
+       icon. Matches the heart-filled favorite (var(--warn)). */
+    color: var(--negative);
     font-size: 16px;
     font-weight: 500;
     display: inline-flex;

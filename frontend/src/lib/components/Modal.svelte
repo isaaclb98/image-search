@@ -176,8 +176,15 @@
     inset: 0;
     /* Scrim — light enough that the page is visible through
        it (the "glass" aesthetic), heavy enough to clearly
-       defocus the content behind the dialog. */
-    background: rgba(8, 8, 12, var(--glass-alpha-scrim));
+       defocus the content behind the dialog.
+
+       Round-64: was rgba(8, 8, 12, var(--glass-alpha-scrim))
+       — a near-black dark-theme tone. New value is a neutral
+       scrim matching the Lightbox overlay (rgba(0, 0, 0,
+       0.45)): still darkens the page so the dialog pops, but
+       reads as "dimming" not "dark surface" against the rest
+       of the light-themed app. */
+    background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;

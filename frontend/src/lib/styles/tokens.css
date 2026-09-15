@@ -169,17 +169,27 @@
   --card-section-gap: 16px;
 
   /* overlay pill — the floating meta badges that sit on top of
-     photo tiles (score, liked, disliked, remove). Used inside
-     tile.chrome regardless of the photo's average luminance:
-     dark semi-transparent fill + light text + faint white border
-     for legibility on either end of the spectrum. Every tile
-     pill (PhotoTile .score / .fav / .neg-badge / .remove-btn,
-     album .built-in / .del) reads from these tokens. */
-  --pill-bg: rgba(14, 15, 20, 0.55);
-  --pill-bg-strong: rgba(14, 15, 20, 0.7);
-  --pill-bg-hover: rgba(14, 15, 20, 0.8);
-  --pill-fg: rgba(255, 255, 255, 0.95);
-  --pill-border: rgba(255, 255, 255, 0.18);
+     photo tiles (score, liked, disliked, remove).
+
+     Round-64: was dark semi-transparent (rgba(14,15,20))
+     + white text — a dark-theme tone that read as a "dark
+     surface" against the light-themed app. Now white glass
+     + fg-1 text + glass-edge border: same chrome vocabulary
+     as every other panel in the app (TopBar, cards, lightbox
+     nav buttons after Round-63). Hairline border + 85% white
+     fill keeps them readable against both light and dark
+     photos because the white fill is opaque enough to read
+     on dark photos while the soft border doesn't fight
+     light photos.
+
+     Every tile pill (PhotoTile .score / .fav / .neg-badge /
+     .remove-btn, album .built-in / .del) reads from these
+     tokens. */
+  --pill-bg: rgba(255, 255, 255, 0.85);
+  --pill-bg-strong: rgba(255, 255, 255, 0.94);
+  --pill-bg-hover: rgba(255, 255, 255, 1);
+  --pill-fg: var(--fg-1);
+  --pill-border: var(--glass-edge);
   --pill-blur: blur(10px);
 
   /* primary button halo — the cyan radial shadow under the home
