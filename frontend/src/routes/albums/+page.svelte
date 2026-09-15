@@ -413,13 +413,38 @@
        padding only sits between the cover and the title. Round‑47:
        tightened from 16px to 12px (--s-2) — the cover-to-title
        gap felt airy when titles were short. */
-    padding: 0 0 var(--s-2);
+    padding: 0 0 var(--s-3);
     display: flex;
     flex-direction: column;
-    gap: var(--s-1);
+    /* Round-49: per-section rhythm replaces the uniform 8px
+       gap. Cover→title (16px) gets the most breathing room
+       because the cover is the focal point and the text needs
+       a clear entry; title→desc (4px) sits tight as a single
+       "title block"; desc→footer (12px) medium separation;
+       footer→search (16px) more before the action buttons so
+       the buttons read as actions, not as more metadata.
+       The uniform 8px rhythm read as cramped and monotonous
+       — different gaps create visual hierarchy between the
+       five sections. Implemented as per-child margins; flex
+       gap is 0 so the margins are the only thing applying. */
+    gap: 0;
     overflow: hidden; /* rounded corners on the cover */
     transition: transform var(--t-fast), box-shadow var(--t-fast);
   }
+  /* Round-49: per-section rhythm on .card's five children.
+     Cover is full-bleed (no top padding on .card). Gaps:
+       cover → title:    16px (var(--s-3))
+       title → desc:     4px  (var(--s-0)) — tight, they're
+                                   one "title block"
+       desc → footer:    12px (var(--s-2))
+       footer → search:  16px (var(--s-3)) — more space so
+                                   the buttons read as actions
+                                   not as more metadata
+     Margins, not flex gap — gap is uniform across siblings. */
+  .card .title { margin: var(--s-3) 0 0; }
+  .card .desc { margin: var(--s-0) 0 var(--s-2); }
+  .card footer { margin-top: 0; }
+  .card .search-row { margin-top: var(--s-3); }
   .card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-2);
