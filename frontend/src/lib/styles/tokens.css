@@ -84,14 +84,16 @@
   --s-5: 32px;
   --s-6: 48px;
 
-  /* type — Manrope stack. Self-hosted woff2 via @fontsource
-     (400/500/600 — see global.css). Manrope replaces Inter
-     after Isaac said the Inter stack felt too generic for a
-     photo gallery app — Manrope has slightly more personality
-     (geometric with a touch of humanist warmth) without going
-     playful. The Geist @font-face rules are gone; system
-     fallbacks handle the brief moment before the woff2 lands. */
-  --font-stack: 'Manrope', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+  /* type — Public Sans stack. Self-hosted woff2 via @fontsource
+     (300 light, 400 regular, 500 medium — see global.css).
+     Public Sans replaces Manrope after Isaac said Manrope
+     didn't feel right and the bold (600) weights were too
+     assertive. Public Sans is GitHub's UI font: clean without
+     being cold, professional without being geometric.
+     Capped at 500 — the design system uses light (300) and
+     medium (500) only; bold weights were dropped because
+     they didn't suit the soft pastel aesthetic. */
+  --font-stack: 'Public Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
                 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;

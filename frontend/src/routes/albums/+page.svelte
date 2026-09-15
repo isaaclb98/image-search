@@ -330,7 +330,7 @@
     border-radius: var(--r-pill);
     background: var(--accent);
     color: var(--fg-on-accent);
-    font-weight: 600;
+    font-weight: 500;
   }
   .new:hover { background: var(--accent-2); }
 
@@ -466,7 +466,7 @@
   }
   .title {
     font-size: var(--fs-lg);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--fg-1);
     display: inline-flex;
     align-items: center;

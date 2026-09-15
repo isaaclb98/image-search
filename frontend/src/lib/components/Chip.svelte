@@ -52,7 +52,7 @@
   .chip.neg:hover { background: color-mix(in srgb, var(--negative) 30%, transparent); }
   .minus {
     color: var(--negative);
-    font-weight: 600;
+    font-weight: 500;
   }
   .text { white-space: nowrap; }
   .x {

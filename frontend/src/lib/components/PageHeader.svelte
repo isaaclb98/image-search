@@ -83,7 +83,7 @@
     /* Round-1 polish: was --fs-2xl (28px), now --fs-xl (22px) —
        less demo-y, more "shipping product". */
     font-size: var(--fs-xl);
-    font-weight: 600;
+    font-weight: 500;
     display: inline-flex;
     align-items: center;
     gap: 8px;

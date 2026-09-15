@@ -479,7 +479,7 @@
   .filename {
     margin: 0;
     font-size: 1.1rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--fg-1, #1a1a1a);
     word-break: break-all;
   }

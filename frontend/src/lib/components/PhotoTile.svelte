@@ -338,7 +338,7 @@
     border: 1px solid var(--pill-border);
     color: #c9d3e6;
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 500;
     display: inline-flex;
     align-items: center;
     justify-content: center;

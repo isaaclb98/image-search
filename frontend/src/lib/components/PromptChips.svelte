@@ -152,7 +152,7 @@
     color: var(--fg-3);
     background: transparent;
     border-radius: 0;
-    font-weight: 600;
+    font-weight: 500;
     font-size: var(--fs-md);
   }
   .seg.active {

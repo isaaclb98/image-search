@@ -112,7 +112,7 @@
     align-items: center;
     gap: var(--s-1);
     color: var(--fg-1);
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.02em;
   }
   .brand:hover { color: var(--fg-1); }

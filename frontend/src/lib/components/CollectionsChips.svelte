@@ -118,7 +118,7 @@
     justify-content: center;
     font-size: 11px;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 500;
   }
   .count {
     font-size: var(--fs-xs);

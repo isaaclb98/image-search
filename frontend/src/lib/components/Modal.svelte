@@ -207,7 +207,7 @@
   .title {
     margin: 0;
     font-size: var(--fs-md, 16px);
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.01em;
   }
   .body {

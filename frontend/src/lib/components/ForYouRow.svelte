@@ -166,7 +166,7 @@
   }
   .head h2 {
     font-size: var(--fs-xl);
-    font-weight: 600;
+    font-weight: 500;
     margin: 0;
     letter-spacing: -0.01em;
   }

@@ -501,7 +501,7 @@
   }
   .hero h1 {
     font-size: var(--fs-3xl);
-    font-weight: 600;
+    font-weight: 500;
     margin: 0 0 var(--s-1);
     letter-spacing: -0.01em;
     line-height: var(--lh-tight);
