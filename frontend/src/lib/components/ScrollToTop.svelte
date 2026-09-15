@@ -73,7 +73,9 @@
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: rgba(14, 15, 20, 0.65);
+    /* Round-38: white fill with subtle shadow on light theme.
+       Was rgba(14,15,20,0.65) on dark — reads as "ghost panel" now. */
+    background: var(--bg-1);
     border: 1px solid var(--glass-edge-strong);
     color: var(--fg-1);
     display: inline-flex;
@@ -87,7 +89,7 @@
       transform var(--t-fast);
   }
   .scroll-top:hover {
-    background: rgba(14, 15, 20, 0.85);
+    background: var(--bg-2);
     transform: translateY(-2px);
   }
   .scroll-top:focus-visible {

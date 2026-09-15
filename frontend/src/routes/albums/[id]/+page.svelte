@@ -197,7 +197,7 @@
     text-decoration: none;
     font-weight: 500;
   }
-  .zip:hover { background: var(--accent-strong); }
+  .zip:hover { background: var(--accent-2); }
   .placeholder {
     padding: 32px 24px;
     text-align: center;

@@ -74,38 +74,16 @@
 </header>
 
 <style>
-  /* Solid tinted header. Round-1 polished from a tokenless 0.12
-     alpha to --topbar-alpha (0.32 at the time) so the bar read
-     as a real surface against bg-0. Round-37 dropped the page
-     backdrop AND the topbar's backdrop-filter AND raised
-     --topbar-alpha to 1 — with no backdrop tint and no frost,
-     any alpha < 1 lets the page content show through, which
-     re-introduced per-route colour variation. Fully opaque keeps
-     the topbar the same on every page. See the .topbar block
-     below for the full reasoning. */
+  /* Solid tinted header. Round-38 switched from dark glass to
+     light Immich-style. The topbar is a translucent white pill
+     with hairline border — it sits on the mesh-gradient
+     backdrop, lets the colour wash show through, and uses a
+     border (not a shadow) to separate from content below. */
   .topbar {
-    /* Round-1 polish: sticky so the brand + tabs stay reachable
-       while scrolling. The scroll-to-top button stays — its job
-       is to scroll the page back to the top, not restore topbar
-       visibility (different concern). */
     position: sticky;
     top: 0;
     z-index: 100;
-    /* Solid tinted surface. Previously used backdrop-filter:
-       var(--glass-heavy) (32px blur + 180% saturate) — that
-       sampled whatever was scrolling underneath, so the topbar
-       tinted differently on /random (photo tiles) vs /photo/{id}
-       (blurhash frame) vs /albums (text on dark). Round-37 dropped
-       the per-page backdrop tint AND removed the topbar's
-       backdrop-filter so it stays the same colour on every page.
-       The glass effect only works when there's something
-       interesting to frost against; on a uniform-dark page it's
-       a no-op, on a colourful page it amplifies random page
-       state — neither is a stable design. Per-panel colour
-       lives in .glass-tint::before (each tile's surrounding
-       glass picks up a soft-light sample from the photo inside).
-       The topbar is chrome, not content. */
-    background-color: rgba(14,15,20, var(--topbar-alpha));
+    background-color: rgba(255,255,255,0.7);
     border-bottom: 1px solid var(--glass-edge);
     /* Box-shadow gives the topbar the impression of a surface
        floating just above the page — without the backdrop-filter
@@ -162,10 +140,15 @@
     background: var(--glass-1);
     color: var(--fg-1);
   }
+  /* Active tab: soft blue wash + accent text. This is the
+     Immich-style "you are here" affordance — not a solid blue
+     pill, but a tinted backdrop with the accent colour text on
+     top. Reads as "selected" without competing with the page
+     content. */
   .tab.active {
-    background: var(--glass-2);
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge-strong);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid transparent;
   }
   @media (max-width: 640px) {
     .bar { padding: 0 12px; gap: var(--s-2); }

@@ -131,10 +131,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(14,15,20,0.45);
+    /* Round-38: white pill on light theme. Was rgba(14,15,20,0.45)
+       dark fill — would now be a dark bar on the light backdrop. */
+    background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
     padding: 4px 6px 4px 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
   .toggle {
     display: inline-flex;

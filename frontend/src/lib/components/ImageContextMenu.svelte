@@ -246,7 +246,7 @@
   }
   .item:hover {
     background: var(--glass-2);
-    color: #fff;
+    color: var(--fg-1);
   }
   .i {
     width: 18px;

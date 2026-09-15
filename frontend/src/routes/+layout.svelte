@@ -172,11 +172,9 @@
   .app-shell {
     min-height: 100vh;
     position: relative;
-    background: #0a0e16; /* deep base — the only thing behind every
-                            page. Round-37 dropped the photo-derived
-                            backdrop tint; colour now lives entirely
-                            in the .glass panels (per-tile soft-light
-                            sample from each photo). */
+    background: transparent; /* body supplies the mesh-gradient;
+                               app-shell stays transparent so the
+                               gradient shows through. Round-38. */
   }
   .shell,
   :global(.topbar) {

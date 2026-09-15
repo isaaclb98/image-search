@@ -2,24 +2,31 @@
  * design tokens — the single source of truth for color, spacing,
  * type, radius, glass blur. Pages and components import these via
  * CSS variables on :root. NEVER hardcode colour/spacing values
- * in component CSS — add a token here instead and reference it.
+ * in component CSS — add a token here and reference it.
  *
- * Aesthetic: Wii-menu glass. Tinted transparencies on dark base.
- * Photos bleed muted colour into surrounding glass.
+ * Aesthetic: clean, light, photo-forward. Off-white base with a
+ * soft pastel mesh-gradient backdrop. Photos are the entire UI;
+ * chrome recedes. Copied from Immich's visual language (round 38):
+ * - light surfaces (off-white panels), not dark glass
+ * - blue accent, soft blue active wash
+ * - 10px tile radius, uniform squares
+ * - very subtle shadows (1-2px), borders preferred
+ * - generous spacing, larger editorial typography
  */
 
 :root {
-  /* surfaces */
-  --bg-0: #0e0f14;          /* page background, deepest */
-  --bg-1: #161821;          /* panel background, non-glass */
-  /* glass — alpha layers (used directly + as rgba base for tints) */
-  --glass-1: rgba(255,255,255,0.06);  /* default panel */
-  --glass-2: rgba(255,255,255,0.10);  /* raised panel / hovered */
-  --glass-tint: transparent;           /* dynamic tint source */
+  /* surfaces — light theme */
+  --bg-0: #fafaf7;          /* page background, off-white */
+  --bg-1: #ffffff;          /* panel background, white */
+  --bg-2: #f3f1ed;          /* soft secondary surface */
+  /* glass — alpha layers tuned for white-on-light (was white-on-dark) */
+  --glass-1: rgba(0,0,0,0.03);       /* default panel */
+  --glass-2: rgba(0,0,0,0.06);       /* raised panel / hovered */
+  --glass-tint: transparent;
 
-  /* glass — borders (felt, not seen — Linear/Immich subtlety) */
-  --glass-edge: rgba(255,255,255,0.08);        /* hairline */
-  --glass-edge-strong: rgba(255,255,255,0.14);  /* hover/focus border */
+  /* glass — borders (Linear/Immich subtlety, now dark hairlines) */
+  --glass-edge: rgba(0,0,0,0.06);        /* hairline */
+  --glass-edge-strong: rgba(0,0,0,0.12);  /* hover/focus border */
 
   /* glass — backdrop-filter tiers. Use these on glass surfaces
      instead of blur(…) directly so a single token retunes
@@ -39,35 +46,34 @@
   --glass-alpha-panel: 0.55;
   --glass-alpha-panel-focus: 0.7;
 
-  /* glass — matte fill for center shells (no blur, fixed-compat).
-     Modal/Dialog content uses this by default; rare cases opt
-     into .glass-dialog. */
-  --dialog-fill: rgba(14, 15, 20, 0.88);
+  /* glass — matte fill for center shells (no backdrop-filter) */
+  --matte-fill: rgba(255, 255, 255, 0.88);
+  --dialog-fill: rgba(255, 255, 255, 0.94);
 
-  /* text */
-  --fg-1: #f3f4f7;          /* primary */
-  --fg-2: #b9bcc7;          /* secondary */
-  --fg-3: #7e8290;          /* tertiary / placeholder */
-  --fg-on-accent: #0e0f14;
+  /* text — dark on light */
+  --fg-1: #1a1a1a;          /* primary */
+  --fg-2: #6b7280;          /* secondary */
+  --fg-3: #9ca3af;          /* tertiary / placeholder */
+  --fg-on-accent: #ffffff;
 
-  /* accent — single hue, used sparingly */
-  --accent: #6cc6ff;        /* primary blue */
-  --accent-2: #5fb5ff;      /* hover */
-  --accent-soft: rgba(108,198,255,0.18);
+  /* accent — Immich blue */
+  --accent: #2563eb;        /* primary blue */
+  --accent-2: #1d4ed8;      /* hover */
+  --accent-soft: rgba(37, 99, 235, 0.10);
 
   /* semantic */
-  --negative: #ff7a8a;      /* negative prompts / dislikes */
-  --negative-soft: rgba(255,122,138,0.22);
-  --success: #6ad4a8;
-  --danger: #ff5d6c;
-  --warn: #ffc266;
+  --negative: #ef4444;
+  --negative-soft: rgba(239, 68, 68, 0.10);
+  --success: #10b981;
+  --danger: #ef4444;
+  --warn: #f59e0b;
 
-  /* radii */
-  --r-1: 6px;
-  --r-2: 12px;
+  /* radii — slightly more generous for friendlier feel */
+  --r-1: 10px;              /* tiles */
+  --r-2: 12px;              /* panels */
   --r-3: 18px;
   --r-4: 24px;
-  --r-pill: 999px;
+  --r-pill: 9999px;
 
   /* spacing — 4px grid */
   --s-0: 4px;
@@ -78,12 +84,10 @@
   --s-5: 32px;
   --s-6: 48px;
 
-  /* type — one sans stack (Geist, self-hosted via @fontsource)
-     and one mono stack (system mono — no bundling needed for the
-     handful of <Kbd> shortcut chips). The Geist @font-face rules
-     are imported once at the top of global.css; the system-ui
-     fallbacks handle the brief moment before the woff2 lands. */
-  --font-stack: 'Geist Sans', system-ui, -apple-system, BlinkMacSystemFont,
+  /* type — Inter stack. The Geist @font-face rules stay in
+     global.css for now; system fallbacks handle the brief
+     moment before the woff2 lands. */
+  --font-stack: 'Inter', 'Geist Sans', system-ui, -apple-system, BlinkMacSystemFont,
                 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;
@@ -91,9 +95,9 @@
   --fs-sm: 13px;
   --fs-md: 15px;
   --fs-lg: 18px;
-  --fs-xl: 22px;
-  --fs-2xl: 28px;
-  --fs-3xl: 36px;
+  --fs-xl: 24px;            /* bumped from 22 → 24 for editorial headers */
+  --fs-2xl: 32px;           /* bumped from 28 → 32 for hero/page titles */
+  --fs-3xl: 44px;
   --lh-tight: 1.15;
   --lh-body: 1.45;
 
@@ -102,21 +106,24 @@
   --glass-blur-strong: 28px;
   --glass-saturate: 160%;
 
-  /* shadows — original depth tiers (kept for legacy callers) */
-  --shadow-1: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.18);
-  --shadow-2: 0 4px 12px rgba(0,0,0,0.40), 0 12px 32px rgba(0,0,0,0.28);
-  --shadow-3: 0 12px 28px rgba(0,0,0,0.55), 0 32px 80px rgba(0,0,0,0.40);
+  /* shadows — light theme. Subtle, just enough to lift cards
+     off the off-white base. Border preferred over shadow where
+     possible; shadow reserved for floating actions. */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-2: 0 2px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-3: 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.06);
 
-  /* shadows — layered "glass" shadows. Outer depth + inset
-     highlight mimics macOS window chrome: a card sits ON the
-     surface (lit from above) rather than being a flat rectangle.
-     Use on .glass / .glass-strong / .glass-dialog / .matte-dialog. */
+  /* shadows — light "glass" shadows. Outer depth + inset
+     highlight (the macOS-window lit-from-above effect, but on
+     a light surface the inset highlight becomes a top highlight). */
   --shadow-glass:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 8px 32px rgba(0,0,0,0.35);
+    0 1px 0 rgba(255,255,255,0.6) inset,
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 12px rgba(0,0,0,0.06);
   --shadow-glass-strong:
-    0 1px 0 rgba(255,255,255,0.12) inset,
-    0 12px 48px rgba(0,0,0,0.5);
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 2px 4px rgba(0,0,0,0.05),
+    0 8px 24px rgba(0,0,0,0.08);
 
   /* ratios — mathematical relationships per AGENTS.md ("prefer
      elegant mathematical relationships over hardcoded values").
@@ -126,13 +133,11 @@
   --ratio-sqrt2: 1.414;
 
   /* layout */
-  --topbar-h: 56px;
-  /* Round‑36: tightened from 20 to 4 — dense wall-of-photos
-     instead of airy card grid. Consumers: PhotoGrid (.grid-row),
-     albums/+page.svelte (two grids). JS-side `GAP` constant in
-     PhotoGrid mirrors this so virtualizer row-height math stays
-     exact. */
-  --grid-gutter: 4px;
+  --topbar-h: 64px;
+  /* Round-38: 4 → 14. PhotoPrism-style dense packing read as
+     utilitarian/admin; Immich's 12-14px gutter reads as "personal
+     photo library." Photos are the entire UI; they breathe. */
+  --grid-gutter: 14px;
 
   /* layout shell — vertical rhythm + max content width.
      Single unit (24px) shared by --shell-pad-x, --shell-pad-y,
@@ -140,23 +145,20 @@
      section spacing instead of each page picking its own.
      Applied via the `.shell` wrapper in +layout.svelte; every
      page section lives inside it. */
-  --shell-pad-x: 24px;
-  --shell-pad-y: 24px;
-  --shell-gap: 24px;
+  --shell-pad-x: 40px;
+  --shell-pad-y: 32px;
+  --shell-gap: 28px;
 
-  /* topbar visibility — was rgba(14,15,20,0.12) hardcoded in
-     TopBar.svelte, which disappeared against bg-0, then 0.32
-     for "frosted glass over the photo backdrop" once the page
-     tint was alive. Round-37 dropped the page backdrop AND the
-     topbar's backdrop-filter, AND raised the alpha to 1: with
-     no backdrop tint and no frost, any alpha < 1 lets the page
-     content show through, which re-introduced per-route colour
-     variation. Fully opaque keeps the topbar the same on every
-     page. */
-  --topbar-alpha: 1;
+  /* page header typography — bumped for editorial feel (round 38) */
+  --page-title-size: 32px;
 
-  /* motion */
-  --ease-out: cubic-bezier(0.16, 0.84, 0.32, 1);
-  --t-fast: 120ms;
-  --t-med: 220ms;
+  /* mesh-gradient backdrop — signature Immich visual.
+     Composed via four radial gradients on top of off-white base.
+     Apply via `background: var(--bg-mesh)` on body. */
+  --bg-mesh:
+    radial-gradient(ellipse 50% 40% at 8% 10%, rgba(255, 200, 220, 0.45), transparent 60%),
+    radial-gradient(ellipse 40% 35% at 92% 20%, rgba(255, 225, 175, 0.40), transparent 60%),
+    radial-gradient(ellipse 45% 40% at 85% 85%, rgba(190, 225, 215, 0.40), transparent 60%),
+    radial-gradient(ellipse 50% 45% at 15% 90%, rgba(210, 215, 250, 0.40), transparent 60%),
+    #fafaf7;
 }

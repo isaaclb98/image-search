@@ -386,10 +386,10 @@
     justify-content: center;
     gap: 16px;
     min-height: 50vh;
-    color: var(--fg-2, #888);
+    color: var(--fg-2, #6b7280);
   }
   .placeholder.error {
-    color: var(--err, #c44);
+    color: var(--negative, #ef4444);
   }
 
   .layout {
@@ -420,7 +420,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.4);
+      /* Round-38: was rgba(0,0,0,0.4) (dark fill behind photo on
+         dark theme). On light theme, use a soft dark wash so the
+         photo frame still reads as a contained surface against the
+         mesh-gradient backdrop. */
+      background: rgba(20, 22, 28, 0.06);
+      border: 1px solid var(--glass-edge);
     }
 
   .blur {
@@ -467,7 +472,7 @@
     margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
-    color: var(--fg, #eee);
+    color: var(--fg-1, #1a1a1a);
     word-break: break-all;
   }
 
@@ -523,6 +528,6 @@
   }
   .meta dd {
     margin: 0;
-    color: var(--fg, #eee);
+    color: var(--fg-1, #1a1a1a);
   }
 </style>

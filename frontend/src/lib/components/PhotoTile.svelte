@@ -217,19 +217,23 @@
     position: relative;
     display: block;
     aspect-ratio: 1 / 1;
-    border-radius: var(--r-2);
+    border-radius: var(--r-1);
     overflow: hidden;
     background: var(--bg-1);
     border: 1px solid var(--glass-edge);
+    /* Round-38: lighter shadow on hover (was --shadow-glass-strong
+       which was tuned for dark surfaces). New tokens give a 1-2px
+       subtle shadow + 8px ambient that's right for light theme. */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
     transition: transform var(--t-fast) var(--ease-out),
                 border-color var(--t-fast) var(--ease-out),
                 box-shadow var(--t-fast) var(--ease-out),
                 opacity var(--t-fast) var(--ease-out);
   }
   .tile:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
     border-color: var(--glass-edge-strong);
-    box-shadow: var(--shadow-glass-strong);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.06);
   }
   .tile.menu-open {
     border-color: var(--accent);

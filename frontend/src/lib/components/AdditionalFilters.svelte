@@ -175,7 +175,7 @@
     flex-shrink: 0;
   }
   .field input[type='text'] {
-    background: rgba(14,15,20,0.45);
+    background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
     padding: 0 12px;
@@ -212,7 +212,7 @@
   select {
     height: 36px;
     border-radius: var(--r-pill);
-    background: rgba(14,15,20,0.45);
+    background: var(--bg-1);
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     padding: 0 12px;
