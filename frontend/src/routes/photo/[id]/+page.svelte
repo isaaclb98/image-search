@@ -375,7 +375,7 @@
     /* The TopBar is 64px; we want the photo + sidebar to fill the
        remaining vertical space. */
     min-height: calc(100vh - var(--topbar-height, 64px));
-    padding: 24px;
+    padding: var(--s-4);
     box-sizing: border-box;
   }
 
@@ -384,7 +384,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: var(--s-3);
     min-height: 50vh;
     color: var(--fg-2, #6b7280);
   }
@@ -395,7 +395,7 @@
   .layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 24px;
+    gap: var(--s-4);
     align-items: start;
   }
 
@@ -409,14 +409,14 @@
   .frame {
       position: relative;
       overflow: hidden;
-      border-radius: 12px;
+      border-radius: var(--r-2);
       /* Fixed 3:2 container. The photo fits inside via
          object-fit: contain; the blurhash tint stretches behind it. */
       aspect-ratio: 3 / 2;
       /* Cap photo height on huge displays so it doesn't push the
          sidebar off-screen. When the cap binds, the ratio yields —
          the frame gets shorter but keeps the column width. */
-      max-height: calc(100vh - var(--topbar-height, 64px) - 48px);
+      max-height: calc(100vh - var(--topbar-height, 64px) - var(--s-6));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -453,11 +453,11 @@
   }
 
   .sidebar {
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: var(--r-2);
+    padding: var(--s-4);
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--s-4);
     /* Allow long file paths to wrap instead of overflowing. */
     overflow-wrap: anywhere;
   }
@@ -465,7 +465,7 @@
   .block {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--s-1);
   }
 
   .filename {
@@ -483,8 +483,8 @@
     text-align: left;
     background: color-mix(in srgb, var(--fg-1) 4%, transparent);
     border: 1px solid var(--glass-edge);
-    border-radius: 8px;
-    padding: 8px 10px;
+    border-radius: var(--r-1);
+    padding: var(--s-1) var(--s-2);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8rem;
     color: var(--fg-2, #aaa);
@@ -504,11 +504,11 @@
   .actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: var(--s-1);
   }
 
   .meta h3 {
-    margin: 0 0 8px 0;
+    margin: 0 0 var(--s-1) 0;
     font-size: 0.75rem;
     font-weight: 500;
     text-transform: uppercase;
@@ -520,7 +520,7 @@
     margin: 0;
     display: grid;
     grid-template-columns: 90px 1fr;
-    gap: 6px 12px;
+    gap: var(--s-1) var(--s-2);
     font-size: 0.85rem;
   }
   .meta dt {
