@@ -92,17 +92,23 @@
   }
   .bar {
     height: var(--topbar-h);
-    display: flex;
+    display: grid;
+    /* Two-column grid: brand on the left (auto), tabs take the
+       remaining 1fr and center themselves within it. This
+       balances the visual whitespace around the tabs — brand
+       on left, ~213px gap, tabs centered, ~382px gap, empty
+       right edge. The tabs sit at x ≈ 561-1015 in a 1216-wide
+       bar, visually centered in the space to the right of the
+       brand rather than in the full bar width. Previous
+       (justify-content: center on a flex parent) put the tabs
+       at x ≈ 493-946 — centered in the full bar but visually
+       shifted right of center because the brand takes the
+       left third. Isaac called the prior layout 'arbitrary';
+       this version has clear left/right whitespace symmetry
+       relative to the tabs. */
+    grid-template-columns: auto 1fr;
     align-items: center;
-    gap: var(--s-4);
     padding: 0 var(--shell-pad-x);
-    /* Match the page header card width via --grid-width so the
-       brand mark and tabs stay vertically aligned with the random
-       / for-you / albums header below. The hardcoded 1600px that
-       used to live here drifted away from --grid-width at every
-       zoom level (bar widened to 2400px at 150%, header only to
-       2190px), pulling the nav tabs noticeably rightward of the
-       page chrome they were supposed to align with. */
     width: var(--grid-width, 100%);
     max-width: 100%;
     margin: 0 auto;
@@ -121,6 +127,11 @@
    * color drives it; alignment with the text comes from the
    * Icon's own viewBox + the .brand flex layout. */
   .tabs {
+    /* Sits in the second grid column (1fr) and centers itself
+       within that column — visually balanced in the space to
+       the right of the brand. */
+    grid-column: 2;
+    justify-self: center;
     display: flex;
     gap: var(--s-1);
     align-items: center;
