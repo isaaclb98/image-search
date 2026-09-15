@@ -25,7 +25,6 @@
   } from '$lib/api/endpoints';
   import { toast } from '$lib/components/Toaster.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
-  import { pushRandomTint } from '$lib/components/blurhash-bg';
   import Icon from '$lib/components/Icon.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
@@ -181,11 +180,9 @@
     // so the page reaches a fully-populated state in max(t1, t2)
     // instead of t1 + t2. (Tier 1.5.)
     Promise.all([refresh(), refreshSystemCounts()]);
-    // Round‑31: /albums doesn't render a PhotoGrid so the
-    // backdrop-tint effect in PhotoGrid doesn't fire here.
-    // Push a random photo's blurhash-derived colour tint so the
-    // page has a colour wash instead of solid black.
-    void pushRandomTint();
+    // Round-37: removed pushRandomTint() — the page-level
+    // backdrop is a flat dark base (see +layout.svelte), no per-
+    // page tint fetch needed.
   });
 </script>
 

@@ -50,7 +50,6 @@
   import Dropdown from '$lib/components/Dropdown.svelte';
   import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
-  import { pageTint } from '$lib/stores/tint';
 
   type PhotoMeta = {
     id: string;
@@ -104,10 +103,11 @@
   // if decoding fails (no blurhash, malformed, etc.).
   let blurTint = $state<string | null>(null);
 
-  // Blurhash decode runs on mount; the +page.ts load already
-  // pre-populated `photo`. We still need this for the pageTint
-  // backdrop effect — same logic as before, just kicked off
-  // by mount instead of the fetch.
+  // Decode the photo's blurhash for the local LQIP frame tint.
+  // Round-37: this no longer writes to the global pageTint store —
+  // the page-level backdrop is a flat dark base, and the per-photo
+  // blurhash only paints behind the photo frame (the `.blur` div
+  // inside `.frame`).
   onMount(() => {
     const data = photo;
     if (data?.blurhash) {
@@ -115,7 +115,6 @@
         .then((url) => {
           if (url && photo && photo.id === data.id) {
             blurTint = url;
-            pageTint.set(url);
           }
         })
         .catch(() => {

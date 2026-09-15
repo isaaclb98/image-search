@@ -20,8 +20,9 @@ html, body {
   line-height: var(--lh-body);
   /* Solid base. Static radial gradients here competed with the
      photo-derived backdrop tint and produced visible radiating
-     colour bands. The colour now comes entirely from .bg-backdrop,
-     and the panels get their warmth from the new glass fill. */
+     colour bands. Round-37 dropped the photo-derived backdrop
+     entirely — the colour story now lives entirely in the
+     .glass panels (per-tile soft-light sample from each photo). */
 }
 
 /* Inter OpenType — cleaner geometric character shapes (single-storey

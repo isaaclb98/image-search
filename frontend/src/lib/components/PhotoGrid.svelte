@@ -22,10 +22,8 @@
    * page. No more divergent copy-paste.
    */
   import { onMount, onDestroy } from 'svelte';
-  import { pageTint } from '$lib/stores/tint';
-  import { photoUrl, thumbUrl } from '$lib/api/endpoints';
+  import { photoUrl } from '$lib/api/endpoints';
   import type { SearchResult } from '$lib/api/endpoints';
-  import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
   import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
   import type { SvelteVirtualizer } from '@tanstack/svelte-virtual';
   import PhotoTile from './PhotoTile.svelte';
@@ -356,76 +354,21 @@
     lightboxIndex = null;
   }
 
-  // Round‑31: push the most-recently-in-view tile's blurhash to
-  // the pageTint store. This gives every grid page (/, /random,
-  // /for-you, /albums/likes, /albums/dislikes, /similar/…) a
-  // colour wash even when no lightbox is open.
-  //
-  // The lightbox effect below overrides this with the full
-  // /photo/{id}/raw URL when a lightbox is open, so the backdrop
-  // shows the actual photo (heavily blurred) rather than a flat
-  // blurhash tint during interactive viewing.
-  //
-  // Implementation: debounce so we don't fire blurhashToDataUrl
-  // on every scroll. The output is a 64×40 PNG data URL — small
-  // enough to set on every "settled" position without cost.
-  $effect(() => {
-    // Track `virtualItems` so this re-runs when the row scrolls.
-    const vis = virtualItems;
-    if (vis.length === 0 || items.length === 0) return;
-    if (lightboxIndex !== null) return; // lightbox effect owns the tint
-    // First visible item — the anchor for the current view.
-    const firstVisRow = vis[0];
-    const topItem = items[firstVisRow.index];
-    const hash = topItem?.blurhash;
-    if (!hash) return;
-    // Debounce so we don't churn on every scroll frame.
-    let cancelled = false;
-    const id = setTimeout(() => {
-      blurhashToDataUrl(hash, 64, 40).then((url) => {
-        if (!cancelled && url) pageTint.set(url);
-      }).catch(() => {
-        // blurhash decode can throw on malformed hashes; safe to ignore.
-      });
-    }, 80);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  });
-
-  // Round‑31 fix: actually push the active photo's URL to the
-  // global pageTint store so +layout.svelte can paint a colour
-  // bleed behind the page. Previously the store was imported but
-  // never written to, so the backdrop stayed solid black.
-  //
-  // On lightbox open: set the URL of the active item.
-  // On lightbox close: the grid‑tint effect above re‑engages
-  // (it sees lightboxIndex === null and pushes a blurhash), so
-  // no separate clear is needed — that was the source of a
-  // race where the clear timer fired AFTER the grid tint and
-  // wiped it. Pages that use PhotoGrid with no items fall
-  // through to the default dark backdrop.
-  //
-  // Round‑10: use the thumbnail URL instead of the raw
-  // photo URL. The backdrop is rendered at 100vw × 100vh
-  // and blurred 60 px in CSS — a 384 px source upscaled
-  // and blurred is perceptually identical to the full-res
-  // version for ambient atmosphere, but cuts the transfer
-  // size from a typical 3-5 MB JPEG down to a ~20 KB
-  // WebP. Big win on the user-perceived lightbox open
-  // latency. Post the model-variant migration plan, 384
-  // is the single thumbnail size served by the indexer
-  // (matches the so400m model input resolution).
-  $effect(() => {
-    const i = lightboxIndex;
-    if (i !== null && i >= 0 && i < items.length) {
-      const it = items[i];
-      if (it?.id) {
-        pageTint.set(thumbUrl(it.id, 384));
-      }
-    }
-  });
+  // Round-37: removed the per-scroll and per-lightbox pageTint
+  // effects. They were pushing the first-visible row's blurhash
+  // (and the lightbox-active photo's URL) to a global backdrop
+  // element on every IntersectionObserver tick, which caused two
+  // visible problems on /random, /for-you, and any grid feed:
+  //   - the backdrop colour shifted continuously as the user
+  //     scrolled past photos (the anchor row changed, the wash
+  //     followed);
+  //   - the photo's saturated regions bled through the 90px blur
+  //     as radiating colour bands.
+  // Per-tile colour still comes from `.glass-tint::before`; the
+  // page-level backdrop is now a flat dark base owned by +layout.
+  // Per-panel ambient colour inside the Lightbox is owned by the
+  // Lightbox component itself (the `.tint` rule), not by a
+  // page-wide backdrop.
 
   function openContextMenu(item: Item, e: MouseEvent) {
     e.preventDefault();
