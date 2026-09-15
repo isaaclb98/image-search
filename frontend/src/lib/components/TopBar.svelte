@@ -33,8 +33,20 @@
   ];
 
   let currentPath = $derived($page.url.pathname);
+  /* Round-60: detail pages (/photo/[id], /similar/[id]) don't
+     match any tab href in the list, so before this rule the
+     isActive() check would return false for every tab and the
+     topbar read as 'no current location' on photo pages —
+     Isaac called this 'stale'. Detail views are an extension
+     of photo browsing, which lives under the Random tab, so
+     we treat /photo and /similar paths as active-Random. The
+     album detail page (/albums/[id]) keeps matching its own
+     Albums href via the default startsWith check below. */
   function isActive(href: string, path: string): boolean {
     if (href === '/') return path === '/';
+    if (path.startsWith('/photo/') || path.startsWith('/similar/')) {
+      return href === '/random';
+    }
     return path === href || path.startsWith(href + '/');
   }
   function onTabClick(t: Tab, e: MouseEvent) {
