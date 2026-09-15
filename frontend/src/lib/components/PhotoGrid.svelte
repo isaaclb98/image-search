@@ -624,7 +624,7 @@
   }
   .skeleton-tile {
     /* Inherits aspect-ratio: 1 from .grid-tile. */
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--skeleton-base);
     border-radius: var(--r-md, 8px);
     overflow: hidden;
     position: relative;
@@ -635,9 +635,9 @@
     inset: 0;
     background: linear-gradient(
       100deg,
-      rgba(255, 255, 255, 0) 20%,
-      rgba(255, 255, 255, 0.08) 50%,
-      rgba(255, 255, 255, 0) 80%
+      var(--skeleton-track) 20%,
+      var(--skeleton-peak) 50%,
+      var(--skeleton-track) 80%
     );
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s infinite linear;

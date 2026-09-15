@@ -184,7 +184,7 @@
        0.45)): still darkens the page so the dialog pops, but
        reads as "dimming" not "dark surface" against the rest
        of the light-themed app. */
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--scrim);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;

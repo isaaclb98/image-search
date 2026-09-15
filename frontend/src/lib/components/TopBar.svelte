@@ -95,7 +95,7 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    background-color: rgba(255,255,255,0.7);
+    background-color: var(--glass-fill-light);
     border-bottom: 1px solid var(--glass-edge);
     /* Box-shadow gives the topbar the impression of a surface
        floating just above the page — without the backdrop-filter

@@ -754,7 +754,7 @@
        frost) because the photo behind the action bar is
        the highest-contrast content in the app — the bar
        needs every bit of frost to stay legible. */
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--scrim);
     backdrop-filter: var(--glass-heavy);
     -webkit-backdrop-filter: var(--glass-heavy);
     /* Two stacked rows: the image region (content) and the action
@@ -830,7 +830,7 @@
     place-items: center;
     border-radius: var(--r-3);
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--scrim-cell);
     border: 1px solid var(--glass-edge);
   }
   .photo {

@@ -62,6 +62,20 @@
      (gives them a subtle "card" edge). */
   --glass-edge-bright: rgba(255, 255, 255, 0.04);
 
+  /* scrim — neutral dimming overlay used by Modal and Lightbox.
+     The overlay (rgba(0, 0, 0, 0.45)) and photo cell
+     (rgba(0, 0, 0, 0.25)) both share this scale. */
+  --scrim: rgba(0, 0, 0, 0.45);
+  --scrim-cell: rgba(0, 0, 0, 0.25);
+
+  /* skeleton — skeleton loader shimmer gradient stops.
+     Three alphas: track (almost invisible), highlight (peak),
+     fall-off (transparent). */
+  --skeleton-track: rgba(255, 255, 255, 0);
+  --skeleton-base: rgba(255, 255, 255, 0.05);
+  --skeleton-peak: rgba(255, 255, 255, 0.08);
+
+
 
   /* glass — backdrop-filter tiers. Use these on glass surfaces
      instead of blur(…) directly so a single token retunes
