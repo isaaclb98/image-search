@@ -145,10 +145,15 @@
   --shell-gap: 24px;
 
   /* topbar visibility — was rgba(14,15,20,0.12) hardcoded in
-     TopBar.svelte, which disappeared against bg-0. 0.32 keeps
-     the underlying photo-tint bleed visible while giving the
-     bar real weight. */
-  --topbar-alpha: 0.32;
+     TopBar.svelte, which disappeared against bg-0, then 0.32
+     for "frosted glass over the photo backdrop" once the page
+     tint was alive. Round-37 dropped the page backdrop AND the
+     topbar's backdrop-filter, AND raised the alpha to 1: with
+     no backdrop tint and no frost, any alpha < 1 lets the page
+     content show through, which re-introduced per-route colour
+     variation. Fully opaque keeps the topbar the same on every
+     page. */
+  --topbar-alpha: 1;
 
   /* motion */
   --ease-out: cubic-bezier(0.16, 0.84, 0.32, 1);

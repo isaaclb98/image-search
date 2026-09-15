@@ -74,13 +74,15 @@
 </header>
 
 <style>
-  /* Heavy frosted glass header. Sits on top of the full-viewport
-     backdrop (see +layout.svelte) — alpha overlay + heavy
-     backdrop-filter creates the frosted look with the colour tint
-     bleeding through from the current photo. Round-1 polish:
-     alpha bumped from 0.12 → 0.32 (was tokenless, now
-     --topbar-alpha) so the bar reads as a real surface against
-     bg-0 instead of flat text. */
+  /* Solid tinted header. Round-1 polished from a tokenless 0.12
+     alpha to --topbar-alpha (0.32 at the time) so the bar read
+     as a real surface against bg-0. Round-37 dropped the page
+     backdrop AND the topbar's backdrop-filter AND raised
+     --topbar-alpha to 1 — with no backdrop tint and no frost,
+     any alpha < 1 lets the page content show through, which
+     re-introduced per-route colour variation. Fully opaque keeps
+     the topbar the same on every page. See the .topbar block
+     below for the full reasoning. */
   .topbar {
     /* Round-1 polish: sticky so the brand + tabs stay reachable
        while scrolling. The scroll-to-top button stays — its job
@@ -89,13 +91,25 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    /* Heavy glass tier — the topbar sits on top of the photo
-       backdrop and needs the strongest frost to read clearly. */
+    /* Solid tinted surface. Previously used backdrop-filter:
+       var(--glass-heavy) (32px blur + 180% saturate) — that
+       sampled whatever was scrolling underneath, so the topbar
+       tinted differently on /random (photo tiles) vs /photo/{id}
+       (blurhash frame) vs /albums (text on dark). Round-37 dropped
+       the per-page backdrop tint AND removed the topbar's
+       backdrop-filter so it stays the same colour on every page.
+       The glass effect only works when there's something
+       interesting to frost against; on a uniform-dark page it's
+       a no-op, on a colourful page it amplifies random page
+       state — neither is a stable design. Per-panel colour
+       lives in .glass-tint::before (each tile's surrounding
+       glass picks up a soft-light sample from the photo inside).
+       The topbar is chrome, not content. */
     background-color: rgba(14,15,20, var(--topbar-alpha));
-    backdrop-filter: var(--glass-heavy);
-    -webkit-backdrop-filter: var(--glass-heavy);
     border-bottom: 1px solid var(--glass-edge);
-    overflow: hidden;
+    /* Box-shadow gives the topbar the impression of a surface
+       floating just above the page — without the backdrop-filter
+       frost, this is what sells the "layer above content" read. */
     box-shadow: var(--shadow-glass);
   }
   .bar {
