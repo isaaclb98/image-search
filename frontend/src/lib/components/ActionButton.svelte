@@ -103,11 +103,14 @@
   }
   .action:hover { background: var(--glass-2); }
   .action:disabled { cursor: not-allowed; opacity: 0.5; }
-  /* Permanent darken for actions that have already been taken.
-     Uses --glass-edge + a stronger fill so the pressed state
-     reads as "selected" without competing with the hover state. */
+  /* Round-69: permanent ON state for toggle actions (Like,
+     Dislike). Same chrome as TopBar active tab + Settings
+     preset - accent-soft fill + accent border. Was a
+     dialog-fill (white) + glass-edge-strong which read as
+     just "thicker border" rather than "selected". */
   .action[aria-pressed='true'] {
-    background: var(--dialog-fill);
-    border-color: var(--glass-edge-strong);
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>

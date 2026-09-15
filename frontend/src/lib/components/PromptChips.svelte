@@ -155,9 +155,14 @@
     font-weight: 500;
     font-size: var(--fs-md);
   }
+  /* Round-69: segmented control active state matches
+     other ON-state chrome in the app (TopBar tab, Settings
+     preset, ActionButton aria-pressed): accent-soft fill +
+     accent text. Was solid accent fill which read as a
+     primary action not a selected segment. */
   .seg.active {
-    background: var(--accent);
-    color: var(--fg-on-accent);
+    background: var(--accent-soft);
+    color: var(--accent);
   }
   .composer-input {
     flex: 1;
