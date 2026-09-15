@@ -141,13 +141,13 @@ def validate_variant_against_stored(env_variant: str, data_dir: str = "./data") 
 # Backward compatibility: these are derived from the variant
 DEFAULT_MODEL: str = get_model_name_for_variant(get_siglip_variant())
 DEFAULT_COLLECTION: str = "images"
-# Round‑14: separate read/write collections so the indexer never
-# contends with the app. The indexer writes to `images_pending`;
-# the app reads from `images`; a background SyncManager moves
-# pending → images in small batches.
-DEFAULT_WRITE_COLLECTION: str = "images_pending"
-SYNC_BATCH_SIZE: int = 100
-SYNC_INTERVAL_SECONDS: float = 5.0
+# Option B (Sept 2026): the indexer writes directly to the canonical
+# collection. The round-14 staging-collection design (`images_pending`
+# + SyncManager) was deleted because the
+# `--qdrant-collection` ambiguity it introduced was the root cause
+# of the change-detection silent re-embed bug. See commit 75aa9bb for
+# the diagnosis; the follow-up commit deleted `search/sync.py`,
+# `images_pending`, and `_sync_meta` entirely.
 DEFAULT_RESULT_LIMIT: int = 28
 
 # Mapping from open_clip arch tag → (centroid-file `model` string).
@@ -215,13 +215,10 @@ class Config:
     # In test mode the real model is replaced with a deterministic mock.
     # Set SEARCH_TEST_MODE=1 from conftest to enable.
     test_mode: bool
-    # Round‑14: separate read/write collections so the indexer never
-    # contends with the app. The indexer writes to `qdrant_write_collection`;
-    # the app reads from `qdrant_collection`; a background SyncManager
-    # moves pending → search in small batches.
-    qdrant_write_collection: str = DEFAULT_WRITE_COLLECTION
-    qdrant_sync_batch_size: int = SYNC_BATCH_SIZE
-    qdrant_sync_interval_seconds: float = SYNC_INTERVAL_SECONDS
+    # Option B (Sept 2026): single canonical collection. The
+    # previous split-collection design (separate read + write + a
+    # SyncManager that moved points between them) was deleted; see
+    # commit 75aa9bb and the follow-up removal of `search/sync.py`.
     # Search Diversity. These knobs apply only to ordinary /api/search and
     # the SSR search page.
     diversity_max_candidate_pool_size: int = 5000
@@ -393,10 +390,7 @@ def load() -> Config:
 
     cfg = Config(
         qdrant_url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
-        qdrant_collection=os.environ.get("QDRANT_READ_COLLECTION", DEFAULT_COLLECTION),
-        qdrant_write_collection=os.environ.get("QDRANT_WRITE_COLLECTION", DEFAULT_WRITE_COLLECTION),
-        qdrant_sync_batch_size=_int("QDRANT_SYNC_BATCH_SIZE", SYNC_BATCH_SIZE),
-        qdrant_sync_interval_seconds=_float("QDRANT_SYNC_INTERVAL_SECONDS", SYNC_INTERVAL_SECONDS),
+        qdrant_collection=os.environ.get("QDRANT_COLLECTION", DEFAULT_COLLECTION),
         qdrant_api_key=os.environ.get("QDRANT_API_KEY") or None,
         model_name=os.environ.get("MODEL_NAME", DEFAULT_MODEL),
         model_revision=os.environ.get("MODEL_REVISION", ""),

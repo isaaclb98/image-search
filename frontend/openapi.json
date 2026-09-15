@@ -910,7 +910,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get",
         "parameters": [
           {
             "in": "path",
@@ -941,7 +941,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
         "parameters": [
           {
             "in": "path",
@@ -2487,48 +2487,6 @@
         "summary": "Similar Photos"
       }
     },
-    "/api/sync/pause": {
-      "post": {
-        "operationId": "sync_pause_api_sync_pause_post",
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Sync Pause"
-      }
-    },
-    "/api/sync/resume": {
-      "post": {
-        "operationId": "sync_resume_api_sync_resume_post",
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Sync Resume"
-      }
-    },
-    "/api/sync/status": {
-      "get": {
-        "operationId": "sync_status_api_sync_status_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Sync Status Api Sync Status Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Sync Status"
-      }
-    },
     "/api/system/status": {
       "get": {
         "description": "System status with cache stats for the frontend dashboard.",
@@ -2552,7 +2510,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head",
+        "operationId": "favorites_download_zip_favorites_download_zip_get",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2561,7 +2519,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
         "responses": {
           "200": {
             "description": "Successful Response"

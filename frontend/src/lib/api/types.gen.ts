@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
+        get: operations["album_download_zip_albums__album_id__download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_head"];
+        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -210,10 +210,10 @@ export interface paths {
             cookie?: never;
         };
         /** Api Cache Refresh */
-        get: operations["api_cache_refresh_api_cache_refresh_get"];
+        get: operations["api_cache_refresh_api_cache_refresh_post"];
         put?: never;
         /** Api Cache Refresh */
-        post: operations["api_cache_refresh_api_cache_refresh_get_1"];
+        post: operations["api_cache_refresh_api_cache_refresh_post_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -536,57 +536,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/sync/pause": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Sync Pause */
-        post: operations["sync_pause_api_sync_pause_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sync/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Sync Resume */
-        post: operations["sync_resume_api_sync_resume_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sync/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Sync Status */
-        get: operations["sync_status_api_sync_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/system/status": {
         parameters: {
             query?: never;
@@ -615,13 +564,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_head"];
+        get: operations["favorites_download_zip_favorites_download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -1166,7 +1115,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_head_1: {
+    album_download_zip_albums__album_id__download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1195,7 +1144,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_head: {
+    album_download_zip_albums__album_id__download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1575,7 +1524,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_get: {
+    api_cache_refresh_api_cache_refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1595,7 +1544,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_get_1: {
+    api_cache_refresh_api_cache_refresh_post_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1938,7 +1887,7 @@ export interface operations {
             query?: {
                 /** @description Percentile of library to use as the random pool. Default 1.0 (1% → 8000 candidates at 800k library). No ceiling; large values fetch proportionally more. */
                 top_pct?: number;
-                /** @description Photos per page. */
+                /** @description Photos per page. No upper bound. */
                 limit?: number;
                 /** @description Zero-based offset into the shuffled pool. */
                 page?: number;
@@ -2253,64 +2202,6 @@ export interface operations {
             };
         };
     };
-    sync_pause_api_sync_pause_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    sync_resume_api_sync_resume_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    sync_status_api_sync_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
     system_status_api_system_status_get: {
         parameters: {
             query?: never;
@@ -2333,7 +2224,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head: {
+    favorites_download_zip_favorites_download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2351,7 +2242,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head_1: {
+    favorites_download_zip_favorites_download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;

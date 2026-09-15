@@ -47,7 +47,6 @@ from search.models import (
 )
 from search.qdrant_client import QdrantSearch
 from search.random import RandomPicker
-from search.sync import SyncManager
 
 logger = logging.getLogger(__name__)
 
@@ -633,10 +632,10 @@ def create_app(
             recommend_timeout_ms=_cfg.recommend_timeout_ms,
         )
         # Ensure the payload indexes the search API needs exist on
-        # the read collection. The indexer creates them on the write
-        # collection, but the SyncManager that copies points across
-        # doesn't propagate indexes — so a fresh collection (dev,
-        # fresh prod, after `--rebuild`) needs this bootstrap call.
+        # the canonical collection. The indexer creates them too
+        # on every run, but a fresh collection (dev, fresh prod,
+        # after `--rebuild`) needs this bootstrap before any
+        # `/api/collections` call lands.
         # Idempotent; safe to call on every startup.
         qdrant.ensure_payload_index("collection")
     _qdrant = qdrant
@@ -663,33 +662,11 @@ def create_app(
     _index_db = index_db
     random_picker = RandomPicker(index_db)
 
-    # Round‑14: SyncManager moves points from `images_pending`
-    # → `images` on a background asyncio task. The raw client is
-    # distinct from the wrapper above because the wrapper is
-    # collection‑scoped; the sync needs to read one collection and
-    # write another.
-    #
-    # Skip in test mode (memory:// URLs fail validation and we don't
-    # need a real sync loop for unit tests).
-    if _cfg.qdrant_url.startswith(("http://", "https://")):
-        sync_client = QdrantClient(**_qdrant_client_kwargs(
-            url=_cfg.qdrant_url,
-            api_key=_cfg.qdrant_api_key,
-            timeout=_cfg.query_timeout_ms // 1000,
-        ))
-    else:
-        # Tests use the in‑memory qdrant passed in via the `qdrant`
-        # arg. Reuse its underlying client so the sync sees the same
-        # data the rest of the app sees.
-        sync_client = qdrant.client  # type: ignore[attr-defined]
-    sync_manager = SyncManager(
-        qdrant=sync_client,
-        read_collection=_cfg.qdrant_collection,
-        write_collection=_cfg.qdrant_write_collection,
-        batch_size=_cfg.qdrant_sync_batch_size,
-        interval_seconds=_cfg.qdrant_sync_interval_seconds,
-        index_db=index_db,  # round‑21: SQLite upsert during sync
-    )
+    # Option B (Sept 2026): single canonical collection. The
+    # previous SyncManager that moved points from `images_pending`
+    # to `images` on a background interval is deleted — the indexer
+    # now writes directly to the canonical collection, so there's
+    # no staging area to drain.
     diversity_cache = DiversityResultCache(
         ttl_seconds=_cfg.diversity_cache_ttl_seconds,
         max_entries=_cfg.diversity_cache_max_entries,
@@ -701,6 +678,12 @@ def create_app(
     # search process so the Index button in the UI can drive it without
     # SSH/host-side venv. Subprocess isolation = a torch deadlock or OOM
     # in the indexer can never take down the search backend.
+    #
+    # Option B: the indexer writes directly to the canonical
+    # collection (`_cfg.qdrant_collection`). No read/write split, no
+    # staging area, no SyncManager. The change-detection code in
+    # local_sync reads the same collection it writes to, so change
+    # detection always sees the canonical corpus.
     from search.indexer_runner import IndexerRunner, default_indexer_command_factory
     indexer_cmd_factory = default_indexer_command_factory(
         python=sys.executable,
@@ -709,7 +692,7 @@ def create_app(
         device=_cfg.indexer_device,
         qdrant_url=_cfg.qdrant_url,
         qdrant_api_key=_cfg.qdrant_api_key,
-        qdrant_collection=_cfg.qdrant_write_collection,
+        qdrant_collection=_cfg.qdrant_collection,
         batch_size=_cfg.indexer_batch_size,
     )
     indexer_runner = IndexerRunner(command_factory=indexer_cmd_factory)
@@ -811,10 +794,10 @@ def create_app(
         encoder_warmup_task = asyncio.create_task(_bg_text_encoder_warmup())
         index_init_task = asyncio.create_task(_bg_init_from_qdrant())
 
-        # Round‑14: start the SyncManager that copies
-        # `images_pending` → `images` on a background interval.
-        # Lives for the lifetime of the process.
-        await sync_manager.start()
+        # Option B: no SyncManager to start. The indexer writes
+        # directly to the canonical collection, so the search side
+        # always reads the latest state without needing a background
+        # drain loop.
 
         # Periodic IndexDB refresh. Picks up bulk indexer runs without
         # the operator having to hit POST /api/cache/refresh manually.
@@ -868,9 +851,7 @@ def create_app(
         try:
             yield
         finally:
-            # Round‑14: stop the SyncManager first so we don't leave
-            # a half‑synced batch behind.
-            await sync_manager.stop()
+            # Option B: no SyncManager to stop.
             if refresh_task is not None:
                 refresh_task.cancel()
                 try:
@@ -1006,32 +987,10 @@ def create_app(
         index_db=index_db,
     ))
 
-    # Round‑14: sync status endpoint (read‑only counters).
-    @app.get("/api/sync/status")
-    async def sync_status() -> dict:
-        return {
-            "read_collection": _cfg.qdrant_collection,
-            "write_collection": _cfg.qdrant_write_collection,
-            "batch_size": _cfg.qdrant_sync_batch_size,
-            "interval_seconds": _cfg.qdrant_sync_interval_seconds,
-            "cycles": sync_manager.stats.cycles,
-            "points_moved": sync_manager.stats.points_moved,
-            "last_cycle_ts": sync_manager.stats.last_cycle_ts,
-            "last_error": sync_manager.stats.last_error,
-            "is_running": sync_manager.stats.is_running,
-            "paused": sync_manager.stats.paused,
-        }
-
-    # Round‑16: pause / resume the sync loop. Indexer scripts call
-    # these around a bulk ingest so qdrant contention drops to zero
-    # for the duration.
-    @app.post("/api/sync/pause", status_code=204)
-    async def sync_pause() -> None:
-        sync_manager.pause()
-
-    @app.post("/api/sync/resume", status_code=204)
-    async def sync_resume() -> None:
-        sync_manager.resume()
+    # Option B (Sept 2026): the previous /api/sync/* endpoints
+    # (status, pause, resume) are removed. There is no SyncManager
+    # to surface — the indexer writes directly to the canonical
+    # collection, so reads always see the latest state.
 
     def _parse_collections(request: Request) -> list[str]:
         """

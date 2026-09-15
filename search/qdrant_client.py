@@ -656,19 +656,17 @@ class QdrantSearch:
 
     def ensure_payload_index(self, field: str, field_type: str = "keyword") -> None:
         """
-        Idempotently create a payload index on `field` for the read
+        Idempotently create a payload index on `field` for the canonical
         collection if it doesn't already exist. Called at app startup
-        so the read collection always has the indexes the search API
-        needs (e.g. `collection` keyword index for `list_collections_with_counts`
+        so the collection always has the indexes the search API needs
+        (e.g. `collection` keyword index for `list_collections_with_counts`
         via `client.facet()`).
 
-        The indexer also creates the same index on the write
-        collection, but the SyncManager that copies points from the
-        write collection to the read collection does NOT propagate
-        indexes — so without this call, fresh instances (and any
-        environment where the indexer hasn't been re-run since the
-        collection was created) hit `/api/collections` 500s with
-        "No appropriate index for faceting: `collection`".
+        Option B (Sept 2026): there is no separate write collection
+        anymore — the indexer writes here directly. The startup
+        bootstrap is still necessary for fresh collections (no prior
+        indexer run) so the search API doesn't 500 on the first
+        `/api/collections` call.
 
         Safe to call repeatedly — Qdrant treats existing indexes as
         no-ops on duplicate create.

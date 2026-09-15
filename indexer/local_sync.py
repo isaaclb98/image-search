@@ -429,9 +429,10 @@ def main(argv=None):
 
     for src_path, src_name in zip(args.source, source_names, strict=True):
         logger.info("=== %s -> %s ===", src_path, src_name)
-        # Estimate the total for this source from Qdrant's per-source
-        # point count (cheap: filtered count against the `source`
-        # payload index) so the walk progress can show a time-to-go.
+        # Estimate the total for this source from the collection's
+        # per-source point count (cheap: filtered count against the
+        # `collection` payload index) so the walk progress can show a
+        # time-to-go.
         expected_total = None
         if not args.dry_run:
             try:
@@ -455,10 +456,10 @@ def main(argv=None):
         # Round-perf (issue #1): cache the change-detection metadata
         # for this entire source in one scroll, then look up per
         # batch from the in-memory dict. The previous per-batch
-        # `client.retrieve(...)` issued one round-trip per batch —
-        # on a 902k-photo corpus that's ~900 RTTs to Qdrant per
-        # source. The single scroll replaces them all (paginated,
-        # but O(pages), not O(batches)).
+        # `client.retrieve(...)` issued one round-trip per batch — on
+        # a 902k-photo corpus that's ~900 RTTs to Qdrant per source.
+        # The single scroll replaces them all (paginated, but
+        # O(pages), not O(batches)).
         source_meta: dict = {}
         source_meta_failed = False
         if not args.rebuild and not args.dry_run:

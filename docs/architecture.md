@@ -174,8 +174,15 @@ optional containerized path.
 - **`indexer/thumbnails.py`** — generates pre-baked WebP thumbnails
   (384×384, q80) at index time. The frontend's `?w=` request picks a
   size; the canonical file is always written.
-- **`indexer/sync_meta.py`** — `local_sync` metadata (last-run
-  timestamp, source list) persistence.
+- **`indexer/sync_meta.py`** — Option-B shim. Pre-September-2026
+  this module also created the `images_pending` staging collection
+  and the `_sync_meta` drift marker; that staging-collection
+  design was deleted when the `--qdrant-collection` ambiguity
+  caused every incremental index to silently re-embed every
+  already-indexed file. Today the module only exposes a thin
+  `ensure_sync_collections()` shim for test fixtures that pre-date
+  the refactor; production code calls `upsert.ensure_collection`
+  directly.
 
 ### Model registry
 

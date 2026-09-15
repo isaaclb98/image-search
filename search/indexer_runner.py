@@ -464,6 +464,10 @@ def default_indexer_command_factory(
     commit 5388f91; path translation is the search container's
     responsibility (via `HOST_PATH_PREFIX` env var). The indexer
     stores absolute paths as-is.
+
+    Option B (Sept 2026): the indexer writes directly to the
+    canonical collection (no staging area, no read/write split).
+    `qdrant_collection` is the only flag forwarded.
     """
     sources_list = list(sources)
 
