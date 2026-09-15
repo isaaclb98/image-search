@@ -289,7 +289,7 @@
   .fallback {
     background: linear-gradient(
       135deg,
-      rgba(108,198,255,0.10),
+      rgba(var(--halo), 0.10),
       rgba(255,122,138,0.08)
     );
   }

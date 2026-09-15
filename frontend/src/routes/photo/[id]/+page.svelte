@@ -388,10 +388,10 @@
     justify-content: center;
     gap: var(--s-3);
     min-height: 50vh;
-    color: var(--fg-2, #6b7280);
+    color: var(--fg-2);
   }
   .placeholder.error {
-    color: var(--negative, #ef4444);
+    color: var(--negative);
   }
 
   .layout {
@@ -493,7 +493,7 @@
     margin: 0;
     font-size: 1.1rem;
     font-weight: 500;
-    color: var(--fg-1, #1a1a1a);
+    color: var(--fg-1);
     word-break: break-all;
   }
 
@@ -508,7 +508,7 @@
     padding: var(--s-1) var(--s-2);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8rem;
-    color: var(--fg-2, #aaa);
+    color: var(--fg-2);
     cursor: pointer;
     transition:
       background 120ms ease,
@@ -519,7 +519,7 @@
     border-color: var(--glass-edge-strong);
   }
   .path .folder {
-    color: var(--fg-3, #777);
+    color: var(--fg-3);
   }
 
   .actions {
@@ -534,7 +534,7 @@
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--fg-3, #777);
+    color: var(--fg-3);
   }
 
   .meta dl {
@@ -545,10 +545,10 @@
     font-size: 0.85rem;
   }
   .meta dt {
-    color: var(--fg-3, #777);
+    color: var(--fg-3);
   }
   .meta dd {
     margin: 0;
-    color: var(--fg-1, #1a1a1a);
+    color: var(--fg-1);
   }
 </style>

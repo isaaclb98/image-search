@@ -568,7 +568,7 @@
     max-width: 100%;
     margin: 0 auto;
     padding: var(--s-6, 48px) var(--s-4, 24px);
-    color: var(--fg-3, #7e8290);
+    color: var(--fg-3);
     font-size: 0.95rem;
   }
 
@@ -578,7 +578,7 @@
   }
 
   .loading {
-    color: var(--fg-3, #7e8290);
+    color: var(--fg-3);
     font-size: 0.9rem;
     display: flex;
     flex-direction: column;
@@ -589,8 +589,8 @@
   .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid var(--glass-edge, rgba(255, 255, 255, 0.1));
-    border-top-color: var(--accent, #6cc6ff);
+    border: 3px solid var(--glass-edge);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }

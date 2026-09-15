@@ -27,6 +27,41 @@
   /* glass — borders (Linear/Immich subtlety, now dark hairlines) */
   --glass-edge: rgba(0,0,0,0.06);        /* hairline */
   --glass-edge-strong: rgba(0,0,0,0.12);  /* hover/focus border */
+  /* accent-cyan — the "halo" / highlight blue used by:
+     - the home search button's cyan glow (--shadow-button)
+     - Dropdown item hover and selected backgrounds
+     - PhotoTile skeleton loader gradient
+     A lighter, more cyan blue than --accent (#2563eb, rgb 37,99,235).
+     Use --halo for the rgb tuple, then rgba(var(--halo), α) for
+     custom alphas. */
+  --halo: 108, 198, 255;
+
+  /* glass-fill — white-with-alpha panel fills.
+     Used for the same purpose as --glass-* backdrop-filter tiers
+     but on surfaces that don't need backdrop-filter (pills, nav
+     buttons, dropdown items). Three tiers:
+       light   — pills, lightbox nav buttons (0.85)
+       medium  — dialogs, dense action surfaces (0.94)
+       heavy   — full opacity, opaque panels (1)
+     Replaces ad-hoc rgba(255,255,255,0.85/0.94/1) in components. */
+  --glass-fill-light: rgba(255, 255, 255, 0.85);
+  --glass-fill-medium: rgba(255, 255, 255, 0.94);
+  --glass-fill-heavy: rgba(255, 255, 255, 1);
+
+  /* scrollbar — low-alpha dark thumb on a light track. Tuned for
+     the same aesthetic as the rest of the app: subtle, not a
+     chrome element. */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.28);
+
+  /* glass-inset — the top 1px white highlight on glass surfaces
+     (gives them their "lit from above" quality). */
+  --glass-inset: rgba(255, 255, 255, 0.7);
+
+  /* glass-edge-bright — the 1px white inner ring on menu surfaces
+     (gives them a subtle "card" edge). */
+  --glass-edge-bright: rgba(255, 255, 255, 0.04);
+
 
   /* glass — backdrop-filter tiers. Use these on glass surfaces
      instead of blur(…) directly so a single token retunes
@@ -47,8 +82,8 @@
   --glass-alpha-panel-focus: 0.7;
 
   /* glass — matte fill for center shells (no backdrop-filter) */
-  --matte-fill: rgba(255, 255, 255, 0.88);
-  --dialog-fill: rgba(255, 255, 255, 0.94);
+  --matte-fill: var(--glass-fill-medium);
+  --dialog-fill: var(--glass-fill-medium);
 
   /* text — dark on light */
   --fg-1: #1a1a1a;          /* primary */
@@ -185,9 +220,9 @@
      Every tile pill (PhotoTile .score / .fav / .neg-badge /
      .remove-btn, album .built-in / .del) reads from these
      tokens. */
-  --pill-bg: rgba(255, 255, 255, 0.85);
-  --pill-bg-strong: rgba(255, 255, 255, 0.94);
-  --pill-bg-hover: rgba(255, 255, 255, 1);
+  --pill-bg: var(--glass-fill-light);
+  --pill-bg-strong: var(--glass-fill-medium);
+  --pill-bg-hover: var(--glass-fill-heavy);
   --pill-fg: var(--fg-1);
   --pill-border: var(--glass-edge);
   --pill-blur: blur(10px);
@@ -196,7 +231,7 @@
      search button. Applied via the .primary variant on Button.svelte
      so it shows up once and only once (only the home primary needs
      the halo glow). */
-  --shadow-button: 0 4px 18px rgba(108, 198, 255, 0.30);
+  --shadow-button: 0 4px 18px rgba(var(--halo), 0.30);
 
   /* page header typography — bumped for editorial feel (round 38) */
   --page-title-size: 32px;
@@ -209,5 +244,5 @@
     radial-gradient(ellipse 40% 35% at 92% 20%, rgba(255, 225, 175, 0.40), transparent 60%),
     radial-gradient(ellipse 45% 40% at 85% 85%, rgba(190, 225, 215, 0.40), transparent 60%),
     radial-gradient(ellipse 50% 45% at 15% 90%, rgba(210, 215, 250, 0.40), transparent 60%),
-    #fafaf7;
+    var(--bg-0);
 }

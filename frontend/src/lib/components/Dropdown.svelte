@@ -412,12 +412,12 @@
    * "available to add". Clicking toggles off (handled in the
    * consumer's onPick — the Dropdown itself is stateless). */
   .item.member {
-    background: rgba(108, 198, 255, 0.10);
+    background: rgba(var(--halo), 0.10);
     color: var(--fg-1);
   }
   .item.member:hover,
   .item.member:focus-visible {
-    background: rgba(108, 198, 255, 0.16);
+    background: rgba(var(--halo), 0.16);
   }
   .check {
     display: inline-flex;

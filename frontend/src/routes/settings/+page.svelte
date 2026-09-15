@@ -388,12 +388,12 @@
     color: var(--fg-0);
   }
   .preset:focus-visible {
-    outline: 2px solid var(--accent, #6ab7ff);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
   .preset[data-active='true'] {
     background: var(--glass-3);
-    border-color: var(--accent, #6ab7ff);
+    border-color: var(--accent);
     color: var(--fg-0);
   }
 </style>
