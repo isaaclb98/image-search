@@ -121,11 +121,15 @@
   subtitle="A random walk through photos matched to your taste."
 />
 
-<PhotoGrid
-  items={items as any}
-  {hasMore}
-  {loading}
-  onLoadMore={loadMore}
-  onToggleFavorite={onToggleFavorite}
-  onDislike={onDislike}
-/>
+{#if items.length === 0 && !loading}
+  <div class="state empty">No recommendations yet — like or dislike a few photos to seed the signal.</div>
+{:else}
+  <PhotoGrid
+    items={items as any}
+    {hasMore}
+    {loading}
+    onLoadMore={loadMore}
+    {onToggleFavorite}
+    {onDislike}
+  />
+{/if}

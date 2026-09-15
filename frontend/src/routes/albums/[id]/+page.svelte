@@ -160,23 +160,27 @@
     meta="{detail.member_total ?? members.length} photos"
   >
     {#snippet actions()}
-      {#if detail && detail.id}
+      {#if detail && detail.id && (detail.member_total ?? members.length) > 0}
         <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
           Download zip
         </a>
       {/if}
     {/snippet}
   </PageHeader>
-  <section>
-    <PhotoGrid
-      items={items()}
-      loading={loadingMore}
-      {hasMore}
-      onLoadMore={loadMore}
-      onRemove={onRemoveFromAlbum}
-      removeLabel="Remove from album"
-    />
-  </section>
+  {#if items().length === 0 && !loadingMore}
+    <div class="state empty">No photos in this album yet. Open a photo to add it from the lightbox.</div>
+  {:else}
+    <section>
+      <PhotoGrid
+        items={items()}
+        loading={loadingMore}
+        {hasMore}
+        onLoadMore={loadMore}
+        onRemove={onRemoveFromAlbum}
+        removeLabel="Remove from album"
+      />
+    </section>
+  {/if}
 {/if}
 
 <style>
@@ -184,7 +188,7 @@
     padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);
     background: var(--accent);
-    color: #fff;
+    color: var(--fg-on-accent);
     text-decoration: none;
     font-weight: 500;
   }
