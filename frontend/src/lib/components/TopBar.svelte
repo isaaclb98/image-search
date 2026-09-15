@@ -93,16 +93,23 @@
   .bar {
     height: var(--topbar-h);
     display: flex;
-    /* Brand on far left, tabs at far right (justify-content:
-       space-between). Empty middle space reads as deliberate
-       separation rather than arbitrary drift. Tabs are anchored
-       to the right edge, which is a common chat-app / doc-tool
-       pattern (Discord, Slack, Linear's signed-out nav). The
-       middle space between brand and tabs is the visual cue
-       that these are two distinct roles: identity vs navigation. */
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    /* Brand + tabs together as one unit, centered in the bar.
+       Round-52: justify-content: center puts the entire
+       brand-and-tabs cluster at the dead-center of the bar.
+       Brand sits immediately to the left of the tabs nav
+       (gap: 24px), and the whole cluster is centered as one
+       block. Symmetric whitespace on both sides. */
+    gap: var(--s-4);
     padding: 0 var(--shell-pad-x);
+    /* Match the page header card width via --grid-width so the
+       brand mark and tabs stay vertically aligned with the random
+       / for-you / albums header below. The hardcoded 1600px that
+       used to live here drifted away from --grid-width at every
+       zoom level (bar widened to 2400px at 150%, header only to
+       2190px), pulling the nav tabs noticeably rightward of the
+       page chrome they were supposed to align with. */
     width: var(--grid-width, 100%);
     max-width: 100%;
     margin: 0 auto;
