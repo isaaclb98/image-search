@@ -298,7 +298,7 @@
     position: absolute;
     top: 8px;
     left: 8px;
-    padding: 4px 9px;
+    padding: var(--s-0) var(--s-2);
     font-size: var(--fs-xs);
     color: var(--fg-1);
     background: rgba(14,15,20,0.55);

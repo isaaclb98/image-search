@@ -496,11 +496,11 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 10px;
+    gap: var(--s-2);
   }
   .primary {
     height: 44px;
-    padding: 0 28px;
+    padding: 0 var(--s-5);
     border-radius: var(--r-pill);
     background: var(--accent);
     color: var(--fg-on-accent);
@@ -519,13 +519,13 @@
   .hero h1 {
     font-size: var(--fs-3xl);
     font-weight: 600;
-    margin: 0 0 6px;
+    margin: 0 0 var(--s-1);
     letter-spacing: -0.01em;
     line-height: var(--lh-tight);
   }
   .hero .sub {
     color: var(--fg-muted);
-    margin: 0 auto 28px;
+    margin: 0 auto var(--s-4);
     max-width: 56ch;
     line-height: var(--lh-prose);
   }
@@ -547,15 +547,15 @@
      chunk), and these middle gaps give each card its own
      breathing room instead of stacking them flush. */
   .hero > :global(.filters) {
-    margin-top: 14px;
+    margin-top: var(--s-3);
   }
   .search-actions {
-    margin-top: 10px;
+    margin-top: var(--s-2);
   }
   .back-link {
     color: var(--fg-2);
     text-decoration: none;
-    margin-left: 8px;
+    margin-left: var(--s-1);
     transition: color var(--t-fast);
   }
   .back-link:hover { color: var(--fg-1); }
