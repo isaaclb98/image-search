@@ -252,7 +252,7 @@
     width: 18px;
     text-align: center;
     color: var(--fg-2);
-    font-size: 14px;
+    font-size: var(--fs-sm);
   }
   .sep {
     height: 1px;
@@ -265,7 +265,7 @@
   .submenu-host .caret {
     margin-left: auto;
     color: var(--fg-2);
-    font-size: 12px;
+    font-size: var(--fs-xs);
   }
   .submenu {
     /* Default: pop to the right of the parent item. */

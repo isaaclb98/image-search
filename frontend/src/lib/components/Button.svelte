@@ -65,8 +65,8 @@
     justify-content: center;
     gap: var(--s-1);
     border-radius: var(--r-pill);
-    font-weight: 500;
-    letter-spacing: 0.01em;
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--ls-default);
     transition: background var(--t-fast) var(--ease-out),
                 transform var(--t-fast) var(--ease-out),
                 border-color var(--t-fast) var(--ease-out),

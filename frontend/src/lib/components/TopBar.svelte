@@ -132,7 +132,7 @@
     gap: var(--s-1);
     color: var(--fg-1);
     font-weight: 500;
-    letter-spacing: 0.02em;
+    letter-spacing: var(--ls-wider);
   }
   .brand:hover { color: var(--fg-1); }
   /* The brand mark is an SVG Icon — no CSS needed here. The

@@ -97,7 +97,7 @@
     outline-offset: 2px;
   }
   .arrow {
-    font-size: 22px;
+    font-size: var(--fs-xl);
     line-height: 1;
   }
 </style>

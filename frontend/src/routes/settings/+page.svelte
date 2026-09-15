@@ -278,7 +278,7 @@
 
   .card-title {
     font-size: var(--fs-lg);
-    font-weight: 500;
+    font-weight: var(--fw-medium);
     margin: 0;
     color: var(--fg-1);
   }
@@ -376,7 +376,7 @@
     padding: 0 var(--s-3);
     height: 32px;
     font: inherit;
-    font-size: 0.9rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     transition:
       background var(--t-fast),

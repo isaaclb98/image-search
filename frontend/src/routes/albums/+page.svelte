@@ -334,7 +334,7 @@
     border-radius: var(--r-pill);
     background: var(--accent);
     color: var(--fg-on-accent);
-    font-weight: 500;
+    font-weight: var(--fw-medium);
   }
   .new:hover { background: var(--accent-2); }
 
@@ -351,7 +351,7 @@
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
     cursor: pointer;
-    font-weight: 500;
+    font-weight: var(--fw-medium);
     font-size: var(--fs-sm);
     transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
   }
@@ -376,7 +376,7 @@
   .search-row {
     margin-top: auto;
     display: flex;
-    gap: 8px;
+    gap: var(--s-1);
     align-self: stretch;
   }
   .search-row .search-btn:first-child {
@@ -510,7 +510,7 @@
   }
   .title {
     font-size: var(--fs-lg);
-    font-weight: 500;
+    font-weight: var(--fw-medium);
     color: var(--fg-1);
     display: inline-flex;
     align-items: center;

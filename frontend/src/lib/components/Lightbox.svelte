@@ -774,7 +774,7 @@
        space. */
     display: grid;
     grid-template-rows: 1fr auto;
-    row-gap: 16px;
+    row-gap: var(--s-3);
     padding: var(--s-4);
     box-sizing: border-box;
     animation: fade var(--t-med) var(--ease-out);
@@ -937,7 +937,7 @@
     justify-self: center;
     align-self: center;
     display: flex;
-    gap: 12px;
+    gap: var(--s-3);
     align-items: center;
     padding: var(--s-1) var(--s-3);
     border-radius: var(--r-pill);

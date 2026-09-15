@@ -157,6 +157,23 @@
                 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono-stack: ui-monospace, SFMono-Regular, Menlo, Consolas,
                      'Liberation Mono', monospace;
+  /* letter-spacing - four tiers.
+     tighter  - large display headlines (slight negative)
+     default  - buttons, card titles (slight positive)
+     wider    - tabs, small caps, monospace-feel labels
+     widest   - small uppercase metadata */
+  /* font-weight - capped at medium (500) per earlier round.
+     300 light is reserved for body text only; 500 is the only
+     emphatic weight in the design system. */
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+
+  --ls-tighter: -0.01em;
+  --ls-default: 0.01em;
+  --ls-wider: 0.02em;
+  --ls-widest: 0.05em;
+
   --fs-xs: 12px;
   --fs-sm: 13px;
   --fs-md: 15px;

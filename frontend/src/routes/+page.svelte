@@ -498,7 +498,7 @@
   .empty-prompt a {
     color: var(--accent);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: var(--fw-medium);
   }
   .empty-prompt a:hover {
     text-decoration: underline;
@@ -546,11 +546,15 @@
      read as one block), subtitle→composer is 28px (separate
      chunk), and these middle gaps give each card its own
      breathing room instead of stacking them flush. */
+  /* Round-67: hero stack rhythm — same --s-3 (16px) between
+     every section so the stack reads as one consistent
+     rhythm. Previously the three gaps were --s-3 → --s-2 → --s-1,
+     a stair-step that read as inconsistent. */
   .hero > :global(.filters) {
     margin-top: var(--s-3);
   }
   .search-actions {
-    margin-top: var(--s-2);
+    margin-top: var(--s-3);
   }
   /* Round-34: "Surprise me" link in the album-search header.
      Round-57: sibling "Back to albums" link removed (the Albums
@@ -564,5 +568,7 @@
     transition: color var(--t-fast);
   }
   .surprise-link:hover { color: var(--fg-1); }
-  .results { margin-top: var(--s-1); }
+  /* Round-67: same --s-3 between search-actions and the
+     results grid below. */
+  .results { margin-top: var(--s-3); }
 </style>

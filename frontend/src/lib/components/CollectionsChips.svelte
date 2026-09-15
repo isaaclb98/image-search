@@ -83,13 +83,13 @@
   .collections {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--s-1);
     align-items: center;
   }
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--s-1);
     background: transparent;
     color: var(--fg-1);
     border: 1px solid var(--glass-edge);
@@ -116,7 +116,7 @@
     height: 14px;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     line-height: 1;
     font-weight: 500;
   }

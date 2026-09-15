@@ -491,8 +491,8 @@
 
   .filename {
     margin: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
     color: var(--fg-1);
     word-break: break-all;
   }
@@ -507,7 +507,7 @@
     border-radius: var(--r-1);
     padding: var(--s-1) var(--s-2);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.8rem;
+    font-size: var(--fs-xs);
     color: var(--fg-2);
     cursor: pointer;
     transition:
@@ -530,10 +530,10 @@
 
   .meta h3 {
     margin: 0 0 var(--s-1) 0;
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--ls-widest);
     color: var(--fg-3);
   }
 
@@ -542,7 +542,7 @@
     display: grid;
     grid-template-columns: 90px 1fr;
     gap: var(--s-1) var(--s-2);
-    font-size: 0.85rem;
+    font-size: var(--fs-sm);
   }
   .meta dt {
     color: var(--fg-3);

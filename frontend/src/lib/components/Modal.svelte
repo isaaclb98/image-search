@@ -215,17 +215,17 @@
     margin: 0;
     font-size: var(--fs-md, 16px);
     font-weight: 500;
-    letter-spacing: 0.01em;
+    letter-spacing: var(--ls-default);
   }
   .body {
-    font-size: 14px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
     color: var(--fg-2);
   }
   .footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: var(--s-2);
     margin-top: 4px;
   }
   @keyframes backdrop-in {

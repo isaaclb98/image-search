@@ -569,7 +569,7 @@
     margin: 0 auto;
     padding: var(--s-6, 48px) var(--s-4, 24px);
     color: var(--fg-3);
-    font-size: 0.95rem;
+    font-size: var(--fs-sm);
   }
 
   .sentinel {
@@ -579,7 +579,7 @@
 
   .loading {
     color: var(--fg-3);
-    font-size: 0.9rem;
+    font-size: var(--fs-sm);
     display: flex;
     flex-direction: column;
     align-items: center;

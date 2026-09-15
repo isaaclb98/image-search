@@ -55,7 +55,7 @@
   .field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--s-1);
     width: 100%;
   }
   .label {

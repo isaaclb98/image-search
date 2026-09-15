@@ -192,7 +192,7 @@
     width: 100%;
     height: 38px;
     padding: 0 12px;
-    border-radius: 8px;
+    border-radius: var(--r-1);
     background: var(--glass-fill-light);
     border: 1px solid var(--glass-edge);
     color: var(--fg-1);

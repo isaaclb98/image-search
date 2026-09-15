@@ -229,7 +229,7 @@
     background: var(--accent);
     color: var(--fg-on-accent);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: var(--fw-medium);
   }
   .zip:hover { background: var(--accent-2); }
   /* Delete button: ghost-style until hovered, then red. Same
@@ -242,7 +242,7 @@
     background: transparent;
     color: var(--fg-3);
     border: 1px solid var(--glass-edge);
-    font-weight: 500;
+    font-weight: var(--fw-medium);
     cursor: pointer;
     transition: background var(--t-fast) var(--ease-out),
                 color var(--t-fast) var(--ease-out),
