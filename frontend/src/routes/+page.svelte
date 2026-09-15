@@ -34,6 +34,7 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import { toast } from '$lib/components/Toaster.svelte';
   import Button from '$lib/components/Button.svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
 
   type Item = {
     id: string;
@@ -335,32 +336,43 @@
       <button class="dismiss" onclick={() => (indexIsEmpty = false)} aria-label="Dismiss">×</button>
     </div>
   {/if}
+  <!-- Round-56: every page's title block now lives in a
+       <PageHeader> card for full-app consistency. The home was
+       the last holdout — the h1 + .sub were plain centered text
+       while /random, /for-you, /albums, /albums/[id], /albums/likes,
+       /albums/dislikes, /settings, /similar all used PageHeader.
+       Now both default and centroid modes of / use the same chrome
+       (glass card, .head padding, --page-header-pad) as every
+       other page.
+
+       Centroid mode: title "Searching by album", subtitle shows
+       the centroid info, action slot carries the "← Back to
+       albums" link so the chrome and the nav share a single
+       card.
+       Default mode: title "Find photos by what they look like.",
+       subtitle "Type what you remember. Save what you love." —
+       no actions slot, no left-aligned CTA. The composer lives
+       below the header. -->
   {#if activeCentroid}
-    <!-- Round‑29: search-by-album mode hides the prompt composer.
-         The album's centroid IS the query; there's nothing to type.
-         Round‑34: when in sample mode (from /albums "Surprise me"
-         button), surface the active mode so the user knows why
-         results are different from the deterministic centroid. -->
-    <h1>Searching by album</h1>
-    <p class="sub">
-      {#if centroidMode === 'sample'}
-        Sample mode — based on a random {SAMPLE_K} photos from <code>{activeCentroid}</code>.
-        Refresh to re-roll, or
-        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}" class="back-link">
-          switch back to the full mean
-        </a>.
-      {:else}
-        Showing the photos closest to the average of <code>{activeCentroid}</code>.
-        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}&mode=sample" class="surprise-link">
-          Surprise me
-        </a> · <a href="/albums" class="back-link">← Back to albums</a>
-      {/if}
-    </p>
+    <PageHeader
+      title="Searching by album"
+      subtitle={centroidMode === 'sample'
+        ? `Sample mode — based on a random ${SAMPLE_K} photos from ${activeCentroid}. Refresh to re-roll.`
+        : `Showing the photos closest to the average of ${activeCentroid}.`}
+    >
+      {#snippet actions()}
+        <a href="/?centroid={encodeURIComponent(activeCentroid ?? '')}{centroidMode === 'sample' ? '' : '&mode=sample'}" class="surprise-link">
+          {centroidMode === 'sample' ? 'Switch to full mean' : 'Surprise me'}
+        </a>
+        <span class="sep" aria-hidden="true">·</span>
+        <a href="/albums" class="back-link">← Back to albums</a>
+      {/snippet}
+    </PageHeader>
   {:else}
-    <h1>Find photos by what they look like.</h1>
-    <p class="sub">
-      Type what you remember. Save what you love.
-    </p>
+    <PageHeader
+      title="Find photos by what they look like."
+      subtitle="Type what you remember. Save what you love."
+    />
   {/if}
   {#if !activeCentroid}
     <SearchComposer
@@ -449,12 +461,16 @@
        span --grid-width so they line up visually. Round-1 polish:
        dropped horizontal padding (shell owns it via --shell-pad-x),
        trimmed top padding (was 40px → 8px) since the shell already
-       provides --shell-pad-y + --shell-gap before this section. */
+       provides --shell-pad-y + --shell-gap before this section.
+       Round-56: dropped text-align: center — the home's title
+       block is now a <PageHeader> card with default left-aligned
+       text, matching every other page in the app. The composer,
+       filters, and saved-searches below keep their own internal
+       alignment via their own component CSS. */
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
     padding: var(--s-1) 0 var(--s-4);
-    text-align: center;
   }
 
   /* Round-54: empty-index notification banner.
@@ -515,26 +531,13 @@
     justify-content: flex-end;
     gap: var(--s-2);
   }
-  .hero h1 {
-    font-size: var(--fs-3xl);
-    font-weight: 500;
-    margin: 0 0 var(--s-1);
-    letter-spacing: -0.01em;
-    line-height: var(--lh-tight);
-  }
-  .hero .sub {
-    color: var(--fg-muted);
-    margin: 0 auto var(--s-4);
-    max-width: 56ch;
-    line-height: var(--lh-prose);
-  }
-  .hero .sub code {
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-1);
-    padding: 1px 6px;
-    font-size: 0.9em;
-  }
+  /* Round-56: h1 + .sub removed — the title block is now in a
+     <PageHeader> card with its own chrome. The .hero still owns
+     the hero stack layout (gap between PageHeader, composer,
+     AdditionalFilters, search-actions) but the title typography
+     and chrome live in PageHeader. The `code` styling inside
+     the centroid-mode subtitle is preserved on PageHeader's p
+     via the global `code` rule in tokens. */
   /* Spacing inside the hero stack:
        composer (PromptChips + CollectionsChips)
          ↓ 14px
