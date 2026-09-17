@@ -223,6 +223,7 @@ def _load_batch_concurrent(paths):
     can skip + count them without an extra exception pass.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from indexer.image_loader import LoaderError
 
     results: list = [None] * len(paths)
