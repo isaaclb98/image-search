@@ -102,7 +102,7 @@
     filename = q.get('filename') ?? '';
     diversityMode = q.get('diversity') ?? 'off';
     diversityDepth = q.get('diversity_depth') ?? 'auto';
-    collections = q.getAll('collections');
+    collections = q.getAll('collection');
     filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto' || collections.length > 0;
     activeCentroid = q.get('centroid');
     // Validate the mode param — anything other than the two
@@ -127,7 +127,7 @@
     if (filename) qs.set('filename', filename);
     if (diversityMode !== 'off') qs.set('diversity', diversityMode);
     if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
-    collections.forEach((c) => qs.append('collections', c));
+    collections.forEach((c) => qs.append('collection', c));
     const next = qs.toString();
     if ($page.url.search.replace(/^\?/, '') !== next) {
       history.replaceState(history.state, '', `/${next ? '?' + next : ''}`);

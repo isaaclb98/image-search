@@ -76,8 +76,13 @@ export function search(params: SearchParams, signal?: AbortSignal) {
     qs.set('diversity_strength', String(params.diversityStrength));
   if (params.diversityDepth && params.diversityDepth !== 'auto')
     qs.set('diversity_depth', params.diversityDepth);
+  // Backend /api/search reads `?collection=` (singular, repeated),
+  // not the plural — see `parse_collections` in
+  // `search/_result_helpers.py`. Sending the plural here silently
+  // no-ops the "Limit to library" filter (the helper parses an
+  // empty list and returns the whole library).
   if (params.collections?.length) {
-    for (const c of params.collections) qs.append('collections', c);
+    for (const c of params.collections) qs.append('collection', c);
   }
   if (params.limit !== undefined) qs.set('limit', String(params.limit));
   if (params.offset !== undefined) qs.set('offset', String(params.offset));
@@ -134,6 +139,10 @@ export function random(params: RandomParams | number = {}, signal?: AbortSignal)
   if (p.offset !== undefined) search.set('offset', String(p.offset));
   if (p.limit !== undefined) search.set('limit', String(p.limit));
   if (p.view !== undefined) search.set('view', p.view);
+  // /api/random uses FastAPI's `Query()` which names the wire
+  // param after the Python kwarg (`collections`, plural). Keep
+  // this in sync with the `/api/random` signature in
+  // `search/routers/random.py`.
   if (p.collections) {
     for (const c of p.collections) search.append('collections', c);
   }
