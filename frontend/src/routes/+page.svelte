@@ -230,8 +230,7 @@
         centroidMode:
           activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
         collections: collections.length ? collections : undefined,
-        signal
-      });
+      }, signal);
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       offset += more.length;

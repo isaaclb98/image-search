@@ -175,7 +175,7 @@
                   'Wipes the index and your favourites, albums, and saved searches, then re-embeds every photo.',
               },
             ]}
-            onPick={(it) => startIndex(it.id as 'incremental' | 'rebuild')}
+            onPick={(it: { id: string | number }) => startIndex(String(it.id) as 'incremental' | 'rebuild')}
           >
             {#snippet trigger({ toggle })}
               <Button

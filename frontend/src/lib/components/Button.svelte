@@ -22,6 +22,11 @@
      *  relying on DOM order, so destructive confirms can sit
      *  on the right without stealing focus from Cancel. */
     initialFocus?: boolean;
+    /** ARIA attribute marking the button as opening a popup
+     *  menu (e.g. the Dropdown trigger in /settings). The full
+     *  ARIA enum is `menu | listbox | tree | grid | dialog`;
+     *  we narrow to the two we actually use. */
+    'aria-haspopup'?: 'menu' | 'listbox' | 'dialog';
   };
   let {
     variant = 'secondary',
@@ -32,6 +37,7 @@
     title,
     onclick,
     initialFocus,
+    'aria-haspopup': ariaHaspopup,
     children
   }: Props = $props();
 </script>
@@ -53,6 +59,7 @@
     {disabled}
     {title}
     {onclick}
+    aria-haspopup={ariaHaspopup}
   >
     {#if children}{@render children()}{/if}
   </button>
