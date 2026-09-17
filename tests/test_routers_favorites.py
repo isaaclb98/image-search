@@ -55,7 +55,7 @@ def test_build_router_returns_api_router(fake_index_db, fake_cfg, invalidate):
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     assert isinstance(router, APIRouter)
 
@@ -68,7 +68,7 @@ def test_router_routes_registered(fake_index_db, fake_cfg, invalidate):
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     paths = {getattr(r, "path", None) or str(r) for r in router.routes}
     assert "/api/favorites" in paths
@@ -83,7 +83,7 @@ def test_mark_favorite_invalidates_caches(fake_index_db, fake_cfg, invalidate):
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)
@@ -108,7 +108,7 @@ def test_unmark_favorite_404_when_not_favourited(
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)
@@ -134,7 +134,7 @@ def test_list_favorites_accepts_large_limits(
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)
@@ -153,7 +153,7 @@ def test_list_favorites_offset_negative(
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)
@@ -172,7 +172,7 @@ def test_list_favorites_default_response_shape(
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)
@@ -194,7 +194,7 @@ def test_list_favorites_as_results_search_shape(
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)

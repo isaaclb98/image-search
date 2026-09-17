@@ -258,8 +258,11 @@ class TestThumbnailConstants:
         # migration this was 256×256.
         assert THUMBNAIL_SIZE == (384, 384)
 
-    def test_thumbnail_quality_is_50(self):
-        assert THUMBNAIL_QUALITY == 50
+    def test_thumbnail_quality_is_80(self):
+        # Post the 256→384 / q50→q80 thumbnail pipeline rework
+        # (commit 44bac8c deleted docs/archive/thumbnail-pipeline.md
+        # which had argued for q50). Current prod code uses q80.
+        assert THUMBNAIL_QUALITY == 80
 
     def test_thumbnail_dir_uses_env_or_default(self, monkeypatch):
         monkeypatch.delenv("THUMBNAIL_DIR", raising=False)

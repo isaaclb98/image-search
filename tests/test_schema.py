@@ -67,15 +67,16 @@ def test_build_payload_uses_every_schema_field(tmp_path, schema_module):
 
 
 def test_schema_doc_lists_every_payload_field(schema_module):
-    """Cross-check: the archived schema doc mentions every payload field name.
+    """Cross-check: the schema doc mentions every payload field name.
 
-    Catches drift between the schema module and the prose doc. SCHEMA.md
-    was archived to docs/archive/ in commit 300eaa0; the cross-check
-    still runs against the archive as a sanity check on the prose
-    mirror, even though it is no longer the canonical source.
+    Catches drift between the schema module and the prose doc.
+    Commit 300eaa0 moved SCHEMA.md to docs/archive/, then commit
+    44bac8c moved it back to docs/SCHEMA.md (the archive was wrong
+    — the doc is a live reference, not historical). This cross-check
+    still runs against the live doc.
     """
     repo_root = Path(__file__).resolve().parent.parent
-    doc = (repo_root / "docs" / "archive" / "SCHEMA.md").read_text(encoding="utf-8")
+    doc = (repo_root / "docs" / "SCHEMA.md").read_text(encoding="utf-8")
     for name in schema_module.payload_field_names():
         assert f"`{name}`" in doc, f"SCHEMA.md missing field `{name}`"
 
