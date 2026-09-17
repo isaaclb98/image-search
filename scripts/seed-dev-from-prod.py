@@ -120,7 +120,8 @@ def main() -> int:
                     help="Delete dev's collection before seeding (clean slate)")
     args = ap.parse_args()
 
-    sources = args.source or ["telegram", "collections", "data"]
+    # `args.source` is the list passed via repeated --source flags;
+    # when omitted we sample from all three standard sources.
     rng = random.Random(args.seed)
 
     # Show how many would be sampled
@@ -152,11 +153,9 @@ def main() -> int:
                               with_vectors=True, max_points=SAMPLE_POOL)
     print(f"  scrolled {len(pool):,} candidate points in {time.monotonic()-t0:.1f}s")
 
-    # Random sample down to --count
-    if len(pool) > args.count:
-        sample = rng.sample(pool, args.count)
-    else:
-        sample = pool
+    # Random sample down to --count (no-op if the pool is already
+    # smaller than --count).
+    sample = rng.sample(pool, args.count) if len(pool) > args.count else pool
     print(f"sampled {len(sample):,} photos from pool of {len(pool):,}")
 
     # Optionally wipe dev's collection for a clean seed
@@ -207,7 +206,7 @@ def main() -> int:
         print(f"  refresh ok: {r.get('count', '?')} points, took {r.get('took_ms', '?')}ms")
     except urllib.error.URLError as e:
         print(f"  refresh skipped (dev API not reachable: {e.reason})")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — defensive last-resort catch; refresh failure must not abort the seed
         print(f"  refresh failed: {e}")
 
     print("done.")
