@@ -245,10 +245,16 @@ class Config:
     # is heavier than a plain search (Qdrant has to fetch positive/negative
     # point vectors, compute their mean, then run an HNSW search across
     # the whole collection), and the default 2s used for normal search is
-    # too tight over HTTPS through a reverse proxy on a 270K+ point
-    # collection. 10s is generous; in practice a healthy Qdrant returns
-    # in <1s.
-    recommend_timeout_ms: int = 10000
+    # too tight over HTTPS through a reverse proxy.
+    # Raised 10s -> 40s: at the prod library size (1.96M points, 409 fav
+    # ids), Qdrant's HNSW search latency has crept to 2-10s and occasionally
+    # trips the 10s cap. The graceful fallback (qdrant_client.recommend)
+    # turns a timeout into an empty result set, which the for-you cache
+    # then sticks at for 5 minutes — effectively "For You is broken until
+    # the cache TTL expires". 40s gives the heavy recommend path room to
+    # succeed under load; on a healthy Qdrant the median is <2s, so the
+    # user rarely notices the wider window.
+    recommend_timeout_ms: int = 40000
     # Derived from MODEL_NAME: which `model` tag and dim centroids
     # must have to be loaded. Defaults match the production model
     # so the centroid-compat guard is meaningful out of the box;
@@ -398,7 +404,7 @@ def load() -> Config:
         top_k_default=top_k_default,
         top_k_max=top_k_max,
         query_timeout_ms=_int("QUERY_TIMEOUT_MS", 30000),
-        recommend_timeout_ms=_int("RECOMMEND_TIMEOUT_MS", 10000),
+        recommend_timeout_ms=_int("RECOMMEND_TIMEOUT_MS", 40000),
         nas_images_base=nas_base,
         path_prefix=os.environ.get("PATH_PREFIX", ""),
         web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),

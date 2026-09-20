@@ -67,7 +67,14 @@ def _build_demo_app(count: int):
 
     os.environ["SEARCH_NO_MODEL"] = "1"
     os.environ["SEARCH_TEST_MODE"] = "1"
-    os.environ["NAS_IMAGES_BASE"] = str(Path(tempfile.gettempdir()) / "image-search-demo")
+    # Per-worker NAS_IMAGES_BASE so concurrent pytest-xdist workers
+    # don't race on the same demo directory (one worker's
+    # _make_demo_images clobbering another's mid-write produced
+    # PIL.UnidentifiedImageError on /tmp/image-search-demo/*.jpg
+    # at ~96% of pytest progress).
+    os.environ["NAS_IMAGES_BASE"] = str(
+        Path(tempfile.gettempdir()) / f"image-search-demo-{os.getpid()}-{id(object())}"
+    )
     # Use a unique IndexDB path per invocation so re-running tests
     # (or _build_demo_app being called twice in one pytest session,
     # e.g. from test_v2_smoke and dev_server.py simultaneously) does

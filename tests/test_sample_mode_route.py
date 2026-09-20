@@ -148,11 +148,11 @@ def test_sample_mode_returns_200(app_with_dynamic):
 
 
 def test_sample_mode_explicit_k(app_with_dynamic):
-    # sample_k only takes effect when mode=sample; pass a small
-    # k just to make sure the param is plumbed through without
-    # raising.
+    # sample_k only takes effect when mode=sample. The validator
+    # requires 1 <= sample_n <= sample_k, so when overriding k to a
+    # value smaller than the default N (3), n must be passed too.
     resp = app_with_dynamic.get(
-        f"/api/centroids/{_DYNAMIC_NAME}/search?limit=5&mode=sample&sample_k=2"
+        f"/api/centroids/{_DYNAMIC_NAME}/search?limit=5&mode=sample&sample_k=2&sample_n=2"
     )
     assert resp.status_code == 200
 

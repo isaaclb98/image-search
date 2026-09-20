@@ -2,7 +2,6 @@
   import '../lib/styles/tokens.css';
   import '../lib/styles/global.css';
   import TopBar from '$lib/components/TopBar.svelte';
-  import Toaster from '$lib/components/Toaster.svelte';
   import ScrollToTop from '$lib/components/ScrollToTop.svelte';
   import Dialog from '$lib/components/Dialog.svelte';
   import { onNavigate } from '$app/navigation';
@@ -171,7 +170,6 @@
   <main class="shell">
     {@render children?.()}
   </main>
-  <Toaster />
   <Dialog />
   <ScrollToTop />
 </div>

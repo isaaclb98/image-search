@@ -18,8 +18,6 @@
     addPhotoToAlbum,
     listAlbums
   } from '$lib/api/endpoints';
-  import { toast } from './Toaster.svelte';
-
   type AlbumOption = { id: number; name: string };
 
   type Props = {
@@ -77,7 +75,6 @@
       fetchedAlbums = res?.albums ?? [];
     } catch {
       fetchedAlbums = [];
-      toast.show("Couldn't load albums.", { kind: 'error' });
     } finally {
       loadingAlbums = false;
     }
@@ -126,9 +123,7 @@
   async function addToAlbum(albumId: number, name: string) {
     try {
       await addPhotoToAlbum(albumId, pointId);
-      toast.show(`Added to "${name}".`, { kind: 'success' });
     } catch {
-      toast.show(`Couldn't add to "${name}".`, { kind: 'error' });
     }
     onClose();
   }

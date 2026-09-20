@@ -17,9 +17,7 @@ without needing a GPU or real network.
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from PIL import Image
@@ -167,7 +165,7 @@ class TestScrollExistingMeta:
                 collection_name="images",
                 points=[
                     qm.PointStruct(
-                        id=id_for(Path(f"/tmp/{pid}.jpg"), src_name),
+                        id=id_for(Path(f"/tmp/{pid}.jpg"), src_name),  # noqa: S108 — deterministic id_for() input, not a real file
                         vector=[0.0] * 16,
                         payload={"collection": src_name, "mtime": mtime, "size": size},
                     )
@@ -181,15 +179,15 @@ class TestScrollExistingMeta:
         meta = local_sync._scroll_existing_meta(client, "images", "lib_a")
         assert len(meta) == 5
         for _label, mtime, size in points:
-            pid = id_for(Path(f"/tmp/{_label}.jpg"), "lib_a")
+            pid = id_for(Path(f"/tmp/{_label}.jpg"), "lib_a")  # noqa: S108 — id_for() hash input
             assert str(pid) in meta
             assert meta[str(pid)] == (mtime, size)
 
     def test_points_missing_mtime_get_none(self, in_memory_qdrant):
         """Legacy points (no mtime/size payload) map to None, not raised."""
         client = in_memory_qdrant
-        legacy_pid = id_for(Path("/tmp/legacy.jpg"), "lib_a")
-        modern_pid = id_for(Path("/tmp/modern.jpg"), "lib_a")
+        legacy_pid = id_for(Path("/tmp/legacy.jpg"), "lib_a")  # noqa: S108 — id_for() hash input
+        modern_pid = id_for(Path("/tmp/modern.jpg"), "lib_a")  # noqa: S108 — id_for() hash input
         client.upsert(
             collection_name="images",
             points=[
@@ -221,8 +219,8 @@ class TestScrollExistingMeta:
         meta_b = local_sync._scroll_existing_meta(client, "images", "lib_b")
 
         # Compute the expected IDs for lib_a (3) and lib_b (2)
-        a_ids = {str(id_for(Path(f"/tmp/a{i}.jpg"), "lib_a")) for i in (1, 2, 3)}
-        b_ids = {str(id_for(Path(f"/tmp/b{i}.jpg"), "lib_b")) for i in (1, 2)}
+        a_ids = {str(id_for(Path(f"/tmp/a{i}.jpg"), "lib_a")) for i in (1, 2, 3)}  # noqa: S108 — id_for() hash input
+        b_ids = {str(id_for(Path(f"/tmp/b{i}.jpg"), "lib_b")) for i in (1, 2)}  # noqa: S108 — id_for() hash input
 
         assert set(meta_a.keys()) == a_ids
         assert set(meta_b.keys()) == b_ids
@@ -245,7 +243,7 @@ class TestScrollExistingMeta:
             collection_name="images",
             points=[
                 qm.PointStruct(
-                    id=id_for(Path(f"/tmp/big_{i}.jpg"), "big_lib"),
+                    id=id_for(Path(f"/tmp/big_{i}.jpg"), "big_lib"),  # noqa: S108 — id_for() hash input
                     vector=[0.0] * 16,
                     payload={"collection": "big_lib", "mtime": float(i), "size": i * 10},
                 )
@@ -254,7 +252,7 @@ class TestScrollExistingMeta:
         )
         meta = local_sync._scroll_existing_meta(client, "images", "big_lib")
         assert len(meta) == 1500
-        pid_0 = id_for(Path("/tmp/big_0.jpg"), "big_lib")
-        pid_last = id_for(Path("/tmp/big_1499.jpg"), "big_lib")
+        pid_0 = id_for(Path("/tmp/big_0.jpg"), "big_lib")  # noqa: S108 — id_for() hash input
+        pid_last = id_for(Path("/tmp/big_1499.jpg"), "big_lib")  # noqa: S108 — id_for() hash input
         assert meta[str(pid_0)] == (0.0, 0)
         assert meta[str(pid_last)] == (1499.0, 14990)

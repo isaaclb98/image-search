@@ -22,7 +22,6 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
     id: string;
@@ -124,7 +123,6 @@
       next[idx] = { ...next[idx], is_favorite: !liked };
       items = next;
     } catch {
-      toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
@@ -137,7 +135,6 @@
       next[idx] = { ...next[idx], is_disliked: true };
       items = next;
     } catch {
-      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 

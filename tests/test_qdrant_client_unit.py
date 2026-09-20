@@ -360,7 +360,10 @@ class TestQdrantSearchConfig:
     def test_default_timeout(self, in_memory_qdrant):
         search = QdrantSearch(in_memory_qdrant, "x")
         assert search.timeout_ms == 2000
-        assert search.recommend_timeout_ms == 10000
+        # Default bumped 10s -> 40s to match config.py (search/qdrant_client.py
+        # and config.py must agree). Heavy recommend() at prod library size
+        # (1.96M points, 409 fav ids) regularly takes 2-10s; 10s was too tight.
+        assert search.recommend_timeout_ms == 40000
 
     def test_custom_timeout(self, in_memory_qdrant):
         search = QdrantSearch(in_memory_qdrant, "x", timeout_ms=500)

@@ -203,6 +203,33 @@ describe('search endpoint URL builder', () => {
     expect(captured.url).toContain('/api/centroids/cool-shots/search');
   });
 
+  // /api/search reads `?collection=` (singular, repeated) via
+  // `parse_collections` in `search/_result_helpers.py`. Sending
+  // the plural here silently no-ops the "Limit to library" filter
+  // because the helper sees an empty list and returns the whole
+  // library. /api/random is plural — its handler uses FastAPI
+  // `Query()` which names the wire param after the Python kwarg.
+  // These two tests pin the wire shape per endpoint so a drift on
+  // either side trips a test.
+  it('serialises collections as repeated ?collection= (singular) for /api/search', async () => {
+    const { search } = await import('./endpoints');
+    await search({ positives: [], negatives: [], collections: ['kpop', 'portrait'] });
+    const url = new URL(captured.url, 'http://x');
+    expect(url.pathname).toBe('/api/search');
+    expect(url.searchParams.getAll('collection')).toEqual(['kpop', 'portrait']);
+    // And critically: the plural key must NOT be present.
+    expect(url.searchParams.getAll('collections')).toEqual([]);
+  });
+
+  it('serialises collections as repeated ?collections= (plural) for /api/random', async () => {
+    const { random } = await import('./endpoints');
+    await random({ limit: 10, collections: ['kpop', 'portrait'] });
+    expect(captured.url).toContain('/api/random');
+    const url = new URL(captured.url, 'http://x');
+    expect(url.searchParams.getAll('collections')).toEqual(['kpop', 'portrait']);
+    expect(url.searchParams.getAll('collection')).toEqual([]);
+  });
+
   // Round‑29: album-card search buttons navigate to /?centroid=…
   // and the home page calls search({ centroid: 'album:<id>' }) (or
   // the system name 'likes' / 'dislikes'). These tests pin the

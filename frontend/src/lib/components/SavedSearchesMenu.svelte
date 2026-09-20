@@ -15,7 +15,6 @@
     deleteSavedSearch,
     createSavedSearch
   } from '$lib/api/endpoints';
-  import { toast } from './Toaster.svelte';
   import { dialog } from './Dialog.svelte';
   import type { SavedSearch } from '$lib/api/endpoints';
 
@@ -36,7 +35,6 @@
       const res = (await listSavedSearches()) as { saved_searches: SavedSearch[] };
       items = res.saved_searches ?? [];
     } catch (e) {
-      toast.show('Failed to load saved searches', { kind: 'error' });
     } finally {
       loading = false;
     }
@@ -53,7 +51,6 @@
 
   async function save() {
     if (!positives.length && !negatives.length) {
-      toast.show('Add at least one prompt before saving.', { kind: 'warn' });
       return;
     }
     const name = await dialog.prompt({
@@ -69,10 +66,8 @@
         positives,
         negatives
       });
-      toast.show('Saved.', { kind: 'success' });
       await refresh();
     } catch (e) {
-      toast.show('Save failed.', { kind: 'error' });
     }
   }
 
@@ -93,9 +88,7 @@
     try {
       await deleteSavedSearch(id);
       items = items.filter((s) => s.id !== id);
-      toast.show('Deleted.');
     } catch {
-      toast.show('Delete failed.', { kind: 'error' });
     }
   }
 </script>

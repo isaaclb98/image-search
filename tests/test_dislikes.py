@@ -110,17 +110,9 @@ def test_dislike_validation_errors(app_with_qdrant):
 # ---------------- HTML pages ----------------
 
 
-
-
-
-
-
-
-
-
-
-def test_dislike_reflected_in_for_you_state(app_with_qdrant):
-    app_with_qdrant.post(f"/api/dislikes/{CAT_ID}")
-    data = app_with_qdrant.get("/api/for-you/state").json()
-    assert data["n_dislikes"] == 1
-    assert CAT_ID in data.get("excluded_ids", []) or data["n_dislikes"] == 1
+# /api/for-you/state was removed in the round-72 refactor (cd3a76b
+# "merge Shuffled For You into For You, drop old pipeline"). The
+# dislike-reflected-in-for-you state check below no longer has a
+# state endpoint to query; the user-visible behaviour — that
+# disliked photos don't appear in /api/for-you/feed — is exercised
+# in tests/test_for_you_route.py.

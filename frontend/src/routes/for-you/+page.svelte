@@ -17,7 +17,6 @@
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
 
   type Item = {
     id: string;
@@ -31,7 +30,11 @@
 
   const PAGE = GRID_PAGE_SIZE;
   let items = $state<Item[]>([]);
-  let loading = $state(false);
+  // Initialise loading=true so the PhotoGrid's spinner renders on the
+  // very first paint — without this, the empty-state message below
+  // shows for one frame before onMount() flips loading=true, which is
+  // jarring on a 2-10s (occasionally 30s+) /api/for-you/feed call.
+  let loading = $state(true);
   let hasMore = $state(true);
   let nextPage = $state(0);
   // One seed per page-mount. Refresh the page → new seed → fresh shuffle.
@@ -98,7 +101,6 @@
       } catch {
         // rollback
         items[idx] = { ...items[idx], is_favorite: wasFavorite };
-        toast.show('Failed to update like.', { kind: 'error' });
       }
     })();
   }
@@ -107,7 +109,6 @@
     try {
       await dislikePoint(id);
     } catch {
-      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 

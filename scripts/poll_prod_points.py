@@ -19,8 +19,8 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.request import urlopen
 from urllib.error import URLError
+from urllib.request import urlopen
 
 QDRANT_URL = "http://127.0.0.1:6333/collections/images"
 INTERVAL = 5.0         # seconds between samples
@@ -45,7 +45,7 @@ def fetch_points() -> int | None:
         with urlopen(QDRANT_URL, timeout=5) as r:
             data = json.load(r)
         return int(data["result"]["points_count"])
-    except (URLError, KeyError, ValueError, json.JSONDecodeError) as e:
+    except (URLError, KeyError, ValueError, json.JSONDecodeError):
         return None
 
 

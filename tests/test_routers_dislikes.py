@@ -52,7 +52,7 @@ def _build(fake_index_db, fake_cfg, invalidate):
         index_db=fake_index_db,
         cfg=fake_cfg,
         invalidate_likes_centroid=invalidate,
-        invalidate_for_you_signal=invalidate,
+        invalidate_for_you=invalidate,
     )
     app = FastAPI()
     app.include_router(router)

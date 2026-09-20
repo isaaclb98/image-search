@@ -17,7 +17,6 @@
    *     Dislike both expose aria-pressed indicating the current
    *     state, with mutual exclusivity between the two, matching
    *     the Lightbox)
-   *   - $lib/components/Toaster (action feedback)
    *   - The existing TopBar from +layout.svelte
    *
    * What this page does NOT do:
@@ -48,7 +47,6 @@
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
   import { blurhashToDataUrl } from '$lib/components/blurhash-bg';
 
   type PhotoMeta = {
@@ -147,7 +145,6 @@
     } catch {
       // Roll back on failure.
       photo = { ...photo, is_favorite: wasFav, is_disliked: wasDisliked };
-      toast.show('Failed to update like.', { kind: 'error' });
     } finally {
       actionInFlight = false;
     }
@@ -175,7 +172,6 @@
     } catch {
       // Roll back on failure.
       photo = { ...photo, is_disliked: wasDisliked, is_favorite: wasFav };
-      toast.show('Failed to dislike.', { kind: 'error' });
     } finally {
       actionInFlight = false;
     }
@@ -206,14 +202,11 @@
     try {
       if (inThisAlbum) {
         await removePhotoFromAlbum(albumId, photo.id);
-        toast.show(`Removed from "${albumName}"`, { kind: 'success' });
       } else {
         await addPhotoToAlbum(albumId, photo.id);
-        toast.show(`Added to "${albumName}"`, { kind: 'success' });
       }
     } catch {
       memberOf = before;
-      toast.show(`Could not update "${albumName}"`, { kind: 'error' });
     }
   }
 
@@ -231,9 +224,7 @@
   async function copyText(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
-      toast.show(`${label} copied.`, { kind: 'info' });
     } catch {
-      toast.show('Copy failed — clipboard not available.', { kind: 'error' });
     }
   }
 

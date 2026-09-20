@@ -175,23 +175,11 @@ def test_album_detail_returns_members(client):
 
 
 # ---------- for-you ----------
-
-def test_for_you_state_returns_core_counts(client):
-    r = client.get("/api/for-you/state")
-    assert r.status_code == 200
-    body = r.json()
-    # The backend calls them n_likes / n_dislikes / freshest_feedback_ts
-    # (verified from the live response). Pinning names here so
-    # backend renames are caught loudly.
-    for f in ("n_likes", "n_dislikes", "freshest_feedback_ts"):
-        assert f in body, f"For-you state missing field: {f}"
-
-
-def test_for_you_reset_clears_signal(client):
-    # Reset is a POST; just verify it doesn't 500.
-    r = client.post("/api/for-you/reset")
-    assert r.status_code in (200, 204)
-
+#
+# /api/for-you/state and /api/for-you/reset were removed in the
+# round-72 refactor (cd3a76b "merge Shuffled For You into For You,
+# drop old pipeline"). The remaining /api/for-you/feed is covered
+# by tests/test_for_you_route.py and the contract tests.
 
 # ---------- photo bytes ----------
 

@@ -40,7 +40,7 @@ class QdrantSearch:
         client: Any,
         collection: str,
         timeout_ms: int = 2000,
-        recommend_timeout_ms: int = 10000,
+        recommend_timeout_ms: int = 40000,
     ):
         self.client = client
         self.collection = collection

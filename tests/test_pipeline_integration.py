@@ -154,10 +154,16 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
         upsert=_upsert_adapter,  # type: ignore[arg-type]
     )
 
-    # Create the target collection at the mock embedder's dim.
+    # Create the target collection at the mock embedder's dim. The
+    # registry's mock-1536 spec is patched at registry-build time
+    # to match the active prod variant (so400m/16-384 = 1152 today;
+    # was 1536 pre-migration), so the right dim to use is whatever
+    # `indexer.upsert.VECTOR_DIM` resolves to at this moment — not
+    # a hardcoded literal.
+    from indexer.upsert import VECTOR_DIM
     ensure_collection(
         qdrant_in_memory, "images_pipeline_test",
-        dim=1536,  # mock-1536's dim
+        dim=VECTOR_DIM,
     )
 
     config = PipelineConfig(
@@ -202,8 +208,11 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
 
     for p in points:
         pl = p.payload or {}
-        # Schema fields are present.
-        assert pl.get(FIELD_MODEL_DIM) == 1536
+        # Schema fields are present. model_dim mirrors the embedder's
+        # dim — mock-1536 is patched at registry build to match the
+        # active prod variant (1152 today), so we assert against
+        # VECTOR_DIM rather than a hardcoded literal.
+        assert pl.get(FIELD_MODEL_DIM) == VECTOR_DIM
         assert pl.get(FIELD_MODEL_NAME) == "mock-1536"
         assert pl.get(FIELD_MODEL_REVISION) == "test-r0"
         assert pl.get(FIELD_PATH)  # absolute path string
@@ -213,7 +222,7 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
 def test_pipeline_handles_corrupt_files(synth_corpus, qdrant_in_memory):
     """Corrupt files are reported via `on_failure`, not raised."""
     from indexer.pipeline import IndexerPipeline, PipelineConfig
-    from indexer.upsert import ensure_collection
+    from indexer.upsert import VECTOR_DIM, ensure_collection
 
     # Inject a corrupt file alongside the synth corpus.
     (synth_corpus / "corrupt.jpg").write_bytes(b"\xff\xff not a real jpeg")
@@ -225,7 +234,7 @@ def test_pipeline_handles_corrupt_files(synth_corpus, qdrant_in_memory):
         upsert=_upsert_adapter,  # type: ignore[arg-type]
     )
 
-    ensure_collection(qdrant_in_memory, "images_pipeline_corrupt", dim=1536)
+    ensure_collection(qdrant_in_memory, "images_pipeline_corrupt", dim=VECTOR_DIM)
     config = PipelineConfig(
         source=synth_corpus,
         model_name="mock-1536",
@@ -234,6 +243,10 @@ def test_pipeline_handles_corrupt_files(synth_corpus, qdrant_in_memory):
         dry_run=False,
         qdrant_client=qdrant_in_memory,
     )
+    # Mirror the end-to-end test's active-model pin so the embedder
+    # is mock-1536 (1152 today) and not the prod variant.
+    from indexer.run_pipeline import set_active_model
+    set_active_model("mock-1536", "test-r0")
     report = pipeline.run(config)
 
     # 10 good + 1 corrupt; 10 upserted, 1 failure reported.

@@ -20,7 +20,6 @@
   } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
-  import { toast } from '$lib/components/Toaster.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
   type Item = {
@@ -107,12 +106,8 @@
     items = next;
     try {
       await unlikePoint(id);
-      toast.show('Removed from Likes.', { kind: 'success' });
     } catch (e: any) {
       items = before;
-      toast.show(`Failed to remove: ${e?.message ?? 'unknown error'}`, {
-        kind: 'error',
-      });
     }
   }
 

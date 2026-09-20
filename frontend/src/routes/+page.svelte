@@ -32,7 +32,6 @@
   } from '$lib/api/endpoints';
   import type { SavedSearch } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
-  import { toast } from '$lib/components/Toaster.svelte';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -103,7 +102,7 @@
     filename = q.get('filename') ?? '';
     diversityMode = q.get('diversity') ?? 'off';
     diversityDepth = q.get('diversity_depth') ?? 'auto';
-    collections = q.getAll('collections');
+    collections = q.getAll('collection');
     filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto' || collections.length > 0;
     activeCentroid = q.get('centroid');
     // Validate the mode param — anything other than the two
@@ -128,7 +127,7 @@
     if (filename) qs.set('filename', filename);
     if (diversityMode !== 'off') qs.set('diversity', diversityMode);
     if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
-    collections.forEach((c) => qs.append('collections', c));
+    collections.forEach((c) => qs.append('collection', c));
     const next = qs.toString();
     if ($page.url.search.replace(/^\?/, '') !== next) {
       history.replaceState(history.state, '', `/${next ? '?' + next : ''}`);
@@ -231,8 +230,7 @@
         centroidMode:
           activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
         collections: collections.length ? collections : undefined,
-        signal
-      });
+      }, signal);
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       offset += more.length;
@@ -255,7 +253,6 @@
         x.id === id ? { ...x, is_favorite: !liked } : x
       );
     } catch {
-      toast.show('Failed to update like.', { kind: 'error' });
     }
   }
 
@@ -266,7 +263,6 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
-      toast.show('Failed to dislike.', { kind: 'error' });
     }
   }
 

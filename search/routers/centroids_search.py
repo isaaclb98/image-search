@@ -85,7 +85,6 @@ from search.centroids_compute import (
     DEFAULT_CLUSTER_SAMPLE_N,
     DEFAULT_SAMPLE_K,
     cluster_then_sample_centroid,
-    sample_centroid,
 )
 from search.models import SearchResponse, SearchResult
 
