@@ -219,3 +219,50 @@ def test_spawn_failure_marks_failed(tmp_path: Path):
     status = runner.status()
     assert status.state is IndexerState.FAILED
     assert status.last_error is not None
+
+
+# --- Default command factory argv shape ---------------------------------
+
+def test_default_factory_incremental_includes_prune():
+    """'Index new & unchanged' (incremental mode) must include --prune
+    so files deleted from a source dir since the last run don't stay
+    as orphan points in Qdrant. Rebuild mode doesn't need this — it
+    wipes the collection first.
+    """
+    from search.indexer_runner import default_indexer_command_factory
+
+    factory = default_indexer_command_factory(
+        sources=("/nas/collections",),
+        model="so400m",
+        device="cpu",
+        qdrant_url="http://qdrant:6333",
+        qdrant_api_key=None,
+        qdrant_collection="images",
+        batch_size=16,
+    )
+    argv_inc = factory("incremental")
+    assert "--prune" in argv_inc, f"--prune missing from incremental argv: {argv_inc}"
+    assert "--rebuild" not in argv_inc, "incremental must not pass --rebuild"
+
+
+def test_default_factory_rebuild_includes_rebuild_not_prune():
+    """Rebuild wipes the collection first; passing --prune too is
+    redundant but the factory intentionally omits it to keep the
+    argv minimal. Pin the absence so a future refactor doesn't
+    re-add it by accident.
+    """
+    from search.indexer_runner import default_indexer_command_factory
+
+    factory = default_indexer_command_factory(
+        sources=("/nas/collections",),
+        model="so400m",
+        device="cpu",
+        qdrant_url="http://qdrant:6333",
+        qdrant_api_key=None,
+        qdrant_collection="images",
+        batch_size=16,
+    )
+    argv_reb = factory("rebuild")
+    assert "--rebuild" in argv_reb
+    assert "--prune" not in argv_reb, "rebuild mode does not need --prune (collection is wiped)"
+

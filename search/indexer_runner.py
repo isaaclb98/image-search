@@ -494,6 +494,15 @@ def default_indexer_command_factory(
             argv += ["--source", s]
         if mode == "rebuild":
             argv += ["--rebuild"]
+        elif mode == "incremental":
+            # 'Index new & unchanged' also prunes. Without this, files
+            # deleted from a source dir since the last index run stay
+            # in Qdrant as orphan points (visible in search results,
+            # occupying collection quota). Pruning after the
+            # change-detection embed keeps the index in sync with the
+            # filesystem. The rebuild path doesn't need this — it
+            # wipes the collection before re-embedding.
+            argv += ["--prune"]
         argv += list(extra_args)
         return argv
 
