@@ -329,9 +329,15 @@ def test_favorites_survive_init_from_qdrant_force_rebuild(tmp_path):
 
 
 def test_favorite_survives_photo_removal_from_qdrant(tmp_path):
-    """If a photo's id disappears from Qdrant (e.g. the file was
-    deleted and heal ran), the favourite stays in the table as an
-    orphan. It re-attaches automatically if the same id reappears.
+    """If a photo's id disappears from Qdrant AND the rebuild comes
+    back empty, the favourite survives as an orphan (the NAS-dropout
+    guard: an empty scroll means 'Qdrant unreachable', not 'photo
+    deleted', so we don't purge). It re-attaches automatically if the
+    same id reappears.
+
+    Contrast with test_purge_removes_orphan_favorites_and_dislikes:
+    when the rebuild is NON-empty, orphans ARE purged — a non-empty
+    scroll is trustworthy evidence the photo is really gone.
     """
     from PIL import Image
 
@@ -398,3 +404,148 @@ def test_favorite_id_set_empty_input_returns_empty_set(tmp_path):
     qdrant = MagicMock()
     db = IndexDB(str(tmp_path / "images.db"), qdrant, refresh_interval_seconds=3600)
     assert db.favorite_id_set([]) == set()
+
+
+# ---------------------------------------------------------------------------
+# purge_orphaned_user_data — the core fix for the prune aftermath:
+# favourites/dislikes/album rows whose photo left Qdrant must be
+# deleted on the next forced cache rebuild, not kept forever as
+# orphans (they poison qdrant.recommend and render as dead tiles).
+# ---------------------------------------------------------------------------
+
+
+def _point_full(pid: str, path: str) -> dict:
+    return {"id": pid, "payload": {"id": pid, "path": path, "indexed_at": "2026-01-01"}}
+
+
+def _make_db(tmp_path, initial_points):
+    qdrant = FakeQdrant([[_point_full(p, f"/photos/{p}.jpg") for p in initial_points]])
+    db = IndexDB(str(tmp_path / "images.db"), qdrant, refresh_interval_seconds=3600)
+    db.init_from_qdrant()
+    return db
+
+
+def test_purge_removes_orphan_favorites_and_dislikes(tmp_path):
+    db = _make_db(tmp_path, ["a", "b"])
+    try:
+        db.mark_favorite("a")
+        db.mark_favorite("b")
+        db.mark_dislike("a")
+        db.mark_dislike("b")
+
+        # 'b' is pruned from Qdrant (file deleted from disk).
+        db.qdrant_client = FakeQdrant([[_point_full("a", "/photos/a.jpg")]])
+        db.init_from_qdrant(force=True)
+
+        # Orphan rows for 'b' are gone from the raw tables...
+        with db._lock:
+            fav_rows = db._conn.execute("SELECT id FROM favorites").fetchall()
+            dis_rows = db._conn.execute("SELECT id FROM dislikes").fetchall()
+        assert {r["id"] for r in fav_rows} == {"a"}
+        assert {r["id"] for r in dis_rows} == {"a"}
+        # ...and the live favourite is untouched.
+        assert db.count_favorites() == 1
+    finally:
+        db.close()
+
+
+def test_purge_removes_orphan_album_memberships_and_resets_cover(tmp_path):
+    db = _make_db(tmp_path, ["a", "b"])
+    try:
+        album_id = db.create_album("Test album")
+        db.add_album_member(album_id, "a")
+        db.add_album_member(album_id, "b")
+        db.set_album_cover(album_id, "b")
+
+        # 'b' is pruned.
+        db.qdrant_client = FakeQdrant([[_point_full("a", "/photos/a.jpg")]])
+        db.init_from_qdrant(force=True)
+
+        members = db.list_album_member_ids(album_id)
+        assert members == ["a"]
+        album = db.get_album(album_id)
+        # Cover pointed at the pruned photo → reset to '' so the UI
+        # falls back to first_member_id.
+        assert album["cover_favorite_id"] == ""
+    finally:
+        db.close()
+
+
+def test_purge_keeps_live_rows_and_feedback_history(tmp_path):
+    db = _make_db(tmp_path, ["a", "b"])
+    try:
+        db.mark_favorite("a")
+        db.mark_dislike("b")
+        db.record_feedback("a", "like", "manual")
+        album_id = db.create_album("Keepers")
+        db.add_album_member(album_id, "a")
+        db.set_album_cover(album_id, "a")
+
+        # Rebuild with the same points — nothing is an orphan.
+        db.qdrant_client = FakeQdrant([
+            [_point_full("a", "/photos/a.jpg"), _point_full("b", "/photos/b.jpg")],
+        ])
+        counts = db.init_from_qdrant(force=True)
+        assert counts == 2
+
+        assert db.count_favorites() == 1
+        with db._lock:
+            dis = db._conn.execute("SELECT COUNT(*) AS n FROM dislikes").fetchone()["n"]
+            fb = db._conn.execute("SELECT COUNT(*) AS n FROM feedback_events").fetchone()["n"]
+        assert dis == 1
+        # feedback_events is a history log — never purged.
+        assert fb == 1
+        assert db.list_album_member_ids(album_id) == ["a"]
+        assert db.get_album(album_id)["cover_favorite_id"] == "a"
+    finally:
+        db.close()
+
+
+def test_purge_skipped_when_rebuild_yields_zero_rows(tmp_path):
+    """NAS-dropout guard: an empty rebuild is far more likely to mean
+    'Qdrant unreachable / collection mid-rebuild' than 'every photo
+    was deleted'. Purging on an empty rebuild would wipe the entire
+    taste history irrecoverably, so orphans survive until a
+    non-empty rebuild confirms they're really gone.
+    """
+    db = _make_db(tmp_path, ["a"])
+    try:
+        db.mark_favorite("a")
+        album_id = db.create_album("Survivor")
+        db.add_album_member(album_id, "a")
+
+        db.qdrant_client = FakeQdrant([])  # empty scroll
+        db.init_from_qdrant(force=True)
+
+        with db._lock:
+            fav_rows = db._conn.execute("SELECT id FROM favorites").fetchall()
+            mem_rows = db._conn.execute(
+                "SELECT favorite_id FROM album_memberships"
+            ).fetchall()
+        assert [r["id"] for r in fav_rows] == ["a"]
+        assert [r["favorite_id"] for r in mem_rows] == ["a"]
+    finally:
+        db.close()
+
+
+def test_purge_returns_per_table_counts(tmp_path):
+    db = _make_db(tmp_path, ["a", "b"])
+    try:
+        db.mark_favorite("b")
+        db.mark_dislike("b")
+        album_id = db.create_album("Counts")
+        db.add_album_member(album_id, "b")
+        db.set_album_cover(album_id, "b")
+
+        db.qdrant_client = FakeQdrant([[_point_full("a", "/photos/a.jpg")]])
+        db.init_from_qdrant(force=True)  # triggers the purge
+
+        counts = db.purge_orphaned_user_data()  # idempotent second run
+        assert counts == {
+            "favorites": 0,
+            "dislikes": 0,
+            "album_memberships": 0,
+            "album_covers_reset": 0,
+        }
+    finally:
+        db.close()
