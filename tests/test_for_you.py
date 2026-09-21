@@ -452,6 +452,45 @@ class TestRank:
 # ===========================================================================
 
 
+class TestFilterLiveIds:
+    """Orphan-id filter for the recommend seed (prod bug: pruned
+    favourites 404'd the whole recommend call → empty for-you pool
+    cached for the TTL)."""
+
+    def setup_method(self) -> None:
+        invalidate_for_you_cache()
+
+    def test_drops_ids_missing_from_qdrant(self) -> None:
+        from search.for_you import filter_live_ids
+
+        qdrant = MagicMock()
+        qdrant.retrieve_batch.return_value = [_hit("a"), _hit("c")]
+        assert filter_live_ids(["a", "b", "c"], qdrant) == ["a", "c"]
+
+    def test_preserves_input_order(self) -> None:
+        from search.for_you import filter_live_ids
+
+        qdrant = MagicMock()
+        # retrieve_batch may return hits out of order; the filter
+        # must keep the CALLER's order, not Qdrant's.
+        qdrant.retrieve_batch.return_value = [_hit("c"), _hit("a")]
+        assert filter_live_ids(["a", "c"], qdrant) == ["a", "c"]
+
+    def test_empty_input_skips_round_trip(self) -> None:
+        from search.for_you import filter_live_ids
+
+        qdrant = MagicMock()
+        assert filter_live_ids([], qdrant) == []
+        qdrant.retrieve_batch.assert_not_called()
+
+    def test_all_orphans_returns_empty(self) -> None:
+        from search.for_you import filter_live_ids
+
+        qdrant = MagicMock()
+        qdrant.retrieve_batch.return_value = []
+        assert filter_live_ids(["gone-1", "gone-2"], qdrant) == []
+
+
 def _fake_index_db(fav_ids=None, dis_ids=None, point_count=100):
     db = MagicMock()
     db.list_favorite_ids.return_value = fav_ids or []
@@ -465,7 +504,12 @@ def _fake_qdrant(hit_ids):
     hits = [_hit(hid) for hid in hit_ids]
     q.recommend.return_value = hits
     q.search.return_value = (hits, None)
-    q.retrieve_batch.return_value = hits
+    # Real retrieve_batch echoes back hits for the ids that EXIST and
+    # silently skips the rest. Default fixture: everything asked for
+    # exists (no orphans), so the router's orphan filter is a no-op
+    # and existing tests keep exercising the recommend path. Tests
+    # that need orphans override this with a filtering side_effect.
+    q.retrieve_batch.side_effect = lambda ids: [_hit(str(i)) for i in ids]
     return q
 
 
@@ -675,6 +719,67 @@ class TestRouter:
         body = response.json()
         # 500 photos × 2% = 10 candidates
         assert body["session_total"] == 10
+
+    def test_orphan_favorites_filtered_before_recommend(self) -> None:
+        """Prod regression: favourites whose photos were pruned from
+        Qdrant must never reach recommend() — a single missing id
+        404s the entire call and the empty pool sticks in cache for
+        the TTL ('No recommendations yet' for 5 min per attempt).
+        """
+        from search.routers.for_you import build_for_you_router
+
+        index_db = _fake_index_db(
+            fav_ids=["live-fav", "orphan-fav"],
+            dis_ids=["live-dis", "orphan-dis"],
+            point_count=1000,
+        )
+        qdrant = _fake_qdrant([f"id-{i}" for i in range(10)])
+        # Only the 'orphan-*' ids are missing from Qdrant (pruned —
+        # file deleted from disk). retrieve_batch echoes back only
+        # the ids that exist — same contract as the real client.
+        # Note retrieve_batch is also used to hydrate the page hits
+        # ('id-N' ids), so the filter must let those through.
+        qdrant.retrieve_batch.side_effect = lambda ids: [
+            _hit(str(i)) for i in ids if not str(i).startswith("orphan-")
+        ]
+        cfg = _fake_cfg()
+        router = build_for_you_router(index_db=index_db, qdrant=qdrant, cfg=cfg)
+        app = _wrap(router)
+
+        with TestClient(app) as client:
+            response = client.get("/api/for-you/feed?limit=5")
+        assert response.status_code == 200
+        body = response.json()
+        # Recommend was seeded with ONLY the live ids.
+        qdrant.recommend.assert_called_once()
+        kwargs = qdrant.recommend.call_args.kwargs
+        assert kwargs["positive"] == ["live-fav"]
+        assert kwargs["negative"] == ["live-dis"]
+        # And the feed still returns results (not the empty-pool fallback).
+        assert body["session_total"] > 0
+        assert len(body["results"]) > 0
+
+    def test_all_favorites_orphan_falls_back_to_cold_start(self) -> None:
+        """Every favourite orphaned → fav_ids filters to empty →
+        build_for_you_pool takes the zero-vector cold-start path
+        instead of 404ing recommend. The user still gets photos.
+        """
+        from search.routers.for_you import build_for_you_router
+
+        index_db = _fake_index_db(fav_ids=["orphan-1"], point_count=1000)
+        qdrant = _fake_qdrant([f"id-{i}" for i in range(10)])
+        qdrant.retrieve_batch.side_effect = lambda ids: []  # nothing exists
+        cfg = _fake_cfg()
+        router = build_for_you_router(index_db=index_db, qdrant=qdrant, cfg=cfg)
+        app = _wrap(router)
+
+        with TestClient(app) as client:
+            response = client.get("/api/for-you/feed?limit=5")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["session_total"] > 0
+        qdrant.recommend.assert_not_called()
+        qdrant.search.assert_called_once()  # zero-vector cold-start path
 
     def test_offset_echoes_input(self) -> None:
         """page=2, limit=10 → offset=20 in the response."""

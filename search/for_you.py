@@ -196,6 +196,34 @@ def build_for_you_pool(
     return list(ids)
 
 
+def filter_live_ids(ids: list[str], qdrant: Any) -> list[str]:
+    """Drop ids that no longer exist in Qdrant.
+
+    Orphan favourites/dislikes (photo deleted from disk and pruned
+    from Qdrant, row kept in SQLite for re-attach semantics — see
+    index_db.py schema notes) poison qdrant.recommend(): if ANY
+    positive/negative id is missing, Qdrant 404s the WHOLE call and
+    the graceful fallback caches an empty pool for the TTL — the
+    user sees 'No recommendations yet' for 5 minutes per attempt.
+
+    Unlike retrieve, recommend does not skip unknown ids, so filter
+    through retrieve_batch (which does) before handing them over.
+    One extra round-trip per pool build; the cache absorbs it.
+    """
+    if not ids:
+        return []
+    found = qdrant.retrieve_batch(list(ids))
+    found_ids = {h.id for h in found}
+    live = [i for i in ids if i in found_ids]
+    dropped = len(ids) - len(live)
+    if dropped:
+        logger.info(
+            "for-you: filtered %d orphan id(s) from recommend seed "
+            "(%d -> %d live)", dropped, len(ids), len(live),
+        )
+    return live
+
+
 def rank_for_you(
     *,
     fav_ids: list[str],

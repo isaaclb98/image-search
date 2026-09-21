@@ -59,7 +59,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from search.for_you import DEFAULT_FOR_YOU_TOP_PCT, rank_for_you
+from search.for_you import DEFAULT_FOR_YOU_TOP_PCT, filter_live_ids, rank_for_you
 from search.models import ErrorResponse, SearchResponse
 
 logger = logging.getLogger(__name__)
@@ -143,13 +143,27 @@ def build_for_you_router(
         the same cached shuffle until the TTL expires.
         """
         try:
-            fav_ids, dis_ids = await asyncio.gather(
+            raw_fav_ids, raw_dis_ids = await asyncio.gather(
                 asyncio.to_thread(index_db.list_favorite_ids),
                 asyncio.to_thread(index_db.list_dislike_ids),
             )
         except Exception:
             logger.exception("for-you: failed to read fav/dis ids")
             return _bad_request("failed to read user signal")  # type: ignore[return-value]
+
+        # Qdrant's recommend() requires every positive/negative id to
+        # exist; orphans in the SQLite fav/dis tables (kept for
+        # re-attach semantics — see index_db.py) would 404 the whole
+        # call and pin the user to an empty pool for the cache TTL.
+        # Strip orphans via retrieve_batch before seeding recommend.
+        try:
+            fav_ids, dis_ids = await asyncio.gather(
+                asyncio.to_thread(filter_live_ids, raw_fav_ids, qdrant),
+                asyncio.to_thread(filter_live_ids, raw_dis_ids, qdrant),
+            )
+        except Exception:
+            logger.exception("for-you: orphan-filter failed; falling back to raw ids")
+            fav_ids, dis_ids = raw_fav_ids, raw_dis_ids
 
         try:
             page_hits, pool_total, has_more = await asyncio.to_thread(
