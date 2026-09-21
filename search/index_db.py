@@ -89,10 +89,11 @@ class IndexDB:
 
                 -- Persistent user state. Independent of the images
                 -- cache so a cache rebuild (init_from_qdrant) never
-                -- drops a favourite. A favourite whose photo id is no
-                -- longer in Qdrant stays in this table as an orphan;
-                -- re-indexing the same photo (same uuid5 id) re-attaches
-                -- it on the next cache build.
+                -- drops a favourite for a photo that still exists.
+                -- A favourite whose photo id was PRUNED from Qdrant
+                -- (file deleted from disk) is purged at the end of
+                -- the next forced cache rebuild — see
+                -- purge_orphaned_user_data().
                 CREATE TABLE IF NOT EXISTS favorites (
                   id            TEXT PRIMARY KEY,
                   favorited_at  TEXT NOT NULL
@@ -452,11 +453,11 @@ class IndexDB:
 
         The `images` table is disposable cache of Qdrant payload
         metadata. This method wipes it and repopulates from a fresh
-        scroll. The `favorites` table (separate physical storage) is
-        never touched here, so user-created favourites survive a
-        refresh even when the underlying photo id disappears from
-        Qdrant — orphaned favourites simply have no matching row in
-        `images` until the photo is re-indexed (same uuid5 id).
+        scroll. User-data tables (favorites, dislikes, albums) are
+        NOT wiped — but when the rebuild produces a non-empty cache,
+        `purge_orphaned_user_data()` runs afterwards and deletes
+        user rows whose photo id is no longer in Qdrant (see that
+        method for the full contract and the empty-rebuild guard).
 
         When `force=False` (the default) and the cache already contains
         rows, this is a no-op for the Qdrant scroll: the previous
@@ -480,9 +481,10 @@ class IndexDB:
         count = 0
         with self._lock:
             # Disposable cache: a force rebuild is a full wipe + repopulate.
-            # The `favorites` table is in a separate physical location and
-            # is never touched here, so favourite state survives a refresh
-            # even when the underlying photo id disappears from Qdrant.
+            # User-data tables (favorites/dislikes/albums) survive the
+            # wipe itself; orphans among them are purged afterwards by
+            # purge_orphaned_user_data() (below), only when the rebuild
+            # produced rows.
             self._conn.execute("DELETE FROM images")
             try:
                 for batch in self.qdrant_client.scroll_all():
@@ -504,7 +506,84 @@ class IndexDB:
                 raise
             self._last_refresh = time.time()
         logger.info("index cache built from Qdrant: %d points", count)
+        # Purge user-data rows whose photo id is no longer in the
+        # (freshly rebuilt) cache. Only safe right here, right after
+        # a full rebuild — at any other moment `images` may be stale
+        # and the purge would delete rows for photos that still
+        # exist. Skipped when the rebuild produced zero rows: an
+        # empty Qdrant is far more likely to mean "collection
+        # unreachable / mid-rebuild" than "user deleted 2M photos",
+        # and wiping the entire taste history on a transient blip
+        # is unrecoverable.
+        if count > 0:
+            self.purge_orphaned_user_data()
         return count
+
+    def purge_orphaned_user_data(self) -> dict[str, int]:
+        """Delete user-state rows whose photo is gone from the cache.
+
+        Orphans accumulate when the indexer prunes Qdrant points
+        (files deleted from disk): the favourite/dislike/album rows
+        were deliberately kept so re-indexing the same path (same
+        uuid5 id) would re-attach them. That re-attach window has a
+        cost though — orphan ids poison qdrant.recommend() (a single
+        missing id 404s the WHOLE call; see filter_live_ids in
+        search/for_you.py) and orphan album members render as dead
+        thumbnails.
+
+        Called at the end of every forced `images` cache rebuild
+        (init_from_qdrant(force=True)) — i.e. on POST /api/cache/
+        refresh and the periodic 6h refresh — when `images` is
+        guaranteed to mirror Qdrant. NOT called on the startup
+        warm-up path, which may short-circuit against a stale cache.
+
+        Purges:
+          - favorites / dislikes rows with no `images` match
+          - album_memberships whose photo left the cache (a
+            membership of a deleted photo renders as a dead
+            thumbnail; note memberships do NOT require the photo
+            to be a favourite — add_album_member allows any id —
+            so liveness is checked against `images` only)
+          - albums.cover_favorite_id refs pointing at photos that
+            left the cache (reset to '' so the UI falls back to
+            the first member)
+
+        Keeps: feedback_events (append-only history log, not state —
+        nothing feeds it back into recommend) and saved_searches
+        (prompt text only, no point ids).
+
+        Returns per-table deletion counts for logging/API response.
+        """
+        with self._lock:
+            cur_memberships = self._conn.execute(
+                """
+                DELETE FROM album_memberships
+                WHERE favorite_id NOT IN (SELECT id FROM images)
+                """
+            )
+            cur_favs = self._conn.execute(
+                "DELETE FROM favorites WHERE id NOT IN (SELECT id FROM images)"
+            )
+            cur_dis = self._conn.execute(
+                "DELETE FROM dislikes WHERE id NOT IN (SELECT id FROM images)"
+            )
+            cur_covers = self._conn.execute(
+                """
+                UPDATE albums SET cover_favorite_id = ''
+                WHERE cover_favorite_id != ''
+                  AND cover_favorite_id NOT IN (SELECT id FROM images)
+                """
+            )
+            self._conn.commit()
+            purged = {
+                "favorites": cur_favs.rowcount,
+                "dislikes": cur_dis.rowcount,
+                "album_memberships": cur_memberships.rowcount,
+                "album_covers_reset": cur_covers.rowcount,
+            }
+        if any(purged.values()):
+            logger.info("purged orphaned user data: %s", purged)
+        return purged
 
     def pick_random(self, n: int) -> list[str]:
         if n <= 0:
@@ -660,12 +739,16 @@ class IndexDB:
     def list_favorite_ids(self) -> list[str]:
         """Return every favourite id in the cache, with no JOIN.
 
-        Used by the dynamic favourites-centroid compute: we want
-        every id the user has ever favourited, including ones whose
-        photo is no longer in the `images` table (orphans). The
-        downstream Qdrant retrieve silently drops ids it can't find,
-        so the orphan case is handled naturally without us filtering
-        here.
+        Used by the dynamic favourites-centroid compute and the
+        for-you recommend seed: every id the user has favourited,
+        including ones whose photo is no longer in the `images`
+        table (orphans — kept between purge runs).
+
+        Callers that feed these ids to Qdrant must handle orphans
+        themselves: `retrieve` silently drops unknown ids, but
+        `recommend` 404s the WHOLE call if any positive/negative
+        id is missing. The for-you route filters through
+        `search.for_you.filter_live_ids` for exactly this reason.
         """
         with self._lock:
             rows = self._conn.execute(
