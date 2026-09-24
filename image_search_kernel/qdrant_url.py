@@ -20,6 +20,21 @@ explicitly when the URL omits it. Behavior:
   https://host:8443   -> port=8443 (URL wins)
   http://host         -> port=6333
   http://host:6333    -> port=6333
+
+gRPC support (added for diversity-fetch latency):
+  prefer_grpc=True switches the transport from REST/JSON to the
+  Qdrant gRPC API (~3x faster on bulk vector fetches at depth
+  5000 because the wire format is protobuf instead of JSON and
+  there is no per-message parse cost). When `prefer_grpc=True`,
+  `grpc_port` is the port qdrant-client connects to for gRPC
+  traffic; defaults to REST port + 1 (6334) when not specified,
+  which is the qdrant docker image's default gRPC listener.
+
+  Inside the image-search docker network the search container
+  reaches qdrant at `qdrant:6334` once the compose file exposes
+  port 6334 from the qdrant service. Both the indexer and the
+  search app call this helper, so toggling gRPC here flips the
+  transport for every QdrantClient in the project.
 """
 
 from __future__ import annotations
@@ -30,7 +45,9 @@ from urllib.parse import urlparse
 __all__ = ["client_kwargs"]
 
 
-def client_kwargs(url: str, api_key: str | None = None, timeout: float | None = None) -> dict[str, Any]:
+def client_kwargs(url: str, api_key: str | None = None, timeout: float | None = None,
+                  *, prefer_grpc: bool = False, grpc_port: int | None = None,
+                  ) -> dict[str, Any]:
     """
     Build kwargs for `QdrantClient(...)`.
 
@@ -38,6 +55,12 @@ def client_kwargs(url: str, api_key: str | None = None, timeout: float | None = 
         url: Full URL including scheme, e.g. `https://qdrant.aizaku.ca`.
         api_key: Optional API key. None for unauthenticated Qdrant.
         timeout: Optional timeout in seconds. None for qdrant-client default.
+        prefer_grpc: When True, use qdrant-client's gRPC transport instead
+            of REST. Falls back to REST on connection failure (the client
+            library handles this internally). Default False.
+        grpc_port: gRPC port. Defaults to REST port + 1 (6333 -> 6334),
+            which matches the qdrant docker image's default. Ignored
+            unless prefer_grpc=True.
 
     Returns:
         A dict suitable for `QdrantClient(**kwargs)`.
@@ -59,4 +82,8 @@ def client_kwargs(url: str, api_key: str | None = None, timeout: float | None = 
         kwargs["api_key"] = api_key
     if timeout is not None:
         kwargs["timeout"] = timeout
+    if prefer_grpc:
+        kwargs["prefer_grpc"] = True
+        # Default to REST port + 1 if the caller didn't override.
+        kwargs["grpc_port"] = grpc_port if grpc_port is not None else port + 1
     return kwargs

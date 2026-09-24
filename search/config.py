@@ -215,6 +215,19 @@ class Config:
     # In test mode the real model is replaced with a deterministic mock.
     # Set SEARCH_TEST_MODE=1 from conftest to enable.
     test_mode: bool
+    # qdrant_prefer_grpc: when True, the qdrant-client uses the gRPC
+    # transport (port 6334 by default) instead of REST/JSON. ~3x faster
+    # on bulk vector fetches at depth 5000 because protobuf avoids the
+    # JSON parse cost and the per-message encoding overhead. Off by
+    # default so existing deploys see no behaviour change; flip on via
+    # `QDRANT_PREFER_GRPC=true` once the qdrant container has port 6334
+    # exposed (docker-compose exposes it as of the gRPC port addition;
+    # see the compose file's qdrant service ports).
+    qdrant_prefer_grpc: bool = False
+    # qdrant_grpc_port: gRPC port for `prefer_grpc=True`. Defaults to
+    # `QDRANT_GRPC_PORT` env var if set, else the qdrant docker
+    # image's standard gRPC port (6334). Ignored unless prefer_grpc=True.
+    qdrant_grpc_port: int = 6334
     # Option B (Sept 2026): single canonical collection. The
     # previous split-collection design (separate read + write + a
     # SyncManager that moved points between them) was deleted; see
@@ -437,6 +450,8 @@ def load() -> Config:
             os.environ.get("SEARCH_TEST_MODE")
             or os.environ.get("SEARCH_NO_MODEL")
         ),
+        qdrant_prefer_grpc=_bool("QDRANT_PREFER_GRPC", False),
+        qdrant_grpc_port=_int("QDRANT_GRPC_PORT", 6334),
         diversity_max_candidate_pool_size=_int("DIVERSITY_MAX_CANDIDATE_POOL_SIZE", 5000),
         diversity_cache_ttl_seconds=_int("DIVERSITY_CACHE_TTL_SECONDS", 300),
         diversity_cache_max_entries=_int("DIVERSITY_CACHE_MAX_ENTRIES", 64),
