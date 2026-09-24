@@ -210,6 +210,121 @@ class TestCollapseDuplicateIndices:
         assert result == []
 
 
+# ----- _collapse_duplicate_indices: bit-packed popcount path -----
+
+class TestCollapseBitpackedPopcount:
+    """Pin the invariants of the vectorized XOR + popcount rewrite.
+
+    The implementation uses numpy.unpackbits over a banded XOR matrix
+    instead of int.bit_count() in a Python double-loop. These tests
+    catch:
+      * union correctness across the 256-element neighborhood window
+      * width-bucket partitioning (`len(hex) * 4`, NOT bit_length)
+      * transitive collapse (zero → one → three within hd=1)
+      * representative selection (highest query_score per group)
+      * zero-padding safety for out-of-window cells
+    """
+
+    def test_dhash_within_window_collapses(self):
+        # Two indices differ by <256, same width, hd <= 4 → union.
+        hits = [
+            _make_hit("a", 0.9, dhash="0f0f0f0f0f0f0f0f"),
+            _make_hit("b", 0.7, dhash="0e0e0e0e0e0e0e0e"),  # 8 bits diff
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=10,
+        )
+        # a and b collapse; representative is the higher-scored one (a).
+        assert result == [0]
+
+    def test_dhash_outside_window_does_not_collapse(self):
+        # Two indices differ by >256 → outside the neighborhood, no union
+        # even when within hamming distance.
+        hits = [
+            _make_hit("a", 0.9, dhash="0f0f0f0f0f0f0f0f"),
+        ]
+        # Add 300 more hits to push index 301 well past the W=256 window.
+        for i in range(1, 301):
+            hits.append(_make_hit(f"x{i}", 0.5, dhash="ffffffffffffffff"))
+        hits.append(_make_hit("b", 0.7, dhash="0f0e0e0e0e0e0e0e"))
+        # Indices: a=0, x1..x300=1..300, b=301. a and b differ by 301 > 256.
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[h.score for h in hits], duplicate_hamming_distance=10,
+        )
+        # a and b should NOT collapse (out of window). All 302 survivors
+        # because x1..x300 are isolated.
+        assert 0 in result and 301 in result
+        assert result.index(0) < result.index(301)
+
+    def test_width_bucket_partitioning(self):
+        # Different widths must NOT collapse together even if popcount
+        # is small. This is the `len(hex) * 4` vs `bit_length()` gotcha.
+        hits = [
+            _make_hit("a", 0.9, dhash="0f"),        # len=2, width=8
+            _make_hit("b", 0.7, dhash="0f0f0f0f"),  # len=8, width=32
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=10,
+        )
+        # Different width buckets → no union, both survive.
+        assert sorted(result) == [0, 1]
+
+    def test_transitive_collapse(self):
+        # zero → one → three all within hd=1 of each other, but not all
+        # within hd=1 pairwise. The union-find chains them.
+        hits = [
+            _make_hit("z", 0.9, dhash="0000000000000000"),
+            _make_hit("o", 0.7, dhash="0000000000000001"),  # 1 bit from z
+            _make_hit("t", 0.5, dhash="0000000000000003"),  # 2 bits from z, 1 from o
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7, 0.5], duplicate_hamming_distance=1,
+        )
+        # All three collapse; representative is highest-scored (z).
+        assert result == [0]
+
+    def test_representative_picks_highest_score(self):
+        hits = [
+            _make_hit("a", 0.5, dhash="0f0f0f0f0f0f0f0f"),
+            _make_hit("b", 0.9, dhash="0f0f0f0f0f0f0f0f"),  # exact content_sha256
+            _make_hit("c", 0.7, dhash="0f0f0f0f0f0f0f0f"),
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.5, 0.9, 0.7], duplicate_hamming_distance=4,
+        )
+        # All three have the same dhash and no content_sha256, so the
+        # transitive dhash collapse picks the highest-scored (b).
+        assert result == [1]
+
+    def test_zero_dhash_is_valid_hash(self):
+        # All-zero dhash is a VALID 64-bit hash (bit_count = 0), not a
+        # missing-value marker. Two zero dhashes within hd=4 collapse.
+        hits = [
+            _make_hit("a", 0.9, dhash="0000000000000000"),
+            _make_hit("b", 0.7, dhash="0000000000000000"),
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=4,
+        )
+        # Zero dhashes collide (bit_count(0 XOR 0) = 0 <= 4). Higher-
+        # scored one wins.
+        assert result == [0]
+
+    def test_mixed_width_and_content_hash(self):
+        # content_sha256 unions regardless of dhash width; dhash only
+        # applies within the same width bucket.
+        hits = [
+            _make_hit("a", 0.9, content_sha256="same", dhash="0f"),
+            _make_hit("b", 0.7, content_sha256="same", dhash="f0f0f0f0f0f0f0f0"),
+            _make_hit("c", 0.5, dhash="0f0f0f0f0f0f0f0f"),  # distinct from a's dhash
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7, 0.5], duplicate_hamming_distance=4,
+        )
+        # a and b union via content_sha256 (highest = a); c survives.
+        assert sorted(result) == [0, 2]
+
+
 # ----- mmr_rerank -----
 
 class TestMmrRerank:
