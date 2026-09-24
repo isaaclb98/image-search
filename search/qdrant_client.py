@@ -375,6 +375,91 @@ class QdrantSearch:
         has_more = len(pairs) >= limit
         return pairs, has_more
 
+    def search_with_native_mmr(
+        self,
+        vector: list[float],
+        limit: int,
+        *,
+        diversity: float,
+        candidates_limit: int,
+        collections: list[str] | None = None,
+        allowed_ids: list[str] | None = None,
+        exclude_ids: list[str] | None = None,
+    ) -> list:
+        """Server-side MMR rerank via Qdrant's `models.Mmr`.
+
+        Qdrant returns a fully diversified ranking of up to `limit`
+        results. The diversity-vs-relevance balance is controlled by
+        `diversity` (float in [0.0, 1.0]; 0.0 = pure relevance,
+        1.0 = pure diversity). `candidates_limit` controls the size
+        of the candidate pool Qdrant pulls from before reranking —
+        must be >= `limit` or Qdrant silently degenerates to plain
+        reorder.
+
+        Returns a list of `SearchHit` (no vectors — `with_vectors=False`).
+        Order is MMR's rerank order. The caller is responsible for
+        any post-filtering (dhash collapse, relevance floor) and for
+        slicing for `?offset`.
+        """
+        from qdrant_client.http import models as qmodels
+
+        must_conditions: list[Any] = []
+        if collections:
+            must_conditions.append(
+                qmodels.FieldCondition(
+                    key="collection",
+                    match=qmodels.MatchAny(any=collections),
+                )
+            )
+        if allowed_ids:
+            must_conditions.append(
+                qmodels.HasIdCondition(has_id=allowed_ids)
+            )
+        must_not_conditions: list[Any] = []
+        if exclude_ids:
+            must_not_conditions.append(
+                qmodels.HasIdCondition(has_id=exclude_ids)
+            )
+        query_filter = None
+        if must_conditions or must_not_conditions:
+            query_filter = qmodels.Filter(
+                must=must_conditions or None,
+                must_not=must_not_conditions or None,
+            )
+
+        # Defensive clamp: candidates_limit must be >= limit or Qdrant
+        # silently degenerates (the documented "trap" in Qdrant's MMR
+        # tutorial — see qdrant.tech/course/beginners/module-6/...).
+        candidates = max(candidates_limit, limit)
+
+        response = self.client.query_points(
+            collection_name=self.collection,
+            query=qmodels.NearestQuery(
+                nearest=vector,
+                mmr=qmodels.Mmr(
+                    diversity=float(diversity),
+                    candidates_limit=int(candidates),
+                ),
+            ),
+            limit=limit,
+            query_filter=query_filter,
+            with_payload=True,
+            with_vectors=False,
+            timeout=self.timeout_ms // 1000,
+        )
+
+        hits: list = []
+        for r in response.points:
+            hits.append(
+                SearchHit(
+                    id=str(r.id),
+                    path=(r.payload or {}).get("path", ""),
+                    score=float(r.score) if r.score is not None else 0.0,
+                    payload=r.payload,
+                )
+            )
+        return hits
+
     def retrieve_batch_with_vectors(
         self, point_ids: list[str],
     ) -> list[tuple[str, list[float]]]:

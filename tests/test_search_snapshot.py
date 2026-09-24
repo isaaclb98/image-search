@@ -750,7 +750,8 @@ async def test_api_search_pagination_is_disjoint_end_to_end():
     cfg.filename_cardinality_guard = 0.5
     cfg.diversity_relevance_drop = 0.1
     cfg.diversity_duplicate_hamming_distance = 8
-    cfg.diversity_pool_depths = {}
+    cfg.diversity_max_candidate_pool_size = 5000
+    cfg.diversity_max_pool_depth = 5000  # MagicMock doesn't call the property
 
     index_db = MagicMock()
     index_db.favorite_id_set.return_value = set()
@@ -776,7 +777,9 @@ async def test_api_search_pagination_is_disjoint_end_to_end():
     with TestClient(app) as client:
         seen: list[str] = []
         for off in range(0, 24 * 8, 24):
-            r = client.get(f"/api/search?q=cat&limit=24&offset={off}")
+            # diversity=0 to opt out of MMR (default on this branch) so
+            # the test exercises the plain-search pagination path.
+            r = client.get(f"/api/search?q=cat&limit=24&offset={off}&diversity=0")
             assert r.status_code == 200, r.text
             body = r.json()
             ids = [x["id"] for x in body["results"]]

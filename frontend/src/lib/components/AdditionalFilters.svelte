@@ -5,11 +5,10 @@
    * filename input, diversity controls, and (on the home page)
    * the collections chip filter.
    *
-   * Diversity API contract (see search/diversity.py):
-   *   diversity_mode  ∈ {off, low, balanced, high}
-   *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000}
-   *   (diversity_strength was a 0–1 slider; removed in round-4
-   *    per king — the mode dropdown is enough.)
+   * Diversity API contract (native-MMR branch, see search/diversity.py):
+   *   diversity       ∈ [0.0, 1.0] — Qdrant MMR float; 0 = pure
+   *                    relevance (MMR off), 1 = pure diversity
+   *   diversity_depth ∈ [1, 5000]  — free int candidate-pool depth
    *
    * Collections: optional. Pass `collections` + `onToggleCollection`
    * to surface the chip-row filter inside this panel. Used on the
@@ -17,26 +16,28 @@
    */
   import CollectionsChips from './CollectionsChips.svelte';
 
+  export const DIVERSITY_MAX_DEPTH = 5000;
+
   type Props = {
     open: boolean;
     filename: string;
-    diversityMode: 'off' | 'low' | 'balanced' | 'high' | string;
-    diversityDepth?: 'auto' | '500' | '1000' | '2000' | '5000' | string;
+    diversity: number;
+    diversityDepth?: number;
     onToggle: () => void;
     onFilename: (v: string) => void;
-    onDiversityMode: (v: string) => void;
-    onDiversityDepth?: (v: string) => void;
+    onDiversity: (v: number) => void;
+    onDiversityDepth?: (v: number) => void;
     collections?: string[];
     onToggleCollection?: (name: string) => void;
   };
   let {
     open,
     filename,
-    diversityMode,
-    diversityDepth = 'auto',
+    diversity,
+    diversityDepth = DIVERSITY_MAX_DEPTH,
     onToggle,
     onFilename,
-    onDiversityMode,
+    onDiversity,
     onDiversityDepth,
     collections = [],
     onToggleCollection
@@ -67,36 +68,39 @@
         />
       </label>
       <div class="field">
-        <span class="lab">Diversity</span>
+        <span class="lab">Diversity <output>{diversity.toFixed(2)}</output></span>
         <div class="row">
-          <select
-            value={diversityMode}
-            onchange={(e) => onDiversityMode((e.target as HTMLSelectElement).value)}
-            aria-label="Diversity mode"
-          >
-            <option value="off">Off</option>
-            <option value="low">Low</option>
-            <option value="balanced">Balanced</option>
-            <option value="high">High</option>
-          </select>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={diversity}
+            oninput={(e) => onDiversity(Number((e.target as HTMLInputElement).value))}
+            aria-label="Diversity"
+            title="0 = pure relevance (off), 1 = pure diversity"
+          />
         </div>
       </div>
-      {#if onDiversityDepth}
+      {#if onDiversityDepth && diversity > 0}
         <div class="field">
           <span class="lab">Diversity depth</span>
           <div class="row">
-            <select
+            <input
+              type="number"
+              min="1"
+              max={DIVERSITY_MAX_DEPTH}
+              step="100"
               value={diversityDepth}
-              onchange={(e) => onDiversityDepth((e.target as HTMLSelectElement).value)}
+              oninput={(e) => {
+                const n = Number((e.target as HTMLInputElement).value);
+                if (Number.isFinite(n) && n >= 1) {
+                  onDiversityDepth(Math.min(Math.round(n), DIVERSITY_MAX_DEPTH));
+                }
+              }}
               aria-label="Diversity depth"
-              title="How many top results to re-rank across for diversity"
-            >
-              <option value="auto">Auto</option>
-              <option value="500">500 photos</option>
-              <option value="1000">1,000 photos</option>
-              <option value="2000">2,000 photos</option>
-              <option value="5000">5,000 photos</option>
-            </select>
+              title="Candidate pool size for the MMR pass (1–5000)"
+            />
           </div>
         </div>
       {/if}
@@ -111,6 +115,7 @@
       {/if}
     </div>
   {/if}
+
 </section>
 
 <style>
@@ -164,6 +169,10 @@
     gap: 8px;
     min-width: 0;
   }
+  .field .lab output {
+    color: var(--fg-1);
+    font-variant-numeric: tabular-nums;
+  }
   .field .lab {
     color: var(--fg-2);
     font-size: var(--fs-sm);
@@ -174,7 +183,8 @@
     width: 120px;
     flex-shrink: 0;
   }
-  .field input[type='text'] {
+  .field input[type='text'],
+  .field input[type='number'] {
     background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);

@@ -239,6 +239,23 @@ class Config:
     diversity_cache_max_entries: int = 64
     diversity_duplicate_hamming_distance: int = 10
     diversity_relevance_drop: float = 0.10
+    # Native MMR branch (`test/native-mmr`): the server-side ceiling for
+    # `?diversity_depth=` requests. Aliased to `diversity_max_candidate_pool_size`
+    # so existing env vars (`DIVERSITY_MAX_CANDIDATE_POOL_SIZE`) keep working.
+    @property
+    def diversity_max_pool_depth(self) -> int:
+        return self.diversity_max_candidate_pool_size
+    # Native MMR branch: relevance floor is a single constant applied
+    # uniformly across the result, not a per-mode multiplier. Aliased
+    # to `diversity_relevance_drop` so existing env vars (`DIVERSITY_RELEVANCE_DROP`)
+    # keep working.
+    @property
+    def diversity_relevance_floor(self) -> float:
+        return self.diversity_relevance_drop
+    # Default candidate-pool depth when `?diversity_depth=` is omitted.
+    # Equal to the server-side ceiling so the default is "as much as
+    # possible without explicit request".
+    diversity_default_pool_depth: int = 5000
     # Stable pagination for plain /api/search. Qdrant offset paging is
     # unsound on HNSW — each page is ranked at a different depth
     # (offset+limit) and neighbouring pages disagree near the boundary,

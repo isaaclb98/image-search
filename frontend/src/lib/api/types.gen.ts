@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_get"];
+        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
+        head: operations["album_download_zip_albums__album_id__download_zip_head"];
         patch?: never;
         trace?: never;
     };
@@ -564,13 +564,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_get"];
+        get: operations["favorites_download_zip_favorites_download_zip_head"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
         patch?: never;
         trace?: never;
     };
@@ -775,21 +775,11 @@ export interface components {
              */
             candidate_count: number;
             /**
-             * Depth
-             * @description Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.
-             * @default auto
-             */
-            depth: string;
-            /**
-             * Duplicate Images Collapsed
+             * Diversity Float
+             * @description Diversity float in [0.0, 1.0] passed to Qdrant's Mmr.
              * @default 0
              */
-            duplicate_images_collapsed: number;
-            /**
-             * Mode
-             * @default off
-             */
-            mode: string;
+            diversity_float: number;
             /**
              * Pool Depth
              * @description Number of candidates actually retrieved for the ranking pass.
@@ -806,16 +796,6 @@ export interface components {
              * @default 0
              */
             result_count: number;
-            /**
-             * Semantic Groups Covered
-             * @default 0
-             */
-            semantic_groups_covered: number;
-            /**
-             * Strength
-             * @default 0
-             */
-            strength: number;
         };
         /** FavoriteToggleResponse */
         FavoriteToggleResponse: {
@@ -1115,7 +1095,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_get: {
+    album_download_zip_albums__album_id__download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1144,7 +1124,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_get_1: {
+    album_download_zip_albums__album_id__download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -1639,8 +1619,10 @@ export interface operations {
                 offset?: number;
                 /** @description Retrieval mode. 'centroid' (default) uses the full mean of the seed set. 'sample' picks a random K-subset of the seeds and uses the mean of THAT subset. Each request re-rolls, so refreshing surfaces a different cluster. */
                 mode?: string;
-                /** @description K for sample mode. Defaults to 10. Only used when mode=sample. */
+                /** @description Cluster count (k-means K) for sample mode. Defaults to 10. Only used when mode=sample. Round-75. */
                 sample_k?: number;
+                /** @description Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75. */
+                sample_n?: number;
             };
             header?: never;
             path: {
@@ -2131,12 +2113,10 @@ export interface operations {
                 view?: string;
                 /** @description restrict results to favourites */
                 favorites?: boolean;
-                /** @description apply MMR diversity re-ranking */
-                diverse?: boolean;
-                /** @description Diversity strength: off, low, balanced, or high */
-                diversity?: string | null;
-                /** @description Diversity candidate depth: auto, 500, 1000, 2000, or 5000 */
-                diversity_depth?: string | null;
+                /** @description Diversity float in [0.0, 1.0] for MMR rerank (0.0=pure relevance, 1.0=pure diversity). Default 0.5 (balanced). */
+                diversity?: number;
+                /** @description Diversity candidate-pool depth as a free int. Clamped to diversity_max_pool_depth=5000 if larger. Default uses the configured max. */
+                diversity_depth?: number;
                 /** @description Surprise Me — random sample from deep pool */
                 surprise?: boolean;
             };
@@ -2224,7 +2204,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get: {
+    favorites_download_zip_favorites_download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -2242,7 +2222,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get_1: {
+    favorites_download_zip_favorites_download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;

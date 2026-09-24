@@ -245,21 +245,11 @@
             "title": "Candidate Count",
             "type": "integer"
           },
-          "depth": {
-            "default": "auto",
-            "description": "Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
-            "title": "Depth",
-            "type": "string"
-          },
-          "duplicate_images_collapsed": {
-            "default": 0,
-            "title": "Duplicate Images Collapsed",
-            "type": "integer"
-          },
-          "mode": {
-            "default": "off",
-            "title": "Mode",
-            "type": "string"
+          "diversity_float": {
+            "default": 0.0,
+            "description": "Diversity float in [0.0, 1.0] passed to Qdrant's Mmr.",
+            "title": "Diversity Float",
+            "type": "number"
           },
           "pool_depth": {
             "default": 0,
@@ -276,16 +266,6 @@
             "default": 0,
             "title": "Result Count",
             "type": "integer"
-          },
-          "semantic_groups_covered": {
-            "default": 0,
-            "title": "Semantic Groups Covered",
-            "type": "integer"
-          },
-          "strength": {
-            "default": 0.0,
-            "title": "Strength",
-            "type": "number"
           }
         },
         "title": "DiversityMetadata",
@@ -910,7 +890,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
         "parameters": [
           {
             "in": "path",
@@ -941,7 +921,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
         "parameters": [
           {
             "in": "path",
@@ -1556,14 +1536,26 @@
             }
           },
           {
-            "description": "K for sample mode. Defaults to 10. Only used when mode=sample.",
+            "description": "Cluster count (k-means K) for sample mode. Defaults to 10. Only used when mode=sample. Round-75.",
             "in": "query",
             "name": "sample_k",
             "required": false,
             "schema": {
               "default": 10,
-              "description": "K for sample mode. Defaults to 10. Only used when mode=sample.",
+              "description": "Cluster count (k-means K) for sample mode. Defaults to 10. Only used when mode=sample. Round-75.",
               "title": "Sample K",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75.",
+            "in": "query",
+            "name": "sample_n",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75.",
+              "title": "Sample N",
               "type": "integer"
             }
           }
@@ -2335,51 +2327,30 @@
             }
           },
           {
-            "description": "apply MMR diversity re-ranking",
-            "in": "query",
-            "name": "diverse",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "apply MMR diversity re-ranking",
-              "title": "Diverse",
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "Diversity strength: off, low, balanced, or high",
+            "description": "Diversity float in [0.0, 1.0] for MMR rerank (0.0=pure relevance, 1.0=pure diversity). Default 0.5 (balanced).",
             "in": "query",
             "name": "diversity",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Diversity strength: off, low, balanced, or high",
-              "title": "Diversity"
+              "default": 0.5,
+              "description": "Diversity float in [0.0, 1.0] for MMR rerank (0.0=pure relevance, 1.0=pure diversity). Default 0.5 (balanced).",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Diversity",
+              "type": "number"
             }
           },
           {
-            "description": "Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+            "description": "Diversity candidate-pool depth as a free int. Clamped to diversity_max_pool_depth=5000 if larger. Default uses the configured max.",
             "in": "query",
             "name": "diversity_depth",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
-              "title": "Diversity Depth"
+              "default": 5000,
+              "description": "Diversity candidate-pool depth as a free int. Clamped to diversity_max_pool_depth=5000 if larger. Default uses the configured max.",
+              "minimum": 1,
+              "title": "Diversity Depth",
+              "type": "integer"
             }
           },
           {
@@ -2510,7 +2481,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get",
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2519,7 +2490,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
         "responses": {
           "200": {
             "description": "Successful Response"

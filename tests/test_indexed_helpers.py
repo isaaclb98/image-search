@@ -322,45 +322,18 @@ def test_normalize_prompt_state_q_not_duplicated():
     assert out.positives.count("kittens") == 1
 
 
-def test_diversity_page_returns_empty_when_no_favorites_match():
-    """When favorites= is set but no candidates match, return empty page."""
-    from unittest.mock import MagicMock
-
-    from search._indexed_helpers import diversity_page
-
-    cfg = MagicMock()
-    cfg.qdrant_collection = "test_collection"
-    cfg.max_results_total = 1000
-    cfg.diversity_duplicate_hamming_distance = 8
-    cfg.diversity_relevance_drop = 0.1
-    cfg.diversity_pool_depths = {}
-    qdrant = MagicMock()
-    cache = MagicMock()
-    cache.get.return_value = None  # miss
-
-    # favorite_ids set but no overlap with allowed_ids
-    hits, has_more, meta = diversity_page(
-        cfg, qdrant, cache,
-        vector=[0.1] * 4,
-        effective_limit=20, offset=0,
-        collections=[],
-        allowed_ids=["a", "b"],
-        favorite_ids={"x", "y"},  # none of a/b
-        mode="balanced", strength=0.5,
-        depth="auto", pool_depth=0,
-    )
-    # Favorites filter reduces to empty list (no matches in allowed_ids).
-    # The route returns empty + applied metadata without hitting qdrant.
-    assert hits == []
 
 
-def test_diversity_page_uses_payload_first_reordering():
-    """Verify the payload-first reordering: search payload-only first,
-    collapse on the payload, then retrieve_batch_with_vectors for survivors.
 
-    Pins the call sequence so a future refactor that re-introduces the
-    fetch-with-vectors path (which transfers ~40% of vectors we discard)
-    fails loudly.
+# ----- diversity_page: native MMR branch -----
+
+def test_diversity_page_calls_native_mmr_with_pool_depth():
+    """On the native MMR branch, diversity_page routes through
+    Qdrant's server-side Mmr (not payload-only search + collapse +
+    retrieve_batch_with_vectors).
+
+    Pins the call signature so a future refactor that re-introduces
+    the fetch-with-vectors path fails loudly.
     """
     from unittest.mock import MagicMock
 
@@ -372,140 +345,75 @@ def test_diversity_page_uses_payload_first_reordering():
     cfg.max_results_total = 1000
     cfg.diversity_duplicate_hamming_distance = 8
     cfg.diversity_relevance_drop = 0.1
-    cfg.diversity_pool_depths = {}
+    cfg.diversity_relevance_floor = 0.1  # alias used on the branch
 
-    # payload-only hits: 3 candidates with distinct content_sha256 AND
-    # dhash values that are far apart (>8 bits) so the collapse keeps all
-    # three. (All-zero dhash is treated as a missing hash and skipped —
-    # use distinctive values here.)
     hit_a = MagicMock(id="a", score=0.9, payload={"dhash": "0f0f0f0f0f0f0f0f",
                                                    "content_sha256": "sha-a"})
     hit_b = MagicMock(id="b", score=0.7, payload={"dhash": "f0f0f0f0f0f0f0f0",
                                                    "content_sha256": "sha-b"})
     hit_c = MagicMock(id="c", score=0.5, payload={"dhash": "aaaaaaaaaaaaaaaa",
                                                    "content_sha256": "sha-c"})
-    payload_hits = [hit_a, hit_b, hit_c]
-
-    # retrieve_batch_with_vectors returns pairs in Qdrant-order (not request
-    # order) — mix them up to verify re-attachment by id.
-    retrieved_pairs = [
-        ("b", [0.1] * 4),
-        ("a", [0.2] * 4),
-        ("c", [0.3] * 4),
-    ]
-
     qdrant = MagicMock()
-    qdrant.search.return_value = (payload_hits, False)
-    qdrant.retrieve_batch_with_vectors.return_value = retrieved_pairs
-
-    cache = MagicMock()
-    cache.get.return_value = None  # miss
+    qdrant.search_with_native_mmr.return_value = [hit_a, hit_b, hit_c]
+    cache = MagicMock(); cache.get.return_value = None
 
     hits, has_more, meta = diversity_page(
         cfg, qdrant, cache,
         vector=[0.5] * 4,
         effective_limit=10, offset=0,
         collections=[], allowed_ids=None, favorite_ids=None,
-        mode="balanced", strength=0.5,
-        depth="auto", pool_depth=3,
+        diversity=0.5, pool_depth=100,
     )
 
-    # 1. Payload-only search called first (with_vectors=False).
-    method_names = [c[0] for c in qdrant.method_calls]
-    assert "search" in method_names, \
-        f"payload-only search should be called, got: {method_names}"
-    assert "search_with_vectors" not in method_names, \
-        "search_with_vectors must NOT be called — payload-first reordering"
+    # Native MMR called once with diversity + pool_depth.
+    qdrant.search_with_native_mmr.assert_called_once()
+    call_kwargs = qdrant.search_with_native_mmr.call_args.kwargs
+    assert call_kwargs["diversity"] == 0.5
+    assert call_kwargs["candidates_limit"] == 100
+    assert call_kwargs["limit"] == 100
 
-    # 2. retrieve_batch_with_vectors called with the survivor ids (all 3,
-    #    since the payload-hits have distinct content_sha256).
-    assert "retrieve_batch_with_vectors" in method_names
-    # Find the call args for retrieve_batch_with_vectors
-    retrieve_calls = [c for c in qdrant.method_calls
-                       if c[0] == "retrieve_batch_with_vectors"]
-    assert len(retrieve_calls) == 1, retrieve_calls
-    survivor_ids = retrieve_calls[0][1][0]  # positional args
-    assert sorted(survivor_ids) == ["a", "b", "c"]
+    # Old paths must NOT be touched.
+    qdrant.search.assert_not_called()
+    qdrant.retrieve_batch_with_vectors.assert_not_called()
 
-    # 3. Order of operations: search before retrieve.
-    search_pos = method_names.index("search")
-    retrieve_pos = method_names.index("retrieve_batch_with_vectors")
-    assert search_pos < retrieve_pos, \
-        "search (payload-only) must run before retrieve_batch_with_vectors"
-
-    # 4. Result has the right shape: hits sliced from ranking, has_more
-    #    computed from ranking length, metadata surfaced.
+    # 3 survivors returned (no near-dup pairs at this dhash distance).
     assert len(hits) == 3
-    assert has_more is False
     assert isinstance(meta, DiversityMetadata)
-
-
-def test_diversity_page_payload_first_survives_orphan_survivor():
-    """retrieve_batch_with_vectors can drop ids the server doesn't know
-    about. Re-attachment must skip them, not crash.
-    """
-    from unittest.mock import MagicMock
-
-    from search._indexed_helpers import diversity_page
-
-    cfg = MagicMock()
-    cfg.qdrant_collection = "test_collection"
-    cfg.max_results_total = 1000
-    cfg.diversity_duplicate_hamming_distance = 8
-    cfg.diversity_relevance_drop = 0.1
-    cfg.diversity_pool_depths = {}
-
-    hit_a = MagicMock(id="a", score=0.9, payload={"dhash": "0f0f0f0f0f0f0f0f",
-                                                   "content_sha256": "sha-a"})
-    hit_b = MagicMock(id="b", score=0.7, payload={"dhash": "f0f0f0f0f0f0f0f0",
-                                                   "content_sha256": "sha-b"})
-    qdrant = MagicMock()
-    qdrant.search.return_value = ([hit_a, hit_b], False)
-    # 'b' was dropped server-side (orphan). rank_diverse gets only 'a'.
-    qdrant.retrieve_batch_with_vectors.return_value = [("a", [0.2] * 4)]
-    cache = MagicMock(); cache.get.return_value = None
-
-    hits, _, _ = diversity_page(
-        cfg, qdrant, cache,
-        vector=[0.5] * 4,
-        effective_limit=10, offset=0,
-        collections=[], allowed_ids=None, favorite_ids=None,
-        mode="balanced", strength=0.5,
-        depth="auto", pool_depth=2,
-    )
-    assert len(hits) == 1
-    assert hits[0].id == "a"
 
 
 def test_diversity_page_uses_cache_hit():
     """Cached entries skip Qdrant and return the cached page."""
     from unittest.mock import MagicMock
 
-    from search._indexed_helpers import diversity_page
-    from search.models import DiversityMetadata
+    from search._indexed_helpers import diversity_cache_key, diversity_page
+    from search.diversity import DiversityResultCache
+    from search.diversity_compute import DiversityStats
 
     cfg = MagicMock()
     cfg.qdrant_collection = "test_collection"
     qdrant = MagicMock()
-    cache = MagicMock()
-    cached_meta = DiversityMetadata(
-        requested=True, applied=True, mode="balanced",
-        strength=0.5, depth="auto", pool_depth=100,
-        candidate_count=100, result_count=100,
-        duplicate_images_collapsed=0,
+    cache = DiversityResultCache(max_entries=64, ttl_seconds=300)
+    vector = [0.1] * 4
+    cache_key = diversity_cache_key(
+        cfg,
+        vector=vector, diversity=0.5, pool_depth=100,
+        collections=[], allowed_ids=None, favorite_ids=None,
+    )
+    cached_stats = DiversityStats(
+        requested=True, applied=True,
+        diversity=0.5,
+        candidate_count=100, result_count=20, pool_depth=100,
     )
     cached_hits = [MagicMock(id=f"id_{i}") for i in range(20)]
-    cache.get.return_value = MagicMock(
-        hits=cached_hits, stats=cached_meta,
-    )
+    cache.put(cache_key, cached_hits, cached_stats)
 
     hits, has_more, meta = diversity_page(
         cfg, qdrant, cache,
-        vector=[0.1] * 4,
+        vector=vector,
         effective_limit=5, offset=10,
         collections=[], allowed_ids=None, favorite_ids=None,
-        mode="balanced", strength=0.5, depth="auto", pool_depth=100,
+        diversity=0.5, pool_depth=100,
     )
     # Cache hit returns the cached page, qdrant not called.
     assert len(hits) == 5
-    assert qdrant.search_with_vectors.call_count == 0
+    assert qdrant.search_with_native_mmr.call_count == 0

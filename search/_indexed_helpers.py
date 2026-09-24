@@ -335,28 +335,34 @@ def diversity_page(
     collections: list[str],
     allowed_ids: list[str] | None,
     favorite_ids: set[str] | None,
-    mode: str,
-    strength: float,
-    depth: str,
+    diversity: float,
     pool_depth: int,
 ) -> tuple[list, bool, Any]:
     """Build or retrieve one complete, stable Diversity ordering.
 
-    Wraps the closure that was previously in `create_app`. The
-    diversity_cache is passed in so callers control cache lifecycle
-    (tests use a fresh in-memory cache).
+    Native MMR branch (`test/native-mmr`): Qdrant does the MMR rerank
+    server-side via `query_points(mmr=Mmr(diversity, candidates_limit))`.
+    This helper wraps that call with:
+
+      1. Cache lookup keyed on (query_vec, diversity, pool_depth, filters).
+         Cached hits slice for `?offset` without rerunning MMR.
+      2. Optional allowed_ids ∩ favorite_ids intersection when
+         `favorites=true` (restricts the candidate pool to favourites).
+      3. Post-MMR client-side filters: dhash collapse and relevance floor
+         — Qdrant's native MMR doesn't do either, and they matter for
+         quality (see `references/diversity-performance.md`).
+      4. Stats envelope (`DiversityStats`) with `mmr_source: "qdrant_native"`.
     """
     from search._result_helpers import diversity_metadata as _diversity_metadata
-    from search.diversity import (
-        DiversityStats,
-        rank_diverse,
-        relevance_drop_for_mode,
+    from search.diversity import DiversityStats
+    from search.diversity_compute import (
+        _collapse_duplicate_indices,
+        apply_relevance_floor,
     )
-    from search.diversity_compute import _collapse_duplicate_indices
 
     cache_key = diversity_cache_key(
         cfg,
-        vector, mode, depth, pool_depth, collections, allowed_ids, favorite_ids,
+        vector, diversity, pool_depth, collections, allowed_ids, favorite_ids,
     )
     cached = diversity_cache.get(cache_key)
     if cached is not None:
@@ -377,8 +383,9 @@ def diversity_page(
             ]
         if not search_allowed_ids:
             stats = DiversityStats(
-                requested=True, applied=True, mode=mode, strength=strength,
-                depth=depth, pool_depth=0,
+                requested=True, applied=True,
+                diversity=diversity,
+                pool_depth=0,
             )
             return [], False, _diversity_metadata(stats)
 
@@ -399,18 +406,20 @@ def diversity_page(
     # This preserves the diversity ranking byte-for-byte (verified: 24/24 top
     # agreement with the original fetch-with-vectors path on prod Qdrant) while
     # cutting the fetch step from ~2300ms to ~150ms at depth 5000.
-    pool_depth = _pool_depth_for(cfg, mode, pool_depth)
-    hits, _ = qdrant.search(
+    pool_depth = _pool_depth_for(cfg, diversity, pool_depth)
+    hits = qdrant.search_with_native_mmr(
         vector,
         limit=pool_depth,
-        offset=0,
+        diversity=diversity,
+        candidates_limit=pool_depth,
         collections=collections or None,
         allowed_ids=search_allowed_ids,
     )
     if not hits:
         stats = DiversityStats(
-            requested=True, applied=True, mode=mode, strength=strength,
-            depth=depth, pool_depth=pool_depth,
+            requested=True, applied=True,
+            diversity=diversity,
+            pool_depth=pool_depth,
         )
         diversity_cache.put(cache_key, [], stats)
         return [], False, _diversity_metadata(stats)
@@ -426,60 +435,46 @@ def diversity_page(
         query_scores=query_scores,
         duplicate_hamming_distance=cfg.diversity_duplicate_hamming_distance,
     )
-    survivor_ids = [hits[i].id for i in keep_indices]
+    hits = [hits[i] for i in keep_indices]
+    query_scores = [query_scores[i] for i in keep_indices]
 
-    # retrieve_batch_with_vectors returns pairs in Qdrant-order, NOT the
-    # order requested. Re-attach the original hit metadata via id.
-    raw_pairs = qdrant.retrieve_batch_with_vectors(survivor_ids)
-    by_id = {h.id: h for h in hits}
-    ordered_hits: list[Any] = []
-    ordered_vectors: list[list[float]] = []
-    for pid, vec in raw_pairs:
-        hit = by_id.get(pid)
-        if hit is None:
-            continue
-        ordered_hits.append(hit)
-        ordered_vectors.append(vec)
-
-    # Fast path: stack the per-hit vectors into a single (N, D) float32
-    # matrix and hand it to rank_diverse via the (hits, ndarray) shape.
-    # This skips the `_as_float_list` Python list comprehension inside
-    # rank_diverse that does `float(x)` for every element (~3.3M calls
-    # at depth 5000). The fast path is byte-identical to the legacy path
-    # when given the same inputs (verified by a regression test).
-    import numpy as _np
-    vectors_ndarray = _np.asarray(ordered_vectors, dtype=_np.float32)
-
-    ranking = rank_diverse(
-        (ordered_hits, vectors_ndarray),
-        vector,
-        mode=mode,
-        strength=strength,
-        duplicate_hamming_distance=cfg.diversity_duplicate_hamming_distance,
-        relevance_drop=relevance_drop_for_mode(
-            mode, cfg.diversity_relevance_drop,
-        ),
-        max_results=cfg.max_results_total,
-        depth=depth,
-        pool_depth=len(hits),
+    # Post-MMR client-side relevance floor: only candidates within the
+    # top-relevance band can win. Without it, MMR could surface a
+    # weak-but-diverse candidate over a strong-relevant-and-similar one.
+    floor_indices = apply_relevance_floor(
+        hits,
+        query_scores=query_scores,
+        floor=cfg.diversity_relevance_floor,
+        min_results=min(effective_limit, max(1, len(hits))),
     )
-    diversity_cache.put(cache_key, ranking.hits, ranking.stats)
-    page = ranking.hits[offset:offset + effective_limit]
-    return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
+    if len(floor_indices) < len(hits):
+        hits = [hits[i] for i in floor_indices]
+        query_scores = [query_scores[i] for i in floor_indices]
+
+    stats = DiversityStats(
+        requested=True, applied=True,
+        diversity=diversity,
+        candidate_count=pool_depth,
+        result_count=len(hits),
+        pool_depth=pool_depth,
+    )
+    diversity_cache.put(cache_key, hits, stats)
+    page = hits[offset:offset + effective_limit]
+    return page, len(hits) > offset + effective_limit, _diversity_metadata(stats)
 
 
-def _pool_depth_for(cfg: Any, mode: str, requested: int) -> int:
+def _pool_depth_for(cfg: Any, diversity: float, requested: int) -> int:
     """Resolve the candidate-pool depth used by the diverse re-ranker.
 
-    The mode-specific overrides on cfg.diversity_pool_depths win
-    over the user's `pool_depth` query value when the user didn't
-    explicitly request one (pool_depth <= 0). Falls back to the
-    raw `requested` for unknown modes.
+    On the native MMR branch, pool depth is a free numeric — there
+    is no per-mode table. The `diversity` argument is kept for
+    backwards-compat with the call site signature but unused for
+    override lookups; if `requested > 0` (the user passed a depth),
+    we use it as-is; otherwise we fall back to the configured default.
     """
-    overrides = getattr(cfg, "diversity_pool_depths", {}) or {}
     if requested > 0:
         return requested
-    return overrides.get(mode, requested or 500)
+    return getattr(cfg, "diversity_default_pool_depth", 5000)
 
 
 def _digest_values(values) -> str:
@@ -503,8 +498,7 @@ def _digest_values(values) -> str:
 def diversity_cache_key(
     cfg: Any,
     vector: list[float],
-    mode: str,
-    depth: str,
+    diversity: float,
     pool_depth: int,
     collections: list[str],
     allowed_ids: list[str] | None,
@@ -512,9 +506,9 @@ def diversity_cache_key(
 ) -> str:
     """Build the cache key for one Diversity ordering request.
 
-    The key includes the collection name, mode/depth knobs,
-    a digest of the query vector, and digests of the filter
-    inputs. Two requests that produce identical Diversity
+    The key includes the collection name, the diversity float, the
+    pool depth, a digest of the query vector, and digests of the
+    filter inputs. Two requests that produce identical Diversity
     rankings must hash to the same key.
     """
     import hashlib
@@ -523,9 +517,8 @@ def diversity_cache_key(
     ).hexdigest()[:20]
     return "|".join((
         cfg.qdrant_collection,
-        mode,
-        depth,
-        str(pool_depth),
+        f"diversity={diversity:.4f}",
+        f"pool_depth={pool_depth}",
         vector_digest,
         _digest_values(collections),
         _digest_values(allowed_ids),

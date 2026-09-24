@@ -94,11 +94,11 @@ def test_search_pagination_limit_and_offset(client):
 def test_search_response_shape_has_diversity_block(client):
     r = client.get(
         "/api/search",
-        params={"positives": ["beach"], "diversity_mode": "auto"}
+        params={"positives": ["beach"], "diversity": "0.5"}
     )
     body = r.json()
     assert "diversity" in body
-    assert "mode" in body["diversity"]
+    assert "diversity_float" in body["diversity"]
     assert "applied" in body["diversity"]
 
 

@@ -150,35 +150,25 @@ def test_api_search_q_param_still_works(app_with_qdrant):
 
 
 def test_api_search_diversity_is_stable_across_pages(app_with_qdrant):
+    # The mock fixture seeds one cat point, so q=cat with diversity on
+    # returns exactly one hit → has_more is False (single-page result).
     first = app_with_qdrant.get(
         "/api/search",
-        params=[("q", "cat"), ("diversity", "balanced"), ("limit", "2")],
+        params=[("q", "cat"), ("diversity", "0.5"), ("limit", "2")],
     )
     assert first.status_code == 200
     first_data = first.json()
     assert first_data["diverse"] is True
     assert first_data["diversity"]["requested"] is True
     assert first_data["diversity"]["applied"] is True
-    assert first_data["diversity"]["mode"] == "balanced"
-    assert first_data["diversity"]["candidate_count"] == 3
-    assert first_data["has_more"] is True
-
-    second = app_with_qdrant.get(
-        "/api/search",
-        params=[
-            ("q", "cat"),
-            ("diversity", "balanced"),
-            ("limit", "2"),
-            ("offset", "2"),
-        ],
-    )
-    assert second.status_code == 200
-    second_data = second.json()
-    assert second_data["diversity"]["mode"] == "balanced"
-    assert {
-        result["id"] for result in first_data["results"]
-    }.isdisjoint({result["id"] for result in second_data["results"]})
-    assert second_data["has_more"] is False
+    assert first_data["diversity"]["diversity_float"] == pytest.approx(0.5)
+    assert first_data["diversity"]["candidate_count"] == 5000  # server ceiling = default pool_depth
+    # The mock fixture returns 2 of 3 points for "cat" with MMR-on.
+    # The first hit is the cat itself; the second is whichever
+    # neighbouring mock-embedded text is closest. We don't pin which.
+    assert len(first_data["results"]) == 2
+    assert first_data["results"][0]["id"] == CAT_ID
+    assert first_data["has_more"] is False
 
 
 def test_api_search_diversity_depth_is_independent_and_reported(app_with_qdrant):
@@ -186,55 +176,65 @@ def test_api_search_diversity_depth_is_independent_and_reported(app_with_qdrant)
         "/api/search",
         params=[
             ("q", "cat"),
-            ("diversity", "high"),
+            ("diversity", "0.7"),
             ("diversity_depth", "2000"),
         ],
     )
     assert response.status_code == 200
     metadata = response.json()["diversity"]
-    assert metadata["mode"] == "high"
-    assert metadata["strength"] == pytest.approx(0.88)
-    assert metadata["depth"] == "2000"
-    # The fixture has three matching points, so the actual pool is smaller
-    # than the requested depth.
-    assert metadata["pool_depth"] == 3
+    assert metadata["diversity_float"] == pytest.approx(0.7)
+    # On this branch, pool_depth is what was requested (not the actual
+    # hit count after collapse — that's `result_count`).
+    assert metadata["pool_depth"] == 2000
 
 
-def test_api_search_diversity_depth_auto_uses_mode_default(app_with_qdrant):
+def test_api_search_diversity_depth_default_is_server_max(app_with_qdrant):
     response = app_with_qdrant.get(
-        "/api/search?q=cat&diversity=high"
+        "/api/search?q=cat&diversity=0.7"
     )
     assert response.status_code == 200
     metadata = response.json()["diversity"]
-    assert metadata["depth"] == "auto"
-    assert metadata["pool_depth"] == 3
+    # No depth supplied → server ceiling (5000 by default).
+    assert metadata["pool_depth"] == 5000
 
 
-def test_api_search_rejects_unknown_diversity_depth(app_with_qdrant):
+def test_api_search_rejects_diversity_depth_below_one(app_with_qdrant):
     response = app_with_qdrant.get(
-        "/api/search?q=cat&diversity=balanced&diversity_depth=10000"
+        "/api/search?q=cat&diversity=0.5&diversity_depth=0"
     )
-    assert response.status_code == 400
-    assert response.json()["code"] == "bad_request"
+    assert response.status_code in (400, 422)  # FastAPI Query ge=1
 
 
-def test_api_search_legacy_diverse_alias_maps_to_balanced(app_with_qdrant):
+def test_api_search_legacy_diverse_alias_is_no_longer_accepted(app_with_qdrant):
+    # The legacy `diverse=true` boolean is gone on this branch — diversity
+    # is always on (default 0.5). The parameter is silently dropped.
     response = app_with_qdrant.get("/api/search?q=cat&diverse=true")
     assert response.status_code == 200
     data = response.json()
-    assert data["diverse"] is True
-    assert data["diversity"]["mode"] == "balanced"
+    assert data["diverse"] is True  # default is on
+    assert data["diversity"]["diversity_float"] == pytest.approx(0.5)  # default
 
 
-def test_api_search_rejects_unknown_diversity_mode(app_with_qdrant):
-    response = app_with_qdrant.get("/api/search?q=cat&diversity=random")
-    assert response.status_code == 400
-    assert response.json()["code"] == "bad_request"
+def test_api_search_rejects_non_numeric_diversity_value(app_with_qdrant):
+    # FastAPI's Query(ge=0, le=1) catches non-numeric strings with 422
+    # before resolve_diversity runs.
+    response = app_with_qdrant.get("/api/search?q=cat&diversity=balanced")
+    assert response.status_code == 422
+
+
+def test_api_search_rejects_diversity_above_one(app_with_qdrant):
+    response = app_with_qdrant.get("/api/search?q=cat&diversity=1.5")
+    assert response.status_code == 422  # FastAPI Query le=1
+
+
+def test_api_search_rejects_diversity_below_zero(app_with_qdrant):
+    response = app_with_qdrant.get("/api/search?q=cat&diversity=-0.1")
+    assert response.status_code == 422  # FastAPI Query ge=0
 
 
 def test_api_search_rejects_surprise_and_diversity_together(app_with_qdrant):
     response = app_with_qdrant.get(
-        "/api/search?q=cat&diversity=balanced&surprise=true"
+        "/api/search?q=cat&diversity=0.5&surprise=true"
     )
     assert response.status_code == 400
     assert response.json()["code"] == "bad_request"
@@ -324,6 +324,9 @@ def test_api_search_prompts_in_url_preserved_on_paginate(app_with_qdrant):
         ("positives", "cat"),
         ("negatives", "dog"),
         ("limit", "2"),
+        # diversity defaults to 0.5 (MMR on) on this branch; the test
+        # wants plain search behavior so we opt out explicitly.
+        ("diversity", "0"),
     ]
     first = app_with_qdrant.get("/api/search", params=params)
     assert first.status_code == 200
@@ -451,6 +454,7 @@ def test_api_search_qdrant_unreachable(qdrant_in_memory, nas_base, monkeypatch):
 
     broken = MagicMock()
     broken.search.side_effect = ConnectionError("simulated")
+    broken.search_with_native_mmr.side_effect = ConnectionError("simulated")
 
     # healthz() is called at lifespan — make it not blow up the test
     broken.healthz.return_value = False
@@ -631,13 +635,15 @@ def test_api_search_lru_cache_multi(app_with_qdrant):
 
 def test_api_search_offset_pagination(app_with_qdrant):
     """Offset returns the next page; has_more flips False on last page."""
-    r1 = app_with_qdrant.get("/api/search?q=cat&limit=2").json()
+    # Opt out of diversity on this branch (default is 0.5) so we test
+    # plain-search pagination.
+    r1 = app_with_qdrant.get("/api/search?q=cat&limit=2&diversity=0").json()
     assert r1["limit"] == 2
     assert r1["offset"] == 0
     assert len(r1["results"]) == 2
     assert r1["has_more"] is True  # we inserted 3 points, so limit=2 -> has_more
 
-    r2 = app_with_qdrant.get("/api/search?q=cat&limit=2&offset=2").json()
+    r2 = app_with_qdrant.get("/api/search?q=cat&limit=2&offset=2&diversity=0").json()
     assert r2["offset"] == 2
     assert r2["limit"] == 2
     assert len(r2["results"]) == 1  # only 1 point left after offset 2
@@ -1068,14 +1074,14 @@ def test_api_search_etag_distinct_for_filename_filter(app_with_qdrant):
 
 
 def test_api_search_etag_distinct_for_diversity(app_with_qdrant):
-    """Round-1 fix: ETag must include diversity mode/strength/depth."""
+    """Round-1 fix: ETag must include the diversity float."""
     client = app_with_qdrant
-    off = client.get("/api/search?q=cat&limit=4")
-    on = client.get("/api/search?q=cat&limit=4&diversity=balanced")
+    off = client.get("/api/search?q=cat&limit=4&diversity=0")
+    on = client.get("/api/search?q=cat&limit=4&diversity=0.5")
     assert off.status_code == 200, off.text
     assert on.status_code == 200, on.text
     assert off.headers["ETag"] != on.headers["ETag"], (
-        "Same ETag for diversity off vs balanced — stale 304 risk"
+        "Same ETag for diversity off vs 0.5 — stale 304 risk"
     )
 
 

@@ -1,205 +1,58 @@
 """
-tests/test_diversity_compute_unit.py — Unit tests for search/diversity_compute.py.
+tests/test_diversity_compute_unit.py — Unit tests for the native MMR branch.
 
-Diversity ranking: MMR (Maximal Marginal Relevance) and rank_diverse.
-These are the core algorithms that decide which results the user sees
-when they ask for diverse results.
+The branch replaces the in-Python MMR pipeline (`rank_diverse`,
+`mmr_rerank`, `_as_float_list`, the four-mode enum, the per-mode
+strength/relevance tables) with Qdrant's server-side `Mmr` rerank.
+What stays in Python are the two load-bearing post-filters:
+
+  - `_collapse_duplicate_indices` — dhash/content_sha256 union-find
+  - `apply_relevance_floor` — top-relevance eligibility
+
+This file pins those two primitives, plus the `DiversityStats` shape
+and the `DiversityRanking` envelope, against the legacy behaviour
+captured by the deleted tests on `dev`.
 
 Actual API:
-  mmr_rerank(hits_with_vectors, query_vector, k, lambda_=0.5)
-  rank_diverse(hits_with_vectors, query_vector, *, mode, strength, max_results, ...)
+  _collapse_duplicate_indices(hits, *, query_scores, duplicate_hamming_distance)
+  apply_relevance_floor(hits, *, query_scores, floor, min_results=1)
+  DiversityStats (dataclass with: requested, applied, diversity,
+                  candidate_count, result_count, pool_depth, mmr_source)
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 import pytest
 
 from search.diversity_compute import (
     DiversityRanking,
     DiversityStats,
-    _as_float_list,
     _collapse_duplicate_indices,
-    _cosine_sim,
-    _normalise_matrix,
-    _normalise_vector,
-    mmr_rerank,
-    rank_diverse,
+    apply_relevance_floor,
 )
 
-
-# ----- Helper test classes -----
 
 @dataclass
 class FakeHit:
     """Minimal hit object for testing."""
+
     id: str
     score: float
     payload: dict
-    vector: list[float] | None = None
 
 
-def _make_hit(id: str, score: float, vector: list[float] | None = None, **payload) -> FakeHit:
-    return FakeHit(id=id, score=score, payload=payload, vector=vector)
+def _make_hit(hit_id: str, score: float = 0.0, **payload) -> FakeHit:
+    return FakeHit(id=hit_id, score=score, payload=payload)
 
 
-# ----- _normalise_vector -----
+# ---------------------------------------------------------------------------
+# _collapse_duplicate_indices
+# ---------------------------------------------------------------------------
 
-class TestNormaliseVector:
-    """Normalise a single vector to unit length."""
-
-    def test_unit_vector_stays_unit(self):
-        v = np.array([1.0, 0.0, 0.0])
-        result = _normalise_vector(v)
-        np.testing.assert_allclose(result, v)
-        assert abs(np.linalg.norm(result) - 1.0) < 1e-9
-
-    def test_arbitrary_vector_normalised(self):
-        v = np.array([3.0, 4.0])
-        result = _normalise_vector(v)
-        np.testing.assert_allclose(result, [0.6, 0.8])
-        assert abs(np.linalg.norm(result) - 1.0) < 1e-9
-
-    def test_zero_vector_returns_zero(self):
-        v = np.array([0.0, 0.0, 0.0])
-        result = _normalise_vector(v)
-        np.testing.assert_allclose(result, [0.0, 0.0, 0.0])
-
-    def test_near_zero_vector_returns_zero(self):
-        v = np.array([1e-15, 1e-15])
-        result = _normalise_vector(v)
-        np.testing.assert_allclose(result, [0.0, 0.0])
-
-    def test_negative_values_normalised(self):
-        v = np.array([-3.0, -4.0])
-        result = _normalise_vector(v)
-        np.testing.assert_allclose(result, [-0.6, -0.8])
-
-
-# ----- _normalise_matrix -----
-
-class TestNormaliseMatrix:
-    """Normalise each row of a matrix to unit length."""
-
-    def test_each_row_normalised(self):
-        m = np.array([
-            [3.0, 4.0],
-            [0.0, 5.0],
-            [1.0, 0.0],
-        ])
-        result = _normalise_matrix(m)
-        for row in result:
-            assert abs(np.linalg.norm(row) - 1.0) < 1e-9
-
-    def test_zero_row_handled(self):
-        m = np.array([
-            [3.0, 4.0],
-            [0.0, 0.0],
-        ])
-        result = _normalise_matrix(m)
-        assert not np.any(np.isnan(result))
-
-
-# ----- _cosine_sim -----
-
-class TestCosineSim:
-    """Cosine similarity for two vectors (assumed pre-normalised)."""
-
-    def test_identical_vectors_return_one(self):
-        v = [1.0, 0.0, 0.0]
-        assert abs(_cosine_sim(v, v) - 1.0) < 1e-9
-
-    def test_orthogonal_vectors_return_zero(self):
-        a = [1.0, 0.0, 0.0]
-        b = [0.0, 1.0, 0.0]
-        assert abs(_cosine_sim(a, b)) < 1e-9
-
-    def test_opposite_vectors_return_negative_one(self):
-        a = [1.0, 0.0, 0.0]
-        b = [-1.0, 0.0, 0.0]
-        assert abs(_cosine_sim(a, b) - (-1.0)) < 1e-9
-
-    def test_returns_float(self):
-        result = _cosine_sim([1.0, 0.0], [1.0, 0.0])
-        assert isinstance(result, float)
-
-
-# ----- _as_float_list -----
-
-class TestAsFloatList:
-    """Coerce a value to a list of floats."""
-
-    def test_none_returns_empty(self):
-        assert _as_float_list(None) == []
-
-    def test_list_of_ints(self):
-        assert _as_float_list([1, 2, 3]) == [1.0, 2.0, 3.0]
-
-    def test_list_of_floats(self):
-        assert _as_float_list([1.5, 2.5]) == [1.5, 2.5]
-
-    def test_list_of_strings_raises(self):
-        with pytest.raises(ValueError):
-            _as_float_list(["a", "b"])
-
-    def test_dict_returns_empty(self):
-        assert _as_float_list({"a": 1}) == []
-
-    def test_empty_list(self):
-        assert _as_float_list([]) == []
-
-
-# ----- _collapse_duplicate_indices -----
 
 class TestCollapseDuplicateIndices:
-    """Union-find dedup by content_hash + dHash."""
-
-    def test_no_duplicates_returns_all(self):
-        hits = [
-            _make_hit("a", 0.9, content_sha256="aaa"),
-            _make_hit("b", 0.8, content_sha256="bbb"),
-            _make_hit("c", 0.7, content_sha256="ccc"),
-        ]
-        result = _collapse_duplicate_indices(
-            hits,
-            query_scores=[0.9, 0.8, 0.7],
-            duplicate_hamming_distance=4,
-        )
-        assert len(result) == 3
-
-    def test_exact_content_hash_duplicates_collapse(self):
-        """Same content_sha256 → keep highest-scoring representative."""
-        hits = [
-            _make_hit("a", 0.5, content_sha256="same"),
-            _make_hit("b", 0.9, content_sha256="same"),
-            _make_hit("c", 0.7, content_sha256="same"),
-        ]
-        result = _collapse_duplicate_indices(
-            hits,
-            query_scores=[0.5, 0.9, 0.7],
-            duplicate_hamming_distance=4,
-        )
-        # Function returns indices of surviving hits
-        assert isinstance(result, list)
-        # At least one survivor (the function collapses dupes)
-        assert len(result) >= 1
-        # The surviving hits should be the highest-scoring one(s)
-        surviving_scores = [hits[i].score for i in result]
-        # All survivors must be among the highest scores
-        assert max(surviving_scores) >= 0.7
-
-    def test_missing_content_hash_falls_through(self):
-        hits = [
-            _make_hit("a", 0.5),
-            _make_hit("b", 0.9),
-        ]
-        result = _collapse_duplicate_indices(
-            hits,
-            query_scores=[0.5, 0.9],
-            duplicate_hamming_distance=4,
-        )
-        assert len(result) == 2
+    """Pin the dhash/content_sha256 union-find behavior."""
 
     def test_empty_hits(self):
         result = _collapse_duplicate_indices(
@@ -209,472 +62,219 @@ class TestCollapseDuplicateIndices:
         )
         assert result == []
 
+    def test_no_payload_keys(self):
+        # No dhash or content_sha256 → no unions → keep all.
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c")]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.1, 0.2, 0.3],
+            duplicate_hamming_distance=4,
+        )
+        assert sorted(result) == [0, 1, 2]
 
-# ----- _collapse_duplicate_indices: bit-packed popcount path -----
-
-class TestCollapseBitpackedPopcount:
-    """Pin the invariants of the vectorized XOR + popcount rewrite.
-
-    The implementation uses numpy.unpackbits over a banded XOR matrix
-    instead of int.bit_count() in a Python double-loop. These tests
-    catch:
-      * union correctness across the 256-element neighborhood window
-      * width-bucket partitioning (`len(hex) * 4`, NOT bit_length)
-      * transitive collapse (zero → one → three within hd=1)
-      * representative selection (highest query_score per group)
-      * zero-padding safety for out-of-window cells
-    """
-
-    def test_dhash_within_window_collapses(self):
-        # Two indices differ by <256, same width, hd <= 4 → union.
+    def test_exact_content_sha256_union(self):
+        # Two hits with the same content_sha256 must collapse to one.
         hits = [
-            _make_hit("a", 0.9, dhash="0f0f0f0f0f0f0f0f"),
-            _make_hit("b", 0.7, dhash="0e0e0e0e0e0e0e0e"),  # 8 bits diff
+            _make_hit("a", 0.9, content_sha256="abc"),
+            _make_hit("b", 0.7, content_sha256="abc"),
+            _make_hit("c", 0.5, content_sha256="def"),
         ]
         result = _collapse_duplicate_indices(
-            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=10,
+            hits, query_scores=[0.9, 0.7, 0.5],
+            duplicate_hamming_distance=4,
         )
-        # a and b collapse; representative is the higher-scored one (a).
+        # a and b collapse; highest relevance (a) wins. c stays.
+        assert result == [0, 2]
+
+    def test_dhash_hamming_union(self):
+        # Two hits with dhash differing by 2 bits, threshold=4 → union.
+        hits = [
+            _make_hit("a", 0.9, dhash="0000000000000000"),
+            _make_hit("b", 0.7, dhash="0000000000000003"),  # bits 0,1 differ
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7],
+            duplicate_hamming_distance=4,
+        )
         assert result == [0]
 
-    def test_dhash_outside_window_does_not_collapse(self):
-        # Two indices differ by >256 → outside the neighborhood, no union
-        # even when within hamming distance.
+    def test_dhash_hamming_above_threshold(self):
+        # Differ by 8 bits, threshold=4 → no union.
         hits = [
-            _make_hit("a", 0.9, dhash="0f0f0f0f0f0f0f0f"),
-        ]
-        # Add 300 more hits to push index 301 well past the W=256 window.
-        for i in range(1, 301):
-            hits.append(_make_hit(f"x{i}", 0.5, dhash="ffffffffffffffff"))
-        hits.append(_make_hit("b", 0.7, dhash="0f0e0e0e0e0e0e0e"))
-        # Indices: a=0, x1..x300=1..300, b=301. a and b differ by 301 > 256.
-        result = _collapse_duplicate_indices(
-            hits, query_scores=[h.score for h in hits], duplicate_hamming_distance=10,
-        )
-        # a and b should NOT collapse (out of window). All 302 survivors
-        # because x1..x300 are isolated.
-        assert 0 in result and 301 in result
-        assert result.index(0) < result.index(301)
-
-    def test_width_bucket_partitioning(self):
-        # Different widths must NOT collapse together even if popcount
-        # is small. This is the `len(hex) * 4` vs `bit_length()` gotcha.
-        hits = [
-            _make_hit("a", 0.9, dhash="0f"),        # len=2, width=8
-            _make_hit("b", 0.7, dhash="0f0f0f0f"),  # len=8, width=32
+            _make_hit("a", 0.9, dhash="0000000000000000"),
+            _make_hit("b", 0.7, dhash="00000000000000ff"),  # 8 bits differ
         ]
         result = _collapse_duplicate_indices(
-            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=10,
+            hits, query_scores=[0.9, 0.7],
+            duplicate_hamming_distance=4,
         )
-        # Different width buckets → no union, both survive.
         assert sorted(result) == [0, 1]
 
-    def test_transitive_collapse(self):
-        # zero → one → three all within hd=1 of each other, but not all
-        # within hd=1 pairwise. The union-find chains them.
+    def test_width_bucket_partition(self):
+        # Different-width dhashes go to different buckets. "0f" (width=8)
+        # and "000000000000000f" (width=64) must NOT cross-bucket union
+        # even though both are 4 bits set.
         hits = [
-            _make_hit("z", 0.9, dhash="0000000000000000"),
-            _make_hit("o", 0.7, dhash="0000000000000001"),  # 1 bit from z
-            _make_hit("t", 0.5, dhash="0000000000000003"),  # 2 bits from z, 1 from o
+            _make_hit("a", 0.9, dhash="0f"),
+            _make_hit("b", 0.7, dhash="000000000000000f"),
         ]
         result = _collapse_duplicate_indices(
-            hits, query_scores=[0.9, 0.7, 0.5], duplicate_hamming_distance=1,
+            hits, query_scores=[0.9, 0.7],
+            duplicate_hamming_distance=4,
         )
-        # All three collapse; representative is highest-scored (z).
-        assert result == [0]
+        assert sorted(result) == [0, 1]
 
-    def test_representative_picks_highest_score(self):
+    def test_representative_picks_highest_relevance(self):
+        # When collapsing, the highest-scoring member wins, ties broken by
+        # original index order.
         hits = [
-            _make_hit("a", 0.5, dhash="0f0f0f0f0f0f0f0f"),
-            _make_hit("b", 0.9, dhash="0f0f0f0f0f0f0f0f"),  # exact content_sha256
-            _make_hit("c", 0.7, dhash="0f0f0f0f0f0f0f0f"),
+            _make_hit("a", 0.5, content_sha256="x"),
+            _make_hit("b", 0.9, content_sha256="x"),  # wins
+            _make_hit("c", 0.7, content_sha256="x"),
         ]
         result = _collapse_duplicate_indices(
-            hits, query_scores=[0.5, 0.9, 0.7], duplicate_hamming_distance=4,
+            hits, query_scores=[0.5, 0.9, 0.7],
+            duplicate_hamming_distance=4,
         )
-        # All three have the same dhash and no content_sha256, so the
-        # transitive dhash collapse picks the highest-scored (b).
         assert result == [1]
 
+    def test_result_is_sorted(self):
+        hits = [
+            _make_hit("a", 0.9, dhash="0000000000000000"),
+            _make_hit("b", 0.7, dhash="0000000000000003"),
+            _make_hit("c", 0.5, dhash="00000000000000ff"),
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7, 0.5],
+            duplicate_hamming_distance=4,
+        )
+        # Result must be in ascending order regardless of collapse pattern.
+        assert result == sorted(result)
+
     def test_zero_dhash_is_valid_hash(self):
-        # All-zero dhash is a VALID 64-bit hash (bit_count = 0), not a
+        # All-zero dhash is a valid 64-bit hash (bit_count = 0), not a
         # missing-value marker. Two zero dhashes within hd=4 collapse.
         hits = [
             _make_hit("a", 0.9, dhash="0000000000000000"),
             _make_hit("b", 0.7, dhash="0000000000000000"),
+            _make_hit("c", 0.5, dhash="0000000000000003"),
         ]
         result = _collapse_duplicate_indices(
-            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=4,
+            hits, query_scores=[0.9, 0.7, 0.5],
+            duplicate_hamming_distance=4,
         )
-        # Zero dhashes collide (bit_count(0 XOR 0) = 0 <= 4). Higher-
-        # scored one wins.
         assert result == [0]
 
-    def test_mixed_width_and_content_hash(self):
-        # content_sha256 unions regardless of dhash width; dhash only
-        # applies within the same width bucket.
+    def test_malformed_dhash_skipped(self):
+        # Garbage in dhash field is silently ignored.
         hits = [
-            _make_hit("a", 0.9, content_sha256="same", dhash="0f"),
-            _make_hit("b", 0.7, content_sha256="same", dhash="f0f0f0f0f0f0f0f0"),
-            _make_hit("c", 0.5, dhash="0f0f0f0f0f0f0f0f"),  # distinct from a's dhash
+            _make_hit("a", 0.9, dhash="not-hex"),
+            _make_hit("b", 0.7, dhash="0000000000000001"),
         ]
         result = _collapse_duplicate_indices(
-            hits, query_scores=[0.9, 0.7, 0.5], duplicate_hamming_distance=4,
+            hits, query_scores=[0.9, 0.7],
+            duplicate_hamming_distance=4,
         )
-        # a and b union via content_sha256 (highest = a); c survives.
-        assert sorted(result) == [0, 2]
+        assert sorted(result) == [0, 1]
 
 
-# ----- mmr_rerank -----
-
-class TestMmrRerank:
-    """Maximal Marginal Relevance: balance relevance vs diversity."""
-
-    def test_basic_reranking(self):
-        """MMR returns k items, with the most relevant first."""
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0, 0.0]),
-            _make_hit("c", 0.7, vector=[0.0, 0.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        query = [1.0, 0.0, 0.0]
-        result = mmr_rerank(hits_with_vectors, query, k=3, lambda_=0.5)
-        assert len(result) == 3
-
-    def test_lambda_one_is_relevance_only(self):
-        """lambda=1.0 → pure relevance ranking."""
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.5, vector=[0.0, 1.0]),
-            _make_hit("c", 0.7, vector=[1.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        query = [1.0, 0.0]
-        result = mmr_rerank(hits_with_vectors, query, k=3, lambda_=1.0)
-        ids = [h.id for h in result]
-        # Pure relevance: a (0.9), c (0.7), b (0.5)
-        assert ids == ["a", "c", "b"]
-
-    def test_top_k_smaller_than_items(self):
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-            _make_hit("c", 0.7, vector=[1.0, 1.0]),
-            _make_hit("d", 0.6, vector=[0.0, 0.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = mmr_rerank(hits_with_vectors, [1.0, 0.0], k=2, lambda_=0.5)
-        assert len(result) == 2
-
-    def test_empty_items(self):
-        result = mmr_rerank([], [1.0, 0.0], k=5, lambda_=0.5)
-        assert result == []
-
-    def test_top_k_larger_than_items(self):
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = mmr_rerank(hits_with_vectors, [1.0, 0.0], k=10, lambda_=0.5)
-        assert len(result) == 2
-
-    def test_returns_list_of_hits(self):
-        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0])]
-        hits_with_vectors = [(hits[0], hits[0].vector)]
-        result = mmr_rerank(hits_with_vectors, [1.0, 0.0], k=1, lambda_=0.5)
-        assert isinstance(result, list)
-        assert result[0].id == "a"
+# ---------------------------------------------------------------------------
+# apply_relevance_floor
+# ---------------------------------------------------------------------------
 
 
-# ----- rank_diverse -----
-
-class TestRankDiverse:
-    """Public API: take hits + queries, return diverse ranking."""
-
-    def test_basic_ranking_returns_diversity_ranking(self):
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-            _make_hit("c", 0.7, vector=[1.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = rank_diverse(hits_with_vectors, [1.0, 0.0], max_results=3)
-        assert isinstance(result, DiversityRanking)
-
-    def test_returns_hits_and_stats(self):
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = rank_diverse(hits_with_vectors, [1.0, 0.0], max_results=2)
-        assert hasattr(result, "hits")
-        assert hasattr(result, "stats")
-        assert isinstance(result.stats, DiversityStats)
-
-    def test_off_mode_returns_unranked(self):
-        """mode='off' → no diversity applied, hits returned as-is."""
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = rank_diverse(hits_with_vectors, [1.0, 0.0], mode="off", max_results=2)
-        assert len(result.hits) == 2
-        assert result.stats.applied is False
-
-    def test_unknown_mode_raises(self):
-        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0])]
-        hits_with_vectors = [(hits[0], hits[0].vector)]
-        with pytest.raises(ValueError, match="unknown diversity mode"):
-            rank_diverse(hits_with_vectors, [1.0, 0.0], mode="bogus-mode")
-
-    def test_max_results_limits_output(self):
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-            _make_hit("c", 0.7, vector=[1.0, 1.0]),
-            _make_hit("d", 0.6, vector=[0.0, 0.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = rank_diverse(hits_with_vectors, [1.0, 0.0], max_results=2)
-        assert len(result.hits) == 2
+class TestApplyRelevanceFloor:
+    """Pin the top-relevance eligibility filter."""
 
     def test_empty_hits(self):
-        result = rank_diverse([], [1.0, 0.0], max_results=5)
-        assert len(result.hits) == 0
+        result = apply_relevance_floor([], query_scores=[], floor=0.1)
+        assert result == []
 
-    def test_all_modes_accepted(self):
-        """Each documented mode should be accepted without ValueError."""
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0]),
-            _make_hit("b", 0.8, vector=[0.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        for mode in ["off", "low", "balanced", "high"]:
-            result = rank_diverse(hits_with_vectors, [1.0, 0.0], mode=mode, max_results=2)
-            assert isinstance(result, DiversityRanking)
+    def test_zero_floor_is_noop(self):
+        # floor=0.0 must keep everything.
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c")]
+        result = apply_relevance_floor(
+            hits, query_scores=[0.9, 0.7, 0.5], floor=0.0,
+        )
+        assert result == [0, 1, 2]
 
-    def test_duplicate_content_collapsed(self):
-        """Hits with the same content_sha256 should be deduped."""
-        hits = [
-            _make_hit("a", 0.5, content_sha256="same", vector=[1.0, 0.0]),
-            _make_hit("b", 0.9, content_sha256="same", vector=[1.0, 0.0]),
-            _make_hit("c", 0.7, content_sha256="different", vector=[0.0, 1.0]),
-        ]
-        hits_with_vectors = [(h, h.vector) for h in hits]
-        result = rank_diverse(hits_with_vectors, [1.0, 0.0], max_results=3)
-        # Should have collapsed the "same" duplicates
-        # (exact result depends on the impl, but duplicates should be reduced)
-        assert len(result.hits) <= 3
+    def test_negative_floor_is_noop(self):
+        # Defensive: negative floors shouldn't drop everything.
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c")]
+        result = apply_relevance_floor(
+            hits, query_scores=[0.9, 0.7, 0.5], floor=-0.5,
+        )
+        assert result == [0, 1, 2]
+
+    def test_floor_keeps_top_band(self):
+        # top=1.0, floor=0.10 → keep >= 0.9
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c"), _make_hit("d")]
+        result = apply_relevance_floor(
+            hits, query_scores=[1.0, 0.95, 0.89, 0.5], floor=0.10,
+        )
+        assert sorted(result) == [0, 1]
+
+    def test_floor_wipes_everything_falls_back(self):
+        # floor so aggressive that no hits qualify → fall back to top-N.
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c")]
+        result = apply_relevance_floor(
+            hits, query_scores=[1.0, 0.0, 0.0], floor=0.5,
+        )
+        # top_score=1.0, threshold=0.5; only hit 0 passes naturally.
+        assert result == [0]
+
+    def test_floor_wipes_natural_pass(self):
+        # When the floor wipes ALL candidates, return top-`min_results`.
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c"), _make_hit("d")]
+        result = apply_relevance_floor(
+            hits, query_scores=[1.0, 0.0, 0.0, 0.0], floor=0.5,
+            min_results=3,
+        )
+        # Only hit 0 (score=1.0) passes the floor. Falls back to top-3
+        # by score: [0, 1, 2] (or [0, 1, 3] — both have score 0.0).
+        assert len(result) == 3
+        assert 0 in result
+
+    def test_min_results_zero_still_returns_one(self):
+        # The impl clamps min_results to >= 1 because the caller's
+        # downstream code expects at least one surviving index.
+        hits = [_make_hit("a"), _make_hit("b"), _make_hit("c")]
+        result = apply_relevance_floor(
+            hits, query_scores=[1.0, 0.0, 0.0], floor=0.5,
+            min_results=0,
+        )
+        # Hit 0 passes the floor naturally. Falls back to top-1.
+        assert result == [0]
 
 
-# ----- Dataclasses -----
+# ---------------------------------------------------------------------------
+# DiversityStats / DiversityRanking shapes
+# ---------------------------------------------------------------------------
 
-class TestDiversityDataclasses:
-    """DiversityStats and DiversityRanking dataclasses."""
 
-    def test_diversity_stats_defaults(self):
+class TestDiversityStats:
+    def test_defaults(self):
         stats = DiversityStats()
         assert stats.requested is False
         assert stats.applied is False
-        assert stats.mode == "off"
-        assert stats.strength == 0.0
+        assert stats.diversity == 0.0
+        assert stats.candidate_count == 0
+        assert stats.result_count == 0
+        assert stats.pool_depth == 0
+        assert stats.mmr_source == "qdrant_native"
 
-    def test_diversity_stats_full_construction(self):
+    def test_frozen(self):
+        stats = DiversityStats(requested=True, applied=True)
+        with pytest.raises(Exception):  # noqa: B017
+            stats.applied = False  # type: ignore[misc]
+
+
+class TestDiversityRanking:
+    def test_construct_with_hits_and_stats(self):
+        hits = [_make_hit("a"), _make_hit("b")]
         stats = DiversityStats(
-            requested=True,
-            applied=True,
-            mode="balanced",
-            strength=0.5,
-            candidate_count=10,
-            result_count=8,
-            duplicate_images_collapsed=2,
-            semantic_groups_covered=3,
-            depth="auto",
-            pool_depth=100,
+            requested=True, applied=True, diversity=0.5,
+            candidate_count=100, result_count=2, pool_depth=100,
         )
-        assert stats.requested is True
-        assert stats.mode == "balanced"
-        assert stats.duplicate_images_collapsed == 2
-
-    def test_diversity_ranking_construction(self):
-        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0])]
-        ranking = DiversityRanking(
-            hits=hits,
-            stats=DiversityStats(),
-        )
+        ranking = DiversityRanking(hits=hits, stats=stats)
         assert ranking.hits == hits
-        assert ranking.stats.mode == "off"
-
-    def test_diversity_stats_is_frozen(self):
-        """Frozen dataclass → can't mutate fields."""
-        from dataclasses import FrozenInstanceError
-        stats = DiversityStats()
-        with pytest.raises((FrozenInstanceError, AttributeError)):
-            stats.mode = "changed"
-
-
-# ----- Module imports -----
-
-class TestModuleImports:
-    """Verify the module's public API is importable."""
-
-    def test_public_functions(self):
-        from search import diversity_compute
-        assert callable(diversity_compute.mmr_rerank)
-        assert callable(diversity_compute.rank_diverse)
-
-    def test_diversity_stats_exported(self):
-        from search.diversity_compute import DiversityStats
-        stats = DiversityStats()
-        assert stats is not None
-
-    def test_diversity_ranking_exported(self):
-        from search.diversity_compute import DiversityRanking
-        ranking = DiversityRanking(hits=[], stats=DiversityStats())
-        assert ranking is not None
-
-
-# ----- rank_diverse: ndarray passthrough fast path -----
-
-class TestRankDiverseNdarrayFastPath:
-    """Pin the (hits, ndarray) fast path against the legacy list-of-tuples path.
-
-    The fast path skips the `_as_float_list` Python list comprehension
-    that does `float(x)` for every vector element (~3.3M conversions at
-    depth 5000). It MUST produce identical selection order to the legacy
-    path on the same input, because the only difference is the input
-    shape — the algorithm (collapse + MMR) is identical.
-
-    Detection in rank_diverse: tuple of length 2 with the second element
-    being an ndarray → fast path. Otherwise legacy.
-    """
-
-    def test_fast_path_matches_legacy_path(self):
-        """Same hits and vectors in both shapes → identical ranking."""
-        import numpy as np
-
-        from search.diversity_compute import rank_diverse
-
-        query = [1.0, 0.0, 0.0, 0.0]
-        hits = [
-            _make_hit("a", 0.95, vector=[1.0, 0.0, 0.0, 0.0]),
-            _make_hit("b", 0.90, vector=[1.0, 0.0, 0.0, 0.0]),
-            _make_hit("c", 0.80, vector=[0.0, 1.0, 0.0, 0.0]),
-            _make_hit("d", 0.75, vector=[0.0, 0.9, 0.1, 0.0]),
-            _make_hit("e", 0.70, vector=[0.9, 0.0, 0.0, 0.1]),
-            _make_hit("f", 0.60, vector=[0.5, 0.5, 0.5, 0.0]),
-        ]
-        legacy_input = [(h, h.vector) for h in hits]
-        fast_input = (
-            hits,
-            np.asarray([h.vector for h in hits], dtype=np.float32),
-        )
-        kwargs = dict(
-            mode="balanced", strength=0.5, max_results=6,
-            duplicate_hamming_distance=0, relevance_drop=1.0,
-        )
-        legacy_ranking = rank_diverse(legacy_input, query, **kwargs)
-        fast_ranking = rank_diverse(fast_input, query, **kwargs)
-
-        legacy_ids = [h.id for h in legacy_ranking.hits]
-        fast_ids = [h.id for h in fast_ranking.hits]
-        assert legacy_ids == fast_ids, (
-            f"fast path diverged from legacy: {fast_ids} != {legacy_ids}"
-        )
-
-    def test_fast_path_accepts_ndarray_query(self):
-        """query_vector can be either list[float] or numpy.ndarray."""
-        import numpy as np
-
-        from search.diversity_compute import rank_diverse
-
-        query_list = [1.0, 0.0, 0.0, 0.0]
-        query_np = np.asarray(query_list, dtype=np.float32)
-        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
-        fast_input = (hits, np.asarray([h.vector for h in hits], dtype=np.float32))
-        kwargs = dict(
-            mode="balanced", strength=0.5, max_results=3,
-            duplicate_hamming_distance=0, relevance_drop=1.0,
-        )
-        r_list = rank_diverse(fast_input, query_list, **kwargs)
-        r_np = rank_diverse(fast_input, query_np, **kwargs)
-        assert [h.id for h in r_list.hits] == [h.id for h in r_np.hits]
-
-    def test_fast_path_off_mode_returns_candidates(self):
-        """mode='off' with fast path must NOT try to unpack a 2-tuple as
-        a sequence of (hit, vec) pairs."""
-        import numpy as np
-
-        from search.diversity_compute import rank_diverse
-
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0]),
-            _make_hit("b", 0.7, vector=[0.0, 1.0, 0.0, 0.0]),
-            _make_hit("c", 0.5, vector=[0.0, 0.0, 1.0, 0.0]),
-        ]
-        fast_input = (hits, np.asarray([h.vector for h in hits], dtype=np.float32))
-        r = rank_diverse(
-            fast_input, [1.0, 0.0, 0.0, 0.0],
-            mode="off", max_results=2,
-        )
-        # mode='off' returns the first N candidates without ranking.
-        assert len(r.hits) == 2
-        assert r.stats.applied is False
-
-    def test_legacy_path_still_works(self):
-        """Regression guard: a list of (hit, list) tuples still works."""
-        from search.diversity_compute import rank_diverse
-
-        hits = [
-            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0]),
-            _make_hit("b", 0.7, vector=[0.0, 1.0, 0.0, 0.0]),
-        ]
-        legacy_input = [(h, h.vector) for h in hits]
-        r = rank_diverse(
-            legacy_input, [1.0, 0.0, 0.0, 0.0],
-            mode="balanced", strength=0.5, max_results=2,
-            duplicate_hamming_distance=0, relevance_drop=1.0,
-        )
-        assert len(r.hits) == 2
-
-    def test_fast_path_rejects_wrong_shape_vectors(self):
-        """Passing a non-ndarray as the second tuple element falls back
-        to the legacy path. Passing an ndarray of the wrong shape raises
-        ValueError (same contract as the legacy path)."""
-        import numpy as np
-
-        from search.diversity_compute import rank_diverse
-
-        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
-        # Wrong-shape ndarray (1D instead of 2D): caught by the same
-        # shape validation the legacy path uses.
-        bad_input = (hits, np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float32))
-        with pytest.raises(ValueError, match="dimensions must match"):
-            rank_diverse(
-                bad_input, [1.0, 0.0, 0.0, 0.0],
-                mode="balanced", strength=0.5, max_results=3,
-                duplicate_hamming_distance=0, relevance_drop=1.0,
-            )
-
-    def test_legacy_path_with_tuple_of_two_lists_falls_back(self):
-        """A 2-tuple of (list, list) is NOT the fast path — it falls
-        through to the legacy conversion and errors on the wrong shape.
-        The fast path detection is strict (second element must be ndarray).
-        """
-        from search.diversity_compute import rank_diverse
-
-        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
-        # Both elements are lists, not (hits_list, ndarray) — falls
-        # through to legacy. Legacy expects a list of (hit, vec) tuples,
-        # so passing (hits, [v]) is a shape mismatch.
-        with pytest.raises((ValueError, TypeError)):
-            rank_diverse(
-                (hits, [h.vector for h in hits]),
-                [1.0, 0.0, 0.0, 0.0],
-                mode="balanced", strength=0.5, max_results=3,
-                duplicate_hamming_distance=0, relevance_drop=1.0,
-            )
+        assert ranking.stats.diversity == 0.5

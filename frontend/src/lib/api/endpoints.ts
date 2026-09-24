@@ -32,9 +32,13 @@ export type SearchParams = {
   positives?: string[];
   negatives?: string[];
   filename?: string;
-  diversityMode?: string;
-  diversityStrength?: number;
-  diversityDepth?: string;
+  /**
+   * MMR diversity float in [0, 1] (Qdrant vocabulary). 0 = pure
+   * relevance (diversity off), 1 = pure diversity. Default 0.5.
+   */
+  diversity?: number;
+  /** Candidate-pool depth for the MMR pass. Free int in [1, 5000]. */
+  diversityDepth?: number;
   limit?: number;
   offset?: number;
   /** When set, queries the centroid search endpoint. */
@@ -69,13 +73,11 @@ export function search(params: SearchParams, signal?: AbortSignal) {
   (params.positives ?? []).forEach((p) => qs.append('positives', p));
   (params.negatives ?? []).forEach((p) => qs.append('negatives', p));
   if (params.filename) qs.set('filename', params.filename);
-  // Backend param name is `diversity` (NOT `diversity_mode`); see
-  // search/app.py:/api/search signature.
-  if (params.diversityMode) qs.set('diversity', params.diversityMode);
-  if (params.diversityStrength !== undefined)
-    qs.set('diversity_strength', String(params.diversityStrength));
-  if (params.diversityDepth && params.diversityDepth !== 'auto')
-    qs.set('diversity_depth', params.diversityDepth);
+  // Native-MMR branch: `diversity` is a float in [0,1]; 0 disables the
+  // MMR pass (plain relevance ranking). `diversity_depth` is a free int.
+  if (params.diversity !== undefined) qs.set('diversity', String(params.diversity));
+  if (params.diversityDepth !== undefined)
+    qs.set('diversity_depth', String(params.diversityDepth));
   // Backend /api/search reads `?collection=` (singular, repeated),
   // not the plural — see `parse_collections` in
   // `search/_result_helpers.py`. Sending the plural here silently

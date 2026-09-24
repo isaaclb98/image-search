@@ -39,24 +39,19 @@ def test_coerce_view_defaults_to_grid_for_unknown():
 
 def test_diversity_metadata_round_trip():
     from search._result_helpers import diversity_metadata
-    from search.diversity import DiversityStats
+    from search.diversity_compute import DiversityStats
 
     stats = DiversityStats(
-        requested=True, applied=True, mode="balanced", strength=0.5,
+        requested=True, applied=True, diversity=0.5,
         candidate_count=200, result_count=35,
-        duplicate_images_collapsed=4, semantic_groups_covered=8,
-        depth="auto", pool_depth=500,
+        pool_depth=500,
     )
     md = diversity_metadata(stats)
     assert md.requested is True
     assert md.applied is True
-    assert md.mode == "balanced"
-    assert md.strength == 0.5
+    assert md.diversity_float == 0.5
     assert md.candidate_count == 200
     assert md.result_count == 35
-    assert md.duplicate_images_collapsed == 4
-    assert md.semantic_groups_covered == 8
-    assert md.depth == "auto"
     assert md.pool_depth == 500
 
 

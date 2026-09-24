@@ -134,8 +134,7 @@ class TestDiversityMetadata:
         stats = DiversityStats(
             requested=True,
             applied=True,
-            mode="balanced",
-            strength=0.5,
+            diversity=0.5,
             candidate_count=10,
             result_count=8,
         )

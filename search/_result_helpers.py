@@ -90,13 +90,9 @@ def diversity_metadata(stats: DiversityStats) -> DiversityMetadata:
     return DiversityMetadata(
         requested=stats.requested,
         applied=stats.applied,
-        mode=stats.mode,
-        strength=stats.strength,
+        diversity_float=stats.diversity,
         candidate_count=stats.candidate_count,
         result_count=stats.result_count,
-        duplicate_images_collapsed=stats.duplicate_images_collapsed,
-        semantic_groups_covered=stats.semantic_groups_covered,
-        depth=stats.depth,
         pool_depth=stats.pool_depth,
     )
 

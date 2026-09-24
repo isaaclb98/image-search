@@ -64,8 +64,10 @@
   let input = $state('');
   let mode = $state<'pos' | 'neg'>('pos');
   let filename = $state('');
-  let diversityMode = $state('off');
-  let diversityDepth = $state('auto');
+  // Native-MMR branch: diversity is a free float [0,1] (0 = off),
+  // depth a free int [1,5000]. Defaults match the backend.
+  let diversity = $state(0.5);
+  let diversityDepth = $state(5000);
   let collections = $state<string[]>([]);
   let filtersOpen = $state(false);
 
@@ -100,10 +102,12 @@
     positives = q.getAll('positives');
     negatives = q.getAll('negatives');
     filename = q.get('filename') ?? '';
-    diversityMode = q.get('diversity') ?? 'off';
-    diversityDepth = q.get('diversity_depth') ?? 'auto';
+    const rawDiv = Number(q.get('diversity'));
+    diversity = Number.isFinite(rawDiv) && q.get('diversity') !== null ? Math.min(Math.max(rawDiv, 0), 1) : 0.5;
+    const rawDepth = Number(q.get('diversity_depth'));
+    diversityDepth = Number.isFinite(rawDepth) && q.get('diversity_depth') !== null && rawDepth >= 1 ? Math.round(Math.min(rawDepth, 5000)) : 5000;
     collections = q.getAll('collection');
-    filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto' || collections.length > 0;
+    filtersOpen = !!filename || diversity !== 0.5 || diversityDepth !== 5000 || collections.length > 0;
     activeCentroid = q.get('centroid');
     // Validate the mode param — anything other than the two
     // known values is treated as the default so a stale or
@@ -125,8 +129,8 @@
     positives.forEach((p) => qs.append('positives', p));
     negatives.forEach((n) => qs.append('negatives', n));
     if (filename) qs.set('filename', filename);
-    if (diversityMode !== 'off') qs.set('diversity', diversityMode);
-    if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
+    qs.set('diversity', String(diversity));
+    if (diversity > 0) qs.set('diversity_depth', String(diversityDepth));
     collections.forEach((c) => qs.append('collection', c));
     const next = qs.toString();
     if ($page.url.search.replace(/^\?/, '') !== next) {
@@ -189,7 +193,7 @@
           positives,
           negatives,
           filename,
-          diversityMode,
+          diversity,
           diversityDepth,
           limit: PAGE,
           offset: 0,
@@ -224,7 +228,7 @@
     try {
       const res = await search({
         positives, negatives, filename,
-        diversityMode, diversityDepth,
+        diversity, diversityDepth,
         limit: PAGE, offset,
         centroid: activeCentroid ?? undefined,
         centroidMode:
@@ -313,7 +317,7 @@
     void positives;
     void negatives;
     void filename;
-    void diversityMode;
+    void diversity;
     void diversityDepth;
     void input;
     if (!browser) return;
@@ -408,12 +412,12 @@
   <AdditionalFilters
     open={filtersOpen}
     {filename}
-    {diversityMode}
+    {diversity}
     {diversityDepth}
     {collections}
     onToggle={() => (filtersOpen = !filtersOpen)}
     onFilename={(v) => (filename = v)}
-    onDiversityMode={(v) => (diversityMode = v)}
+    onDiversity={(v) => (diversity = v)}
     onDiversityDepth={(v) => (diversityDepth = v)}
     onToggleCollection={toggleCollection}
   />

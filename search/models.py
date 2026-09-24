@@ -46,16 +46,12 @@ class DiversityMetadata(BaseModel):
 
     requested: bool = False
     applied: bool = False
-    mode: str = "off"
-    strength: float = 0.0
+    diversity_float: float = Field(
+        0.0,
+        description="Diversity float in [0.0, 1.0] passed to Qdrant's Mmr.",
+    )
     candidate_count: int = 0
     result_count: int = 0
-    duplicate_images_collapsed: int = 0
-    semantic_groups_covered: int = 0
-    depth: str = Field(
-        "auto",
-        description="Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
-    )
     pool_depth: int = Field(
         0,
         description="Number of candidates actually retrieved for the ranking pass.",

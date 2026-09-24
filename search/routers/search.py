@@ -57,7 +57,7 @@ from search._result_helpers import (
     qdrant_timeout,
     qdrant_unreachable,
 )
-from search.diversity import resolve_depth, resolve_mode
+from search.diversity import resolve_diversity, resolve_pool_depth
 from search.models import DiversityMetadata, SearchResponse
 
 logger = logging.getLogger(__name__)
@@ -99,28 +99,40 @@ def build_search_router(
         offset: int = Query(0, description="offset into the full result set"),
         view: str = Query(cfg.default_view, description="result view: 'grid' or 'feed'"),
         favorites: bool = Query(False, description="restrict results to favourites"),
-        diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
-        diversity: str | None = Query(
-            None, description="Diversity strength: off, low, balanced, or high",
+        diversity: float = Query(
+            0.5,
+            description=(
+                "Diversity float in [0.0, 1.0] for MMR rerank "
+                "(0.0=pure relevance, 1.0=pure diversity). "
+                "Default 0.5 (balanced)."
+            ),
+            ge=0.0, le=1.0,
         ),
-        diversity_depth: str | None = Query(
-            None, description="Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+        diversity_depth: int = Query(
+            cfg.diversity_max_pool_depth,
+            description=(
+                "Diversity candidate-pool depth as a free int. "
+                f"Clamped to diversity_max_pool_depth={cfg.diversity_max_pool_depth} "
+                "if larger. Default uses the configured max."
+            ),
+            ge=1,
         ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
     ) -> JSONResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         view = coerce_view(view)
         try:
-            diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
-        except ValueError as exc:
+            diversity_value = resolve_diversity(diversity)
+        except (TypeError, ValueError) as exc:
             return bad_request(str(exc))  # type: ignore[return-value]
         try:
-            diversity_depth_mode, diversity_pool_depth = resolve_depth(
-                diversity_depth, diversity_mode,
+            diversity_pool_depth = resolve_pool_depth(
+                diversity_depth, max_pool_depth=cfg.diversity_max_pool_depth,
             )
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             return bad_request(str(exc))  # type: ignore[return-value]
-        diverse = diversity_mode != "off"
+        # diversity > 0 is "active". diversity == 0 is the plain-relevance path.
+        diverse = diversity_value > 0.0
         if surprise and diverse:
             return bad_request(
                 "Diversity cannot be combined with Surprise Me. Choose one search mode."
@@ -214,9 +226,7 @@ def build_search_router(
             diversity_meta = DiversityMetadata(
                 requested=diverse,
                 applied=False,
-                mode=diversity_mode,
-                strength=diversity_strength,
-                depth=diversity_depth_mode,
+                diversity_float=diversity_value,
                 pool_depth=0,
             )
         else:
@@ -231,9 +241,7 @@ def build_search_router(
                         collections=collections,
                         allowed_ids=allowed_ids,
                         favorite_ids=favorite_ids,
-                        mode=diversity_mode,
-                        strength=diversity_strength,
-                        depth=diversity_depth_mode,
+                        diversity=diversity_value,
                         pool_depth=diversity_pool_depth,
                     )
                 elif favorites:
@@ -342,9 +350,7 @@ def build_search_router(
                 view,
                 filename_pattern,
                 ",".join(collections),
-                diversity_mode,
-                f"{diversity_strength:.6f}",
-                diversity_depth_mode,
+                f"diversity={diversity_value:.6f}",
                 str(diversity_pool_depth),
             ]
         ).encode("utf-8")
