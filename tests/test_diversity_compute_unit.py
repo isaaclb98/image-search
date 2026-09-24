@@ -536,3 +536,145 @@ class TestModuleImports:
         from search.diversity_compute import DiversityRanking
         ranking = DiversityRanking(hits=[], stats=DiversityStats())
         assert ranking is not None
+
+
+# ----- rank_diverse: ndarray passthrough fast path -----
+
+class TestRankDiverseNdarrayFastPath:
+    """Pin the (hits, ndarray) fast path against the legacy list-of-tuples path.
+
+    The fast path skips the `_as_float_list` Python list comprehension
+    that does `float(x)` for every vector element (~3.3M conversions at
+    depth 5000). It MUST produce identical selection order to the legacy
+    path on the same input, because the only difference is the input
+    shape — the algorithm (collapse + MMR) is identical.
+
+    Detection in rank_diverse: tuple of length 2 with the second element
+    being an ndarray → fast path. Otherwise legacy.
+    """
+
+    def test_fast_path_matches_legacy_path(self):
+        """Same hits and vectors in both shapes → identical ranking."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        query = [1.0, 0.0, 0.0, 0.0]
+        hits = [
+            _make_hit("a", 0.95, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("b", 0.90, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("c", 0.80, vector=[0.0, 1.0, 0.0, 0.0]),
+            _make_hit("d", 0.75, vector=[0.0, 0.9, 0.1, 0.0]),
+            _make_hit("e", 0.70, vector=[0.9, 0.0, 0.0, 0.1]),
+            _make_hit("f", 0.60, vector=[0.5, 0.5, 0.5, 0.0]),
+        ]
+        legacy_input = [(h, h.vector) for h in hits]
+        fast_input = (
+            hits,
+            np.asarray([h.vector for h in hits], dtype=np.float32),
+        )
+        kwargs = dict(
+            mode="balanced", strength=0.5, max_results=6,
+            duplicate_hamming_distance=0, relevance_drop=1.0,
+        )
+        legacy_ranking = rank_diverse(legacy_input, query, **kwargs)
+        fast_ranking = rank_diverse(fast_input, query, **kwargs)
+
+        legacy_ids = [h.id for h in legacy_ranking.hits]
+        fast_ids = [h.id for h in fast_ranking.hits]
+        assert legacy_ids == fast_ids, (
+            f"fast path diverged from legacy: {fast_ids} != {legacy_ids}"
+        )
+
+    def test_fast_path_accepts_ndarray_query(self):
+        """query_vector can be either list[float] or numpy.ndarray."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        query_list = [1.0, 0.0, 0.0, 0.0]
+        query_np = np.asarray(query_list, dtype=np.float32)
+        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
+        fast_input = (hits, np.asarray([h.vector for h in hits], dtype=np.float32))
+        kwargs = dict(
+            mode="balanced", strength=0.5, max_results=3,
+            duplicate_hamming_distance=0, relevance_drop=1.0,
+        )
+        r_list = rank_diverse(fast_input, query_list, **kwargs)
+        r_np = rank_diverse(fast_input, query_np, **kwargs)
+        assert [h.id for h in r_list.hits] == [h.id for h in r_np.hits]
+
+    def test_fast_path_off_mode_returns_candidates(self):
+        """mode='off' with fast path must NOT try to unpack a 2-tuple as
+        a sequence of (hit, vec) pairs."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        hits = [
+            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("b", 0.7, vector=[0.0, 1.0, 0.0, 0.0]),
+            _make_hit("c", 0.5, vector=[0.0, 0.0, 1.0, 0.0]),
+        ]
+        fast_input = (hits, np.asarray([h.vector for h in hits], dtype=np.float32))
+        r = rank_diverse(
+            fast_input, [1.0, 0.0, 0.0, 0.0],
+            mode="off", max_results=2,
+        )
+        # mode='off' returns the first N candidates without ranking.
+        assert len(r.hits) == 2
+        assert r.stats.applied is False
+
+    def test_legacy_path_still_works(self):
+        """Regression guard: a list of (hit, list) tuples still works."""
+        from search.diversity_compute import rank_diverse
+
+        hits = [
+            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("b", 0.7, vector=[0.0, 1.0, 0.0, 0.0]),
+        ]
+        legacy_input = [(h, h.vector) for h in hits]
+        r = rank_diverse(
+            legacy_input, [1.0, 0.0, 0.0, 0.0],
+            mode="balanced", strength=0.5, max_results=2,
+            duplicate_hamming_distance=0, relevance_drop=1.0,
+        )
+        assert len(r.hits) == 2
+
+    def test_fast_path_rejects_wrong_shape_vectors(self):
+        """Passing a non-ndarray as the second tuple element falls back
+        to the legacy path. Passing an ndarray of the wrong shape raises
+        ValueError (same contract as the legacy path)."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
+        # Wrong-shape ndarray (1D instead of 2D): caught by the same
+        # shape validation the legacy path uses.
+        bad_input = (hits, np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float32))
+        with pytest.raises(ValueError, match="dimensions must match"):
+            rank_diverse(
+                bad_input, [1.0, 0.0, 0.0, 0.0],
+                mode="balanced", strength=0.5, max_results=3,
+                duplicate_hamming_distance=0, relevance_drop=1.0,
+            )
+
+    def test_legacy_path_with_tuple_of_two_lists_falls_back(self):
+        """A 2-tuple of (list, list) is NOT the fast path — it falls
+        through to the legacy conversion and errors on the wrong shape.
+        The fast path detection is strict (second element must be ndarray).
+        """
+        from search.diversity_compute import rank_diverse
+
+        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
+        # Both elements are lists, not (hits_list, ndarray) — falls
+        # through to legacy. Legacy expects a list of (hit, vec) tuples,
+        # so passing (hits, [v]) is a shape mismatch.
+        with pytest.raises((ValueError, TypeError)):
+            rank_diverse(
+                (hits, [h.vector for h in hits]),
+                [1.0, 0.0, 0.0, 0.0],
+                mode="balanced", strength=0.5, max_results=3,
+                duplicate_hamming_distance=0, relevance_drop=1.0,
+            )

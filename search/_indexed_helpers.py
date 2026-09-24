@@ -432,15 +432,26 @@ def diversity_page(
     # order requested. Re-attach the original hit metadata via id.
     raw_pairs = qdrant.retrieve_batch_with_vectors(survivor_ids)
     by_id = {h.id: h for h in hits}
-    pairs: list[tuple[Any, list[float]]] = []
+    ordered_hits: list[Any] = []
+    ordered_vectors: list[list[float]] = []
     for pid, vec in raw_pairs:
         hit = by_id.get(pid)
         if hit is None:
             continue
-        pairs.append((hit, vec))
+        ordered_hits.append(hit)
+        ordered_vectors.append(vec)
+
+    # Fast path: stack the per-hit vectors into a single (N, D) float32
+    # matrix and hand it to rank_diverse via the (hits, ndarray) shape.
+    # This skips the `_as_float_list` Python list comprehension inside
+    # rank_diverse that does `float(x)` for every element (~3.3M calls
+    # at depth 5000). The fast path is byte-identical to the legacy path
+    # when given the same inputs (verified by a regression test).
+    import numpy as _np
+    vectors_ndarray = _np.asarray(ordered_vectors, dtype=_np.float32)
 
     ranking = rank_diverse(
-        pairs,
+        (ordered_hits, vectors_ndarray),
         vector,
         mode=mode,
         strength=strength,
