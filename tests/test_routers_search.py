@@ -35,6 +35,15 @@ def _fake_cfg() -> MagicMock:
     cfg.diversity_duplicate_hamming_distance = 8
     cfg.diversity_pool_depths = {}
     cfg.qdrant_collection = "test_collection"
+    # Stable-pagination knobs (search/search_snapshot.py). Must be real
+    # ints — a MagicMock here would flow into arithmetic in
+    # materialize_search_page and raise TypeError.
+    cfg.search_initial_band_size = 8
+    cfg.search_band_size = 16
+    cfg.search_max_snapshot_size = 200
+    # Off: a MagicMock returns a truthy object for unset attrs, which
+    # would spawn background prefetch threads during tests.
+    cfg.search_prefetch_next_band = False
     return cfg
 
 
@@ -46,6 +55,10 @@ def fake_search_deps():
     index_db = MagicMock()
     diversity_cache = MagicMock()
     diversity_cache.get.return_value = None
+    # Real cache, not a MagicMock: materialize_search_page relies on
+    # get_or_create returning a working SearchSnapshot.
+    from search.search_snapshot import SearchSnapshotCache
+    snapshot_cache = SearchSnapshotCache(ttl_seconds=300, max_entries=8)
 
     def resolve_query_vector(centroid_names, prompt_state, **kwargs):
         return ([0.0] * 1536, None, None)
@@ -58,6 +71,7 @@ def fake_search_deps():
         "cfg": cfg,
         "index_db": index_db,
         "diversity_cache": diversity_cache,
+        "snapshot_cache": snapshot_cache,
         "resolve_query_vector": resolve_query_vector,
         "favorite_ids_for_filter": favorite_ids_for_filter,
     }

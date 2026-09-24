@@ -40,6 +40,7 @@ from fastapi.responses import JSONResponse
 
 from search._indexed_helpers import (
     diversity_page,
+    materialize_search_page,
     normalize_prompt_state,
     resolve_filename_filter,
     results_from_hits,
@@ -68,6 +69,7 @@ def build_search_router(
     cfg: Any,
     index_db: Any,
     diversity_cache: Any,
+    snapshot_cache: Any,
     resolve_query_vector: Any,
     favorite_ids_for_filter: Any,
 ) -> APIRouter:
@@ -77,13 +79,15 @@ def build_search_router(
       - `qdrant`: QdrantSearch wrapper.
       - `cfg`:    search Config.
       - `index_db`: search-side IndexDB cache.
-      - `diversity_cache`: DiversityResultCache instance.
+      - `diversity_cache`: DiversityResultCache instance (MMR path).
+      - `snapshot_cache`: SearchSnapshotCache instance (plain path —
+        holds the frozen rankings that make offset paging stable).
       - `resolve_query_vector`: closure-bound prompt/centroid
         vector resolver (passed through for now — §B2 step 41
         will lift it to module level).
       - `favorite_ids_for_filter`: closure-bound favorites-set
-        resolver (passed through for now — §B2 step 42 will
-        lift it to module level).
+        resolver (passed through for now — §B2 step 42 will lift
+        it to module level).
     """
     router = APIRouter()
 
@@ -261,13 +265,20 @@ def build_search_router(
                     diversity_meta = DiversityMetadata()
                 else:
                     favorite_ids = set()
-                    hits, has_more = await asyncio.to_thread(
-                        qdrant.search,
-                        vec,
-                        effective_limit,
-                        offset,
-                        collections or None,
-                        allowed_ids,
+                    # Stable pagination: rank once, slice pages from a
+                    # frozen snapshot. Passing `offset` straight to
+                    # Qdrant is unsound on HNSW — each page ranks at
+                    # depth offset+limit, so neighbouring pages overlap.
+                    hits, has_more = await materialize_search_page(
+                        cfg,
+                        qdrant,
+                        snapshot_cache,
+                        vector=vec,
+                        offset=offset,
+                        limit=effective_limit,
+                        collections=collections,
+                        allowed_ids=allowed_ids,
+                        favorite_ids=None,
                     )
                     diversity_meta = DiversityMetadata()
             except (ConnectionError, OSError) as e:
