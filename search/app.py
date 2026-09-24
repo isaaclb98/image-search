@@ -47,6 +47,7 @@ from search.models import (
 )
 from search.qdrant_client import QdrantSearch
 from search.random import RandomPicker
+from search.search_snapshot import SearchSnapshotCache
 
 logger = logging.getLogger(__name__)
 
@@ -670,6 +671,14 @@ def create_app(
     diversity_cache = DiversityResultCache(
         ttl_seconds=_cfg.diversity_cache_ttl_seconds,
         max_entries=_cfg.diversity_cache_max_entries,
+    )
+    # Frozen rankings that make plain /api/search offset paging stable.
+    # Separate from diversity_cache on purpose: this holds an ordered
+    # (id, score) list and no MMR stats, so plain search and diversity
+    # don't recouple through a shared type.
+    snapshot_cache = SearchSnapshotCache(
+        ttl_seconds=_cfg.search_snapshot_ttl_seconds,
+        max_entries=_cfg.search_snapshot_max_entries,
     )
 
     # ---------------- In-app indexer (admin Index button) ----------------
@@ -1314,6 +1323,7 @@ def create_app(
         cfg=_cfg,
         index_db=index_db,
         diversity_cache=diversity_cache,
+        snapshot_cache=snapshot_cache,
         resolve_query_vector=_resolve_query_vector,
         favorite_ids_for_filter=_favorite_ids_for_filter,
     ))

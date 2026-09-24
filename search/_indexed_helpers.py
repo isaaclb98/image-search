@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import threading
 from typing import Any
 from urllib.parse import urlencode
 
@@ -470,3 +471,213 @@ def diversity_cache_key(
         _digest_values(allowed_ids),
         _digest_values(favorite_ids),
     ))
+
+
+async def materialize_search_page(
+    cfg: Any,
+    qdrant: Any,
+    snapshot_cache: Any,
+    *,
+    vector: list[float],
+    offset: int,
+    limit: int,
+    collections: list[str],
+    allowed_ids: list[str] | None,
+    favorite_ids: set[str] | None,
+) -> tuple[list, bool]:
+    """Return one page of a *stable* ranking, plus `has_more`.
+
+    Drop-in replacement for the plain-search call
+    `qdrant.search(vec, limit, offset, ...)`, which is unsound on HNSW:
+    each page is ranked at depth `offset+limit`, so neighbouring pages
+    disagree near their boundary and return overlapping ids. Measured on
+    prod (2.05M points) a walk to offset 480 yielded 78 duplicate ids.
+
+    Instead: freeze one ranking per query and slice pages from it.
+
+      - The snapshot holds `(id, score)` only. Payloads are hydrated per
+        page via `retrieve_batch` (~2ms for 24 ids), which keeps
+        favourite/dislike flags live rather than frozen for the TTL.
+      - The snapshot grows in *bands*. Page 1 fetches a shallow initial
+        band (~10ms); deeper pages append bands fetched with
+        `exclude_ids` = everything frozen so far. A band is amortised
+        over ~20 pages, so per-page cost stays ~10-35ms at any depth,
+        versus 179ms/473ms for a single 5k/10k-deep fetch on page 1.
+      - Growth stops at `search_max_snapshot_size`; past that
+        `has_more` goes False rather than degrading further.
+
+    Returns `(hits, has_more)` where `hits` are `SearchHit` with the
+    snapshot's score restored (`retrieve_batch` returns score=0.0).
+    """
+    from search.search_snapshot import snapshot_key
+
+    cap = cfg.search_max_snapshot_size
+
+    # Never grow a snapshot deeper than the request needs, and never
+    # past the cap. An out-of-range offset must not trigger a deep walk.
+    if offset >= cap:
+        return [], False
+    target = min(offset + limit, cap)
+
+    key = snapshot_key(
+        collection=cfg.qdrant_collection,
+        vector=vector,
+        collections=collections,
+        allowed_ids=allowed_ids,
+        favorite_ids=favorite_ids,
+        band_size=cfg.search_band_size,
+    )
+    snap = await asyncio.to_thread(snapshot_cache.get_or_create, key)
+
+    def _grow_to(wanted: int) -> None:
+        """Grow the snapshot until it holds `wanted` ids (or is exhausted).
+
+        Runs under the snapshot's own lock so two concurrent page
+        requests for the same query don't fetch the same band twice —
+        a racer waits for the in-flight band instead of duplicating it.
+        The cache's dict lock is separate and never held across a fetch.
+        """
+        with snap.lock:
+            first_band = len(snap) == 0
+            while len(snap) < wanted and not snap.exhausted and len(snap) < cap:
+                band = (
+                    cfg.search_initial_band_size if first_band
+                    else cfg.search_band_size
+                )
+                first_band = False
+                band = min(band, cap - len(snap))
+                hits, _ = qdrant.search(
+                    vector,
+                    band,
+                    0,  # always rank from the top of what remains
+                    collections or None,
+                    allowed_ids,
+                    list(snap.ids) or None,
+                )
+                if not hits:
+                    snap.exhausted = True
+                    break
+                # extend() marks exhausted on a short band, and dedupes
+                # locally — so a silently-dropped exclusion filter can
+                # never spin this loop (it adds 0, flags exhausted, exits).
+                snap.extend(hits, band)
+
+    await asyncio.to_thread(_grow_to, target)
+
+    page_pairs = snap.page(offset, limit)
+    snapshot_len = len(snap)
+    has_more = (
+        snapshot_len > offset + limit
+        # Exactly filled the page and Qdrant may have more to give.
+        or (not snap.exhausted and snapshot_len < cap)
+    )
+    if not page_pairs:
+        return [], has_more
+
+    page_ids = [pid for pid, _ in page_pairs]
+    score_by_id = dict(page_pairs)
+    hydrated = await asyncio.to_thread(qdrant.retrieve_batch, page_ids)
+    by_id = {h.id: h for h in hydrated}
+
+    # Rebuild in snapshot order. `retrieve_batch` drops ids it can't
+    # find (photo pruned mid-session) — skipping them here is what keeps
+    # a dead tile from rendering, and has_more is computed from the
+    # snapshot rather than the hydrated length so one dropped id can't
+    # make the client think the result set ended.
+    hits_out: list = []
+    for pid in page_ids:
+        hit = by_id.get(pid)
+        if hit is None:
+            continue
+        hit.score = score_by_id[pid]
+        hits_out.append(hit)
+
+    _prefetch_next_band(
+        cfg,
+        qdrant,
+        snap,
+        vector=vector,
+        collections=collections,
+        allowed_ids=allowed_ids,
+        offset=offset,
+        limit=limit,
+        cap=cap,
+    )
+    return hits_out, has_more
+
+
+def _prefetch_next_band(
+    cfg: Any,
+    qdrant: Any,
+    snap: Any,
+    *,
+    vector: list[float],
+    collections: list[str],
+    allowed_ids: list[str] | None,
+    offset: int,
+    limit: int,
+    cap: int,
+) -> None:
+    """Kick off a background fetch of the next band, if one will be needed.
+
+    A cold band fetch costs ~0.5-1s once the exclusion set passes
+    ~1750 ids (measured on 2.05M points), which would otherwise be a
+    visible hitch roughly every `search_band_size / page_size` pages.
+    Serving that cost in the background hides it behind the time the
+    user spends looking at the current page — the SPA already prefetches
+    two viewports ahead, so the next request usually finds the band
+    already frozen.
+
+    Fire-and-forget on a daemon thread: this is pure optimisation, so a
+    failure must never affect the response already returned. The snapshot
+    it mutates lives in the cache beyond this request's lifetime, which
+    is the whole point.
+    """
+    # Kill-switch. Defaults to off when the attribute is absent so a
+    # MagicMock cfg (tests) doesn't accidentally trigger background
+    # threads; the real Config sets it True. Tests disable it explicitly
+    # for deterministic call-count assertions.
+    if not getattr(cfg, "search_prefetch_next_band", False):
+        return
+    if snap.exhausted or len(snap) >= cap:
+        return
+    # Only prefetch when the served page consumed the end of what is
+    # frozen; otherwise there is slack already available and the next
+    # page needs no fetch at all.
+    if len(snap) > offset + limit:
+        return
+    # At most one background band per snapshot. claim_prefetch() is
+    # guarded by its own lock, never by snap.lock (which may be held
+    # across a long fetch).
+    if not snap.claim_prefetch():
+        return
+
+    wanted = min(len(snap) + cfg.search_band_size, cap)
+    band_size = cfg.search_band_size
+
+    def _run() -> None:
+        try:
+            with snap.lock:
+                while len(snap) < wanted and not snap.exhausted and len(snap) < cap:
+                    band = min(band_size, cap - len(snap))
+                    hits, _ = qdrant.search(
+                        vector,
+                        band,
+                        0,  # rank from the top of what remains
+                        collections or None,
+                        allowed_ids,
+                        list(snap.ids) or None,
+                    )
+                    if not hits:
+                        snap.exhausted = True
+                        break
+                    snap.extend(hits, band)
+        except Exception:
+            # Optimisation only — never propagate to a served response.
+            logger.debug("background band prefetch failed", exc_info=True)
+        finally:
+            snap.release_prefetch()
+
+    threading.Thread(
+        target=_run, daemon=True, name="search-band-prefetch"
+    ).start()

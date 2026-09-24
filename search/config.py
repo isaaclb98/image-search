@@ -226,6 +226,30 @@ class Config:
     diversity_cache_max_entries: int = 64
     diversity_duplicate_hamming_distance: int = 10
     diversity_relevance_drop: float = 0.10
+    # Stable pagination for plain /api/search. Qdrant offset paging is
+    # unsound on HNSW — each page is ranked at a different depth
+    # (offset+limit) and neighbouring pages disagree near the boundary,
+    # producing duplicate rows. The router instead freezes one ranking
+    # per query and slices pages from it, growing it in bands.
+    #
+    # Measured on prod (2.05M points, Qdrant 1.19.0):
+    #   single deep fetch: depth 1000 = 26ms, 5000 = 179ms, 10000 = 473ms
+    #   band fetch w/ exclusion: 0 excl = 9ms, 1000 = 12ms, 10000 = 33ms
+    # Bands keep page 1 at ~10ms regardless of how deep the user scrolls.
+    search_initial_band_size: int = 256
+    search_band_size: int = 500
+    # Hard ceiling on one frozen ranking. 20k ids = 833 pages of 24,
+    # far past real scroll depth, and bounds both snapshot memory
+    # (~800KB ids+scores) and the exclusion request body (~36 bytes/id).
+    # Past this `has_more` goes false rather than degrading further.
+    search_max_snapshot_size: int = 20_000
+    search_snapshot_ttl_seconds: int = 300
+    search_snapshot_max_entries: int = 64
+    # Background-prefetch the next band after serving a page. Hides the
+    # ~0.5-1s cold band fetch behind the user's reading time. Disable
+    # for deterministic call-count assertions in tests, or as an ops
+    # kill-switch if background load is ever a problem.
+    search_prefetch_next_band: bool = True
     # Surprise Me: fetch a deep pool (no vectors), shuffle, return a
     # small random slice. Pool size controls the diversity-relevance
     # trade-off (bigger = more diverse but slower).
@@ -420,6 +444,14 @@ def load() -> Config:
             "DIVERSITY_DUPLICATE_HAMMING_DISTANCE", 10
         ),
         diversity_relevance_drop=_float("DIVERSITY_RELEVANCE_DROP", 0.10),
+        search_initial_band_size=_int("SEARCH_INITIAL_BAND_SIZE", 256),
+        search_band_size=_int("SEARCH_BAND_SIZE", 500),
+        search_max_snapshot_size=_int("SEARCH_MAX_SNAPSHOT_SIZE", 20_000),
+        search_snapshot_ttl_seconds=_int("SEARCH_SNAPSHOT_TTL_SECONDS", 300),
+        search_snapshot_max_entries=_int("SEARCH_SNAPSHOT_MAX_ENTRIES", 64),
+        search_prefetch_next_band=_bool(
+            "SEARCH_PREFETCH_NEXT_BAND", True
+        ),
         centroids_dir=os.environ.get("CENTROIDS_DIR") or None,
         centroid_expected_model=expected_model,
         centroid_expected_feature_dim=expected_dim,
@@ -459,6 +491,24 @@ def load() -> Config:
         )
     if not math.isfinite(cfg.diversity_relevance_drop) or cfg.diversity_relevance_drop < 0:
         raise ValueError("DIVERSITY_RELEVANCE_DROP must be finite and >= 0")
+
+    # Stable-pagination snapshot settings. Bands may be smaller than a
+    # page (the router loops until the page is satisfied), but they must
+    # be positive, and the snapshot ceiling must be able to hold at
+    # least one full page or `has_more` would be false on page 1.
+    if cfg.search_initial_band_size < 1 or cfg.search_band_size < 1:
+        raise ValueError(
+            "SEARCH_INITIAL_BAND_SIZE and SEARCH_BAND_SIZE must be >= 1"
+        )
+    if cfg.search_max_snapshot_size < cfg.top_k_max:
+        raise ValueError(
+            "SEARCH_MAX_SNAPSHOT_SIZE must be >= TOP_K_MAX"
+        )
+    if cfg.search_snapshot_ttl_seconds < 0 or cfg.search_snapshot_max_entries < 1:
+        raise ValueError(
+            "SEARCH_SNAPSHOT_TTL_SECONDS must be >= 0 and "
+            "SEARCH_SNAPSHOT_MAX_ENTRIES must be >= 1"
+        )
 
     # Validate NAS base if set (test mode may set it later).
     if cfg.nas_images_base and not Path(cfg.nas_images_base).is_dir():

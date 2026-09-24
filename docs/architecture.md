@@ -293,6 +293,63 @@ The SPA consumes the search JSON API. Type safety end-to-end:
 
 ---
 
+## Stable pagination: frozen ranking snapshots
+
+Plain `/api/search` does **not** pass `offset` through to Qdrant. It
+freezes one ranking per query and slices pages out of it
+(`search/search_snapshot.py`, driven by
+`_indexed_helpers.materialize_search_page`).
+
+Why: HNSW ranks `offset + limit` candidates to serve a page, and graph
+breadth scales with that depth. Each page of one query is therefore
+ranked at a *different* depth, and neighbouring pages disagree near
+their boundary. Measured on 2.05M points, walking offsets 0→480 in
+steps of 24 returned duplicate ids across pages (24 over 8 query
+vectors) — with the indexer completely idle. This is depth drift, not
+collection mutation; each request is individually correct, the pages
+simply do not align.
+
+The fix ranks at a **constant** depth: every band fetch uses
+`offset=0` plus a `must_not has_id` exclusion of everything already
+frozen, so the ranking never drifts and pages are disjoint by
+construction.
+
+Mechanics:
+
+- The snapshot stores `(id, score)` only — not payloads. At the 20k cap
+  that's ~800KB/entry. Payloads are hydrated per page via
+  `retrieve_batch` (~2ms for 24 ids), which keeps favourite/dislike
+  flags live rather than frozen for the TTL.
+- The snapshot grows in **bands** (initial 256, then 500). Page 1 needs
+  only the shallow initial band, so it stays ~15ms cold instead of
+  paying for a deep upfront ranking (depth 5000 = 179ms, 10000 = 473ms).
+- A cold band fetch costs ~0.5–1s once the exclusion set passes ~1750
+  ids, so the next band is prefetched on a background daemon thread
+  after a page is served — hiding the cost behind reading time. With
+  prefetch on, a 40-page walk showed no page over 100ms, versus spikes
+  of 540/419/692ms with it off.
+- Growth stops at `SEARCH_MAX_SNAPSHOT_SIZE` (20k = 833 pages of 24);
+  past that `has_more` goes false rather than degrading further.
+- Extension is serialised by a per-snapshot lock so concurrent page
+  requests (the SPA prefetches two viewports ahead) never fetch the same
+  band twice.
+
+Guaranteed: zero overlap between pages of one query. Approximate:
+ordering *across* a band boundary — band 2 is "top 500 of what
+remains", not a perfect continuation of one global ranking. Given the
+flat score tail (rank 2000 = 0.7798, rank 10000 = 0.7481) that
+reordering is not visible.
+
+This cache is deliberately **separate** from `DiversityResultCache`,
+which stores `DiversityStats` alongside its hits because it caches an
+MMR re-ranking. Plain search does no re-ranking, so sharing that type
+would mean fabricating stats and recoupling two independent features.
+
+Diversity mode is unaffected — it already materialised a full ranked
+list into its own TTL cache, which is why it never showed the bug.
+
+---
+
 ## Thumbnail serving
 
 `/thumb/{point_id}?w=…` returns a pre-baked WebP. The indexer writes a
