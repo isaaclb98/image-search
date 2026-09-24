@@ -104,7 +104,7 @@ def build_search_router(
             None, description="Diversity strength: off, low, balanced, or high",
         ),
         diversity_depth: str | None = Query(
-            None, description="Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+            None, description="Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
         ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
     ) -> JSONResponse:

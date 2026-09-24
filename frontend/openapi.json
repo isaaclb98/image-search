@@ -247,7 +247,7 @@
           },
           "depth": {
             "default": "auto",
-            "description": "Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
+            "description": "Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.",
             "title": "Depth",
             "type": "string"
           },
@@ -1415,7 +1415,7 @@
     },
     "/api/cache/refresh": {
       "get": {
-        "operationId": "api_cache_refresh_api_cache_refresh_post",
+        "operationId": "api_cache_refresh_api_cache_refresh_get",
         "responses": {
           "200": {
             "content": {
@@ -1429,7 +1429,7 @@
         "summary": "Api Cache Refresh"
       },
       "post": {
-        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
+        "operationId": "api_cache_refresh_api_cache_refresh_get_1",
         "responses": {
           "200": {
             "content": {
@@ -1556,14 +1556,26 @@
             }
           },
           {
-            "description": "K for sample mode. Defaults to 10. Only used when mode=sample.",
+            "description": "Cluster count (k-means K) for sample mode. Defaults to 10. Only used when mode=sample. Round-75.",
             "in": "query",
             "name": "sample_k",
             "required": false,
             "schema": {
               "default": 10,
-              "description": "K for sample mode. Defaults to 10. Only used when mode=sample.",
+              "description": "Cluster count (k-means K) for sample mode. Defaults to 10. Only used when mode=sample. Round-75.",
               "title": "Sample K",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75.",
+            "in": "query",
+            "name": "sample_n",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75.",
+              "title": "Sample N",
               "type": "integer"
             }
           }
@@ -2365,7 +2377,7 @@
             }
           },
           {
-            "description": "Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+            "description": "Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
             "in": "query",
             "name": "diversity_depth",
             "required": false,
@@ -2378,7 +2390,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Diversity candidate depth: auto, 500, 1000, 2000, or 5000",
+              "description": "Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
               "title": "Diversity Depth"
             }
           },

@@ -210,10 +210,10 @@ export interface paths {
             cookie?: never;
         };
         /** Api Cache Refresh */
-        get: operations["api_cache_refresh_api_cache_refresh_post"];
+        get: operations["api_cache_refresh_api_cache_refresh_get"];
         put?: never;
         /** Api Cache Refresh */
-        post: operations["api_cache_refresh_api_cache_refresh_post_1"];
+        post: operations["api_cache_refresh_api_cache_refresh_get_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -776,7 +776,7 @@ export interface components {
             candidate_count: number;
             /**
              * Depth
-             * @description Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.
+             * @description Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.
              * @default auto
              */
             depth: string;
@@ -1524,7 +1524,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post: {
+    api_cache_refresh_api_cache_refresh_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1544,7 +1544,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post_1: {
+    api_cache_refresh_api_cache_refresh_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1639,8 +1639,10 @@ export interface operations {
                 offset?: number;
                 /** @description Retrieval mode. 'centroid' (default) uses the full mean of the seed set. 'sample' picks a random K-subset of the seeds and uses the mean of THAT subset. Each request re-rolls, so refreshing surfaces a different cluster. */
                 mode?: string;
-                /** @description K for sample mode. Defaults to 10. Only used when mode=sample. */
+                /** @description Cluster count (k-means K) for sample mode. Defaults to 10. Only used when mode=sample. Round-75. */
                 sample_k?: number;
+                /** @description Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75. */
+                sample_n?: number;
             };
             header?: never;
             path: {
@@ -2135,7 +2137,7 @@ export interface operations {
                 diverse?: boolean;
                 /** @description Diversity strength: off, low, balanced, or high */
                 diversity?: string | null;
-                /** @description Diversity candidate depth: auto, 500, 1000, 2000, or 5000 */
+                /** @description Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000 */
                 diversity_depth?: string | null;
                 /** @description Surprise Me — random sample from deep pool */
                 surprise?: boolean;

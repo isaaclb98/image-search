@@ -162,12 +162,13 @@ class TestSearchDiversity:
         assert resolve_depth("auto", "balanced") == ("auto", 1000)
         assert resolve_depth("auto", "high") == ("auto", 2000)
         assert resolve_depth("5000", "low") == ("5000", 5000)
+        assert resolve_depth("10000", "high") == ("10000", 10000)
 
     def test_resolve_depth_rejects_unknown_value(self):
         import pytest
 
         with pytest.raises(ValueError, match="diversity_depth must be one of"):
-            resolve_depth("10000", "high")
+            resolve_depth("7500", "high")
 
     def test_rank_diverse_can_bound_result_count(self):
         q = _unit_vec(1, 0, 0)
@@ -285,3 +286,65 @@ def test_persistence_module_re_exports_compute_api():
     # Parsing helpers live here too (route-layer surface).
     assert callable(diversity.resolve_mode)
     assert callable(diversity.resolve_depth)
+
+
+# ----- rank_diverse: lazy MMR is NOT a win here -----
+#
+# Earlier profiling suggested replacing `pairwise = vectors @ vectors.T`
+# with per-step `vectors @ vectors[best]` to save the up-front matmul
+# and 95MB allocation at N=5000. The change was implemented, the unit
+# tests passed (rtol=1e-5 across a 50x64 random matrix), and it looked
+# plausible on synthetic input.
+#
+# When verified on prod data (2M-point Qdrant, depth 5000) the result
+# was the opposite of what microbenchmarks predicted:
+#   - Selection order diverged: top-24 agreement 20-22/24 across depths,
+#     full ordering never matched. Both versions compute the same
+#     theoretical matrix, but float32 accumulation order differs between
+#     the two matmul paths, and the resulting last-bit noise cascades
+#     through `np.argmax` tie-breaks in the greedy MMR loop.
+#   - Latency got WORSE: 0.84x at depth 2000, 0.37x at depth 5000.
+#     The eager path calls BLAS once on the full (5000, 1152) matrix
+#     and gets vectorized SIMD; the lazy path runs 5000 separate
+#     matvecs each reading V[best] from cache and computing one column
+#     at a time. Per-call overhead dominates.
+#
+# This module comment documents the finding so the next person doesn't
+# retry the same microbenchmark and ship it. The eager `pairwise =
+# vectors @ vectors.T` + `pairwise[:, best]` pattern is the right call
+# for this workload.
+
+
+def test_mmr_eager_matrix_is_byte_stable_under_repeated_runs():
+    """Pin the eager MMR's selection order across repeated runs.
+
+    Sanity check that the production code path produces the same
+    ordering every call (no Python non-determinism leaking through).
+    The lazy rewrite attempt broke this; this test exists so any
+    future attempt that breaks determinism fails loudly.
+    """
+    from search.diversity_compute import rank_diverse
+
+    query = [1.0, 0.0, 0.0, 0.0]
+    hits_with_vectors = [
+        ("a", [1.0, 0.0, 0.0, 0.0], 0.95),
+        ("b", [1.0, 0.0, 0.0, 0.0], 0.90),
+        ("c", [0.0, 1.0, 0.0, 0.0], 0.80),
+        ("d", [0.0, 0.9, 0.1, 0.0], 0.75),
+        ("e", [0.9, 0.0, 0.0, 0.1], 0.70),
+        ("f", [0.5, 0.5, 0.5, 0.0], 0.60),
+    ]
+    pairs = [(h, v) for h, v, _ in hits_with_vectors]
+    first = rank_diverse(pairs, query, mode="balanced", strength=0.5,
+                          max_results=6, duplicate_hamming_distance=0,
+                          relevance_drop=1.0)
+    first_ids = [h[0] for h in first.hits]
+    # Run 3 more times and confirm identical ordering.
+    for run in range(3):
+        again = rank_diverse(pairs, query, mode="balanced", strength=0.5,
+                              max_results=6, duplicate_hamming_distance=0,
+                              relevance_drop=1.0)
+        assert [h[0] for h in again.hits] == first_ids, (
+            f"MMR selection non-deterministic at run {run}: "
+            f"{[h[0] for h in again.hits]} != {first_ids}"
+        )

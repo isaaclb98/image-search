@@ -210,6 +210,121 @@ class TestCollapseDuplicateIndices:
         assert result == []
 
 
+# ----- _collapse_duplicate_indices: bit-packed popcount path -----
+
+class TestCollapseBitpackedPopcount:
+    """Pin the invariants of the vectorized XOR + popcount rewrite.
+
+    The implementation uses numpy.unpackbits over a banded XOR matrix
+    instead of int.bit_count() in a Python double-loop. These tests
+    catch:
+      * union correctness across the 256-element neighborhood window
+      * width-bucket partitioning (`len(hex) * 4`, NOT bit_length)
+      * transitive collapse (zero → one → three within hd=1)
+      * representative selection (highest query_score per group)
+      * zero-padding safety for out-of-window cells
+    """
+
+    def test_dhash_within_window_collapses(self):
+        # Two indices differ by <256, same width, hd <= 4 → union.
+        hits = [
+            _make_hit("a", 0.9, dhash="0f0f0f0f0f0f0f0f"),
+            _make_hit("b", 0.7, dhash="0e0e0e0e0e0e0e0e"),  # 8 bits diff
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=10,
+        )
+        # a and b collapse; representative is the higher-scored one (a).
+        assert result == [0]
+
+    def test_dhash_outside_window_does_not_collapse(self):
+        # Two indices differ by >256 → outside the neighborhood, no union
+        # even when within hamming distance.
+        hits = [
+            _make_hit("a", 0.9, dhash="0f0f0f0f0f0f0f0f"),
+        ]
+        # Add 300 more hits to push index 301 well past the W=256 window.
+        for i in range(1, 301):
+            hits.append(_make_hit(f"x{i}", 0.5, dhash="ffffffffffffffff"))
+        hits.append(_make_hit("b", 0.7, dhash="0f0e0e0e0e0e0e0e"))
+        # Indices: a=0, x1..x300=1..300, b=301. a and b differ by 301 > 256.
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[h.score for h in hits], duplicate_hamming_distance=10,
+        )
+        # a and b should NOT collapse (out of window). All 302 survivors
+        # because x1..x300 are isolated.
+        assert 0 in result and 301 in result
+        assert result.index(0) < result.index(301)
+
+    def test_width_bucket_partitioning(self):
+        # Different widths must NOT collapse together even if popcount
+        # is small. This is the `len(hex) * 4` vs `bit_length()` gotcha.
+        hits = [
+            _make_hit("a", 0.9, dhash="0f"),        # len=2, width=8
+            _make_hit("b", 0.7, dhash="0f0f0f0f"),  # len=8, width=32
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=10,
+        )
+        # Different width buckets → no union, both survive.
+        assert sorted(result) == [0, 1]
+
+    def test_transitive_collapse(self):
+        # zero → one → three all within hd=1 of each other, but not all
+        # within hd=1 pairwise. The union-find chains them.
+        hits = [
+            _make_hit("z", 0.9, dhash="0000000000000000"),
+            _make_hit("o", 0.7, dhash="0000000000000001"),  # 1 bit from z
+            _make_hit("t", 0.5, dhash="0000000000000003"),  # 2 bits from z, 1 from o
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7, 0.5], duplicate_hamming_distance=1,
+        )
+        # All three collapse; representative is highest-scored (z).
+        assert result == [0]
+
+    def test_representative_picks_highest_score(self):
+        hits = [
+            _make_hit("a", 0.5, dhash="0f0f0f0f0f0f0f0f"),
+            _make_hit("b", 0.9, dhash="0f0f0f0f0f0f0f0f"),  # exact content_sha256
+            _make_hit("c", 0.7, dhash="0f0f0f0f0f0f0f0f"),
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.5, 0.9, 0.7], duplicate_hamming_distance=4,
+        )
+        # All three have the same dhash and no content_sha256, so the
+        # transitive dhash collapse picks the highest-scored (b).
+        assert result == [1]
+
+    def test_zero_dhash_is_valid_hash(self):
+        # All-zero dhash is a VALID 64-bit hash (bit_count = 0), not a
+        # missing-value marker. Two zero dhashes within hd=4 collapse.
+        hits = [
+            _make_hit("a", 0.9, dhash="0000000000000000"),
+            _make_hit("b", 0.7, dhash="0000000000000000"),
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7], duplicate_hamming_distance=4,
+        )
+        # Zero dhashes collide (bit_count(0 XOR 0) = 0 <= 4). Higher-
+        # scored one wins.
+        assert result == [0]
+
+    def test_mixed_width_and_content_hash(self):
+        # content_sha256 unions regardless of dhash width; dhash only
+        # applies within the same width bucket.
+        hits = [
+            _make_hit("a", 0.9, content_sha256="same", dhash="0f"),
+            _make_hit("b", 0.7, content_sha256="same", dhash="f0f0f0f0f0f0f0f0"),
+            _make_hit("c", 0.5, dhash="0f0f0f0f0f0f0f0f"),  # distinct from a's dhash
+        ]
+        result = _collapse_duplicate_indices(
+            hits, query_scores=[0.9, 0.7, 0.5], duplicate_hamming_distance=4,
+        )
+        # a and b union via content_sha256 (highest = a); c survives.
+        assert sorted(result) == [0, 2]
+
+
 # ----- mmr_rerank -----
 
 class TestMmrRerank:
@@ -421,3 +536,145 @@ class TestModuleImports:
         from search.diversity_compute import DiversityRanking
         ranking = DiversityRanking(hits=[], stats=DiversityStats())
         assert ranking is not None
+
+
+# ----- rank_diverse: ndarray passthrough fast path -----
+
+class TestRankDiverseNdarrayFastPath:
+    """Pin the (hits, ndarray) fast path against the legacy list-of-tuples path.
+
+    The fast path skips the `_as_float_list` Python list comprehension
+    that does `float(x)` for every vector element (~3.3M conversions at
+    depth 5000). It MUST produce identical selection order to the legacy
+    path on the same input, because the only difference is the input
+    shape — the algorithm (collapse + MMR) is identical.
+
+    Detection in rank_diverse: tuple of length 2 with the second element
+    being an ndarray → fast path. Otherwise legacy.
+    """
+
+    def test_fast_path_matches_legacy_path(self):
+        """Same hits and vectors in both shapes → identical ranking."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        query = [1.0, 0.0, 0.0, 0.0]
+        hits = [
+            _make_hit("a", 0.95, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("b", 0.90, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("c", 0.80, vector=[0.0, 1.0, 0.0, 0.0]),
+            _make_hit("d", 0.75, vector=[0.0, 0.9, 0.1, 0.0]),
+            _make_hit("e", 0.70, vector=[0.9, 0.0, 0.0, 0.1]),
+            _make_hit("f", 0.60, vector=[0.5, 0.5, 0.5, 0.0]),
+        ]
+        legacy_input = [(h, h.vector) for h in hits]
+        fast_input = (
+            hits,
+            np.asarray([h.vector for h in hits], dtype=np.float32),
+        )
+        kwargs = dict(
+            mode="balanced", strength=0.5, max_results=6,
+            duplicate_hamming_distance=0, relevance_drop=1.0,
+        )
+        legacy_ranking = rank_diverse(legacy_input, query, **kwargs)
+        fast_ranking = rank_diverse(fast_input, query, **kwargs)
+
+        legacy_ids = [h.id for h in legacy_ranking.hits]
+        fast_ids = [h.id for h in fast_ranking.hits]
+        assert legacy_ids == fast_ids, (
+            f"fast path diverged from legacy: {fast_ids} != {legacy_ids}"
+        )
+
+    def test_fast_path_accepts_ndarray_query(self):
+        """query_vector can be either list[float] or numpy.ndarray."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        query_list = [1.0, 0.0, 0.0, 0.0]
+        query_np = np.asarray(query_list, dtype=np.float32)
+        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
+        fast_input = (hits, np.asarray([h.vector for h in hits], dtype=np.float32))
+        kwargs = dict(
+            mode="balanced", strength=0.5, max_results=3,
+            duplicate_hamming_distance=0, relevance_drop=1.0,
+        )
+        r_list = rank_diverse(fast_input, query_list, **kwargs)
+        r_np = rank_diverse(fast_input, query_np, **kwargs)
+        assert [h.id for h in r_list.hits] == [h.id for h in r_np.hits]
+
+    def test_fast_path_off_mode_returns_candidates(self):
+        """mode='off' with fast path must NOT try to unpack a 2-tuple as
+        a sequence of (hit, vec) pairs."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        hits = [
+            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("b", 0.7, vector=[0.0, 1.0, 0.0, 0.0]),
+            _make_hit("c", 0.5, vector=[0.0, 0.0, 1.0, 0.0]),
+        ]
+        fast_input = (hits, np.asarray([h.vector for h in hits], dtype=np.float32))
+        r = rank_diverse(
+            fast_input, [1.0, 0.0, 0.0, 0.0],
+            mode="off", max_results=2,
+        )
+        # mode='off' returns the first N candidates without ranking.
+        assert len(r.hits) == 2
+        assert r.stats.applied is False
+
+    def test_legacy_path_still_works(self):
+        """Regression guard: a list of (hit, list) tuples still works."""
+        from search.diversity_compute import rank_diverse
+
+        hits = [
+            _make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0]),
+            _make_hit("b", 0.7, vector=[0.0, 1.0, 0.0, 0.0]),
+        ]
+        legacy_input = [(h, h.vector) for h in hits]
+        r = rank_diverse(
+            legacy_input, [1.0, 0.0, 0.0, 0.0],
+            mode="balanced", strength=0.5, max_results=2,
+            duplicate_hamming_distance=0, relevance_drop=1.0,
+        )
+        assert len(r.hits) == 2
+
+    def test_fast_path_rejects_wrong_shape_vectors(self):
+        """Passing a non-ndarray as the second tuple element falls back
+        to the legacy path. Passing an ndarray of the wrong shape raises
+        ValueError (same contract as the legacy path)."""
+        import numpy as np
+
+        from search.diversity_compute import rank_diverse
+
+        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
+        # Wrong-shape ndarray (1D instead of 2D): caught by the same
+        # shape validation the legacy path uses.
+        bad_input = (hits, np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float32))
+        with pytest.raises(ValueError, match="dimensions must match"):
+            rank_diverse(
+                bad_input, [1.0, 0.0, 0.0, 0.0],
+                mode="balanced", strength=0.5, max_results=3,
+                duplicate_hamming_distance=0, relevance_drop=1.0,
+            )
+
+    def test_legacy_path_with_tuple_of_two_lists_falls_back(self):
+        """A 2-tuple of (list, list) is NOT the fast path — it falls
+        through to the legacy conversion and errors on the wrong shape.
+        The fast path detection is strict (second element must be ndarray).
+        """
+        from search.diversity_compute import rank_diverse
+
+        hits = [_make_hit("a", 0.9, vector=[1.0, 0.0, 0.0, 0.0])]
+        # Both elements are lists, not (hits_list, ndarray) — falls
+        # through to legacy. Legacy expects a list of (hit, vec) tuples,
+        # so passing (hits, [v]) is a shape mismatch.
+        with pytest.raises((ValueError, TypeError)):
+            rank_diverse(
+                (hits, [h.vector for h in hits]),
+                [1.0, 0.0, 0.0, 0.0],
+                mode="balanced", strength=0.5, max_results=3,
+                duplicate_hamming_distance=0, relevance_drop=1.0,
+            )

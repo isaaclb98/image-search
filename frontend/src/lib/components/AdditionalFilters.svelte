@@ -7,7 +7,7 @@
    *
    * Diversity API contract (see search/diversity.py):
    *   diversity_mode  ∈ {off, low, balanced, high}
-   *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000}
+   *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000, 10000}
    *   (diversity_strength was a 0–1 slider; removed in round-4
    *    per king — the mode dropdown is enough.)
    *
@@ -21,7 +21,7 @@
     open: boolean;
     filename: string;
     diversityMode: 'off' | 'low' | 'balanced' | 'high' | string;
-    diversityDepth?: 'auto' | '500' | '1000' | '2000' | '5000' | string;
+    diversityDepth?: 'auto' | '500' | '1000' | '2000' | '5000' | '10000' | string;
     onToggle: () => void;
     onFilename: (v: string) => void;
     onDiversityMode: (v: string) => void;
@@ -96,6 +96,7 @@
               <option value="1000">1,000 photos</option>
               <option value="2000">2,000 photos</option>
               <option value="5000">5,000 photos</option>
+              <option value="10000">10,000 photos</option>
             </select>
           </div>
         </div>

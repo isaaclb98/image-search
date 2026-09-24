@@ -625,6 +625,8 @@ def create_app(
             url=_cfg.qdrant_url,
             api_key=_cfg.qdrant_api_key,
             timeout=_cfg.query_timeout_ms // 1000,  # int seconds
+            prefer_grpc=_cfg.qdrant_prefer_grpc,
+            grpc_port=_cfg.qdrant_grpc_port,
         ))
         qdrant = QdrantSearch(
             client=client,
