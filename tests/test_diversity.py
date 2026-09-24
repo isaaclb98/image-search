@@ -162,12 +162,13 @@ class TestSearchDiversity:
         assert resolve_depth("auto", "balanced") == ("auto", 1000)
         assert resolve_depth("auto", "high") == ("auto", 2000)
         assert resolve_depth("5000", "low") == ("5000", 5000)
+        assert resolve_depth("10000", "high") == ("10000", 10000)
 
     def test_resolve_depth_rejects_unknown_value(self):
         import pytest
 
         with pytest.raises(ValueError, match="diversity_depth must be one of"):
-            resolve_depth("10000", "high")
+            resolve_depth("7500", "high")
 
     def test_rank_diverse_can_bound_result_count(self):
         q = _unit_vec(1, 0, 0)

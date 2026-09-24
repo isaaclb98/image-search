@@ -54,7 +54,7 @@ class DiversityMetadata(BaseModel):
     semantic_groups_covered: int = 0
     depth: str = Field(
         "auto",
-        description="Requested candidate-pool depth: auto, 500, 1000, 2000, or 5000.",
+        description="Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.",
     )
     pool_depth: int = Field(
         0,

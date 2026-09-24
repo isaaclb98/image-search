@@ -212,10 +212,18 @@ def test_api_search_diversity_depth_auto_uses_mode_default(app_with_qdrant):
 
 def test_api_search_rejects_unknown_diversity_depth(app_with_qdrant):
     response = app_with_qdrant.get(
-        "/api/search?q=cat&diversity=balanced&diversity_depth=10000"
+        "/api/search?q=cat&diversity=balanced&diversity_depth=7500"
     )
     assert response.status_code == 400
     assert response.json()["code"] == "bad_request"
+
+
+def test_api_search_accepts_depth_10000(app_with_qdrant):
+    response = app_with_qdrant.get(
+        "/api/search?q=cat&diversity=balanced&diversity_depth=10000"
+    )
+    assert response.status_code == 200
+    assert response.json()["diversity"]["depth"] == "10000"
 
 
 def test_api_search_legacy_diverse_alias_maps_to_balanced(app_with_qdrant):

@@ -40,6 +40,7 @@ DIVERSITY_DEPTHS: dict[str, int] = {
     "1000": 1000,
     "2000": 2000,
     "5000": 5000,
+    "10000": 10000,
 }
 DIVERSITY_DEPTH_OPTIONS = ("auto", *DIVERSITY_DEPTHS)
 
