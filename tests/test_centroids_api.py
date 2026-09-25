@@ -374,3 +374,107 @@ def test_api_search_multi_centroid_three(app_with_centroids):
 
 
 
+
+
+# ----------------------- /api/centroids/{name}/search + diversity -----------------------
+
+
+def test_centroid_search_diversity_applied(app_with_centroids):
+    """The dedicated centroid route now supports the Diversity pass."""
+    plain = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?limit=10"
+    ).json()
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?diversity=balanced&limit=10"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["centroid"] == WUXIA_CENTROID
+    assert data["diverse"] is True
+    assert data["diversity"]["requested"] is True
+    assert data["diversity"]["applied"] is True
+    assert data["diversity"]["mode"] == "balanced"
+    # MMR always opens with the most relevant candidate, so the
+    # first result matches the plain ranking. The full set is a
+    # permutation (only 3 points in the fixture).
+    assert data["results"][0]["id"] == plain["results"][0]["id"]
+    assert {r["id"] for r in data["results"]} == {
+        r["id"] for r in plain["results"]
+    }
+
+
+def test_centroid_search_diversity_off_by_default(app_with_centroids):
+    """No diversity params → plain vector search, metadata says off."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?limit=10"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["diverse"] is False
+    assert data["diversity"]["requested"] is False
+    assert data["diversity"]["applied"] is False
+    assert data["diversity"]["mode"] == "off"
+
+
+def test_centroid_search_diversity_stable_across_pages(app_with_centroids):
+    """Diverse centroid search pages from one cached ranking — pages
+    are disjoint and the second request is a cache hit."""
+    first = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?diversity=balanced&diversity_depth=500&limit=1"
+    )
+    assert first.status_code == 200
+    first_ids = [r["id"] for r in first.json()["results"]]
+    second = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?diversity=balanced&diversity_depth=500&limit=1&offset=1"
+    )
+    assert second.status_code == 200
+    second_ids = [r["id"] for r in second.json()["results"]]
+    assert first_ids and second_ids
+    assert set(first_ids).isdisjoint(set(second_ids))
+
+
+def test_centroid_search_diversity_mutually_exclusive_with_sample(app_with_centroids):
+    """Sample mode re-rolls per request — incompatible with a cached
+    stable diversity ranking. Must 400 like surprise+diversity."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?mode=sample&diversity=balanced"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_search_rejects_unknown_diversity_mode(app_with_centroids):
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?diversity=extreme"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_search_rejects_unknown_diversity_depth(app_with_centroids):
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?diversity=balanced&diversity_depth=7500"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_search_accepts_depth_10000(app_with_centroids):
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?diversity=balanced&diversity_depth=10000"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["diversity"]["depth"] == "10000"
+
+
+def test_centroid_search_diverse_alias_flag(app_with_centroids):
+    """?diverse=true maps to balanced, same as /api/search."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?diverse=true"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["diverse"] is True
+    assert data["diversity"]["mode"] == "balanced"

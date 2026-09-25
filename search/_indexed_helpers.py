@@ -482,6 +482,121 @@ def _pool_depth_for(cfg: Any, mode: str, requested: int) -> int:
     return overrides.get(mode, requested or 500)
 
 
+def centroid_diversity_page(
+    cfg: Any,
+    qdrant: Any,
+    diversity_cache: Any,
+    *,
+    vector: list[float],
+    effective_limit: int,
+    offset: int,
+    collections: list[str],
+    allowed_ids: list[str] | None,
+    seed_ids: list[str],
+    mode: str,
+    strength: float,
+    depth: str,
+    pool_depth: int,
+) -> tuple[list, bool, Any]:
+    """Diversity ranking for centroid/album search — the Layer-2-aware
+    analogue of `diversity_page`.
+
+    Differences from the text-search path:
+
+      * Seed exclusion is load-bearing here: results must not echo the
+        album's own members. Layer 1 (`exclude_ids=seed_ids`) rides
+        along with the Qdrant call; Layer 2 drops candidates that are
+        *near*-dups of a seed vector (threshold calibrated from the
+        seed set's own intra-cluster distances). Layer 2 needs the
+        candidate vectors, so this path fetches with vectors up front
+        instead of payload-first — at pool sizes <= 5000 the extra
+        transfer is acceptable and the ranking stays cache-stable.
+      * No favorites intersection (centroid routes don't take
+        `?favorites=`); allowed_ids passes through as-is.
+
+    Paging contract matches `diversity_page`: one complete stable
+    ranking per cache key, sliced for `?offset`. Sample mode never
+    reaches this function (the route rejects sample+diversity with
+    400), so cache keys are always deterministic.
+    """
+    from search._result_helpers import diversity_metadata as _diversity_metadata
+    from search.centroids import (
+        calibrate_near_dup_threshold,
+        filter_near_duplicates,
+    )
+    from search.diversity import (
+        DiversityStats,
+        rank_diverse,
+        relevance_drop_for_mode,
+    )
+
+    cache_key = diversity_cache_key(
+        cfg,
+        vector, mode, depth, pool_depth, collections, allowed_ids, None,
+    )
+    cached = diversity_cache.get(cache_key) if diversity_cache is not None else None
+    if cached is not None:
+        hits = list(cached.hits)
+        page = hits[offset:offset + effective_limit]
+        return page, len(hits) > offset + effective_limit, _diversity_metadata(cached.stats)
+
+    actual_pool_depth = _pool_depth_for(cfg, mode, pool_depth)
+    pairs, _ = qdrant.search_with_vectors(
+        vector,
+        actual_pool_depth,
+        0,
+        collections or None,
+        allowed_ids,
+        seed_ids or None,
+    )
+
+    # Layer 2: drop candidates that are near-duplicates of a seed
+    # photo. Static centroids have no seed_ids and skip this.
+    if pairs and seed_ids:
+        seed_pairs = qdrant.retrieve_batch_with_vectors(seed_ids)
+        seed_vecs = [v for _, v in seed_pairs]
+        if seed_vecs:
+            threshold = calibrate_near_dup_threshold(seed_vecs)
+            keep_mask = filter_near_duplicates(
+                [v for _, v in pairs], seed_vecs, threshold,
+            )
+            pairs = [
+                p for p, keep in zip(pairs, keep_mask, strict=False) if keep
+            ]
+
+    if not pairs:
+        stats = DiversityStats(
+            requested=True, applied=True, mode=mode, strength=strength,
+            candidate_count=0, result_count=0,
+            depth=depth, pool_depth=actual_pool_depth,
+        )
+        if diversity_cache is not None:
+            diversity_cache.put(cache_key, [], stats)
+        return [], False, _diversity_metadata(stats)
+
+    import numpy as _np
+    ordered_hits = [h for h, _ in pairs]
+    vectors_ndarray = _np.asarray([v for _, v in pairs], dtype=_np.float32)
+
+    ranking = rank_diverse(
+        (ordered_hits, vectors_ndarray),
+        vector,
+        mode=mode,
+        strength=strength,
+        duplicate_hamming_distance=cfg.diversity_duplicate_hamming_distance,
+        relevance_drop=relevance_drop_for_mode(
+            mode, cfg.diversity_relevance_drop,
+        ),
+        max_results=cfg.max_results_total,
+        depth=depth,
+        pool_depth=len(pairs),
+    )
+    if diversity_cache is not None:
+        diversity_cache.put(cache_key, ranking.hits, ranking.stats)
+    page = ranking.hits[offset:offset + effective_limit]
+    return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
+
+
 def _digest_values(values) -> str:
     """SHA-256 digest of a list/set/None of strings — used to hash
     request-shape inputs into the diversity cache key.
