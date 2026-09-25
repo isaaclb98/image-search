@@ -910,7 +910,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
         "parameters": [
           {
             "in": "path",
@@ -941,7 +941,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_head",
         "parameters": [
           {
             "in": "path",
@@ -1415,7 +1415,7 @@
     },
     "/api/cache/refresh": {
       "get": {
-        "operationId": "api_cache_refresh_api_cache_refresh_get",
+        "operationId": "api_cache_refresh_api_cache_refresh_post",
         "responses": {
           "200": {
             "content": {
@@ -1429,7 +1429,7 @@
         "summary": "Api Cache Refresh"
       },
       "post": {
-        "operationId": "api_cache_refresh_api_cache_refresh_get_1",
+        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
         "responses": {
           "200": {
             "content": {
@@ -1577,6 +1577,54 @@
               "description": "Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75.",
               "title": "Sample N",
               "type": "integer"
+            }
+          },
+          {
+            "description": "apply MMR diversity re-ranking",
+            "in": "query",
+            "name": "diverse",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "apply MMR diversity re-ranking",
+              "title": "Diverse",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Diversity strength: off, low, balanced, or high",
+            "in": "query",
+            "name": "diversity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Diversity strength: off, low, balanced, or high",
+              "title": "Diversity"
+            }
+          },
+          {
+            "description": "Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
+            "in": "query",
+            "name": "diversity_depth",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
+              "title": "Diversity Depth"
             }
           }
         ],
@@ -2522,7 +2570,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get",
+        "operationId": "favorites_download_zip_favorites_download_zip_head",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2531,7 +2579,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
         "responses": {
           "200": {
             "description": "Successful Response"

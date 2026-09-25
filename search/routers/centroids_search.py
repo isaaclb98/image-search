@@ -67,7 +67,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from search._indexed_helpers import resolve_filename_filter, results_from_hits
+from search._indexed_helpers import (
+    centroid_diversity_page,
+    resolve_filename_filter,
+    results_from_hits,
+)
 from search._result_helpers import (
     bad_request,
     coerce_view,
@@ -86,7 +90,11 @@ from search.centroids_compute import (
     DEFAULT_SAMPLE_K,
     cluster_then_sample_centroid,
 )
-from search.models import SearchResponse, SearchResult
+from search.diversity import (
+    resolve_depth,
+    resolve_mode,
+)
+from search.models import DiversityMetadata, SearchResponse, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +114,7 @@ def build_centroids_search_router(
     index_db: Any,
     centroid_store: Any,
     dynamic_centroids: Any,
+    diversity_cache: Any = None,
 ) -> APIRouter:
     """Build the /api/centroids/{name}/search router.
 
@@ -115,6 +124,9 @@ def build_centroids_search_router(
       - `index_db`: search-side IndexDB cache (filename lookup).
       - `centroid_store`: static centroid store (may be None).
       - `dynamic_centroids`: dynamic centroid registry (may be None).
+      - `diversity_cache`: DiversityResultCache shared with /api/search
+        (may be None — then diversity ranking still works but results
+        are not cached across requests/pagination).
     """
     router = APIRouter()
 
@@ -148,6 +160,13 @@ def build_centroids_search_router(
                 "Only used when mode=sample. Round-75."
             ),
         ),
+        diverse: bool = Query(False, description="apply MMR diversity re-ranking"),
+        diversity: str | None = Query(
+            None, description="Diversity strength: off, low, balanced, or high",
+        ),
+        diversity_depth: str | None = Query(
+            None, description="Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
+        ),
     ) -> SearchResponse:
         """Search using a loaded centroid as the query vector."""
         if centroid_store is None:
@@ -169,6 +188,28 @@ def build_centroids_search_router(
             return bad_request(  # type: ignore[return-value]
                 f"sample_n ({sample_n}) must be <= sample_k ({sample_k})"
             )
+        # Diversity resolution — identical contract to /api/search
+        # (same helpers, same 400 messages).
+        try:
+            diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
+        except ValueError as exc:
+            return bad_request(str(exc))  # type: ignore[return-value]
+        try:
+            diversity_depth_mode, diversity_pool_depth = resolve_depth(
+                diversity_depth, diversity_mode,
+            )
+        except ValueError as exc:
+            return bad_request(str(exc))  # type: ignore[return-value]
+        diversity_active = diversity_mode != "off"
+        # Sample mode re-rolls a different query vector per request, so
+        # a cached stable ranking is meaningless (and would silently
+        # defeat the re-roll). Mutual exclusion mirrors the
+        # surprise+diversity rule on /api/search.
+        if diversity_active and mode == "sample":
+            return bad_request(
+                "Diversity cannot be combined with sample mode "
+                "(Surprise Me). Choose one retrieval mode."
+            )  # type: ignore[return-value]
         # Look up static first; fall back to dynamic (registry does
         # lazy compute + cache). This keeps the route's contract
         # the same regardless of which backend the centroid came from.
@@ -316,7 +357,41 @@ def build_centroids_search_router(
         if allowed_ids is not None and not allowed_ids:
             hits: list = []
             has_more = False
+            diversity_meta = None
+        elif diversity_active:
+            # MMR diversity ranking over the centroid's candidate
+            # pool, with the same two-layer seed exclusion (Layer 1
+            # exclude_ids + Layer 2 near-dup post-pass) applied
+            # inside. Cache-stable paging like /api/search.
+            try:
+                hits, has_more, diversity_meta = centroid_diversity_page(
+                    cfg,
+                    qdrant,
+                    diversity_cache,
+                    vector=vector,
+                    effective_limit=effective_limit,
+                    offset=offset,
+                    collections=collections,
+                    allowed_ids=allowed_ids,
+                    seed_ids=seed_ids or [],
+                    mode=diversity_mode,
+                    strength=diversity_strength,
+                    depth=diversity_depth_mode,
+                    pool_depth=diversity_pool_depth,
+                )
+            except (ConnectionError, OSError) as e:
+                logger.warning(
+                    "Qdrant unreachable for centroid diversity search: %s", e,
+                )
+                return qdrant_unreachable(str(e))  # type: ignore[return-value]
+            except Exception as e:
+                if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
+                    logger.warning("Qdrant diversity timeout: %s", e)
+                    return qdrant_timeout(str(e))  # type: ignore[return-value]
+                logger.exception("centroid diversity search failed")
+                return internal_error(str(e))  # type: ignore[return-value]
         else:
+            diversity_meta = None
             # See module docstring for the over-fetch + two-layer
             # near-dup exclusion rationale.
             over_fetch_limit = min(
@@ -417,6 +492,9 @@ def build_centroids_search_router(
             query="",
             positives=[],
             negatives=[],
+            diverse=diversity_active,
+            diversity=diversity_meta if diversity_meta is not None
+            else DiversityMetadata(depth="auto", pool_depth=0),
             view=coerce_view(cfg.default_view),
             centroid=centroid_name,
             results=results,

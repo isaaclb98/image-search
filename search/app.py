@@ -984,6 +984,7 @@ def create_app(
         index_db=index_db,
         centroid_store=_centroid_store,
         dynamic_centroids=_dynamic_centroids,
+        diversity_cache=diversity_cache,
     ))
     app.include_router(build_system_router(
         qdrant=qdrant,

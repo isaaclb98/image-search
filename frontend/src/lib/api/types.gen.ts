@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_get"];
+        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
+        head: operations["album_download_zip_albums__album_id__download_zip_head"];
         patch?: never;
         trace?: never;
     };
@@ -210,10 +210,10 @@ export interface paths {
             cookie?: never;
         };
         /** Api Cache Refresh */
-        get: operations["api_cache_refresh_api_cache_refresh_get"];
+        get: operations["api_cache_refresh_api_cache_refresh_post"];
         put?: never;
         /** Api Cache Refresh */
-        post: operations["api_cache_refresh_api_cache_refresh_get_1"];
+        post: operations["api_cache_refresh_api_cache_refresh_post_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -564,13 +564,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_get"];
+        get: operations["favorites_download_zip_favorites_download_zip_head"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
         patch?: never;
         trace?: never;
     };
@@ -1115,7 +1115,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_get: {
+    album_download_zip_albums__album_id__download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1144,7 +1144,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_get_1: {
+    album_download_zip_albums__album_id__download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -1524,7 +1524,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_get: {
+    api_cache_refresh_api_cache_refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1544,7 +1544,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_get_1: {
+    api_cache_refresh_api_cache_refresh_post_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1643,6 +1643,12 @@ export interface operations {
                 sample_k?: number;
                 /** @description Number of cluster centroids to average per request. Defaults to 3. Must satisfy 1 <= n <= sample_k. Only used when mode=sample. Round-75. */
                 sample_n?: number;
+                /** @description apply MMR diversity re-ranking */
+                diverse?: boolean;
+                /** @description Diversity strength: off, low, balanced, or high */
+                diversity?: string | null;
+                /** @description Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000 */
+                diversity_depth?: string | null;
             };
             header?: never;
             path: {
@@ -2226,7 +2232,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get: {
+    favorites_download_zip_favorites_download_zip_head: {
         parameters: {
             query?: never;
             header?: never;
@@ -2244,7 +2250,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_get_1: {
+    favorites_download_zip_favorites_download_zip_head_1: {
         parameters: {
             query?: never;
             header?: never;

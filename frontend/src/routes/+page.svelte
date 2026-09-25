@@ -18,7 +18,7 @@
    * SearchComposer is a pure UI child — the page owns the truth.
    */
   import { page } from '$app/stores';
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import SearchComposer from '$lib/components/SearchComposer.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
@@ -152,6 +152,19 @@
       ? collections.filter((c) => c !== name)
       : [...collections, name];
   }
+
+  // Centroid mode has no Search button — filter changes re-run the
+  // search directly. The filename input fires per keystroke, so
+  // debounce it; discrete controls (diversity, collections) call
+  // reload() directly from the handlers below.
+  let centroidReloadTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleCentroidReload() {
+    if (centroidReloadTimer) clearTimeout(centroidReloadTimer);
+    centroidReloadTimer = setTimeout(() => void reload(), 400);
+  }
+  onDestroy(() => {
+    if (centroidReloadTimer) clearTimeout(centroidReloadTimer);
+  });
 
   async function reload() {
     if (ctrl) ctrl.abort();
@@ -412,10 +425,10 @@
     {diversityDepth}
     {collections}
     onToggle={() => (filtersOpen = !filtersOpen)}
-    onFilename={(v) => (filename = v)}
-    onDiversityMode={(v) => (diversityMode = v)}
-    onDiversityDepth={(v) => (diversityDepth = v)}
-    onToggleCollection={toggleCollection}
+    onFilename={(v) => { filename = v; if (activeCentroid) scheduleCentroidReload(); }}
+    onDiversityMode={(v) => { diversityMode = v; if (activeCentroid) void reload(); }}
+    onDiversityDepth={(v) => { diversityDepth = v; if (activeCentroid) void reload(); }}
+    onToggleCollection={(name) => { toggleCollection(name); if (activeCentroid) void reload(); }}
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
