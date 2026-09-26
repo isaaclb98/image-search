@@ -302,6 +302,11 @@
     );
   }
 
+  /* Tile chrome (score pill, fav heart, neg badge) sits above the
+   * thumbnail layer: .ph is z:0, .full is z:1, so z-auto chrome
+   * paints UNDER the thumbnail and only shows while the tile is
+   * still in blurhash state. z-index: 2 matches .remove-btn (which
+   * already documented this stacking requirement). */
   .score {
     position: absolute;
     top: 8px;
@@ -315,6 +320,7 @@
     backdrop-filter: var(--pill-blur);
     -webkit-backdrop-filter: var(--pill-blur);
     opacity: 0;
+    z-index: 2;
     transition: opacity var(--t-fast) var(--ease-out);
   }
   .tile:hover .score,
@@ -335,6 +341,7 @@
     justify-content: center;
     backdrop-filter: var(--pill-blur);
     -webkit-backdrop-filter: var(--pill-blur);
+    z-index: 2;
   }
   .neg-badge {
     position: absolute;
@@ -357,6 +364,7 @@
     justify-content: center;
     backdrop-filter: var(--pill-blur);
     -webkit-backdrop-filter: var(--pill-blur);
+    z-index: 2;
   }
   /* Remove-from-set button — same corner slot as the persistent
    * fav/dislike badges, but interactive and only revealed on
