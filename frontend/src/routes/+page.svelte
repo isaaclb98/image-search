@@ -18,7 +18,7 @@
    * SearchComposer is a pure UI child — the page owns the truth.
    */
   import { page } from '$app/stores';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import SearchComposer from '$lib/components/SearchComposer.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
@@ -152,19 +152,6 @@
       ? collections.filter((c) => c !== name)
       : [...collections, name];
   }
-
-  // Centroid mode has no Search button — filter changes re-run the
-  // search directly. The filename input fires per keystroke, so
-  // debounce it; discrete controls (diversity, collections) call
-  // reload() directly from the handlers below.
-  let centroidReloadTimer: ReturnType<typeof setTimeout> | undefined;
-  function scheduleCentroidReload() {
-    if (centroidReloadTimer) clearTimeout(centroidReloadTimer);
-    centroidReloadTimer = setTimeout(() => void reload(), 400);
-  }
-  onDestroy(() => {
-    if (centroidReloadTimer) clearTimeout(centroidReloadTimer);
-  });
 
   async function reload() {
     if (ctrl) ctrl.abort();
@@ -425,16 +412,20 @@
     {diversityDepth}
     {collections}
     onToggle={() => (filtersOpen = !filtersOpen)}
-    onFilename={(v) => { filename = v; if (activeCentroid) scheduleCentroidReload(); }}
-    onDiversityMode={(v) => { diversityMode = v; if (activeCentroid) void reload(); }}
-    onDiversityDepth={(v) => { diversityDepth = v; if (activeCentroid) void reload(); }}
-    onToggleCollection={(name) => { toggleCollection(name); if (activeCentroid) void reload(); }}
+    onFilename={(v) => (filename = v)}
+    onDiversityMode={(v) => (diversityMode = v)}
+    onDiversityDepth={(v) => (diversityDepth = v)}
+    onToggleCollection={toggleCollection}
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
        SearchComposer so it sits AFTER the additional-options
        panel — visual order: search inputs → diversity options
-       → action buttons. -->
+       → action buttons. In centroid mode the saved-searches menu
+       doesn't apply (the centroid IS the query), but the Search
+       button does: filter changes (diversity, filename,
+       collections) stage into state and run only on this click —
+       same explicit-run contract as the home search. -->
   {#if !activeCentroid}
     <div class="search-actions">
       <SavedSearchesMenu
@@ -455,6 +446,18 @@
         onclick={reload}
         disabled={!positives.length && !negatives.length && !filename.trim() && !collections.length || loading}
         title="Run search"
+      >
+        Search
+      </Button>
+    </div>
+  {:else}
+    <div class="search-actions">
+      <Button
+        variant="primary"
+        size="lg"
+        onclick={reload}
+        disabled={loading}
+        title="Re-run the album search with the current options"
       >
         Search
       </Button>
