@@ -29,6 +29,7 @@
    */
   import type { Snippet } from 'svelte';
   import { tick } from 'svelte';
+  import { layoutMenu } from './dropdown-layout';
 
   type Item = {
     id: string | number;
@@ -99,8 +100,10 @@
   let wrapperEl: HTMLDivElement | undefined = $state();
   let menuEl: HTMLDivElement | undefined = $state();
 
-  /** Coordinates for `position: fixed` placement, recomputed each open. */
-  let pos = $state<{ top: number; left: number }>({ top: 0, left: 0 });
+  /** Coordinates for `position: fixed` placement, recomputed each open.
+   *  maxHeight is the viewport-bounded inline cap from layoutMenu
+   *  (null = natural height fits, CSS cap stands). */
+  let pos = $state<{ top: number; left: number; maxHeight: number | null }>({ top: 0, left: 0, maxHeight: null });
 
   /**
    * Items rendered in the menu, with the `isMember` flag merged
@@ -164,9 +167,9 @@
       // don't know the menu's height until after mount, so this
       // helper just sets the left-aligned initial guess. The
       // two-pass post-mount clamp in toggle() corrects the top.
-      pos = { top: rect.top - GAP, left: rect.left };
+      pos = { top: rect.top - GAP, left: rect.left, maxHeight: null };
     } else {
-      pos = { top: rect.bottom + GAP, left: rect.left };
+      pos = { top: rect.bottom + GAP, left: rect.left, maxHeight: null };
     }
   }
 
@@ -185,20 +188,15 @@
       const triggerR = trigger?.getBoundingClientRect() ?? null;
       if (menuEl && triggerR) {
         const menuRect = menuEl.getBoundingClientRect();
-        if (align === 'up') {
-          // Menu's top edge = trigger.top - GAP - menu.height.
-          pos = { ...pos, top: triggerR.top - GAP - menuRect.height };
-        }
-        // Keep menu within the viewport horizontally. Default
-        // alignment is left-edge flush with trigger's left; shift
-        // left if it would overflow the right edge, or right if
-        // it would clip the left edge.
-        let left = triggerR.left;
-        if (left + menuRect.width > window.innerWidth - GAP) {
-          left = window.innerWidth - GAP - menuRect.width;
-        }
-        if (left < GAP) left = GAP;
-        pos = { ...pos, left };
+        const l = layoutMenu(
+          triggerR,
+          menuRect.height,
+          menuRect.width,
+          window.innerWidth,
+          window.innerHeight,
+          align
+        );
+        pos = { top: l.top, left: l.left, maxHeight: l.maxHeight };
       }
       // Focus first item for keyboard users.
       menuEl?.querySelector<HTMLButtonElement>('button.item:not(:disabled)')?.focus();
@@ -256,6 +254,7 @@
     aria-label={label}
     style:top="{pos.top}px"
     style:left="{pos.left}px"
+    style:max-height={pos.maxHeight !== null ? `${pos.maxHeight}px` : undefined}
     style:min-width={minWidth}
     use:portal
   >
