@@ -35,6 +35,12 @@
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
   import ActionButton from './ActionButton.svelte';
+  import {
+    canAdvance,
+    shouldRequestMore,
+    stallForMore,
+    resolveStall
+  } from './lightbox-pagination';
   import Dropdown from './Dropdown.svelte';
   function goSimilar(id: string) {
     onClose();
@@ -70,6 +76,13 @@
     /** User-created albums — passed down to the right-click
      *  "Add to album" submenu (round-5). */
     albums?: { id: number; name: string }[];
+    /** Infinite navigation: when the parent's result set has more
+     *  pages, arrowing forward near/at the loaded end requests the
+     *  next page and continues instead of dead-ending. Both props
+     *  are optional — without them the lightbox behaves exactly as
+     *  before (bounded by `items`). */
+    hasMore?: boolean;
+    onLoadMore?: (signal?: AbortSignal) => void;
   };
   let {
     items,
@@ -77,10 +90,19 @@
     onClose,
     onToggleFavorite,
     onDislike,
-    albums
+    albums,
+    hasMore = false,
+    onLoadMore
   }: Props = $props();
 
   let idx = $state(index);
+  // Infinite-nav bookkeeping (see lightbox-pagination.ts):
+  // `requestedAtLen` dedupes lookahead prefetch requests per loaded
+  // length; `pendingStall` holds the length we stalled at when
+  // `next()` was pressed exactly at the loaded end — when `items`
+  // grows past it the pending press auto-advances.
+  let requestedAtLen: number | null = null;
+  let pendingStall = $state<number | null>(null);
   // Clamp `idx` to a valid range only when it's actually out of
   // bounds (e.g., items shrunk). Don't reset it on every items
   // update — earlier a `$effect(() => idx = clamp(index, ...))`
@@ -91,6 +113,17 @@
     if (items.length > 0 && idx >= items.length) {
       idx = items.length - 1;
     }
+  });
+
+  // Infinite nav: when items grow past a pending stall (next() was
+  // pressed at the loaded end and we asked for more), complete the
+  // deferred press by auto-advancing. Deliberately does NOT trigger
+  // lookahead prefetch — that lives in next() so End/Home/jump keys
+  // don't silently grow the window out from under the user.
+  $effect(() => {
+    const r = resolveStall(pendingStall, items.length);
+    if (r.advance) idx += 1;
+    pendingStall = r.stall;
   });
 
   let tint = $state<string | null>(null);
@@ -470,7 +503,26 @@
     const wasPlaying = playing;
     if (playing) playing = false;
     if (!wasPlaying) {
-      if (idx < items.length - 1) idx += 1;
+      if (canAdvance(idx, items.length)) {
+        idx += 1;
+        // Lookahead prefetch: now that forward navigation moved us
+        // near the loaded end, ask for the next page so continuous
+        // arrowing rarely stalls. Only next() does this — jump keys
+        // (End/Home/±10) intentionally don't grow the window.
+        if (shouldRequestMore(idx, items.length, hasMore, requestedAtLen)) {
+          requestedAtLen = items.length;
+          onLoadMore?.();
+        }
+        return;
+      }
+      // At the loaded end: if the parent has more pages, stall and
+      // request — the items-growth effect auto-advances when they
+      // land, so the press is never lost.
+      pendingStall = stallForMore(idx, items.length, hasMore);
+      if (pendingStall !== null) {
+        requestedAtLen = items.length;
+        onLoadMore?.();
+      }
       return;
     }
     if (items.length === 0) return;
@@ -661,7 +713,7 @@
       class="nav next"
       type="button"
       onclick={(e) => { e.stopPropagation(); next(); }}
-      disabled={!playing && idx === items.length - 1}
+      disabled={!playing && !canAdvance(idx, items.length) && !(hasMore && items.length > 0)}
       aria-label="Next"
     >
       <Icon name="chevron-right" size={22} />

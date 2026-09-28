@@ -480,6 +480,8 @@
     onToggleFavorite={onToggleFavorite}
     onDislike={onDislike}
     albums={albums}
+    {hasMore}
+    {onLoadMore}
   />
 {/if}
 
