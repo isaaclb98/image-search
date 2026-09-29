@@ -8,7 +8,7 @@
  * the polarity; remove a chip by index.
  */
 
-// Mirror the SearchComposer's logic in pure TypeScript so we can
+// Mirror the PromptChips's logic in pure TypeScript so we can
 // test it without Svelte mounting.
 function commit(
   input: string,

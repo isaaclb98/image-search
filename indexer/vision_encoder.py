@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Default model name registered with the kernel. Callers may override
 # via the constructor.
-DEFAULT_MODEL_NAME: str = "ViT-gopt-16-SigLIP2-384"
+DEFAULT_MODEL_NAME: str = "ViT-so400m-patch16-384"
 # Mock entry registered by `image_search_kernel.registry.get_default_registry`.
 MOCK_MODEL_NAME: str = "mock-1536"
 

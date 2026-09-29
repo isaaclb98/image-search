@@ -179,7 +179,7 @@ class PipelineConfig:
     """Runtime configuration for a pipeline run."""
 
     source: Path
-    model_name: str = "ViT-gopt-16-SigLIP2-384"
+    model_name: str = "ViT-so400m-patch16-384"
     collection: str = "images"
     batch_size: int = 16
     dry_run: bool = False

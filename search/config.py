@@ -27,11 +27,6 @@ SIGLIP_VARIANTS = {
     "B/16-256": ("ViT-B-16-SigLIP2-256", 768),
     "L/16-256": ("ViT-L-16-SigLIP2-256", 1024),
     "gopt/16-384": ("ViT-gopt-16-SigLIP2-384", 1536),
-    # so400m/16-384 — shape-optimised attention; 1152-dim. New prod
-    # default after the model-variant migration plan. Same 384 input
-    # resolution as gopt-16-384 but a different vector space — the
-    # current Qdrant collection + centroids become invalid once we
-    # flip `SIGLIP_VARIANT` to this; re-index from scratch.
     "so400m/16-384": ("ViT-so400m-patch16-384", 1152),
 }
 
@@ -181,7 +176,7 @@ def centroid_compat_for(model_name: str) -> tuple[str, int]:
     are referenced.
 
     open_clip tags carry an "hf-hub:<vendor>/" prefix (e.g.
-    ``hf-hub:timm/ViT-gopt-16-SigLIP2-384``); the map is keyed by
+    ``hf-hub:timm/ViT-SO400M-16-SigLIP2-384``); the map is keyed by
     the bare arch tag. Normalize by splitting on ``/`` and taking
     the last segment so the deployment's MODEL_NAME matches
     regardless of how open_clip names the model.

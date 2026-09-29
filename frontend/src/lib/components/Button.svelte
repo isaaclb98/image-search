@@ -11,6 +11,11 @@
     variant?: Variant;
     size?: Size;
     href?: string;
+    /** Anchor-only passthrough. The album zip download needs
+     *  target="_blank" rel="noopener" so the browser treats it
+     *  as a file download instead of an SPA navigation. */
+    target?: string;
+    rel?: string;
     type?: 'button' | 'submit';
     disabled?: boolean;
     title?: string;
@@ -22,30 +27,62 @@
      *  relying on DOM order, so destructive confirms can sit
      *  on the right without stealing focus from Cancel. */
     initialFocus?: boolean;
+    /** Destructive-intent modifier. Composes with any variant:
+     *  the idle state stays quiet (fg-3 text) so destructive
+     *  actions don't compete for attention, and hover reveals
+     *  the negative palette. Replaces the per-page bespoke
+     *  `.del` buttons (albums list, album detail, saved
+     *  searches) that each reimplemented this pattern. */
+    danger?: boolean;
     /** ARIA attribute marking the button as opening a popup
      *  menu (e.g. the Dropdown trigger in /settings). The full
      *  ARIA enum is `menu | listbox | tree | grid | dialog`;
      *  we narrow to the two we actually use. */
     'aria-haspopup'?: 'menu' | 'listbox' | 'dialog';
+    /** Expanded-state passthrough for dropdown triggers. The
+     *  Dropdown primitive delegates ARIA semantics to its
+     *  trigger snippet, so Button needs to carry the state
+     *  rather than hardcoding it. */
+    'aria-expanded'?: boolean;
+    /** Accessible name for icon-only triggers. */
+    'aria-label'?: string;
+    /** Extra class merged onto the button — for consumer-side
+     *  hooks (E2E selectors, one-off layout tweaks like
+     *  stretch-to-fill) that aren't a variant concern. */
+    class?: string;
+    /** Data-attribute passthrough (e.g. data-centroid on the
+     *  album search buttons, consumed by E2E selectors). */
+    data?: Record<string, string | undefined>;
   };
   let {
     variant = 'secondary',
     size = 'md',
     href,
+    target,
+    rel,
     type = 'button',
     disabled = false,
     title,
     onclick,
     initialFocus,
+    danger = false,
     'aria-haspopup': ariaHaspopup,
+    'aria-expanded': ariaExpanded,
+    'aria-label': ariaLabel,
+    class: extraClass,
+    data,
     children
   }: Props = $props();
 </script>
 
 {#if href}
   <a
-    class="btn {variant} {size}"
+    class="btn {variant} {size} {extraClass ?? ''}"
+    class:danger
+    {...(data ?? {})}
     {href}
+    {target}
+    {rel}
     aria-disabled={disabled ? 'true' : undefined}
     {title}
   >
@@ -53,13 +90,17 @@
   </a>
 {:else}
   <button
-    class="btn {variant} {size}"
+    class="btn {variant} {size} {extraClass ?? ''}"
+    class:danger
     data-initial-focus={initialFocus ? '' : undefined}
+    {...(data ?? {})}
     {type}
     {disabled}
     {title}
     {onclick}
     aria-haspopup={ariaHaspopup}
+    aria-expanded={ariaExpanded}
+    aria-label={ariaLabel}
   >
     {#if children}{@render children()}{/if}
   </button>
@@ -148,4 +189,22 @@
   .icon.lg { width: 46px; height: 46px; }
 
   .btn:active { transform: translateY(1px); }
+
+  /* danger modifier — composes with any variant via
+     :is() so one rule covers primary/secondary/ghost.
+     Idle state goes quiet (fg-3) regardless of variant;
+     hover reveals the negative palette. Declared after
+     the variant rules and using :is() so it wins over
+     .primary/.secondary/.ghost background+color without
+     !important. */
+  :is(.primary, .secondary, .ghost, .icon).danger {
+    background: transparent;
+    color: var(--fg-3);
+    border-color: var(--glass-edge);
+  }
+  :is(.primary, .secondary, .ghost, .icon).danger:hover {
+    background: var(--negative-soft);
+    color: var(--negative);
+    border-color: var(--negative);
+  }
 </style>

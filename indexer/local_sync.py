@@ -101,7 +101,7 @@ def parse_args(argv=None):
     p.add_argument("--limit", type=int, default=0)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--prune", action="store_true")
-    p.add_argument("--model", type=str, default="ViT-gopt-16-SigLIP2-384")
+    p.add_argument("--model", type=str, default="ViT-so400m-patch16-384")
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--qdrant-url", type=str, default=os.environ.get("QDRANT_URL", "http://localhost:6333"))
     p.add_argument("--qdrant-api-key", type=str, default=os.environ.get("QDRANT_API_KEY") or None)

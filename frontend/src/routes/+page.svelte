@@ -3,7 +3,7 @@
    * Home page — single landing experience per the merge (round‑23).
    *
    * Combines what used to live on `/` and `/search`:
-   *   - SearchComposer at the top
+   *   - PromptChips at the top
    *   - Inline search results (paginated via loadMore on scroll)
    *   - For‑You row at the bottom (sample of recommendations)
    *
@@ -15,12 +15,12 @@
    *     typing or toggling a select updates the URL but does not
    *     hit /api/search.
    *
-   * SearchComposer is a pure UI child — the page owns the truth.
+   * PromptChips is a pure UI child — the page owns the truth.
    */
   import { page } from '$app/stores';
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
-  import SearchComposer from '$lib/components/SearchComposer.svelte';
+  import PromptChips from '$lib/components/PromptChips.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
   import AdditionalFilters from '$lib/components/AdditionalFilters.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
@@ -58,7 +58,7 @@
   const SAMPLE_K = 10;
   const SAMPLE_N = 3;
 
-  // Composer state (hoisted from SearchComposer).
+  // Composer state (hoisted from PromptChips).
   let positives = $state<string[]>([]);
   let negatives = $state<string[]>([]);
   let input = $state('');
@@ -82,7 +82,7 @@
   // disappears once any job has run successfully (last_run_at != null).
   let indexIsEmpty = $state(false);
   // Round‑29: when set, the page treats this as a "search by album
-  // centroid" — the SearchComposer is hidden and reload() hits the
+  // centroid" — the PromptChips is hidden and reload() hits the
   // centroid endpoint instead of /api/search. URL ?centroid=...
   // sets this on mount; writing back to URL is suppressed.
   let activeCentroid = $state<string | null>(null);
@@ -357,29 +357,9 @@
     <PageHeader
       title="Searching by album"
       subtitle={centroidMode === 'sample'
-        ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}. Re-roll to pick a different blend.`
+        ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}.`
         : `Showing the photos closest to the average of ${activeCentroid}.`}
-    >
-      {#snippet actions()}
-        <!-- Round-75: "Surprise me" was a toggle between full-mean
-             and sample modes. Renamed to "Re-roll" and now just
-             refreshes the sample-mode URL with a fresh N (so the
-             next k-means cluster pick gives a different blend).
-             Full-mean mode stays accessible via the URL. -->
-        <!-- Round-75: re-roll. data-sveltekit-reload forces a
-             full page reload so the backend re-clusters + picks
-             a fresh N clusters. The ?seed= param is included so
-             the URL changes per click (without it, same URL =
-             no navigation, no reload). -->
-        <a
-          href="/?centroid={encodeURIComponent(activeCentroid ?? '')}&mode=sample&sample_n={SAMPLE_N}&sample_k={SAMPLE_K}&seed={Math.random().toString(36).slice(2, 8)}"
-          class="surprise-link"
-          data-sveltekit-reload
-        >
-          Re-roll
-        </a>
-      {/snippet}
-    </PageHeader>
+    />
   {:else}
     <PageHeader
       title="Find photos by what they look like."
@@ -387,7 +367,7 @@
     />
   {/if}
   {#if !activeCentroid}
-    <SearchComposer
+    <PromptChips
       {positives}
       {negatives}
       {input}
@@ -401,7 +381,7 @@
   {/if}
 
   <!-- Diversity / filename controls + collections chip filter.
-       Rendered inside .hero (next to the SearchComposer, not nested
+       Rendered inside .hero (next to the PromptChips, not nested
        inside the composer component) so they share the composer's
        card width — the user wants this panel to read as part of
        the search section, not the photo grid. -->
@@ -419,7 +399,7 @@
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
-       SearchComposer so it sits AFTER the additional-options
+       PromptChips so it sits AFTER the additional-options
        panel — visual order: search inputs → diversity options
        → action buttons. In centroid mode the saved-searches menu
        doesn't apply (the centroid IS the query), but the Search
@@ -498,7 +478,15 @@
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: var(--s-1) 0 var(--s-4);
+    /* Round-Y: padding-top dropped to 0 — .shell already provides
+       --shell-pad-y (16px) above the page, and random/for-you/
+       albums/similar all rely on that single source (16px gap
+       from topbar). The home page was the outlier at 24px
+       (16px shell + 8px hero) until this edit. The padding-top
+       comment above mentioned this was "trimmed since shell
+       already provides" it — the trim just stopped one step
+       short of zero. */
+    padding: 0;
   }
 
   /* Round-54: empty-index notification banner.
@@ -549,7 +537,7 @@
   .empty-prompt .dismiss:hover {
     color: var(--fg-1);
   }
-  /* Saved-searches + Search button. Pulled out of SearchComposer
+  /* Saved-searches + Search button. Pulled out of PromptChips
      so the action row sits below the diversity panel, not below
      the search inputs (matches the layout the user wants:
      inputs → diversity options → actions). */
@@ -579,26 +567,26 @@
   /* Round-67: hero stack rhythm — same --s-3 (16px) between
      every section so the stack reads as one consistent
      rhythm. Previously the three gaps were --s-3 → --s-2 → --s-1,
-     a stair-step that read as inconsistent. */
+     a stair-step that read as inconsistent. The composer's
+     top edge was missing its --s-3 entirely — it relied on the
+     PageHeader's 20px bottom padding alone, which gave ~0px of
+     perceived gap between header and search box while every
+     other boundary had 16px. */
+  .hero > :global(.prompt-chips) {
+    margin-top: var(--s-3);
+  }
   .hero > :global(.filters) {
     margin-top: var(--s-3);
   }
   .search-actions {
     margin-top: var(--s-3);
   }
-  /* Round-34: "Surprise me" link in the album-search header.
-     Round-57: sibling "Back to albums" link removed (the Albums
-     tab in the TopBar serves the same role — no need for a
-     redundant in-page nav). Same colour as the old .back-link
-     (fg-2) so it reads as a quiet secondary action on the
-     header. */
-  .surprise-link {
-    color: var(--fg-2);
-    text-decoration: none;
-    transition: color var(--t-fast);
-  }
-  .surprise-link:hover { color: var(--fg-1); }
-  /* Round-67: same --s-3 between search-actions and the
-     results grid below. */
-  .results { margin-top: var(--s-3); }
+  /* Round-X: section gap between .hero and .results is owned
+     entirely by --shell-gap (16px) on .shell in +layout.svelte.
+     Hero's padding-bottom was dropped to 0 in lockstep — together
+     they replace the previous padding-bottom:24 + margin-top:16 +
+     shell-gap:16 = 56px stack with the single 16px shell gap,
+     matching how random/for-you/albums/similar handle the same
+     header → grid boundary. */
+  .results { margin-top: 0; }
 </style>

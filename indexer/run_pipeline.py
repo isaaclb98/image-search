@@ -282,7 +282,7 @@ def _resolve_active_model_name() -> str:
     if _ACTIVE_MODEL is not None:
         return _ACTIVE_MODEL[0]
     # Fallback: the web backend's current model.
-    return "ViT-gopt-16-SigLIP2-384"
+    return "ViT-so400m-patch16-384"
 
 
 def _resolve_active_model_revision() -> str:

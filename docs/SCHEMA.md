@@ -62,7 +62,7 @@ search.
 
 | Field | Type | Source | Notes |
 |---|---|---|---|
-| `model_name` | str | indexer arg | The exact model identifier (e.g. `ViT-gopt-16-SigLIP2-384`). Points from different models are never compared. |
+| `model_name` | str | indexer arg | The exact model identifier (e.g. `ViT-so400m-patch16-384`). Points from different models are never compared. |
 | `model_revision` | str | indexer arg | Model revision string. Stored alongside `model_name` so a model upgrade can be detected and the collection re-indexed. |
 | `model_dim` | int | `image_search_kernel.registry.get(name).dim` | Vector dimension produced by the model that wrote this point. Self-describing — a backfilled migration can verify each point's vector length matches its recorded dim without consulting the registry. |
 

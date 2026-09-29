@@ -17,6 +17,7 @@
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import Button from '$lib/components/Button.svelte';
   import type { AlbumDetail } from '$lib/api/endpoints';
 
   type Member = {
@@ -178,13 +179,18 @@
     {#snippet actions()}
       <div class="actions">
         {#if detail && detail.id && (detail.member_total ?? members.length) > 0}
-          <a class="zip" href="/albums/{detail.id}/download.zip" target="_blank" rel="noopener">
+          <Button
+            variant="primary"
+            href="/albums/{detail.id}/download.zip"
+            target="_blank"
+            rel="noopener"
+          >
             Download zip
-          </a>
+          </Button>
         {/if}
-        <button class="del" type="button" onclick={onDeleteAlbum} aria-label="Delete album {detail?.name ?? ''}">
+        <Button danger onclick={onDeleteAlbum} title={`Delete album ${detail?.name ?? ''}`}>
           Delete album
-        </button>
+        </Button>
       </div>
     {/snippet}
   </PageHeader>
@@ -213,35 +219,5 @@
     display: flex;
     gap: var(--s-2);
     align-items: center;
-  }
-  .zip {
-    padding: var(--s-1) var(--s-3);
-    border-radius: var(--r-pill);
-    background: var(--accent);
-    color: var(--fg-on-accent);
-    text-decoration: none;
-    font-weight: var(--fw-medium);
-  }
-  .zip:hover { background: var(--accent-2); }
-  /* Delete button: ghost-style until hovered, then red. Same
-     shape/size as .zip so they read as sibling actions on the
-     page header. Idle state stays neutral (borderless, fg-3)
-     so the destructive intent only reveals on hover. */
-  .del {
-    padding: var(--s-1) var(--s-3);
-    border-radius: var(--r-pill);
-    background: transparent;
-    color: var(--fg-3);
-    border: 1px solid var(--glass-edge);
-    font-weight: var(--fw-medium);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease-out),
-                color var(--t-fast) var(--ease-out),
-                border-color var(--t-fast) var(--ease-out);
-  }
-  .del:hover {
-    background: var(--negative-soft);
-    color: var(--negative);
-    border-color: var(--negative);
   }
 </style>

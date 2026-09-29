@@ -12,7 +12,7 @@ import { test, expect, type Page } from '@playwright/test';
  * Selectors used here:
  *   .grid-tile    — wrapper rendered by SearchGrid for each visible tile
  *   .tile         — the <a> inside the wrapper (what gets clicked)
- *   .chip         — a prompt chip rendered by SearchComposer
+ *   .chip         — a prompt chip rendered by PromptChips
  *   button.search — the Search submit button (varies, found by role)
  */
 

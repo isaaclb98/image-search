@@ -173,7 +173,7 @@ def _default_resolution() -> int:
     """
     try:
         from image_search_kernel.registry import get as _registry_get
-        return _registry_get("ViT-gopt-16-SigLIP2-384").resolution
+        return _registry_get("ViT-so400m-patch16-384").resolution
     except Exception:  # noqa: BLE001
         return 384
 
@@ -205,7 +205,7 @@ def letterbox_resize(img: Image.Image, size: int | None = None) -> Image.Image:
 
 
 def load(
-    path: Path, *, model_name: str = "ViT-gopt-16-SigLIP2-384",
+    path: Path, *, model_name: str = "ViT-so400m-patch16-384",
 ) -> tuple[Image.Image, int | None, int | None]:
     """
     Load + EXIF-correct + RGB-convert + letterbox. Returns

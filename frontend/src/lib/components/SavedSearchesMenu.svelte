@@ -16,6 +16,7 @@
     createSavedSearch
   } from '$lib/api/endpoints';
   import { dialog } from './Dialog.svelte';
+  import Button from './Button.svelte';
   import type { SavedSearch } from '$lib/api/endpoints';
 
   type Props = {
@@ -94,19 +95,20 @@
 </script>
 
 <div class="saved-search">
-  <button
-    class="trigger"
-    type="button"
+  <Button
+    variant="secondary"
     onclick={toggle}
     aria-expanded={open}
+    aria-haspopup="menu"
+    aria-label="Saved searches"
     title="Saved searches"
   >
     Saved
     <span class="caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
-  </button>
-  <button class="trigger save" type="button" onclick={save} title="Save current search">
+  </Button>
+  <Button variant="ghost" onclick={save} title="Save current search">
     Save
-  </button>
+  </Button>
   {#if open}
     <div class="pop glass" role="menu">
       {#if loading}
@@ -128,13 +130,14 @@
                   +{s.positives.length}{s.negatives.length ? ' −' + s.negatives.length : ''}
                 </span>
               </button>
-              <button
-                class="del"
-                type="button"
+              <Button
+                variant="icon"
+                size="sm"
+                danger
                 onclick={(e) => remove(e, s.id)}
                 aria-label="Delete {s.name}"
                 title="Delete"
-              >×</button>
+              >×</Button>
             </li>
           {/each}
         </ul>
@@ -148,30 +151,6 @@
     position: relative;
     display: inline-flex;
     gap: var(--s-1);
-  }
-  .trigger {
-    height: 38px;
-    padding: 0 14px;
-    border-radius: var(--r-pill);
-    background: var(--glass-2);
-    border: 1px solid var(--glass-edge-strong);
-    color: var(--fg-1);
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s-1);
-    font-size: var(--fs-sm);
-    transition: background var(--t-fast);
-  }
-  .trigger:hover { background: var(--glass-2); border-color: var(--accent-soft); }
-  .save {
-    background: transparent;
-    border-color: var(--glass-edge);
-    color: var(--fg-2);
-  }
-  .save:hover {
-    background: var(--accent-soft);
-    color: var(--fg-1);
-    border-color: var(--accent-soft);
   }
   .caret { color: var(--fg-2); font-size: var(--fs-xs); }
   .pop {
@@ -206,14 +185,6 @@
   .item:hover { background: var(--glass-2); }
   .name { font-size: var(--fs-sm); }
   .counts { color: var(--fg-3); font-size: var(--fs-xs); }
-  .del {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    color: var(--fg-3);
-    transition: background var(--t-fast), color var(--t-fast);
-  }
-  .del:hover { background: var(--glass-2); color: var(--negative); }
   .empty {
     color: var(--fg-3);
     font-size: var(--fs-sm);
