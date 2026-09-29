@@ -478,7 +478,7 @@
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: var(--s-1) 0 var(--s-4);
+    padding: var(--s-1) 0 0;
   }
 
   /* Round-54: empty-index notification banner.
@@ -585,7 +585,12 @@
     transition: color var(--t-fast);
   }
   .surprise-link:hover { color: var(--fg-1); }
-  /* Round-67: same --s-3 between search-actions and the
-     results grid below. */
-  .results { margin-top: var(--s-3); }
+  /* Round-X: section gap between .hero and .results is owned
+     entirely by --shell-gap (16px) on .shell in +layout.svelte.
+     Hero's padding-bottom was dropped to 0 in lockstep — together
+     they replace the previous padding-bottom:24 + margin-top:16 +
+     shell-gap:16 = 56px stack with the single 16px shell gap,
+     matching how random/for-you/albums/similar handle the same
+     header → grid boundary. */
+  .results { margin-top: 0; }
 </style>
