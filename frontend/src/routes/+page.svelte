@@ -559,7 +559,14 @@
   /* Round-67: hero stack rhythm — same --s-3 (16px) between
      every section so the stack reads as one consistent
      rhythm. Previously the three gaps were --s-3 → --s-2 → --s-1,
-     a stair-step that read as inconsistent. */
+     a stair-step that read as inconsistent. The composer's
+     top edge was missing its --s-3 entirely — it relied on the
+     PageHeader's 20px bottom padding alone, which gave ~0px of
+     perceived gap between header and search box while every
+     other boundary had 16px. */
+  .hero > :global(.composer) {
+    margin-top: var(--s-3);
+  }
   .hero > :global(.filters) {
     margin-top: var(--s-3);
   }
