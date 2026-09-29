@@ -65,7 +65,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const likesButton = page.locator(
-      'article.system-like button.search-btn:not([data-mode])[data-centroid="likes"]'
+      'button.search-btn:not([data-mode])[data-centroid="likes"]'
     );
     // Skip when Likes is empty — button is disabled.
     if (await likesButton.isDisabled()) {
@@ -82,9 +82,9 @@ test.describe('album card Search button (round‑29)', () => {
     // The SearchComposer is hidden.
     await expect(page.locator('text=Find photos by what they look like'))
       .toHaveCount(0);
-    // There's a back-link to /albums.
-    await expect(page.locator('a.back-link', { hasText: 'Back to albums' }))
-      .toBeVisible();
+    // The 'Back to albums' link was removed (3be589b) — the
+    // topbar already provides navigation back to /albums.
+    await expect(page.locator('a.back-link')).toHaveCount(0);
 
     // The results render at least one tile (the Likes centroid
     // has at least one photo in the dev DB).
@@ -104,7 +104,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const btn = page.locator(
-      'article.system-dislike button.search-btn:not([data-mode])[data-centroid="dislikes"]'
+      'button.search-btn:not([data-mode])[data-centroid="dislikes"]'
     );
     if (await btn.isDisabled()) {
       test.skip(true, 'Dislikes album is empty');
@@ -133,7 +133,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const btn = page.locator(
-      'article.system-dislike button.search-btn:not([data-mode])[data-centroid="dislikes"]'
+      'button.search-btn:not([data-mode])[data-centroid="dislikes"]'
     );
     if (await btn.isDisabled()) {
       test.skip(true, 'Dislikes album is empty');
@@ -206,9 +206,11 @@ test.describe('album card Search button (round‑29)', () => {
     await page.goto(`${APP}/albums`);
     await appReady(page);
 
-    // Find any non-system album card whose Search button is enabled.
+    // Find any user album card whose Search button is enabled.
+    // The data-centroid^="album:" prefix already distinguishes
+    // user albums from the built-in likes/dislikes centroids.
     const userBtn = page
-      .locator('article.card:not(.system-like):not(.system-dislike) button.search-btn:not([data-mode])[data-centroid^="album:"]:not([disabled])')
+      .locator('button.search-btn:not([data-mode])[data-centroid^="album:"]:not([disabled])')
       .first();
 
     if (await userBtn.count() === 0) {
