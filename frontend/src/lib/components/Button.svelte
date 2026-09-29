@@ -39,6 +39,13 @@
      *  ARIA enum is `menu | listbox | tree | grid | dialog`;
      *  we narrow to the two we actually use. */
     'aria-haspopup'?: 'menu' | 'listbox' | 'dialog';
+    /** Expanded-state passthrough for dropdown triggers. The
+     *  Dropdown primitive delegates ARIA semantics to its
+     *  trigger snippet, so Button needs to carry the state
+     *  rather than hardcoding it. */
+    'aria-expanded'?: boolean;
+    /** Accessible name for icon-only triggers. */
+    'aria-label'?: string;
   };
   let {
     variant = 'secondary',
@@ -53,6 +60,8 @@
     initialFocus,
     danger = false,
     'aria-haspopup': ariaHaspopup,
+    'aria-expanded': ariaExpanded,
+    'aria-label': ariaLabel,
     children
   }: Props = $props();
 </script>
@@ -79,6 +88,8 @@
     {title}
     {onclick}
     aria-haspopup={ariaHaspopup}
+    aria-expanded={ariaExpanded}
+    aria-label={ariaLabel}
   >
     {#if children}{@render children()}{/if}
   </button>
@@ -175,12 +186,12 @@
      the variant rules and using :is() so it wins over
      .primary/.secondary/.ghost background+color without
      !important. */
-  :is(.primary, .secondary, .ghost).danger {
+  :is(.primary, .secondary, .ghost, .icon).danger {
     background: transparent;
     color: var(--fg-3);
     border-color: var(--glass-edge);
   }
-  :is(.primary, .secondary, .ghost).danger:hover {
+  :is(.primary, .secondary, .ghost, .icon).danger:hover {
     background: var(--negative-soft);
     color: var(--negative);
     border-color: var(--negative);
