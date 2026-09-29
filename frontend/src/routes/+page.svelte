@@ -478,7 +478,15 @@
     width: var(--grid-width, 100%);
     max-width: 1548px;
     margin: 0 auto;
-    padding: var(--s-1) 0 0;
+    /* Round-Y: padding-top dropped to 0 — .shell already provides
+       --shell-pad-y (16px) above the page, and random/for-you/
+       albums/similar all rely on that single source (16px gap
+       from topbar). The home page was the outlier at 24px
+       (16px shell + 8px hero) until this edit. The padding-top
+       comment above mentioned this was "trimmed since shell
+       already provides" it — the trim just stopped one step
+       short of zero. */
+    padding: 0;
   }
 
   /* Round-54: empty-index notification banner.
