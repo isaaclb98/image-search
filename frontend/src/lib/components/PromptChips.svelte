@@ -61,7 +61,10 @@
   }
 </script>
 
-<div class="prompt-chips">
+<!-- The card chrome comes from the shared .glass utility —
+     same mechanism as PageHeader and AdditionalFilters. Local
+     CSS keeps only layout (padding/gap), no surface. -->
+<div class="prompt-chips glass">
   <div class="row">
     {#each positives as p, i (i + '|' + p)}
       <Chip text={p} onRemove={() => onRemovePositive(i)} />
@@ -111,13 +114,14 @@
 </div>
 
 <style>
+  /* Surface (background/border/radius/shadow) comes from the
+     shared .glass utility — same mechanism as PageHeader and
+     AdditionalFilters. Only layout lives here. The old local
+     surface used a translucent glass-1 fill + backdrop-filter;
+     .glass is the canonical opaque panel (Round-38: frosted
+     glass doesn't read on the light pastel backdrop). */
   .prompt-chips {
-    background: var(--glass-1);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--r-3);
     padding: var(--s-3) var(--s-3) var(--s-2);
-    backdrop-filter: var(--glass-medium);
-    -webkit-backdrop-filter: var(--glass-medium);
   }
   .row {
     display: flex;

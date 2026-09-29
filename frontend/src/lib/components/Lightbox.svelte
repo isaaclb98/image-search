@@ -890,13 +890,13 @@
        as a glass surface but the underlying page stays
        sharp. */
     /* Round-70b: match the home page PromptChips glass
-       vocabulary. The composer card is the canonical glass
-       surface on the home page (rgba(0,0,0,0.03) wash over
-       backdrop-filter blur(20px) saturate(1.6)). Lightbox
-       .content now uses the same chrome: faint dark wash
-       over heavy backdrop blur. Page behind shows as a
-       soft pastel wash through the glass instead of as
-       sharp grid lines. */
+       vocabulary — since revised: the home page cards moved to
+       the opaque .glass utility (Round-38 direction: frosted
+       glass doesn't read on the light pastel backdrop), but the
+       Lightbox deliberately keeps the translucent treatment.
+       It floats over a full-bleed photo, where the blur+wash
+       reads as frosted glass against real content rather than
+       against a flat pastel wash. */
     background: var(--glass-1);
     backdrop-filter: var(--glass-medium);
     -webkit-backdrop-filter: var(--glass-medium);
