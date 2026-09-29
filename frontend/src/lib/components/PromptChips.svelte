@@ -7,9 +7,8 @@
    * fire a search — the user explicitly clicks the Search
    * button (issue #6 from the bug list).
    *
-   * Pure UI: state lives in the parent (SearchComposer /
-   * SearchPage). The component just renders and signals via
-   * callbacks.
+   * Pure UI: state lives in the parent (the search page). The
+   * component just renders and signals via callbacks.
    */
   import Chip from './Chip.svelte';
 

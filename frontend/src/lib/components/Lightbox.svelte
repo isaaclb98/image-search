@@ -801,7 +801,7 @@
        rgba(0,0,0,0.45) scrim that read as "dark surface"
        against the rest of the light-themed app). The new
        value is the same glass vocabulary as the home page
-       SearchComposer card — semi-transparent white over a
+       PromptChips card — semi-transparent white over a
        heavy backdrop blur. The page shows through as a
        soft pastel wash instead of being blacked out,
        matching the glass aesthetic Isaac called out. The

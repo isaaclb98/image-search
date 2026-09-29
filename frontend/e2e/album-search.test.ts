@@ -79,7 +79,7 @@ test.describe('album card Search button (round‑29)', () => {
     await expect(
       page.locator('h1', { hasText: 'Searching by album' })
     ).toBeVisible();
-    // The SearchComposer is hidden.
+    // The PromptChips is hidden.
     await expect(page.locator('text=Find photos by what they look like'))
       .toHaveCount(0);
     // The 'Back to albums' link was removed (3be589b) — the

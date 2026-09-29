@@ -3,7 +3,7 @@
    * Home page — single landing experience per the merge (round‑23).
    *
    * Combines what used to live on `/` and `/search`:
-   *   - SearchComposer at the top
+   *   - PromptChips at the top
    *   - Inline search results (paginated via loadMore on scroll)
    *   - For‑You row at the bottom (sample of recommendations)
    *
@@ -15,12 +15,12 @@
    *     typing or toggling a select updates the URL but does not
    *     hit /api/search.
    *
-   * SearchComposer is a pure UI child — the page owns the truth.
+   * PromptChips is a pure UI child — the page owns the truth.
    */
   import { page } from '$app/stores';
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
-  import SearchComposer from '$lib/components/SearchComposer.svelte';
+  import PromptChips from '$lib/components/PromptChips.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
   import AdditionalFilters from '$lib/components/AdditionalFilters.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
@@ -58,7 +58,7 @@
   const SAMPLE_K = 10;
   const SAMPLE_N = 3;
 
-  // Composer state (hoisted from SearchComposer).
+  // Composer state (hoisted from PromptChips).
   let positives = $state<string[]>([]);
   let negatives = $state<string[]>([]);
   let input = $state('');
@@ -82,7 +82,7 @@
   // disappears once any job has run successfully (last_run_at != null).
   let indexIsEmpty = $state(false);
   // Round‑29: when set, the page treats this as a "search by album
-  // centroid" — the SearchComposer is hidden and reload() hits the
+  // centroid" — the PromptChips is hidden and reload() hits the
   // centroid endpoint instead of /api/search. URL ?centroid=...
   // sets this on mount; writing back to URL is suppressed.
   let activeCentroid = $state<string | null>(null);
@@ -367,7 +367,7 @@
     />
   {/if}
   {#if !activeCentroid}
-    <SearchComposer
+    <PromptChips
       {positives}
       {negatives}
       {input}
@@ -381,7 +381,7 @@
   {/if}
 
   <!-- Diversity / filename controls + collections chip filter.
-       Rendered inside .hero (next to the SearchComposer, not nested
+       Rendered inside .hero (next to the PromptChips, not nested
        inside the composer component) so they share the composer's
        card width — the user wants this panel to read as part of
        the search section, not the photo grid. -->
@@ -399,7 +399,7 @@
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
-       SearchComposer so it sits AFTER the additional-options
+       PromptChips so it sits AFTER the additional-options
        panel — visual order: search inputs → diversity options
        → action buttons. In centroid mode the saved-searches menu
        doesn't apply (the centroid IS the query), but the Search
@@ -537,7 +537,7 @@
   .empty-prompt .dismiss:hover {
     color: var(--fg-1);
   }
-  /* Saved-searches + Search button. Pulled out of SearchComposer
+  /* Saved-searches + Search button. Pulled out of PromptChips
      so the action row sits below the diversity panel, not below
      the search inputs (matches the layout the user wants:
      inputs → diversity options → actions). */
@@ -572,7 +572,7 @@
      PageHeader's 20px bottom padding alone, which gave ~0px of
      perceived gap between header and search box while every
      other boundary had 16px. */
-  .hero > :global(.composer) {
+  .hero > :global(.prompt-chips) {
     margin-top: var(--s-3);
   }
   .hero > :global(.filters) {

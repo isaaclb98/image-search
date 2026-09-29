@@ -118,7 +118,7 @@
   .filters {
     overflow: hidden;
     padding: 0;
-    /* Width matches the SearchComposer card width above us
+    /* Width matches the PromptChips card width above us
        (which fills .hero minus its 16px horizontal padding).
        The hero itself is --grid-width on the home page, matching
        the .head width on the other grid pages, but inside the
