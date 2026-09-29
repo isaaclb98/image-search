@@ -581,18 +581,6 @@
   .search-actions {
     margin-top: var(--s-3);
   }
-  /* Round-34: "Surprise me" link in the album-search header.
-     Round-57: sibling "Back to albums" link removed (the Albums
-     tab in the TopBar serves the same role — no need for a
-     redundant in-page nav). Same colour as the old .back-link
-     (fg-2) so it reads as a quiet secondary action on the
-     header. */
-  .surprise-link {
-    color: var(--fg-2);
-    text-decoration: none;
-    transition: color var(--t-fast);
-  }
-  .surprise-link:hover { color: var(--fg-1); }
   /* Round-X: section gap between .hero and .results is owned
      entirely by --shell-gap (16px) on .shell in +layout.svelte.
      Hero's padding-bottom was dropped to 0 in lockstep — together
