@@ -170,8 +170,39 @@
     border: 1px solid transparent;
   }
   @media (max-width: 640px) {
-    .bar { padding: 0 12px; gap: var(--s-2); }
+    /* Hide the brand mark entirely below 640px so the 5 tabs
+       fit without horizontal overflow at 375px (5 tabs + brand
+       icon ≈ 397px > 375px viewport). At <480px we further
+       shrink padding and font-size so the tabs themselves
+       breathe inside the fixed-width bar. */
+    .bar {
+      /* Drop the --grid-width constraint on mobile — it derived
+         from the photo-grid column math, but on small viewports
+         the bar should fill the viewport so the tabs sit on the
+         full topbar background rather than appearing centered
+         inside a narrower inner bar. */
+      width: 100%;
+      padding: 0 var(--s-2);
+      gap: var(--s-1);
+    }
+    .brand { display: none; }
     .brand-text { display: none; }
-    .tab { padding: 0 10px; }
+    .tab {
+      padding: 0 10px;
+      /* Prevent "For you" from wrapping to two lines at 375px —
+         the tab's natural width at 15px font is wider than the
+         tab wants to be when text wraps. */
+      white-space: nowrap;
+    }
+  }
+  @media (max-width: 480px) {
+    /* At 375px viewport, 5 tabs at full font + padding still
+       overflow (362 + 16 gap + 24 padding = 402 vs 375 viewport).
+       Drop the font from --fs-md (15) to --fs-sm (13) so all
+       five tabs fit inside the bar with normal padding. */
+    .tab {
+      padding: 0 8px;
+      font-size: var(--fs-sm);
+    }
   }
 </style>
