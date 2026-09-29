@@ -25,6 +25,7 @@
   } from '$lib/api/endpoints';
   import { dialog } from '$lib/components/Dialog.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import Button from '$lib/components/Button.svelte';
   import type { AlbumSummary } from '$lib/api/endpoints';
 
   // Round‑29b: renamed from 'favourites' to 'likes' to match
@@ -189,7 +190,7 @@
   subtitle="Like photos to keep them handy, build collections, group memories."
 >
   {#snippet actions()}
-    <button type="button" class="new" onclick={create}>+ New album</button>
+    <Button variant="primary" onclick={create}>+ New album</Button>
   {/snippet}
 </PageHeader>
 
@@ -219,24 +220,25 @@
          destination with `&mode=sample` so the home page uses
          the K-of-N sample-centroid path. -->
     <div class="search-row">
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         class="search-btn"
-        type="button"
-        data-centroid={LIKES_CENTROID}
+        data={{ 'data-centroid': LIKES_CENTROID }}
         onclick={() => searchByAlbum(LIKES_CENTROID)}
         disabled={likesCount === 0}
         aria-label="Search by Likes centroid"
-      >Search</button>
-      <button
+      >Search</Button>
+      <Button
+        variant="secondary"
+        size="sm"
         class="search-btn surprise"
-        type="button"
-        data-centroid={LIKES_CENTROID}
-        data-mode="sample"
+        data={{ 'data-centroid': LIKES_CENTROID, 'data-mode': 'sample' }}
         onclick={() => searchByAlbumSurprise(LIKES_CENTROID)}
         disabled={likesCount === 0}
         aria-label="Surprise me: search by a random sample of Likes"
         title="Search by a random sample of your Likes"
-      >Surprise</button>
+      >Surprise</Button>
     </div>
   </article>
   <article class="card glass">
@@ -255,24 +257,25 @@
       <span class="count">{dislikesCount} photo{dislikesCount === 1 ? '' : 's'}</span>
     </footer>
     <div class="search-row">
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         class="search-btn"
-        type="button"
-        data-centroid={DISLIKES_CENTROID}
+        data={{ 'data-centroid': DISLIKES_CENTROID }}
         onclick={() => searchByAlbum(DISLIKES_CENTROID)}
         disabled={dislikesCount === 0}
         aria-label="Search by Dislikes centroid"
-      >Search</button>
-      <button
+      >Search</Button>
+      <Button
+        variant="secondary"
+        size="sm"
         class="search-btn surprise"
-        type="button"
-        data-centroid={DISLIKES_CENTROID}
-        data-mode="sample"
+        data={{ 'data-centroid': DISLIKES_CENTROID, 'data-mode': 'sample' }}
         onclick={() => searchByAlbumSurprise(DISLIKES_CENTROID)}
         disabled={dislikesCount === 0}
         aria-label="Surprise me: search by a random sample of Dislikes"
         title="Search by a random sample of your Dislikes"
-      >Surprise</button>
+      >Surprise</Button>
     </div>
   </article>
 
@@ -290,32 +293,34 @@
         {#if a.description}<p class="desc">{a.description}</p>{/if}
         <footer>
           <span class="count">{a.member_count ?? 0} photos</span>
-          <button
-            class="del"
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
+            danger
             onclick={() => remove(a.id, a.name)}
             aria-label="Delete {a.name}"
-          >Delete</button>
+          >Delete</Button>
         </footer>
         <div class="search-row">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             class="search-btn"
-            type="button"
-            data-centroid="album:{a.id}"
+            data={{ 'data-centroid': `album:${a.id}` }}
             onclick={() => searchByUserAlbum(a.id)}
             disabled={(a.member_count ?? 0) === 0}
             aria-label="Search by {a.name} centroid"
-          >Search</button>
-          <button
+          >Search</Button>
+          <Button
+            variant="secondary"
+            size="sm"
             class="search-btn surprise"
-            type="button"
-            data-centroid="album:{a.id}"
-            data-mode="sample"
+            data={{ 'data-centroid': `album:${a.id}`, 'data-mode': 'sample' }}
             onclick={() => searchByUserAlbumSurprise(a.id)}
             disabled={(a.member_count ?? 0) === 0}
             aria-label="Surprise me: search by a random sample of {a.name}"
             title="Search by a random sample of {a.name}"
-          >Surprise</button>
+          >Surprise</Button>
         </div>
       </article>
     {/each}
@@ -323,69 +328,24 @@
 </div>
 
 <style>
-  .new {
-    height: 40px;
-    padding: 0 var(--s-3);
-    border-radius: var(--r-pill);
-    background: var(--accent);
-    color: var(--fg-on-accent);
-    font-weight: var(--fw-medium);
-  }
-  .new:hover { background: var(--accent-2); }
-
-  /* Round‑29: search-by-album button. Same shape as the Delete
-     button so the two actions sit side-by-side; the accent colour
-     differentiates "primary action" from "destructive". */
-  .search-btn {
-    margin-top: auto;
-    align-self: stretch;
-    height: 32px;
-    padding: 0 var(--s-3);
-    border-radius: var(--r-2);
-    background: transparent;
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge);
-    cursor: pointer;
-    font-weight: var(--fw-medium);
-    font-size: var(--fs-sm);
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-  }
-  .search-btn:hover:not(:disabled) {
-    background: var(--accent);
-    color: var(--fg-on-accent);
-    border-color: var(--accent);
-  }
-  .search-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
   /* Round‑34: side-by-side Search + Surprise row. The two
      buttons share a horizontal flex container; the first one
      stretches to fill the row and the second one stays
      intrinsic-width so the layout reads as "[ Search… | Surp ]"
-     instead of two equal-width buttons. The "Surprise" variant
-     uses a softer glass-2 fill so the two read as related but
-     distinct actions — Search is the primary, Surprise is a
-     different retrieval mode on the same data. */
+     instead of two equal-width buttons. Button visuals come
+     from the Button primitive (Search = ghost.sm, Surprise =
+     secondary.sm); only the row layout lives here. The
+     .search-btn class rides on Button's root element, so the
+     first-child selector needs :global() to cross the component
+     scope boundary. */
   .search-row {
     margin-top: auto;
     display: flex;
     gap: var(--s-1);
     align-self: stretch;
   }
-  .search-row .search-btn:first-child {
+  .search-row :global(.search-btn:first-child) {
     flex: 1 1 auto;
-  }
-  .search-btn.surprise {
-    flex: 0 0 auto;
-    background: var(--glass-2);
-    color: var(--fg-2);
-  }
-  .search-btn.surprise:hover:not(:disabled) {
-    background: var(--accent);
-    color: var(--fg-on-accent);
-    border-color: var(--accent);
   }
 
   /* System albums (Likes, Dislikes) live in the same grid as the
@@ -496,13 +456,6 @@
     margin-left: var(--card-pad-x, 20px);
     margin-right: var(--card-pad-x, 20px);
   }
-  /* Individual buttons inside .search-row don't need the side
-     margin — the row already has it, and a second layer of
-     gutter would create a visible indent. */
-  .card .search-row .search-btn {
-    margin-left: 0;
-    margin-right: 0;
-  }
   .title {
     font-size: var(--fs-lg);
     font-weight: var(--fw-medium);
@@ -526,11 +479,4 @@
     color: var(--fg-3);
     font-size: var(--fs-sm);
   }
-  .del {
-    font-size: var(--fs-sm);
-    color: var(--fg-3);
-    padding: var(--s-0) var(--s-2);
-    border-radius: var(--r-pill);
-  }
-  .del:hover { background: var(--negative-soft); color: var(--negative); }
 </style>

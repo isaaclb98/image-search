@@ -46,6 +46,13 @@
     'aria-expanded'?: boolean;
     /** Accessible name for icon-only triggers. */
     'aria-label'?: string;
+    /** Extra class merged onto the button — for consumer-side
+     *  hooks (E2E selectors, one-off layout tweaks like
+     *  stretch-to-fill) that aren't a variant concern. */
+    class?: string;
+    /** Data-attribute passthrough (e.g. data-centroid on the
+     *  album search buttons, consumed by E2E selectors). */
+    data?: Record<string, string | undefined>;
   };
   let {
     variant = 'secondary',
@@ -62,14 +69,17 @@
     'aria-haspopup': ariaHaspopup,
     'aria-expanded': ariaExpanded,
     'aria-label': ariaLabel,
+    class: extraClass,
+    data,
     children
   }: Props = $props();
 </script>
 
 {#if href}
   <a
-    class="btn {variant} {size}"
+    class="btn {variant} {size} {extraClass ?? ''}"
     class:danger
+    {...(data ?? {})}
     {href}
     {target}
     {rel}
@@ -80,9 +90,10 @@
   </a>
 {:else}
   <button
-    class="btn {variant} {size}"
+    class="btn {variant} {size} {extraClass ?? ''}"
     class:danger
     data-initial-focus={initialFocus ? '' : undefined}
+    {...(data ?? {})}
     {type}
     {disabled}
     {title}
