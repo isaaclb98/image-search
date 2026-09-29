@@ -22,6 +22,13 @@
      *  relying on DOM order, so destructive confirms can sit
      *  on the right without stealing focus from Cancel. */
     initialFocus?: boolean;
+    /** Destructive-intent modifier. Composes with any variant:
+     *  the idle state stays quiet (fg-3 text) so destructive
+     *  actions don't compete for attention, and hover reveals
+     *  the negative palette. Replaces the per-page bespoke
+     *  `.del` buttons (albums list, album detail, saved
+     *  searches) that each reimplemented this pattern. */
+    danger?: boolean;
     /** ARIA attribute marking the button as opening a popup
      *  menu (e.g. the Dropdown trigger in /settings). The full
      *  ARIA enum is `menu | listbox | tree | grid | dialog`;
@@ -37,6 +44,7 @@
     title,
     onclick,
     initialFocus,
+    danger = false,
     'aria-haspopup': ariaHaspopup,
     children
   }: Props = $props();
@@ -45,6 +53,7 @@
 {#if href}
   <a
     class="btn {variant} {size}"
+    class:danger
     {href}
     aria-disabled={disabled ? 'true' : undefined}
     {title}
@@ -54,6 +63,7 @@
 {:else}
   <button
     class="btn {variant} {size}"
+    class:danger
     data-initial-focus={initialFocus ? '' : undefined}
     {type}
     {disabled}
@@ -148,4 +158,22 @@
   .icon.lg { width: 46px; height: 46px; }
 
   .btn:active { transform: translateY(1px); }
+
+  /* danger modifier — composes with any variant via
+     :is() so one rule covers primary/secondary/ghost.
+     Idle state goes quiet (fg-3) regardless of variant;
+     hover reveals the negative palette. Declared after
+     the variant rules and using :is() so it wins over
+     .primary/.secondary/.ghost background+color without
+     !important. */
+  :is(.primary, .secondary, .ghost).danger {
+    background: transparent;
+    color: var(--fg-3);
+    border-color: var(--glass-edge);
+  }
+  :is(.primary, .secondary, .ghost).danger:hover {
+    background: var(--negative-soft);
+    color: var(--negative);
+    border-color: var(--negative);
+  }
 </style>
