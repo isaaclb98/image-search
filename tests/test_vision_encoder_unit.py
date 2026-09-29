@@ -23,7 +23,7 @@ class TestModuleConstants:
     """Default and mock model names."""
 
     def test_default_model_name(self):
-        assert DEFAULT_MODEL_NAME == "ViT-gopt-16-SigLIP2-384"
+        assert DEFAULT_MODEL_NAME == "ViT-so400m-patch16-384"
 
     def test_mock_model_name(self):
         assert MOCK_MODEL_NAME == "mock-1536"
@@ -200,7 +200,7 @@ class TestModuleImports:
 
     def test_default_constants_exported(self):
         from indexer.vision_encoder import DEFAULT_MODEL_NAME, MOCK_MODEL_NAME
-        assert DEFAULT_MODEL_NAME == "ViT-gopt-16-SigLIP2-384"
+        assert DEFAULT_MODEL_NAME == "ViT-so400m-patch16-384"
         assert MOCK_MODEL_NAME == "mock-1536"
 
 

@@ -178,7 +178,7 @@ def test_pipeline_runs_end_to_end_with_real_modules(synth_corpus, qdrant_in_memo
     # The pipeline records the active model via `_resolve_active_model_name`,
     # which falls back to the production default unless the test sets the
     # active-model global. Without this, payloads would carry
-    # "ViT-gopt-16-SigLIP2-384" instead of "mock-1536".
+    # "ViT-so400m-patch16-384" instead of "mock-1536".
     from indexer.run_pipeline import set_active_model
     set_active_model("mock-1536", "test-r0")
     report = pipeline.run(config)
