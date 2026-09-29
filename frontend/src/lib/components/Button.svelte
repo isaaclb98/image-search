@@ -11,6 +11,11 @@
     variant?: Variant;
     size?: Size;
     href?: string;
+    /** Anchor-only passthrough. The album zip download needs
+     *  target="_blank" rel="noopener" so the browser treats it
+     *  as a file download instead of an SPA navigation. */
+    target?: string;
+    rel?: string;
     type?: 'button' | 'submit';
     disabled?: boolean;
     title?: string;
@@ -39,6 +44,8 @@
     variant = 'secondary',
     size = 'md',
     href,
+    target,
+    rel,
     type = 'button',
     disabled = false,
     title,
@@ -55,6 +62,8 @@
     class="btn {variant} {size}"
     class:danger
     {href}
+    {target}
+    {rel}
     aria-disabled={disabled ? 'true' : undefined}
     {title}
   >
