@@ -264,6 +264,13 @@
     flex-direction: column;
     gap: var(--shell-gap);
   }
+  @media (max-width: 640px) {
+    /* Drop the --grid-width constraint on mobile — same reason as
+       the home page's .hero override: at 375px the grid math
+       resolves to 240px, making the entire settings layout
+       (PageHeader + every card) collapse to 240px wide. */
+    .settings-page { width: 100%; }
+  }
 
   /* Cards use the shared .glass panel vocabulary (background,
      hairline border, lit-from-above highlight, soft shadow,

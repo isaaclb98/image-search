@@ -488,6 +488,19 @@
        short of zero. */
     padding: 0;
   }
+  @media (max-width: 640px) {
+    /* Drop the --grid-width constraint on mobile — at 375px
+       viewport the grid math resolves to 1 column × 240px, which
+       makes the entire hero (PageHeader + composer + filters +
+       actions) collapse to 240px wide. The shell already has
+       12px horizontal padding, so full-width here means the
+       hero fills that inner area without leaving the
+       centered-narrow look on phones. */
+    .hero {
+      width: 100%;
+      max-width: 100%;
+    }
+  }
 
   /* Round-54: empty-index notification banner.
      Previously inline-flex content-sized pill — width depended on

@@ -64,14 +64,16 @@
      same mechanism as PageHeader and AdditionalFilters. Local
      CSS keeps only layout (padding/gap), no surface. -->
 <div class="prompt-chips glass">
-  <div class="row">
-    {#each positives as p, i (i + '|' + p)}
-      <Chip text={p} onRemove={() => onRemovePositive(i)} />
-    {/each}
-    {#each negatives as n, i (i + '|' + n)}
-      <Chip text={n} negative onRemove={() => onRemoveNegative(i)} />
-    {/each}
-  </div>
+  {#if positives.length > 0 || negatives.length > 0}
+    <div class="row">
+      {#each positives as p, i (i + '|' + p)}
+        <Chip text={p} onRemove={() => onRemovePositive(i)} />
+      {/each}
+      {#each negatives as n, i (i + '|' + n)}
+        <Chip text={n} negative onRemove={() => onRemoveNegative(i)} />
+      {/each}
+    </div>
+  {/if}
   <div class="composer">
     <div class="toggle" role="tablist" aria-label="Prompt polarity">
       <button
@@ -126,10 +128,16 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--s-1);
-    min-height: 28px;
+    min-height: var(--btn-h-sm);
+    /* Optical: 10px leaves room for the second line of a wrapped
+       prompt without making the row appear empty. */
     padding-bottom: 10px;
   }
-  .row:empty { display: none; }
+  /* No .row:empty guard needed: the {#if positives.length || ...}
+     in the template keeps the row out of the DOM entirely when
+     no chips are present. Previously this rule was here but
+     never matched because {#each} leaves comment nodes inside
+     the row, which broke :empty. */
   .composer {
     display: flex;
     align-items: center;
