@@ -357,29 +357,9 @@
     <PageHeader
       title="Searching by album"
       subtitle={centroidMode === 'sample'
-        ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}. Re-roll to pick a different blend.`
+        ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}.`
         : `Showing the photos closest to the average of ${activeCentroid}.`}
-    >
-      {#snippet actions()}
-        <!-- Round-75: "Surprise me" was a toggle between full-mean
-             and sample modes. Renamed to "Re-roll" and now just
-             refreshes the sample-mode URL with a fresh N (so the
-             next k-means cluster pick gives a different blend).
-             Full-mean mode stays accessible via the URL. -->
-        <!-- Round-75: re-roll. data-sveltekit-reload forces a
-             full page reload so the backend re-clusters + picks
-             a fresh N clusters. The ?seed= param is included so
-             the URL changes per click (without it, same URL =
-             no navigation, no reload). -->
-        <a
-          href="/?centroid={encodeURIComponent(activeCentroid ?? '')}&mode=sample&sample_n={SAMPLE_N}&sample_k={SAMPLE_K}&seed={Math.random().toString(36).slice(2, 8)}"
-          class="surprise-link"
-          data-sveltekit-reload
-        >
-          Re-roll
-        </a>
-      {/snippet}
-    </PageHeader>
+    />
   {:else}
     <PageHeader
       title="Find photos by what they look like."
