@@ -4,9 +4,10 @@
    * pages (/random, /for-you, /similar, /albums, /albums/likes,
    * /albums/dislikes, /albums/[id]).
    *
-   * Single source of truth for the page-header pattern. Variants:
-   *   - title only          — random, for-you, similar
-   *   - title + subtitle    — random, for-you, similar
+   * Single source of truth for the page-header pattern. Every
+   * page passes a subtitle — title-only headers render ~23px
+   * shorter and break the card rhythm across pages. Variants:
+   *   - title + subtitle    — random, for-you, similar, home, settings
    *   - title + actions     — albums (+ New album button)
    *   - title + meta        — albums/likes, albums/dislikes ("N photos")
    *   - title + all of the above — albums/[id] (zip download)
