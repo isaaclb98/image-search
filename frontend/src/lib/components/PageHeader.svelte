@@ -104,4 +104,24 @@
   .actions {
     flex-shrink: 0;
   }
+  @media (max-width: 640px) {
+    /* Drop the --grid-width constraint on mobile — it derives
+       from the photo-grid column math (1 column at 375px
+       viewport = 240px), which makes the header card look
+       pinched on phones. The grid below still aligns because
+       the cards inside use their own 260px auto-fit track. */
+    .head {
+      width: 100%;
+    }
+    /* When the header card is full-width on mobile, the actions
+       slot + title block compete for horizontal space and the
+       subtitle wraps into 10+ narrow lines (see Albums mobile
+       screenshot, 2026-09-29). Stack them vertically so the
+       title takes the full width and the actions sit below. */
+    .head {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--s-3);
+    }
+  }
 </style>
