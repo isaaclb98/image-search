@@ -193,7 +193,7 @@ export interface ForYouFeedParams {
  * (coherent pagination), different seed → fresh shuffle (page
  * reload).
  *
- * See: docs/architecture.md and search/for_you.py.
+ * See: search/for_you.py for the endpoint wiring.
  */
 export function forYouFeed(params: ForYouFeedParams = {}, signal?: AbortSignal) {
   const sig = signal ?? params.signal;

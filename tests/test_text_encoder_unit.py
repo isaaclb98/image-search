@@ -52,15 +52,20 @@ class TestModuleConstants:
     """The module's exported constants."""
 
     def test_default_model_name(self):
-        """DEFAULT_MODEL_NAME tracks the active prod variant.
+        """DEFAULT_MODEL_NAME matches the active configured variant.
 
-        Pre-migration this was hardcoded to "ViT-gopt-16-SigLIP2-384".
-        Post-migration it's sourced from `search.config.DEFAULT_MODEL`,
-        which follows whichever variant is the prod default — so400m
-        today. The test asserts the contract (follows registry) rather
-        than a specific literal.
+        Asserts consistency (whatever variant the env says at import
+        time, the text encoder's default must match), not a specific
+        literal. The default has changed multiple times (gopt → L/16 →
+        so400m → B/16-256) and will change again.
         """
-        assert DEFAULT_MODEL_NAME == "ViT-so400m-patch16-384"
+        from search.config import get_model_name_for_variant, get_siglip_variant
+        active_variant = get_siglip_variant()
+        expected = get_model_name_for_variant(active_variant)
+        assert DEFAULT_MODEL_NAME == expected, (
+            f"text encoder default {DEFAULT_MODEL_NAME!r} != "
+            f"model for active variant {active_variant!r} ({expected!r})"
+        )
 
     def test_mock_model_name(self):
         assert MOCK_MODEL_NAME == "mock-1536"

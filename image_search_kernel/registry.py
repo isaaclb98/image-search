@@ -199,7 +199,8 @@ VARIANT_TO_MODEL: dict[str, str] = {
     "so400m/16-384": "ViT-so400m-patch16-384",
 }
 
-DEFAULT_VARIANT = "so400m/16-384"
+DEFAULT_VARIANT = "B/16-256"  # end-user ghcr default (smallest, CPU-runnable).
+# Prod keeps so400m via SIGLIP_VARIANT or MODEL_NAME override.
 
 
 def resolve_model_name(variant: str) -> str:

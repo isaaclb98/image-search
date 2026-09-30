@@ -208,10 +208,10 @@
     0 2px 4px rgba(0,0,0,0.05),
     0 8px 24px rgba(0,0,0,0.08);
 
-  /* ratios — mathematical relationships per AGENTS.md ("prefer
-     elegant mathematical relationships over hardcoded values").
-     Use for component-internal dimensions (tile aspect ratios,
-     sidebar widths, hero text scaling) rather than for spacing. */
+  /* ratios — mathematical relationships ("prefer elegant
+     mathematical relationships over hardcoded values"). Use for
+     component-internal dimensions (tile aspect ratios, sidebar
+     widths, hero text scaling) rather than for spacing. */
   --ratio-golden: 1.618;
   --ratio-sqrt2: 1.414;
 

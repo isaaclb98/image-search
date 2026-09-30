@@ -1,6 +1,4 @@
 /**
-
- * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
  * e2e/photo-page.test.ts — Dedicated photo page at /photo/{id}.
  *
  * Pinned contracts:

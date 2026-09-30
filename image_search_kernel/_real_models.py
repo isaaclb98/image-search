@@ -221,13 +221,16 @@ def register_into(registry: Registry) -> None:
     """
     Register the real-model entries shipped with the kernel.
 
-    As of the model-variant plan (so400m migration), we ship three
-    SigLIP2 variants:
+    We ship four SigLIP2 variants:
 
-      - ViT-so400m-patch16-384 (1152-dim, web prod) — the new default.
-        Shape-Optimized attention variant; 384 input resolution;
-        ~400M params. Replaces gopt-16-384 for better retrieval on
-        fine-grained text queries.
+      - ViT-B-16-SigLIP2-256 (768-dim, 256 input) — end-user ghcr
+        default. Smallest, fastest, runs on CPU. The intent is
+        "anyone can pull the image and have it work"; prod-quality
+        models are opt-in via SIGLIP_VARIANT.
+      - ViT-so400m-patch16-384 (1152-dim, web prod) — shape-Optimized
+        attention variant; 384 input resolution; ~400M params.
+        Selected via SIGLIP_VARIANT=so400m/16-384 (prod uses this
+        via .env override on top of the B/16-256 default).
       - ViT-gopt-16-SigLIP2-384 (1536-dim) — kept registered so the
         rollback path (`SIGLIP_VARIANT=gopt/16-384`) still works
         without re-installing model weights.
@@ -289,4 +292,19 @@ def register_into(registry: Registry) -> None:
         revision="webli",
         text=l_embedder,
         vision=l_embedder,
+    ))
+
+    b_embedder = OpenClipEmbedder(
+        arch_tag="timm/ViT-B-16-SigLIP2-256",
+        pretrained="webli",
+        dim=768,
+        resolution=256,
+    )
+    registry.register(ModelSpec(
+        name="ViT-B-16-SigLIP2-256",
+        dim=768,
+        resolution=256,
+        revision="webli",
+        text=b_embedder,
+        vision=b_embedder,
     ))

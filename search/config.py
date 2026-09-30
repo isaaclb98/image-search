@@ -30,7 +30,10 @@ SIGLIP_VARIANTS = {
     "so400m/16-384": ("ViT-so400m-patch16-384", 1152),
 }
 
-DEFAULT_VARIANT = "so400m/16-384"  # shape-optimised; new prod default
+DEFAULT_VARIANT = "B/16-256"  # smallest + fastest; end-user ghcr default.
+# Override via SIGLIP_VARIANT (or MODEL_NAME) for higher-quality
+# embeddings. Prod keeps so400m via .env — this default only
+# applies to fresh deployments where no env override is set.
 
 def get_siglip_variant() -> str:
     """Get the configured SigLIP2 variant from SIGLIP_VARIANT env var."""
@@ -133,7 +136,12 @@ def validate_variant_against_stored(env_variant: str, data_dir: str = "./data") 
     
     logger.info("Variant validated: %s", env_variant)
 
-# Backward compatibility: these are derived from the variant
+# Backward compatibility: these are derived from the variant.
+# DEFAULT_MODEL is what the env says at import time — it follows
+# the active runtime variant, NOT the code default. Callers that
+# want the code default should use `get_model_name_for_variant(
+# DEFAULT_VARIANT)` explicitly. The constant exists for callers
+# that import DEFAULT_MODEL at module load before any env is read.
 DEFAULT_MODEL: str = get_model_name_for_variant(get_siglip_variant())
 DEFAULT_COLLECTION: str = "images"
 # Option B (Sept 2026): the indexer writes directly to the canonical

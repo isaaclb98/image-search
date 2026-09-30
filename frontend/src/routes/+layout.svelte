@@ -21,7 +21,7 @@
   // Per-panel colour still comes from `.glass-tint::before` (each
   // tile's surrounding glass picks up a soft-light sample from the
   // photo inside). The page-level backdrop goes back to a single
-  // flat dark base. AGENTS.md: prefer elegant mathematical
+  // flat dark base. Design preference: prefer elegant mathematical
   // relationships over hardcoded values; "no tint" is the most
   // elegant relationship for a flat backdrop.
 

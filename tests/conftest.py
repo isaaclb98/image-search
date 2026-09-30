@@ -31,7 +31,8 @@ REAL_PHOTOS_DIR = Path("/home/ubuntu/tmp/pics")
 # Set env vars BEFORE any search.* import so config.load() sees them.
 os.environ.setdefault("SEARCH_TEST_MODE", "1")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")  # unused; we pass :memory:
-os.environ.setdefault("MODEL_NAME", "ViT-gopt-16-SigLIP2-384")
+os.environ.setdefault("SIGLIP_VARIANT", "so400m/16-384")
+os.environ.setdefault("MODEL_NAME", "ViT-so400m-patch16-384")
 os.environ.setdefault("TOP_K_DEFAULT", "35")
 os.environ.setdefault("TOP_K_MAX", "200")
 
