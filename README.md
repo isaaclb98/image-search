@@ -3,9 +3,10 @@
 Self-hosted semantic image search over a local photo library.
 
 - **Embeddings:** SigLIP2 (open_clip `webli` pretrained). Default variant
-  is `so400m/16-384` (`ViT-so400m-patch16-384`, 1152-dim, 384px input). Set
-  `SIGLIP_VARIANT` to switch to `B/16-256` (768-dim), `L/16-256` (1024-dim),
-  or `gopt/16-384` (1536-dim) — see `search/config.py:SIGLIP_VARIANTS`.
+  is `so400m/16-384` (`ViT-so400m-patch16-384`, 1152-dim, 384px input).
+  Other variants supported via `SIGLIP_VARIANT` env var: `B/16-256`
+  (768-dim), `L/16-256` (1024-dim), `gopt/16-384` (1536-dim) — see
+  `search/config.py:SIGLIP_VARIANTS`.
 - **Vector store:** Qdrant (local container in dev, HTTPS reverse proxy in prod).
 - **Backend:** FastAPI, single container, gunicorn + uvicorn workers.
 - **Frontend:** SvelteKit 2 + Svelte 5 + TypeScript SPA. Speaks to the backend over an OpenAPI-typed client.
@@ -32,8 +33,8 @@ Data persists in a named Docker volume (`qdrant_data`). `docker compose down` ke
 
 ```bash
 # Backend (loads SigLIP2 the first time, ~3 GB into HF cache)
-python -m venv .venv && source .venv/bin/activate
-uv pip install -e ".[dev]"                    # or: pip install -e ".[dev]"
+uv venv .venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
 docker run -p 6333:6333 qdrant/qdrant:v1.12.4 # vector DB
 NAS_IMAGES_PATH=/path/to/your/photos \
 QDRANT_URL=http://localhost:6333 \
