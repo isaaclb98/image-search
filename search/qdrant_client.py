@@ -443,6 +443,35 @@ class QdrantSearch:
                 break
             scroll_offset = next_offset
 
+    def scroll_ids_only(self, batch_size: int = 1000) -> Iterator[list[str]]:
+        """
+        Paginate through every point id in the collection.
+
+        Yields batches of point id strings. Vectors and payloads
+        are intentionally omitted — this is the cheapest way to
+        enumerate ids for a diff against the SQLite cache (round-35).
+
+        Note: there's no built-in Qdrant server-side filter that
+        gives us 'only ids newer than X' without a payload index on
+        a timestamp field, so we always scroll the full collection.
+        The id-only scroll is ~10x cheaper than the payload scroll
+        at our scale (2M points) because we skip payload deserialization.
+        """
+        scroll_offset = None
+        while True:
+            batch, next_offset = self.client.scroll(
+                collection_name=self.collection,
+                limit=batch_size,
+                offset=scroll_offset,
+                with_payload=False,
+                with_vectors=False,
+                timeout=self.timeout_ms // 1000,
+            )
+            yield [str(point.id) for point in batch]
+            if next_offset is None:
+                break
+            scroll_offset = next_offset
+
     def random_window(self, limit: int = 20) -> list[SearchHit]:
         """
         Return up to `limit` points sampled uniformly at random

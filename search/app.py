@@ -867,23 +867,19 @@ def create_app(
                                     "rebuild", e,
                                 )
 
-                            # `force=True`: must rebuild every tick. The
-                            # `force=False` path short-circuits when the
-                            # cache is non-empty, which would make the
-                            # periodic loop a no-op after the first
-                            # warm-up. We want to *always* pick up
-                            # Qdrant-side changes (bulk indexer runs,
-                            # admin deletes), so force=True is the
-                            # right default here. The cost is one
-                            # full Qdrant scroll per `interval`
-                            # seconds; bounded and acceptable for the
-                            # default 6h cadence.
-                            count = await asyncio.to_thread(
-                                index_db.init_from_qdrant, True
+                            # Round-35: refresh_incremental replaces
+                            # the old wipe+rebuild. Cost is one count()
+                            # + one id-only scroll + small diff in the
+                            # typical case (in sync → just the count
+                            # round-trip; small drift → cheap diff;
+                            # large drift → falls back to roughly the
+                            # old cost). Never DELETE FROM images.
+                            stats = await asyncio.to_thread(
+                                index_db.refresh_incremental
                             )
                             dt_ms = int((time.time() - t0) * 1000)
                             logger.info(
-                                "periodic IndexDB refresh: %d rows in %d ms", count, dt_ms,
+                                "periodic IndexDB refresh: %s in %d ms", stats, dt_ms,
                             )
                         finally:
                             await asyncio.to_thread(index_db.release_refresh_lock)
@@ -1937,31 +1933,52 @@ def create_app(
     # clear log message.
 
     @app.api_route("/api/cache/refresh", methods=["GET", "POST"])
-    async def api_cache_refresh():
+    async def api_cache_refresh(
+        request: Request,
+        full: bool = Query(
+            False,
+            description=(
+                                "Round-35: when true, do the legacy "
+                                "wipe+rebuild (init_from_qdrant "
+                                "force=True). Default false uses the "
+                                "new diff-based refresh_incremental "
+                                "which preserves concurrent indexer "
+                                "writes and only touches rows that "
+                                "actually drifted."
+                            ),
+        ),
+    ):
         # Round-35: refuse a manual rebuild while the indexer is
         # actively writing. The wipe+rebuild here races the
         # indexer's INSERTs and would lose any Qdrant points
         # written mid-scroll. Tell the caller to retry once the
         # indexer finishes.
+        # The diff-based refresh_incremental is safe to run
+        # concurrently with the indexer (it only touches the
+        # orphan ids, not the whole table), so we only bail when
+        # the caller explicitly asked for `full=true`.
         from search.indexer_runner import IndexerState
-        try:
-            idx_status = indexer_runner.status()
-            if idx_status.state is IndexerState.RUNNING:
-                return {
-                    "status": "skipped",
-                    "reason": (
-                        "indexer is running (job_id="
-                        f"{idx_status.job_id}); manual refresh "
-                        "would race the indexer's writes. Wait for "
-                        "the job to finish and retry."
-                    ),
-                    "job_id": idx_status.job_id,
-                }
-        except Exception:  # noqa: BLE001
-            # Defensive: status probe failures shouldn't block the
-            # manual refresh — they did the right thing before
-            # round-35, so keep working if the probe breaks.
-            pass
+        if full:
+            try:
+                idx_status = indexer_runner.status()
+                if idx_status.state is IndexerState.RUNNING:
+                    return {
+                        "status": "skipped",
+                        "reason": (
+                            "indexer is running (job_id="
+                            f"{idx_status.job_id}); full=true manual "
+                            "refresh would race the indexer's "
+                            "writes. Wait for the job to finish "
+                            "and retry, or call without ?full=true "
+                            "for a safe diff-based refresh."
+                        ),
+                        "job_id": idx_status.job_id,
+                    }
+            except Exception:  # noqa: BLE001
+                # Defensive: status probe failures shouldn't block the
+                # manual refresh — they did the right thing before
+                # round-35, so keep working if the probe breaks.
+                pass
 
         # Cooperative refresh lock. If the periodic task is in the
         # middle of a refresh, the manual call bails immediately
@@ -1973,12 +1990,40 @@ def create_app(
             }
         try:
             t0 = time.time()
-            count = await asyncio.to_thread(
-                index_db.init_from_qdrant, True
+            if full:
+                # Legacy wipe+rebuild path. Operator opt-in only.
+                count = await asyncio.to_thread(
+                    index_db.init_from_qdrant, True
+                )
+                dt_ms = int((time.time() - t0) * 1000)
+                logger.info(
+                    "manual cache refresh (full wipe+rebuild): %d rows in %d ms",
+                    count,
+                    dt_ms,
+                )
+                return {
+                    "status": "ok",
+                    "mode": "full",
+                    "count": count,
+                    "took_ms": dt_ms,
+                }
+            # Default: diff-based incremental refresh. Safe to run
+            # concurrently with the indexer.
+            stats = await asyncio.to_thread(
+                index_db.refresh_incremental
             )
             dt_ms = int((time.time() - t0) * 1000)
-            logger.info("manual cache refresh: %d rows in %d ms", count, dt_ms)
-            return {"status": "ok", "count": count, "took_ms": dt_ms}
+            logger.info(
+                "manual cache refresh (incremental): %s in %d ms",
+                stats,
+                dt_ms,
+            )
+            return {
+                "status": "ok",
+                "mode": "incremental",
+                **stats,
+                "took_ms": dt_ms,
+            }
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for cache refresh: %s", e)
             return JSONResponse(

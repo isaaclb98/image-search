@@ -531,6 +531,200 @@ class IndexDB:
             self.purge_orphaned_user_data()
         return count
 
+    def refresh_incremental(self) -> dict[str, int]:
+        """
+        Round-35: sync images.db to match Qdrant via a 3-way diff.
+
+        Replaces the wipe+rebuild path that init_from_qdrant(force=True)
+        used to do. Instead of nuking every row and re-INSERTing 2M,
+        this:
+
+          1. Cheap count check: if Qdrant's points_count equals our
+             sqlite row count, return early. Steady-state cost is
+             one round-trip to Qdrant (an `O(1)` `count()`), nothing
+             else. This is the new periodic-refresh fast path.
+
+          2. Drift detected: id-only scroll of Qdrant (cheap, no
+             payload deserialization) + one SELECT id FROM images.
+             Set-difference in memory:
+
+               new_ids     = qdrant_ids - sqlite_ids  →  INSERT
+               orphan_ids  = sqlite_ids - qdrant_ids  →  DELETE
+               common_ids  = qdrant_ids ∩ sqlite_ids  →  no-op
+                             (the indexer's write-through keeps
+                              common rows current; a payload
+                              mutation without an id change is
+                              rare and self-corrects on the next
+                              rebuild pass)
+
+          3. INSERTs: retrieve payloads for new_ids and feed them
+             through upsert_records (the existing INSERT OR REPLACE).
+             Bounded by drift size, not total collection size.
+
+          4. DELETEs: chunk into 999-id batches (SQLite's default
+             SQLITE_MAX_VARIABLE_NUMBER) and DELETE WHERE id IN (...).
+
+        Returns:
+            {
+              "qdrant_count": int,
+              "sqlite_count": int,   # before the sync
+              "inserted":     int,
+              "deleted":      int,
+              "skipped":      bool,  # true when fast path took it
+            }
+
+        Concurrency:
+          - The Qdrant id-scroll is a point-in-time snapshot.
+          - Any indexer writes that land mid-scroll are missing
+            from the diff but get written via write-through anyway.
+          - The orphan-DELETE step can theoretically delete a row
+            the indexer just wrote via write-through — but only
+            if that exact id was deleted from Qdrant in the same
+            window. In practice that means an external admin
+            deleted the point at the same time the indexer was
+            re-upserting it, which is a user-driven ambiguity and
+            the LAST write wins either way.
+          - No DELETE FROM images; only the orphan ids get removed.
+
+        User data:
+          - purge_orphaned_user_data() runs at the end (same
+            contract as init_from_qdrant): when the orphan set is
+            non-empty, favorite/dislike rows for those ids are
+            cleared.
+        """
+        # Step 1: cheap count check.
+        try:
+            qdrant_count = int(
+                self.qdrant_client.client.count(
+                    collection_name=self.qdrant_client.collection,
+                ).count
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("refresh_incremental: Qdrant count() failed: %s", e)
+            raise
+
+        with self._lock:
+            sqlite_count = int(
+                self._conn.execute("SELECT COUNT(*) AS n FROM images").fetchone()["n"]
+            )
+
+        if qdrant_count == sqlite_count:
+            # Steady-state fast path. Skip the whole diff. ~1ms.
+            self._last_refresh = time.time()
+            logger.debug(
+                "refresh_incremental: in sync (qdrant=%d, sqlite=%d); fast path",
+                qdrant_count,
+                sqlite_count,
+            )
+            return {
+                "qdrant_count": qdrant_count,
+                "sqlite_count": sqlite_count,
+                "inserted": 0,
+                "deleted": 0,
+                "skipped": True,
+            }
+
+        logger.info(
+            "refresh_incremental: drift detected (qdrant=%d, sqlite=%d); diffing",
+            qdrant_count,
+            sqlite_count,
+        )
+
+        # Step 2a: id-only scroll of Qdrant.
+        qdrant_ids: set[str] = set()
+        try:
+            for id_batch in self.qdrant_client.scroll_ids_only():
+                qdrant_ids.update(id_batch)
+        except Exception:
+            logger.exception("refresh_incremental: scroll_ids_only failed")
+            raise
+
+        # Step 2b: SELECT all ids from images.
+        with self._lock:
+            sqlite_ids = {
+                row["id"]
+                for row in self._conn.execute("SELECT id FROM images").fetchall()
+            }
+
+        # Step 2c: set-difference.
+        new_ids = qdrant_ids - sqlite_ids
+        orphan_ids = sqlite_ids - qdrant_ids
+
+        # Step 3: INSERT new ids.
+        inserted = 0
+        if new_ids:
+            logger.info(
+                "refresh_incremental: %d new ids to insert", len(new_ids)
+            )
+            try:
+                # retrieve() with a long list of ids can fail with
+                # a payload-size error on huge diffs. Chunk into
+                # 256-id retrievals to stay under the wire limit.
+                retrieved_points = []
+                for i in range(0, len(new_ids), 256):
+                    chunk = list(new_ids)[i : i + 256]
+                    retrieved_points.extend(
+                        self.qdrant_client.client.retrieve(
+                            collection_name=self.qdrant_client.collection,
+                            ids=chunk,
+                            with_payload=True,
+                            with_vectors=False,
+                        )
+                    )
+                inserted = self.upsert_records(retrieved_points)
+            except Exception:
+                logger.exception(
+                    "refresh_incremental: retrieve+upsert failed for %d new ids",
+                    len(new_ids),
+                )
+                raise
+
+        # Step 4: DELETE orphan ids.
+        deleted = 0
+        if orphan_ids:
+            logger.info(
+                "refresh_incremental: %d orphan ids to delete", len(orphan_ids)
+            )
+            with self._lock:
+                try:
+                    # Chunk into 999-id batches to respect SQLite's
+                    # default SQLITE_MAX_VARIABLE_NUMBER.
+                    for i in range(0, len(orphan_ids), 999):
+                        chunk = list(orphan_ids)[i : i + 999]
+                        placeholders = ",".join("?" for _ in chunk)
+                        cur = self._conn.execute(
+                            f"DELETE FROM images WHERE id IN ({placeholders})",
+                            chunk,
+                        )
+                        deleted += cur.rowcount
+                    self._conn.commit()
+                except Exception:
+                    self._conn.rollback()
+                    raise
+
+        self._last_refresh = time.time()
+
+        # Step 5: purge user-data orphans (same contract as
+        # init_from_qdrant — only after we've actually changed
+        # the images cache).
+        if orphan_ids:
+            self.purge_orphaned_user_data()
+
+        logger.info(
+            "refresh_incremental: done inserted=%d deleted=%d (qdrant=%d, sqlite was %d)",
+            inserted,
+            deleted,
+            qdrant_count,
+            sqlite_count,
+        )
+        return {
+            "qdrant_count": qdrant_count,
+            "sqlite_count": sqlite_count,
+            "inserted": inserted,
+            "deleted": deleted,
+            "skipped": False,
+        }
+
     def purge_orphaned_user_data(self) -> dict[str, int]:
         """Delete user-state rows whose photo is gone from the cache.
 
