@@ -76,6 +76,19 @@ jobs:
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set up QEMU for multi-arch builds
+        # Round-35: the Oracle VM on the Tailscale tailnet is ARM64
+        # (Ampere A1 / AMD free tier both come in aarch64) and the
+        # published :latest image only had linux/amd64 manifests —
+        # `docker pull` on the VM errored with "no matching manifest
+        # for linux/arm64/v8". Buildx on an amd64 GHA runner can
+        # emit arm64 layers via QEMU user-mode emulation; that's
+        # ~2-3× slower than native amd64 but acceptable for a single
+        # build (~6-8 min vs ~3 min for amd64-only).
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
@@ -112,6 +125,12 @@ jobs:
           file: docker/Dockerfile.search
           push: true
           load: false
+          # Round-35: publish both linux/amd64 (existing CI/prod arch)
+          # and linux/arm64 (the Tailscale-reachable Oracle VM is
+          # aarch64). Multi-arch images manifest as an OCI image index
+          # with one entry per platform; `docker pull` on either arch
+          # resolves to the matching manifest.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,mode=max,scope=image-search-build
