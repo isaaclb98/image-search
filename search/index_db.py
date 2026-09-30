@@ -67,6 +67,18 @@ class IndexDB:
         if db_path != ":memory:":
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        # Round-35: enable WAL mode so the indexer subprocess can write
+        # to images.db concurrently (WAL allows multiple readers + one
+        # writer; DELETE mode would block the search app on every
+        # indexer INSERT). The change is persistent — the journal mode
+        # is stored in the database file header and survives reconnects.
+        # Skip for :memory: because it has no journal.
+        if db_path != ":memory:":
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            # NORMAL is the WAL sweet spot — fsyncs on commit but not on
+            # read, which is fine because reads come from the WAL itself
+            # and the indexer writes in transaction-sized batches.
+            self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
 
