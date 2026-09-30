@@ -259,6 +259,12 @@ DEFAULT_RESULT_LIMIT: int = 28
 # The unknown-model branch raises at config load time — fail fast
 # rather than serve garbage cosine results.
 _CENTROID_MODEL_COMPAT = {
+    # Round-29: registered B/16-256 as the ghcr end-user default. Adding
+    # the centroid-compat mapping here so the search container boots
+    # when SIGLIP_VARIANT=B/16-256 — without this entry, config.load()
+    # raises "no centroid-compat mapping" and the container fails the
+    # healthcheck loop.
+    "ViT-B-16-SigLIP2-256": "siglip2",
     "ViT-gopt-16-SigLIP2-384": "siglip2",
     "ViT-L-16-SigLIP2-256": "siglip2",
     "ViT-so400m-patch16-384": "siglip2",
