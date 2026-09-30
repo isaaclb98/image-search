@@ -1,6 +1,3 @@
-/**
- * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
- */
 import { test, expect, type Page } from '@playwright/test';
 
 /**

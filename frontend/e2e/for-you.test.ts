@@ -1,6 +1,4 @@
 /**
-
- * E2 tier: FUNDAMENTAL — see frontend/e2e/README.md for the classification.
  * for-you.test.ts — Round 22: For You (formerly Shuffled For You, round 22; round 33 replaces the diversity-rerank pipeline with this one) feed.
  *
  * Verifies the new endpoint + page end-to-end against the live

@@ -13,8 +13,7 @@ other side.
 Adding a field:
   1. Add the constant below.
   2. Extend `Payload` TypedDict with the matching key/type.
-  3. Update `SCHEMA.md` (the prose mirror at `docs/SCHEMA.md`).
-  4. If readers need it, add the constant import to the consumer.
+  3. If readers need it, add the constant import to the consumer.
 
 Renaming or removing a field is a breaking change to the on-disk
 collection — drop the collection and reindex.

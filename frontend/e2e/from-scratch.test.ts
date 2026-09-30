@@ -1,6 +1,4 @@
 /**
-
- * E2 tier: EXPLORATORY — not a CI gate; failures allowed (see AGENTS.md and frontend/e2e/README.md).
  * from-scratch.test.ts — full lifecycle verification on a freshly
  * wiped dev environment. Run against the live stack.
  *
