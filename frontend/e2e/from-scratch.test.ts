@@ -5,7 +5,8 @@
  * Steps:
  *   1. Fresh-install state: home shows empty-state prompt, settings
  *      shows Index button.
- *   2. Click Index → incremental mode → job starts.
+ *   2. Click Index → job starts (round-35: incremental is the only
+ *      mode the UI exposes; rebuild is operator-only via API).
  *   3. Cancel mid-run → state returns to idle.
  *   4. Start incremental again → wait for completion → search
  *      returns real hits.
@@ -72,10 +73,9 @@ test.describe.serial('Fresh-install lifecycle', () => {
     test.setTimeout(90000);
 
     await page.goto('/settings');
+    // Round-35: Index button is now a plain action that immediately
+    // starts an incremental job. No menu / mode picker anymore.
     await page.getByRole('button', { name: 'Index' }).click();
-    await page
-      .getByRole('menuitem', { name: /Index new & changed files/i })
-      .click();
 
     // Wait until the runner reports running.
     await waitFor(page, '/api/admin/index/status', (b) => b.state === 'running');

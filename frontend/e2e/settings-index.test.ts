@@ -5,8 +5,9 @@
  * What we pin:
  *   - Settings tab appears in the TopBar.
  *   - /api/admin/index/status returns a well-formed response shape.
- *   - Clicking Index opens the popover with the two documented
- *     modes (incremental / rebuild-from-scratch).
+ *   - Clicking the Index button starts an incremental job (round-35:
+ *     the UI no longer offers a "rebuild from scratch" option — it's
+ *     destructive, see +page.svelte docstring).
  *   - POST /api/admin/index starts a job and updates status to
  *     running or idle (the local test fixture finishes fast).
  *   - Concurrent POST returns 409.
@@ -55,16 +56,56 @@ test.describe('Settings page', () => {
     );
   });
 
-  test('popover shows both Index modes', async ({ page }) => {
+  /**
+   * Round-35: only the incremental mode is exposed to users.
+   * The backend still accepts `rebuild` for operator use (see the
+   * +page.svelte docstring) but the UI no longer offers it — it's
+   * destructive (wipes favourites + albums + saved searches +
+   * vectors) and shouldn't be one click away. The Settings page
+   * now has a plain Index action instead of a mode-picker popover.
+   */
+  test('Index button starts an incremental job when clicked', async ({ page }) => {
     await statusOrSkip(page);
+    // Make sure no other job is in flight from a prior test before
+    // we start a fresh one.
+    await page.request.post('/api/admin/index/cancel').catch(() => {});
+    await page.waitForFunction(
+      async () => {
+        const r = await fetch('/api/admin/index/status');
+        const b = await r.json();
+        return b.state !== 'running';
+      },
+      { timeout: 15000 }
+    );
+
     await page.goto('/settings');
+    // The button is just "Index" with no popover now — clicking it
+    // immediately starts an incremental job.
+    await expect(page.getByRole('button', { name: 'Index' })).toBeVisible();
     await page.getByRole('button', { name: 'Index' }).click();
-    await expect(
-      page.getByRole('menuitem', { name: /Index new & changed files/i })
-    ).toBeVisible();
-    await expect(
-      page.getByRole('menuitem', { name: /Rebuild from scratch/i })
-    ).toBeVisible();
+
+    // Wait for status to flip to running (or idle if the fixture
+    // finishes before our poll — both are acceptable, the contract
+    // is just that the click triggered a POST /api/admin/index).
+    await page.waitForFunction(
+      async () => {
+        const r = await fetch('/api/admin/index/status');
+        const b = await r.json();
+        return b.state === 'running' || b.state === 'idle';
+      },
+      { timeout: 5000 }
+    );
+
+    // Clean up so subsequent tests see idle.
+    await page.request.post('/api/admin/index/cancel').catch(() => {});
+    await page.waitForFunction(
+      async () => {
+        const r = await fetch('/api/admin/index/status');
+        const b = await r.json();
+        return b.state !== 'running';
+      },
+      { timeout: 15000 }
+    );
   });
 
   test('concurrent start returns 409', async ({ page }) => {

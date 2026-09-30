@@ -1,8 +1,11 @@
 <script lang="ts">
   /**
    * Settings page — hosts the Index button (the user-facing surface
-   * of the in-app indexer). Two modes: incremental (default,
-   * idempotent) and rebuild-from-scratch (wipes vectors + side store).
+   * of the in-app indexer). Round-35: only the incremental mode is
+   * exposed to users. The rebuild-from-scratch mode still exists on
+   * the backend (`POST /api/admin/index { mode: "rebuild" }`) for
+   * operator use — it's destructive (wipes favourites + albums +
+   * saved searches + vectors) so it shouldn't be one click away.
    *
    * While a job is running the page polls /api/admin/index/status
    * every second and shows live progress. The Cancel button sends
@@ -14,7 +17,6 @@
   import type { components } from '$lib/api/types.gen';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
-  import Dropdown from '$lib/components/Dropdown.svelte';
   import {
     preferences,
     SLIDESHOW_PRESETS,
@@ -78,11 +80,16 @@
 
   onDestroy(stopPolling);
 
-  async function startIndex(mode: 'incremental' | 'rebuild') {
+  async function startIndex() {
+    // Round-35: only the incremental mode is exposed in the UI. The
+    // backend still accepts `rebuild` for operator use via direct API
+    // calls — see the page-level comment above.
     busy = true;
     errorMessage = null;
     try {
-      status = await apiPost<IndexerStatusResponse>('/api/admin/index', { mode });
+      status = await apiPost<IndexerStatusResponse>('/api/admin/index', {
+        mode: 'incremental',
+      });
       startPolling();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -161,36 +168,7 @@
         {#if isRunning(status.state)}
           <Button onclick={cancelIndex} disabled={busy}>Cancel</Button>
         {:else}
-          <Dropdown
-            label="Index mode"
-            align="down"
-            items={[
-              {
-                id: 'incremental',
-                label: 'Index new & changed files',
-                description:
-                  'Safe to spam. Embeds only files that are new or have changed since the last index run.',
-              },
-              {
-                id: 'rebuild',
-                label: 'Rebuild from scratch',
-                description:
-                  'Wipes the index and your favourites, albums, and saved searches, then re-embeds every photo.',
-              },
-            ]}
-            onPick={(it: { id: string | number }) => startIndex(String(it.id) as 'incremental' | 'rebuild')}
-          >
-            {#snippet trigger({ toggle })}
-              <Button
-                variant="secondary"
-                disabled={busy}
-                aria-haspopup="menu"
-                onclick={toggle}
-              >
-                Index
-              </Button>
-            {/snippet}
-          </Dropdown>
+          <Button onclick={startIndex} disabled={busy}>Index</Button>
         {/if}
       </div>
 
