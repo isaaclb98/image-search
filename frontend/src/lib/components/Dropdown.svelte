@@ -23,9 +23,9 @@
    * NOT interactive, so ARIA + keyboard semantics live entirely on
    * the trigger. The wrapper handles position bookkeeping only.
    *
-   * Per AGENTS.md this is a primitive — no bespoke positioning logic
-   * in callers. Adopt it from any place that needs a popover (the
-   * lightbox's add-to-album being the first consumer).
+   * This is a primitive — no bespoke positioning logic in callers.
+   * Adopt it from any place that needs a popover (the lightbox's
+   * add-to-album being the first consumer).
    */
   import type { Snippet } from 'svelte';
   import { tick } from 'svelte';

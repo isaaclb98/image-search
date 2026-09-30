@@ -19,8 +19,8 @@
    *   3. One place to evolve the icon library. Adding a new
    *      icon = one entry in the `paths` map + one optional
    *      size. No ad-hoc SVGs scattered through the codebase
-   *      (AGENTS.md: "modular primitives and components;
-   *      no/very minimal bespoke design").
+   *      ("modular primitives and components; no/very minimal
+   *      bespoke design").
    *
    * Usage:
    *   <Icon name="close" />
