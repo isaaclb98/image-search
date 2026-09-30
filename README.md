@@ -2,12 +2,21 @@
 
 Self-hosted semantic image search over a local photo library.
 
-- **Embeddings:** SigLIP2 (open_clip `webli` pretrained). Default variant
-  is `B/16-256` (`ViT-B-16-SigLIP2-256`, 768-dim, 256px input) —
-  smallest, fastest, runs on CPU. Other variants supported via
-  `SIGLIP_VARIANT` env var: `L/16-256` (1024-dim), `gopt/16-384`
-  (1536-dim), `so400m/16-384` (1152-dim, prod default) — see
-  `search/config.py:SIGLIP_VARIANTS`.
+- **Embeddings:** SigLIP2 (open_clip `webli` pretrained). Four variants
+  are registered — pick one via `SIGLIP_VARIANT` in `.env`:
+
+  | Variant | Model arch | Embedding dim | Input | ~Weights | Trade-off |
+  |---|---|---|---|---|---|
+  | `B/16-256` (default) | `ViT-B-16-SigLIP2-256` | 768 | 256 | 370 MB | Smallest, fastest, runs on CPU. End-user default. |
+  | `L/16-256` | `ViT-L-16-SigLIP2-256` | 1024 | 256 | 1.1 GB | Mid-tier. ~2× slower than B, better retrieval. |
+  | `so400m/16-384` | `ViT-so400m-patch16-384` | 1152 | 384 | 1.8 GB | Highest quality per vector. Bigger model, higher input res. The default for this repo's prod. |
+  | `gopt/16-384` | `ViT-gopt-16-SigLIP2-384` | 1536 | 384 | 3.5 GB | Largest. Highest-dim embeddings; diminishing returns over so400m in practice. |
+
+  Switch by editing `.env` and `docker compose up -d` — the container
+  detects the variant change, drops the now-incompatible Qdrant
+  collection, and boots with the empty-index prompt. Click
+  **Settings → Index** to re-embed with the new model. See
+  "Switching the model variant" below for the full flow.
 - **Vector store:** Qdrant (local container in dev, HTTPS reverse proxy in prod).
 - **Backend:** FastAPI, single container, gunicorn + uvicorn workers.
 - **Frontend:** SvelteKit 2 + Svelte 5 + TypeScript SPA. Speaks to the backend over an OpenAPI-typed client.
@@ -68,6 +77,49 @@ Two flags useful for UI work without a GPU or a real library:
 python -m search.dev_server --no-model                     # mock encoder
 python -m search.dev_server --no-model --demo-data --demo-count 500   # in-memory Qdrant + 500 synthetic photos
 ```
+
+## Switching the model variant
+
+The app reads `SIGLIP_VARIANT` from `.env` on every container start.
+If you change the variant (or use the default for the first time),
+the search backend's startup reconciler checks the live Qdrant
+collection against the requested variant:
+
+- **Dim matches and per-point payload matches** → boots normally.
+- **No collection yet** → fresh install. Empty-index prompt.
+- **Dim or payload mismatches** → drops the Qdrant collection
+  (its vectors are in the wrong embedding space), logs a loud
+  WARNING, and boots with the empty-index prompt.
+
+Switching to a non-default variant:
+
+```bash
+# Edit .env (or docker-compose.yml's environment: block)
+echo 'SIGLIP_VARIANT=so400m/16-384' >> .env
+
+# Recreate the container with the new env
+docker compose up -d
+
+# Click Settings → Index to re-embed your library.
+# The first time, this re-encodes everything (~minutes to hours
+# depending on library size + model + GPU).
+```
+
+You can pin the matching model arch directly with `MODEL_NAME`,
+or let the app derive it from the variant (the usual path). For
+the four registered variants, the pair is:
+
+| `SIGLIP_VARIANT` | matching `MODEL_NAME` |
+|---|---|
+| `B/16-256` | `ViT-B-16-SigLIP2-256` |
+| `L/16-256` | `ViT-L-16-SigLIP2-256` |
+| `so400m/16-384` | `ViT-so400m-patch16-384` |
+| `gopt/16-384` | `ViT-gopt-16-SigLIP2-384` |
+
+Setting just `SIGLIP_VARIANT` is enough — the app picks the right
+`MODEL_NAME` automatically. Setting `MODEL_NAME` directly is for
+fine-tune or non-registered variants; it overrides the derived
+value.
 
 ## Use it
 
