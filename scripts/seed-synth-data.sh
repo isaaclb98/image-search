@@ -16,7 +16,7 @@
 #   scripts/seed-synth-data.sh --count 200 --out /tmp/big-synth
 #
 # Then point the dev backend at it:
-#   NAS_IMAGES_BASE=/tmp/is-synth \
+#   PHOTOS_DIR=/tmp/is-synth \
 #   QDRANT_URL=http://localhost:6333 \
 #   .venv-test/bin/python -m search.dev_server --no-model --host 127.0.0.1 --port 8765
 set -euo pipefail
@@ -54,7 +54,7 @@ echo "▶ indexing photos into dev qdrant (this loads the SigLIP2 model)…"
 SEARCH_NO_MODEL=0 SEARCH_TEST_MODE=0 QDRANT_URL=http://localhost:6333 \
   QDRANT_COLLECTION=images_dev \
   MODEL_NAME=hf-hub:timm/ViT-gopt-16-SigLIP2-384 \
-  NAS_IMAGES_BASE="$OUT_DIR" \
+  PHOTOS_DIR="$OUT_DIR" \
   INDEX_DB_PATH="$OUT_DIR/index.db" \
   "$VENV/bin/python" -m indexer.local_sync \
     --qdrant-url http://localhost:6333 \
@@ -68,4 +68,4 @@ echo "  photos:       $OUT_DIR"
 echo "  qdrant:       http://localhost:6333 (collection: images_dev)"
 echo "  points total: $(curl -fs 'http://localhost:6333/collections/images_dev' | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["points_count"])')"
 echo "  next:         run the dev backend with QDRANT_URL=http://localhost:6333"
-echo "                NAS_IMAGES_BASE=$OUT_DIR and you have a real seeded library."
+echo "                PHOTOS_DIR=$OUT_DIR and you have a real seeded library."

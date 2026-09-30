@@ -69,7 +69,7 @@ def main():
 
     # Round‑21: rewrite paths from the host's mount (`/mnt/nas-main/...`,
     # `/tmp/...`) to whatever the search container actually sees.
-    # The compose mounts the NAS at /nas (NAS_IMAGES_BASE=/nas) and
+    # The compose mounts the library at /nas (PHOTOS_DIR=/nas) and
     # PATH_PREFIX=/mnt/nas-main/misc/data, so a host path of
     # `/mnt/nas-main/misc/data/foo.JPG` resolves to `/nas/foo.JPG`
     # inside the container.

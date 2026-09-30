@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -497,10 +498,36 @@ def load() -> Config:
     Load config from environment. Validates required fields and
     invariants. Raises ValueError on invalid input.
     """
-    nas_base = os.environ.get("NAS_IMAGES_BASE", "")
-    if not nas_base and not os.environ.get("SEARCH_TEST_MODE"):
-        # In test mode the NAS base may be a fixture path, set by conftest.
-        raise ValueError("NAS_IMAGES_BASE is required")
+    # Round-35: PHOTOS_DIR is the canonical env var name going forward.
+    # NAS_IMAGES_BASE is accepted as a deprecated alias so existing
+    # deployments (notably the production install on the AMD host)
+    # don't break on image upgrade. PHOTOS_DIR wins if both are set;
+    # using the old name emits a one-line deprecation warning so the
+    # operator can fix the .env at their leisure.
+    #
+    # The internal Config field is still called `nas_images_base` —
+    # not renamed because ~30 tests build Config(...) directly with
+    # `nas_images_base=` as a keyword arg, and renaming the field
+    # would be a no-value churn. The user-facing name (env var +
+    # error message + docs) is what matters to deployers.
+    photos_dir = os.environ.get("PHOTOS_DIR", "").strip()
+    legacy_nas_base = os.environ.get("NAS_IMAGES_BASE", "").strip()
+    if not photos_dir and legacy_nas_base:
+        photos_dir = legacy_nas_base
+        warnings.warn(
+            "NAS_IMAGES_BASE is deprecated; rename to PHOTOS_DIR in your .env",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning(
+            "NAS_IMAGES_BASE is deprecated — rename to PHOTOS_DIR in .env"
+        )
+    if not photos_dir and not os.environ.get("SEARCH_TEST_MODE"):
+        # In test mode the photos dir may be a fixture path, set by
+        # conftest. Don't enforce the required check there.
+        raise ValueError(
+            "PHOTOS_DIR is required (NAS_IMAGES_BASE is a deprecated alias)"
+        )
 
     # Validate SigLIP2 variant before loading the rest of the config
     variant = get_siglip_variant()
@@ -554,7 +581,7 @@ def load() -> Config:
         top_k_max=top_k_max,
         query_timeout_ms=_int("QUERY_TIMEOUT_MS", 30000),
         recommend_timeout_ms=_int("RECOMMEND_TIMEOUT_MS", 40000),
-        nas_images_base=nas_base,
+        nas_images_base=photos_dir,
         path_prefix=os.environ.get("PATH_PREFIX", ""),
         web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -637,10 +664,10 @@ def load() -> Config:
             "SEARCH_SNAPSHOT_MAX_ENTRIES must be >= 1"
         )
 
-    # Validate NAS base if set (test mode may set it later).
+    # Validate photos dir if set (test mode may set it later).
     if cfg.nas_images_base and not Path(cfg.nas_images_base).is_dir():
         raise ValueError(
-            f"NAS_IMAGES_BASE does not exist or is not a directory: {cfg.nas_images_base}"
+            f"PHOTOS_DIR does not exist or is not a directory: {cfg.nas_images_base}"
         )
 
     return cfg

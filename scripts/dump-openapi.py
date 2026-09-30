@@ -37,11 +37,14 @@ def main() -> int:
     os.environ.setdefault("SEARCH_TEST_MODE", "1")
     os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
     os.environ.setdefault("MODEL_NAME", "hf-hub:timm/ViT-gopt-16-SigLIP2-384")
-    # NAS_IMAGES_BASE is required by config.load() so it can resolve
-    # photo paths. The dump doesn't touch the FS — a fake dir is fine.
+    # PHOTOS_DIR (round-35: renamed from NAS_IMAGES_BASE) is required by
+    # config.load() so it can resolve photo paths. The dump doesn't
+    # touch the FS — a fake dir is fine. Set PHOTOS_DIR first so the
+    # deprecated NAS_IMAGES_BASE alias isn't even consulted.
     fake_nas = Path(os.environ.get("DUMP_NAS", "/tmp/_openapi_dump_nas"))
     fake_nas.mkdir(parents=True, exist_ok=True)
-    os.environ["NAS_IMAGES_BASE"] = str(fake_nas)
+    os.environ["PHOTOS_DIR"] = str(fake_nas)
+    os.environ.pop("NAS_IMAGES_BASE", None)
 
     sys.path.insert(0, str(REPO_ROOT))
     from search.app import create_app
