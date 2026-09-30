@@ -1,18 +1,36 @@
 # .github/workflows/image-build.yml
 #
 # Build the search-side container for both linux/amd64 and linux/arm64
-# and push to GitHub Container Registry. Deployments pin to :latest
-# and `docker pull` resolves to the native manifest for the host arch.
-# See the strategy matrix in `build-and-push` below for the per-arch
-# runner split; both legs push to the same :latest tag and GHCR
-# merges them into a multi-arch OCI image index.
+# and push to GitHub Container Registry as a multi-arch OCI image
+# index. Deployments pin to `:latest` and `docker pull` resolves to
+# the native manifest for the host arch.
 #
-# Tags:
-#   - `:latest`         — always tracks main; what the cluster's
-#                         StatefulSet pins to.
-#   - `:sha-<7-char>`   — per-commit; useful for rollback or for
-#                         promoting a specific commit to a stable
-#                         tag later.
+# Three jobs:
+#   1. `build-and-push` (matrix of amd64 + arm64): each leg runs on
+#      a GHA-hosted runner native to its target arch — no QEMU.
+#      Each leg pushes its image under `:latest-<arch>` (NOT `:latest`).
+#      If both legs pushed `:latest`, the second would silently
+#      overwrite the first because the registry treats `:latest` as
+#      a single pointer, not as an OCI image index.
+#   2. `create-index`: depends on both build legs, runs on amd64
+#      (imagetools is arch-agnostic). Combines `:latest-amd64` and
+#      `:latest-arm64` into an OCI image index tagged `:latest` and
+#      `:sha-<7-char>` via `docker buildx imagetools create`.
+#   3. Prune old `:sha-*` tags (always present, always runs once
+#      after the index is created).
+#
+# After create-index completes, `docker pull :latest` on either arch
+# resolves to the matching per-arch manifest digest.
+#
+# Tags produced:
+#   - `:latest`         — OCI image index; what deployments pin to.
+#   - `:latest-amd64`   — single-arch amd64 image (push target for
+#                         the amd64 build leg).
+#   - `:latest-arm64`   — single-arch arm64 image (push target for
+#                         the arm64 build leg).
+#   - `:sha-<7-char>`   — per-commit OCI image index (same content
+#                         as `:latest` at that commit); useful for
+#                         rollback.
 #
 # Trigger filter: `on.push.paths` is an allowlist of paths whose
 # presence in the diff is necessary to trigger a build. The Dockerfile
@@ -25,13 +43,14 @@
 #
 # Layer cache: GHA backend (type=gha, mode=max) — keyed off the
 # final layer hash so unchanged Dockerfile steps reuse the previous
-# build's cache. The SigLIP2 model download layer in particular
-# saves ~1.5 GB of network + disk per rebuild when only source
-# changed.
+# build's cache. Scoped per-arch (`...-amd64`, `...-arm64`) so the
+# two matrix legs don't trample each other's cache entries. The
+# SigLIP2 model download layer in particular saves ~1.5 GB of
+# network + disk per rebuild when only source changed.
 #
-# Required permission: `packages: write` (scoped to this job) so
+# Required permission: `packages: write` (scoped to each job) so
 # GITHUB_TOKEN can push to ghcr.io/<owner>/<repo> without storing
-# a PAT as a secret. ArgoCD pulls the same image anonymously
+# a PAT as a secret. Deployments pull the same image anonymously
 # because ghcr.io packages default to public for GH Actions pushes
 # from public repos.
 
@@ -70,14 +89,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Round-35: build both linux/amd64 (existing prod arch)
-        # and linux/arm64 (the Tailscale-reachable Oracle VM is
-        # aarch64) in parallel. Each leg runs on a GHA-hosted
-        # runner native to its arch — no QEMU emulation. `ubuntu-24.04-arm`
-        # is free-tier eligible in public repos since 2025-01-16.
-        # Both legs push to the same :latest tag; GHCR's OCI image
-        # index merges them, and `docker pull` on either arch
-        # resolves to the matching manifest digest.
+        # Round-35: build both linux/amd64 (existing prod arch) and
+        # linux/arm64 (the Tailscale-reachable Oracle VM is aarch64)
+        # in parallel. Each leg runs on a GHA-hosted runner native
+        # to its arch — no QEMU emulation. ubuntu-24.04-arm has been
+        # free-tier eligible in public repos since 2025-01-16.
+        #
+        # Each leg pushes to a per-arch tag (`:latest-<arch>`) instead
+        # of `:latest`. The two `build-and-push` legs would otherwise
+        # both push `:latest` and the second would overwrite the
+        # first (the registry treats `:latest` as a single pointer,
+        # not an OCI image index — only explicit `manifest create`
+        # or `imagetools create` produces a multi-arch index).
+        #
+        # The `create-index` job below depends on both legs and uses
+        # `docker buildx imagetools create` to combine the two
+        # per-arch tags into an OCI image index tagged `:latest` and
+        # `:sha-<short>`. After that, `docker pull :latest` on either
+        # arch resolves to the matching per-arch manifest.
         arch: [amd64, arm64]
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 30
@@ -98,34 +127,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute image metadata (tags + OCI labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
-          labels: |
-            org.opencontainers.image.title=image-search
-            org.opencontainers.image.description=Self-hosted semantic image search (SigLIP2 → Qdrant)
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.licenses=MIT
-
-      - name: Build and push
-        # Round-17: revert to single-step push. The smoke test split
-        # (push=false, load=true in 710d0b6) loaded the 3 GB image
-        # into the GHA runner's local docker daemon, then re-pushed
-        # from there — exhausting the ~7 GB runner and reliably
-        # killing `docker push` mid-stream with exit 127 / no logs.
-        # Direct buildx push streams layers to ghcr.io without ever
-        # materializing the image on the runner.
-        #
-        # Round-35: each matrix leg builds only its native arch via
-        # `platforms: linux/<arch>`. The platforms line is explicit
-        # rather than implicit (buildx defaults to the runner's
-        # native arch if platforms is omitted) so the per-leg
-        # intent is obvious to future readers.
+      - name: Build and push (per-arch tag)
+        # Round-17: single-step push streams layers to ghcr.io
+        # without ever materializing the image on the runner. We
+        # override the default tag (`:latest`) with the per-arch
+        # tag (`:latest-<arch>`) so the two matrix legs don't
+        # overwrite each other. The `create-index` job below
+        # combines the two per-arch images into a multi-arch
+        # `:latest` index.
         id: build
         uses: docker/build-push-action@v5
         with:
@@ -134,10 +143,54 @@ jobs:
           push: true
           load: false
           platforms: linux/${{ matrix.arch }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ github.repository }}:latest-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.title=image-search
+            org.opencontainers.image.description=Self-hosted semantic image search (SigLIP2 → Qdrant)
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
           cache-from: type=gha,mode=max,scope=image-search-build-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=image-search-build-${{ matrix.arch }}
+
+  # ---------------------------------------------------------------------
+  # Combine the two per-arch images into a multi-arch :latest index
+  # ---------------------------------------------------------------------
+  # Each build-and-push leg above pushes to `:latest-<arch>`. This job
+  # depends on both legs finishing successfully and uses `docker buildx
+  # imagetools create` to combine them into an OCI image index tagged
+  # `:latest` and `:sha-<short>`. After this completes, `docker pull
+  # :latest` on either arch resolves to the matching per-arch manifest.
+  create-index:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io (needed to pull per-arch images)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch index for :latest and :sha-<short>
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          docker buildx imagetools create \
+            --tag "${IMAGE}:latest" \
+            --tag "${IMAGE}:sha-${SHORT_SHA}" \
+            "${IMAGE}:latest-amd64" \
+            "${IMAGE}:latest-arm64"
+          echo "Multi-arch index created at ${IMAGE}:latest (refs amd64 + arm64)"
+          echo "Multi-arch index also tagged ${IMAGE}:sha-${SHORT_SHA}"
 
       # ---------------------------------------------------------------------
       # Prune old :sha-* tags after a successful push
