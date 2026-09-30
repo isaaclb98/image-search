@@ -40,7 +40,8 @@
 # Notes
 # -----
 # * -PathPrefix is what gets STORED in Qdrant payload['path']. The
-#   k8s search pods resolve this prefix against NAS_IMAGES_BASE,
+#   k8s search pods resolve this prefix against PHOTOS_DIR (formerly
+#   NAS_IMAGES_BASE; the old name still works as a deprecated alias),
 #   so it must match what the cluster expects (\\192.168.250.108\...).
 #
 # * -NasImagesBase is the local mount that corresponds to the prefix.

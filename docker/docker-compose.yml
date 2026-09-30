@@ -49,14 +49,22 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: images
       # QDRANT_API_KEY: replace-with-your-key  # Required if your Qdrant has auth enabled
-      NAS_IMAGES_BASE: /nas
+      # Round-35: renamed from NAS_IMAGES_BASE. The old name still
+      # works as a deprecated alias — see search/config.py — but new
+      # deployments should use PHOTOS_DIR going forward. The name
+      # /nas and the bind-mount target below are unchanged; only the
+      # env var key is renamed.
+      PHOTOS_DIR: /nas
       THUMBNAIL_DIR: /app/data/thumbnails
       WEB_UI_URL: ${WEB_UI_URL:-http://localhost:8000}
       LOG_LEVEL: INFO
     ports:
       - "8000:8000"
     volumes:
-      # Bind-mount your photo library read-only at /nas.
+      # Bind-mount your photo library read-only at /nas. The mount
+      # target stays /nas for backwards compatibility with existing
+      # deployments — only the env var that points the app at it
+      # was renamed.
       - ${NAS_IMAGES_PATH}:/nas:ro
       # Persist SQLite side store + HF model cache + thumbnails across
       # image updates. Critical — without this volume, every container
