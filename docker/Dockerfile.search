@@ -97,12 +97,12 @@ COPY scripts/ ./scripts/
 # everything else.
 COPY --from=frontend-build /web/build /app/static
 
-# Optional: pre-warm the SigLIP2 model into the image (default OFF;
-# leaves ~7.5GB image delta and ~15GB peak build disk).
-ARG PREWARM_MODEL=0
-RUN if [ "$PREWARM_MODEL" = "1" ]; then \
-        SEARCH_TEST_MODE=1 python -m scripts.prewarm_model; \
-    fi
+# The SigLIP2 weights are NOT baked into the image. They live in
+# /app/data/hf-cache (the image-search_search_data named volume)
+# and are downloaded on first use. The HF cache persists across
+# container restarts, so the one-time ~370MB-1.8GB download happens
+# once per deployment, not once per restart. Bumping the Dockerfile
+# to a new variant wipes the cache only if the volume is dropped.
 
 ENV WEB_CONCURRENCY=1 \
     PORT=8000 \
