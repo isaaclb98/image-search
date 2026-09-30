@@ -3,9 +3,10 @@
 Self-hosted semantic image search over a local photo library.
 
 - **Embeddings:** SigLIP2 (open_clip `webli` pretrained). Default variant
-  is `so400m/16-384` (`ViT-so400m-patch16-384`, 1152-dim, 384px input).
-  Other variants supported via `SIGLIP_VARIANT` env var: `B/16-256`
-  (768-dim), `L/16-256` (1024-dim), `gopt/16-384` (1536-dim) — see
+  is `B/16-256` (`ViT-B-16-SigLIP2-256`, 768-dim, 256px input) —
+  smallest, fastest, runs on CPU. Other variants supported via
+  `SIGLIP_VARIANT` env var: `L/16-256` (1024-dim), `gopt/16-384`
+  (1536-dim), `so400m/16-384` (1152-dim, prod default) — see
   `search/config.py:SIGLIP_VARIANTS`.
 - **Vector store:** Qdrant (local container in dev, HTTPS reverse proxy in prod).
 - **Backend:** FastAPI, single container, gunicorn + uvicorn workers.
@@ -16,18 +17,34 @@ Self-hosted semantic image search over a local photo library.
 
 ## Set up
 
-### Production (one container, one port)
+The image at `ghcr.io/isaaclb98/image-search:latest` is the single
+container you need. It runs FastAPI on `:8000`, serves the bundled
+SvelteKit SPA from the same port, and embeds photos by spawning the
+indexer as an in-container subprocess (so the indexer has no host
+dependency — see "Index your library" below).
 
-The image at `docker/Dockerfile.search` builds the SvelteKit SPA with `adapter-static`, bakes it in, and FastAPI serves both `/api/*` and the SPA from `:8000`.
+### Production (pull from ghcr)
 
 ```bash
 export NAS_IMAGES_PATH=/path/to/your/photos   # bind-mounted read-only at /nas
 docker compose up -d                          # brings up Qdrant + search
 ```
 
-Open <http://localhost:8000>.
+`docker-compose.yml` (in this repo) pulls `image-search:latest` from
+ghcr, runs a Qdrant sidecar, bind-mounts your photo library at
+`/nas:ro`, and exposes `:8000` on the host.
 
-Data persists in a named Docker volume (`qdrant_data`). `docker compose down` keeps it; `docker compose down -v` wipes it.
+Two named volumes hold state across image updates:
+
+- **`qdrant_data`** — the vector index + payloads.
+- **`image-search_search_data`** — the SQLite side store (favorites,
+  dislikes, albums, saved searches), the SigLIP2 model cache (HF_HOME),
+  and the runtime thumbnail cache. **Without this volume, every image
+  update wipes your library state.** `docker compose down` keeps both;
+  `docker compose down -v` wipes both.
+
+First start downloads the SigLIP2 model (~30 s one-off, then cached in
+`image-search_search_data`). Open <http://localhost:8000>.
 
 ### Local dev (faster iteration)
 
@@ -35,7 +52,7 @@ Data persists in a named Docker volume (`qdrant_data`). `docker compose down` ke
 # Backend (loads SigLIP2 the first time, ~3 GB into HF cache)
 uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-docker run -p 6333:6333 qdrant/qdrant:v1.12.4 # vector DB
+docker run -p 6333:6333 qdrant/qdrant:v1.19.0 # vector DB
 NAS_IMAGES_PATH=/path/to/your/photos \
 QDRANT_URL=http://localhost:6333 \
     python -m search.dev_server
@@ -56,7 +73,21 @@ python -m search.dev_server --no-model --demo-data --demo-count 500   # in-memor
 
 ### Index your library
 
-The indexer CLI is the canonical entry point. Two shapes:
+Open the SPA, go to **Settings → Index**, and click **Start**. The
+search container spawns the indexer as an in-container subprocess —
+no host Python needed. Settings polls status every second and shows
+live progress + a cancel button.
+
+For incremental runs (the default), re-running the indexer only
+embeds photos that changed since the last run. Qdrant upserts are
+idempotent (deterministic UUID5 per photo path), so this is safe
+to run repeatedly. The first run on a fresh library takes a while;
+subsequent runs are usually seconds.
+
+### Index from the host CLI (advanced)
+
+If you want to run the indexer directly (e.g. on a different host
+or with GPU access the search container doesn't have), two shapes:
 
 ```bash
 # Full sync + change-detection vs prior run. Idempotent — deterministic
