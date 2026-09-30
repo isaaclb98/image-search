@@ -151,6 +151,23 @@ def make_client(args):
     return QdrantClient(**_qdrant_client_kwargs(url=args.qdrant_url, api_key=args.qdrant_api_key, timeout=30))
 
 
+def _active_variant() -> str | None:
+    """Active SigLIP variant for the indexer subprocess.
+
+    Resolution order:
+      1. SIGLIP_VARIANT env (set by compose for prod, by tests).
+      2. None — caller skips writing the payload field. The startup
+         reconciler treats missing `model_variant` as "unknown legacy,
+         requires reindex" (defensive, not silent).
+
+    Reads from env (not from search.config) because the subprocess
+    runs as a separate interpreter; search.config is importable but
+    importing it in local_sync drags the FastAPI app in as a side
+    effect. Keeping this env-only is intentional.
+    """
+    return os.environ.get("SIGLIP_VARIANT")
+
+
 def resolve_source_names(sources, names):
     if not names:
         return [src.name for src in sources]
@@ -755,6 +772,13 @@ def main(argv=None):
                     width=source_w, height=source_h,
                 )
                 payload["path"] = path
+                # Record the SigLIP variant shorthand (e.g.
+                # "so400m/16-384") on each point so the search backend's
+                # startup reconciler can detect variant mismatches against
+                # Qdrant instead of a redundant on-disk JSON file.
+                _variant = _active_variant()
+                if _variant is not None:
+                    payload["model_variant"] = _variant
                 items.append((upsert.id_for(path, ""), vec, payload))
 
             try:

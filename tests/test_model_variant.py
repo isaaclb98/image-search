@@ -9,6 +9,7 @@ at call time, not at import time).
 """
 import json
 import pytest
+from qdrant_client.http.exceptions import UnexpectedResponse
 from search import config
 
 
@@ -147,107 +148,168 @@ def test_siglip_variants_dict_is_complete():
         assert dim in (768, 1024, 1152, 1536), f"{variant}: unexpected dim {dim}"
 
 
-# ----- Variant persistence (data/siglip_variant.json) -----
-
-class TestVariantPersistence:
-    """Tests for load_stored_variant / save_variant / validate_variant_against_stored."""
-
-    def test_load_stored_returns_none_when_file_missing(self, tmp_path):
-        """No config file → load returns None (first-run behavior)."""
-        assert config.load_stored_variant(str(tmp_path)) is None
-
-    def test_save_then_load_roundtrip(self, tmp_path):
-        """save_variant creates the file; load_stored_variant reads it back."""
-        config.save_variant("gopt/16-384", str(tmp_path))
-        assert config.load_stored_variant(str(tmp_path)) == "gopt/16-384"
-
-    def test_save_creates_parent_dir(self, tmp_path):
-        """save_variant should mkdir -p the data dir."""
-        nested = tmp_path / "a" / "b" / "c"
-        config.save_variant("L/16-256", str(nested))
-        assert (nested / config.VARIANT_CONFIG_FILE).exists()
-
-    def test_save_overwrites_existing(self, tmp_path):
-        """save_variant overwrites an existing variant file."""
-        config.save_variant("B/16-256", str(tmp_path))
-        config.save_variant("gopt/16-384", str(tmp_path))
-        assert config.load_stored_variant(str(tmp_path)) == "gopt/16-384"
-
-    def test_save_then_load_returns_exact_variant(self, tmp_path):
-        """Variant roundtrips exactly (no whitespace, no normalization)."""
-        for v in ["B/16-256", "L/16-256", "gopt/16-384"]:
-            config.save_variant(v, str(tmp_path))
-            assert config.load_stored_variant(str(tmp_path)) == v
-
-    def test_load_handles_corrupt_json(self, tmp_path):
-        """Corrupt JSON in the variant file should not crash; return None."""
-        path = config.get_variant_config_path(str(tmp_path))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{not valid json")
-        assert config.load_stored_variant(str(tmp_path)) is None
-
-    def test_load_handles_empty_file(self, tmp_path):
-        """Empty file should not crash; return None or {}→None."""
-        path = config.get_variant_config_path(str(tmp_path))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("")
-        assert config.load_stored_variant(str(tmp_path)) is None
-
-    def test_load_handles_missing_variant_key(self, tmp_path):
-        """Valid JSON without 'variant' key returns None."""
-        path = config.get_variant_config_path(str(tmp_path))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"other_key": "value"}))
-        assert config.load_stored_variant(str(tmp_path)) is None
-
-    def test_get_variant_config_path_under_data_dir(self, tmp_path):
-        """Path should be data_dir / VARIANT_CONFIG_FILE."""
-        path = config.get_variant_config_path(str(tmp_path))
-        assert path == tmp_path / config.VARIANT_CONFIG_FILE
+# ----- Variant reconciliation against Qdrant (round 34) -----
 
 
-class TestValidateVariantAgainstStored:
-    """Tests for validate_variant_against_stored — the runtime guard."""
+def _dim_via_payloads(client, collection, dim):
+    """Helper: upsert one fake point at `dim` so get_collection reports it.
 
-    def test_first_run_saves_variant(self, tmp_path):
-        """No stored variant → save the env variant, no error."""
-        config.validate_variant_against_stored("L/16-256", str(tmp_path))
-        assert config.load_stored_variant(str(tmp_path)) == "L/16-256"
+    Qdrant in-memory needs at least one point to expose the vector
+    config in get_collection(). We use real vector data (a single
+    zero vector) rather than mocking, because the reconciler reads
+    info.config.params.vectors which is set at collection creation.
+    """
+    from qdrant_client.http import models as qm
+    client.create_collection(
+        collection_name=collection,
+        vectors_config=qm.VectorParams(size=dim, distance=qm.Distance.COSINE),
+    )
+    client.upsert(
+        collection_name=collection,
+        points=[qm.PointStruct(id=1, vector=[0.0] * dim, payload={})],
+    )
 
-    def test_matching_variant_passes(self, tmp_path):
-        """Matching stored variant → no error."""
-        config.save_variant("L/16-256", str(tmp_path))
-        config.validate_variant_against_stored("L/16-256", str(tmp_path))  # should not raise
 
-    def test_mismatched_variant_raises(self, tmp_path):
-        """Different stored variant → raises ValueError with both names."""
-        config.save_variant("L/16-256", str(tmp_path))
-        with pytest.raises(ValueError) as exc_info:
-            config.validate_variant_against_stored("gopt/16-384", str(tmp_path))
-        msg = str(exc_info.value)
-        assert "L/16-256" in msg
-        assert "gopt/16-384" in msg
+def _make_client_for_reconcile(**_kw):
+    """Real in-memory Qdrant client. Discards url/api_key kwargs.
 
-    def test_mismatch_error_includes_dim_warning(self, tmp_path):
-        """Mismatch error should mention re-indexing (dim differ)."""
-        config.save_variant("L/16-256", str(tmp_path))
-        with pytest.raises(ValueError) as exc_info:
-            config.validate_variant_against_stored("B/16-256", str(tmp_path))
-        msg = str(exc_info.value).lower()
-        # Should warn about needing to re-index since dims differ (1024 vs 768)
-        assert "re-index" in msg or "reindex" in msg or "index" in msg
+    The reconciler always passes url=, api_key=, timeout=; in-memory
+    Qdrant ignores them. Returning a callable that accepts **kw
+    makes the test monkeypatch work uniformly with the production
+    call shape.
+    """
+    from qdrant_client import QdrantClient
+    return QdrantClient(location=":memory:")
 
-    def test_all_three_variants_roundtrip(self, tmp_path):
-        """Each of the 3 variants can be saved and validated against itself."""
-        for v in ["B/16-256", "L/16-256", "gopt/16-384"]:
-            # Clear any prior stored variant so each iteration starts fresh
-            cfg_path = config.get_variant_config_path(str(tmp_path))
-            if cfg_path.exists():
-                cfg_path.unlink()
-            config.validate_variant_against_stored(v, str(tmp_path))
-            assert config.load_stored_variant(str(tmp_path)) == v
-            # And validating again with the same variant passes
-            config.validate_variant_against_stored(v, str(tmp_path))
+
+class TestReconcileVariantFromQdrant:
+    """Behavior contract for reconcile_variant_from_qdrant.
+
+    Uses real in-memory Qdrant (no mocks) so the actual Qdrant
+    schema, dim semantics, and UnexpectedResponse are tested.
+    """
+
+    def test_fresh_install_collection_absent_is_noop(self, monkeypatch):
+        """No Qdrant collection → no-op. App boots, user reindexes."""
+        monkeypatch.setattr(
+            config, "QdrantClient", _make_client_for_reconcile,
+        )
+        # Never create the collection. Should not raise.
+        config.reconcile_variant_from_qdrant(
+            "B/16-256",
+            qdrant_url="ignored",
+            qdrant_api_key=None,
+            qdrant_collection="images",
+        )
+
+    def test_empty_collection_is_noop(self, monkeypatch):
+        """Empty Qdrant collection → no-op."""
+        monkeypatch.setattr(config, "QdrantClient", _make_client_for_reconcile)
+        # Create collection but add no points.
+        from qdrant_client.http import models as qm
+        client = _make_client_for_reconcile()
+        client.create_collection(
+            collection_name="images",
+            vectors_config=qm.VectorParams(size=768, distance=qm.Distance.COSINE),
+        )
+        monkeypatch.setattr(
+            config, "QdrantClient",
+            lambda **kw: client,
+        )
+        config.reconcile_variant_from_qdrant(
+            "B/16-256",
+            qdrant_url="ignored", qdrant_api_key=None,
+            qdrant_collection="images",
+        )
+
+    def test_matching_dim_proceeds(self, monkeypatch):
+        """Collection dim matches env variant's expected dim → no-op."""
+        client = _make_client_for_reconcile()
+        _dim_via_payloads(client, "images", dim=1152)  # so400m = 1152
+        monkeypatch.setattr(
+            config, "QdrantClient",
+            lambda **kw: client,
+        )
+        config.reconcile_variant_from_qdrant(
+            "so400m/16-384",
+            qdrant_url="ignored", qdrant_api_key=None,
+            qdrant_collection="images",
+        )
+
+    def test_dim_mismatch_drops_collection(self, monkeypatch):
+        """Collection dim ≠ env variant → drop the collection."""
+        client = _make_client_for_reconcile()
+        # Old data at 768 (B/16-256). User now wants so400m (1152).
+        _dim_via_payloads(client, "images", dim=768)
+        monkeypatch.setattr(
+            config, "QdrantClient",
+            lambda **kw: client,
+        )
+        config.reconcile_variant_from_qdrant(
+            "so400m/16-384",
+            qdrant_url="ignored", qdrant_api_key=None,
+            qdrant_collection="images",
+        )
+        # Collection should be dropped. Network Qdrant raises
+        # UnexpectedResponse; in-memory Qdrant raises ValueError.
+        with pytest.raises((UnexpectedResponse, ValueError)):
+            client.get_collection(collection_name="images")
+
+    def test_payload_mismatch_drops_collection(self, monkeypatch):
+        """Dim matches but per-point payload differs → drop."""
+        client = _make_client_for_reconcile()
+        from qdrant_client.http import models as qm
+        client.create_collection(
+            collection_name="images",
+            vectors_config=qm.VectorParams(size=1152, distance=qm.Distance.COSINE),
+        )
+        # Single point with model_variant=payload-mismatch
+        client.upsert(
+            collection_name="images",
+            points=[qm.PointStruct(
+                id=1, vector=[0.0] * 1152,
+                payload={"model_variant": "L/16-256"},
+            )],
+        )
+        monkeypatch.setattr(
+            config, "QdrantClient",
+            lambda **kw: client,
+        )
+        config.reconcile_variant_from_qdrant(
+            "so400m/16-384",
+            qdrant_url="ignored", qdrant_api_key=None,
+            qdrant_collection="images",
+        )
+        from qdrant_client.http.exceptions import UnexpectedResponse
+        with pytest.raises((UnexpectedResponse, ValueError)):
+            client.get_collection(collection_name="images")
+
+    def test_legacy_payload_missing_proceeds(self, monkeypatch):
+        """Dim matches, payload missing (legacy data) → proceed."""
+        client = _make_client_for_reconcile()
+        from qdrant_client.http import models as qm
+        client.create_collection(
+            collection_name="images",
+            vectors_config=qm.VectorParams(size=1152, distance=qm.Distance.COSINE),
+        )
+        # Single point, no model_variant payload (legacy).
+        client.upsert(
+            collection_name="images",
+            points=[qm.PointStruct(id=1, vector=[0.0] * 1152, payload={})],
+        )
+        monkeypatch.setattr(
+            config, "QdrantClient",
+            lambda **kw: client,
+        )
+        # Should not raise, should not drop.
+        config.reconcile_variant_from_qdrant(
+            "so400m/16-384",
+            qdrant_url="ignored", qdrant_api_key=None,
+            qdrant_collection="images",
+        )
+        # Collection still present.
+        info = client.get_collection(collection_name="images")
+        assert info.points_count == 1
 
 
 # ----- DEFAULT_MODEL constant -----
