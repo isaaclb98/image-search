@@ -65,7 +65,13 @@ concurrency:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Round-35: was 30 min when the build was amd64-only (~3 min).
+    # Adding linux/arm64 via QEMU emulation roughly doubles wall time
+    # (~6-8 min on a warm cache, ~25-40 min cold from a clean
+    # container), and the SLSA provenance attestation is generated
+    # for both arches — that pushed the previous build past 30 min
+    # and got cancelled. 60 min gives cold builds room to finish.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
