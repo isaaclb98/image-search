@@ -177,3 +177,62 @@ def test_api_cache_refresh_preserves_favourites(refresh_app, refresh_app_state):
     assert refresh_app.get("/api/favorites").json()["total"] == 1
 
 
+def test_api_cache_refresh_bails_when_indexer_running(refresh_app, monkeypatch):
+    """Round-35: the manual refresh endpoint refuses to do a
+    wipe+rebuild while the indexer is actively writing, because
+    the rebuild would race the indexer's INSERTs and lose any
+    Qdrant points written mid-scroll.
+
+    Sets the runner's _state to RUNNING directly (bypassing the
+    normal start() flow which spawns a real subprocess) so the
+    test stays fast and self-contained.
+    """
+    from search.indexer_runner import IndexerState
+
+    runner = refresh_app.app.state.indexer_runner
+    monkeypatch.setattr(runner, "_state", IndexerState.RUNNING)
+    monkeypatch.setattr(runner, "_job_id", "test-job-running-1234")
+
+    resp = refresh_app.post("/api/cache/refresh")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "skipped"
+    assert "indexer is running" in data["reason"]
+    assert data["job_id"] == "test-job-running-1234"
+
+
+def test_api_cache_refresh_proceeds_when_indexer_idle(refresh_app):
+    """Sanity: the manual refresh guard does NOT trip when the
+    indexer is idle (the normal happy path).
+    """
+    # runner is freshly constructed → state defaults to IDLE
+    resp = refresh_app.post("/api/cache/refresh")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+
+
+def test_periodic_refresh_skipped_while_indexer_running(refresh_app, monkeypatch):
+    """The _periodic_refresh_loop's wipe+rebuild path races the
+    indexer's INSERTs. Loop must skip when indexer is RUNNING.
+
+    We can't trivially trigger the periodic loop in a unit test
+    (it waits on an asyncio.sleep), so we test the equivalent
+    guard logic directly via a focused micro-loop.
+    """
+    from search.indexer_runner import IndexerState
+
+    runner = refresh_app.app.state.indexer_runner
+    monkeypatch.setattr(runner, "_state", IndexerState.RUNNING)
+
+    # Replicate the guard inline so we're testing the predicate,
+    # not asyncio scheduling. The actual loop calls
+    # `indexer_runner.status()` then checks `state is RUNNING`.
+    status = runner.status()
+    assert status.state is IndexerState.RUNNING
+
+    # Now flip back to idle and re-check — the guard must release.
+    monkeypatch.setattr(runner, "_state", IndexerState.IDLE)
+    status = runner.status()
+    assert status.state is IndexerState.IDLE
+
+

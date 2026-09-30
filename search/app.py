@@ -834,6 +834,39 @@ def create_app(
                             continue
                         try:
                             t0 = time.time()
+                            # Round-35: skip the periodic rebuild while
+                            # the indexer is actively writing. The
+                            # indexer's own write-through keeps the
+                            # cache in sync; a periodic wipe+rebuild
+                            # mid-indexing would race the indexer's
+                            # INSERTs and lose the writes that landed
+                            # in Qdrant between the scroll start and
+                            # the scroll's own INSERTs. After the
+                            # indexer job finishes, the next tick
+                            # catches any external deletes via the
+                            # normal wipe+rebuild path.
+                            from search.indexer_runner import IndexerState
+                            try:
+                                idx_status = indexer_runner.status()
+                                if idx_status.state is IndexerState.RUNNING:
+                                    logger.debug(
+                                        "periodic refresh: indexer is "
+                                        "running (job_id=%s); skipping "
+                                        "this tick — write-through keeps "
+                                        "the cache in sync",
+                                        idx_status.job_id,
+                                    )
+                                    continue
+                            except Exception as e:  # noqa: BLE001
+                                # Defensive: never let a status probe
+                                # failure block the refresh loop. Log
+                                # and fall through to the rebuild.
+                                logger.debug(
+                                    "periodic refresh: indexer status "
+                                    "probe failed (%s); proceeding with "
+                                    "rebuild", e,
+                                )
+
                             # `force=True`: must rebuild every tick. The
                             # `force=False` path short-circuits when the
                             # cache is non-empty, which would make the
@@ -907,6 +940,10 @@ def create_app(
     app.state.index_db = index_db
     app.state.random_picker = random_picker
     app.state.diversity_cache = diversity_cache
+    # Round-35: tests need to mutate indexer_runner.state to
+    # exercise the "skip refresh while indexing" guards in
+    # _periodic_refresh_loop and POST /api/cache/refresh.
+    app.state.indexer_runner = indexer_runner
 
     # Router includes (§B2) follow below. Auth was removed; deploy
     # behind a reverse proxy that handles access control (caddy auth,
@@ -1901,6 +1938,31 @@ def create_app(
 
     @app.api_route("/api/cache/refresh", methods=["GET", "POST"])
     async def api_cache_refresh():
+        # Round-35: refuse a manual rebuild while the indexer is
+        # actively writing. The wipe+rebuild here races the
+        # indexer's INSERTs and would lose any Qdrant points
+        # written mid-scroll. Tell the caller to retry once the
+        # indexer finishes.
+        from search.indexer_runner import IndexerState
+        try:
+            idx_status = indexer_runner.status()
+            if idx_status.state is IndexerState.RUNNING:
+                return {
+                    "status": "skipped",
+                    "reason": (
+                        "indexer is running (job_id="
+                        f"{idx_status.job_id}); manual refresh "
+                        "would race the indexer's writes. Wait for "
+                        "the job to finish and retry."
+                    ),
+                    "job_id": idx_status.job_id,
+                }
+        except Exception:  # noqa: BLE001
+            # Defensive: status probe failures shouldn't block the
+            # manual refresh — they did the right thing before
+            # round-35, so keep working if the probe breaks.
+            pass
+
         # Cooperative refresh lock. If the periodic task is in the
         # middle of a refresh, the manual call bails immediately
         # rather than running two scrolls in parallel.
