@@ -12,8 +12,11 @@ import math
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
+from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse as _QdrResp
 
 from search.diversity_config import Diversity, load_diversity_from_env
 
@@ -66,75 +69,165 @@ def get_vector_dim() -> int:
 THUMBNAIL_DIR = os.environ.get("THUMBNAIL_DIR", "/app/data/thumbnails")
 
 
-# Variant storage: JSON file in the data directory
-VARIANT_CONFIG_FILE = "siglip_variant.json"
+# Variant reconciliation against Qdrant. Replaces the older file-based
+# tracking (data/siglip_variant.json). Qdrant is the single source of
+# truth — the dim of the live collection's vectors = the model that
+# produced them. Per-point payload (`model_variant`) is informational
+# and written by the indexer alongside `model_name`/`model_revision`.
+def reconcile_variant_from_qdrant(
+    env_variant: str,
+    qdrant_url: str,
+    qdrant_api_key: str | None,
+    qdrant_collection: str,
+) -> None:
+    """Reconcile env variant against Qdrant on startup.
 
+    Never raises; on any failure logs a warning and returns. The
+    user is responsible for reindexing.
 
-def get_variant_config_path(data_dir: str = "./data") -> Path:
-    """Get the path to the variant config file."""
-    return Path(data_dir) / VARIANT_CONFIG_FILE
+    Behavior by case:
 
+      - Collection absent: no-op. Fresh install; the user will
+        reindex via Settings → Index.
 
-def load_stored_variant(data_dir: str = "./data") -> str | None:
-    """Load the stored variant from the config file, or None if not found."""
-    config_path = get_variant_config_path(data_dir)
-    if not config_path.exists():
-        return None
+      - Collection empty: no-op. The drop-on-mismatch path has
+        already cleared a previous variant; user needs to reindex.
+
+      - Collection's vector dim ≠ env variant's expected dim:
+        vectors are in the wrong embedding space. Drop the
+        collection, log a warning that reindex is required.
+
+      - Sample point has `model_variant` payload that differs
+        from env_variant: drop the collection, log a warning.
+        Tolerates missing payload (legacy data) — dim check is
+        the binding constraint for the four registered variants
+        because their dims (768/1024/1152/1536) are unique.
+
+      - Otherwise: app boots normally.
+    """
+    env_dim_expected = get_vector_dim_for_variant(env_variant)
+
     try:
-        import json
-        with open(config_path) as f:
-            data = json.load(f)
-            return data.get("variant")
-    except (OSError, ValueError) as e:
-        # JSON decode errors are ValueError subclasses; file
-        # permission/missing errors are OSError. Anything else is a
-        # real bug — let it propagate.
-        logger.warning("Failed to load variant config from %s: %s", config_path, e)
+        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=10)
+        info = client.get_collection(collection_name=qdrant_collection)
+    except _QdrResp as e:
+        # Collection doesn't exist — fresh install.
+        logger.info("No Qdrant collection %r yet: %s. Fresh install.",
+                    qdrant_collection, e)
+        return
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
+            "Could not reach Qdrant for variant reconcile (%s): %s. "
+            "Continuing; search endpoints will surface their own errors.",
+            qdrant_url, e,
+        )
+        return
+
+    if info.points_count == 0:
+        logger.info("Qdrant collection %r is empty: nothing to reconcile.",
+                    qdrant_collection)
+        return
+
+    # The collection's config.vectors_count / config.params.vectors
+    # shape depends on Qdrant version. Easiest robust read:
+    stored_dim = _qdrant_collection_dim(info)
+    if stored_dim is None:
+        logger.warning(
+            "Could not read vector dim from Qdrant collection %r. "
+            "Skipping reconcile; proceeding with env variant %s.",
+            qdrant_collection, env_variant,
+        )
+        return
+
+    if stored_dim != env_dim_expected:
+        logger.warning(
+            "Model variant mismatch: Qdrant dim=%d does not match "
+            "env variant %s (expected dim=%d). Dropping collection %r; "
+            "reindex via Settings → Index.",
+            stored_dim, env_variant, env_dim_expected, qdrant_collection,
+        )
+        try:
+            client.delete_collection(collection_name=qdrant_collection)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Failed to drop Qdrant collection during reconcile: %s. "
+                "Search may return errors until reindex.",
+                e,
+            )
+        return
+
+    # Dim matches. Optional soft check: per-point payload.
+    try:
+        sample, _next = client.scroll(
+            collection_name=qdrant_collection,
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not scroll sample point for payload check: %s", e)
+        return
+
+    if not sample:
+        return
+
+    stored_variant = sample[0].payload.get("model_variant") if sample[0].payload else None
+    if stored_variant is None:
+        # Legacy data — no `model_variant` payload. Dim already matches,
+        # so the binding constraint holds. Proceed.
+        logger.info(
+            "Qdrant dim matches env variant %s; sample point has no "
+            "`model_variant` payload (legacy data). Proceeding.",
+            env_variant,
+        )
+        return
+
+    if stored_variant != env_variant:
+        logger.warning(
+            "Model variant mismatch: stored payload model_variant=%s "
+            "≠ env variant %s. Dropping collection %r; "
+            "reindex via Settings → Index.",
+            stored_variant, env_variant, qdrant_collection,
+        )
+        try:
+            client.delete_collection(collection_name=qdrant_collection)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Failed to drop Qdrant collection during reconcile: %s.",
+                e,
+            )
+        return
+
+    logger.info("Variant reconciled against Qdrant: %s (dim=%d)",
+                env_variant, stored_dim)
+
+
+def _qdrant_collection_dim(info: Any) -> int | None:
+    """Read the vector dim from a Qdrant CollectionInfo object.
+
+    Tolerates Qdrant-client version differences: `vectors_count`,
+    `config.params.vectors.size`, or `config.vectors_count`.
+    Returns None if it can't figure it out.
+    """
+    try:
+        vectors_cfg = info.config.params.vectors
+    except AttributeError:
         return None
 
-
-def save_variant(variant: str, data_dir: str = "./data") -> None:
-    """Save the variant to the config file."""
-    import json
-    config_path = get_variant_config_path(data_dir)
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(config_path, "w") as f:
-        json.dump({"variant": variant}, f)
-    logger.info("Saved variant '%s' to %s", variant, config_path)
-
-
-def validate_variant_against_stored(env_variant: str, data_dir: str = "./data") -> None:
-    """
-    Validate that the env variant matches the stored variant.
-    Raises ValueError with a clear message if there's a mismatch.
-    """
-    stored = load_stored_variant(data_dir)
-    if stored is None:
-        # First run or no config file — save the current variant
-        save_variant(env_variant, data_dir)
-        logger.info("First run: stored variant '%s'", env_variant)
-        return
-    
-    if stored != env_variant:
-        stored_model = get_model_name_for_variant(stored)
-        stored_dim = get_vector_dim_for_variant(stored)
-        env_model = get_model_name_for_variant(env_variant)
-        env_dim = get_vector_dim_for_variant(env_variant)
-        
-        raise ValueError(
-            f"Model variant mismatch!\n"
-            f"  Stored: {stored} ({stored_model}, {stored_dim}-dim)\n"
-            f"  Env:    {env_variant} ({env_model}, {env_dim}-dim)\n"
-            f"\n"
-            f"Changing the model variant requires re-indexing all photos.\n"
-            f"Either:\n"
-            f"  - Remove the variant config: rm {get_variant_config_path(data_dir)}\n"
-            f"    (then drop the Qdrant collection + reindex from scratch),\n"
-            f"  - Or revert SIGLIP_VARIANT to {stored!r} so it matches the\n"
-            f"    already-indexed embeddings.\n"
-        )
-    
-    logger.info("Variant validated: %s", env_variant)
+    # `vectors` is one of: an int (uniform dim), a VectorParams,
+    # or a dict of named vectors. Try them in order.
+    if isinstance(vectors_cfg, int):
+        return vectors_cfg
+    size = getattr(vectors_cfg, "size", None)
+    if isinstance(size, int):
+        return size
+    if isinstance(vectors_cfg, dict):
+        for v in vectors_cfg.values():
+            s = getattr(v, "size", None)
+            if isinstance(s, int):
+                return s
+        return None
+    return None
 
 # Backward compatibility: these are derived from the variant.
 # DEFAULT_MODEL is what the env says at import time — it follows
@@ -411,11 +504,21 @@ def load() -> Config:
     if not index_db_path:
         index_db_path = "./data/images.db"
     
-    # Determine data directory from index_db_path
-    data_dir = "./data" if index_db_path == ":memory:" else str(Path(index_db_path).parent)
+    # Determine data directory from index_db_path (kept for any future
+    # path-aware logic; the Qdrant reconciler below does not use it).
+    _data_dir = "./data" if index_db_path == ":memory:" else str(Path(index_db_path).parent)
     
-    # Validate variant against stored config (raises on mismatch)
-    validate_variant_against_stored(variant, data_dir)
+    # Reconcile env variant against Qdrant on startup. Qdrant is the
+    # single source of truth — its dim + per-point payload together
+    # tell us whether the indexed vectors match the env variant. On
+    # mismatch, the collection is dropped and the user must reindex.
+    # Never raises.
+    reconcile_variant_from_qdrant(
+        variant,
+        qdrant_url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
+        qdrant_api_key=os.environ.get("QDRANT_API_KEY") or None,
+        qdrant_collection=os.environ.get("QDRANT_COLLECTION", DEFAULT_COLLECTION),
+    )
 
     top_k_default = _int("TOP_K_DEFAULT", DEFAULT_RESULT_LIMIT)
     top_k_max = _int("TOP_K_MAX", 200)

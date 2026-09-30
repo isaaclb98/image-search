@@ -270,7 +270,7 @@ class IndexerPipeline:
         rollback based on the report's failure list).
         """
         from image_search_kernel.registry import get as _registry_get
-        from indexer.run_pipeline import _resolve_active_model_name, _resolve_active_model_revision
+        from indexer.run_pipeline import _resolve_active_model_name, _resolve_active_model_revision, _resolve_active_model_variant
 
         t0 = time.perf_counter()
         embedder = _registry_get(config.model_name).vision
@@ -441,6 +441,9 @@ class IndexerPipeline:
                         )
                         payload["model_name"] = _resolve_active_model_name()
                         payload["model_revision"] = _resolve_active_model_revision()
+                        _variant = _resolve_active_model_variant()
+                        if _variant is not None:
+                            payload["model_variant"] = _variant
                         point_id = id_for(p, shard="")
                         batch.append(_qmodels.PointStruct(
                             id=point_id, vector=vec, payload=payload,

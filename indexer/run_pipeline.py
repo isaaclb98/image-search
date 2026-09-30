@@ -242,6 +242,9 @@ def _upsert(
             # registry entry.
             payload["model_name"] = _resolve_active_model_name()
             payload["model_revision"] = _resolve_active_model_revision()
+            _variant = _resolve_active_model_variant()
+            if _variant is not None:
+                payload["model_variant"] = _variant
             point_id = id_for(path, shard="")
             point = qmodels.PointStruct(
                 id=point_id, vector=vec, payload=payload,
@@ -275,6 +278,7 @@ def _upsert(
 
 
 _ACTIVE_MODEL: tuple[str, str] | None = None
+_ACTIVE_VARIANT: str | None = None
 
 
 def _resolve_active_model_name() -> str:
@@ -292,6 +296,16 @@ def _resolve_active_model_revision() -> str:
     return "webli"
 
 
+def _resolve_active_model_variant() -> str | None:
+    """Variant string for the currently-active indexer model.
+
+    Set via set_active_model_variant(). Returns None if not pinned;
+    callers that need a value should fall back to reading the env.
+    """
+    global _ACTIVE_VARIANT  # noqa: PLW0602
+    return _ACTIVE_VARIANT
+
+
 def set_active_model(model_name: str, model_revision: str) -> None:
     """Pin the model_name + revision used in newly-built payloads.
 
@@ -302,6 +316,19 @@ def set_active_model(model_name: str, model_revision: str) -> None:
     """
     global _ACTIVE_MODEL
     _ACTIVE_MODEL = (model_name, model_revision)
+
+
+def set_active_model_variant(variant: str) -> None:
+    """Pin the SigLIP variant string used in newly-built payloads.
+
+    Mirrors set_active_model() but for the variant shorthand
+    (e.g. "so400m/16-384") that gets written to the
+    `model_variant` Qdrant payload field. The reconciler in
+    search/config.py reads this field on startup to detect
+    variant changes.
+    """
+    global _ACTIVE_VARIANT
+    _ACTIVE_VARIANT = variant
 
 
 def run_pipeline_source(
