@@ -14,24 +14,39 @@ from search import config
 
 # ----- Variant lookup -----
 
-def test_default_variant_is_so400m(monkeypatch):
-    """Default variant should be so400m/16-384 (1152-dim) when env unset.
+def test_default_variant_resolves_to_registered_model(monkeypatch):
+    """The default variant must resolve to a real registered model.
 
-    As of the model-variant migration plan, so400m is the prod default;
-    L/16-256 is no longer the default — it's still registered and
-    selectable via SIGLIP_VARIANT=L/16-256, just not the default.
+    Asserts the contract (default → variant name → model name → spec
+    with correct dim), not a specific literal. The default has changed
+    multiple times (gopt → L/16 → so400m → B/16-256) and will change
+    again; pinning this test to a specific model is exactly the
+    fragility we want to avoid.
     """
     monkeypatch.delenv("SIGLIP_VARIANT", raising=False)
     monkeypatch.delenv("MODEL_NAME", raising=False)
 
     variant = config.get_siglip_variant()
-    assert variant == "so400m/16-384"
-
     model_name = config.get_model_name_for_variant(variant)
-    assert model_name == "ViT-so400m-patch16-384"
-
     dim = config.get_vector_dim_for_variant(variant)
-    assert dim == 1152
+
+    # The default variant must be one of the registered variants.
+    assert variant in config.SIGLIP_VARIANTS, (
+        f"DEFAULT_VARIANT={variant!r} not in SIGLIP_VARIANTS"
+    )
+
+    # The resolved model name must be registered with a matching dim
+    # in the kernel registry. Catches drift between the variant table
+    # and the real-model registration.
+    from image_search_kernel.registry import get as _registry_get
+    spec = _registry_get(model_name)
+    assert spec is not None, (
+        f"default model {model_name!r} not in kernel registry — "
+        f"check image_search_kernel/_real_models.register_into"
+    )
+    assert spec.dim == dim, (
+        f"registry dim ({spec.dim}) != config dim ({dim}) for {model_name}"
+    )
 
 
 @pytest.mark.parametrize("variant,expected_model,expected_dim", [
@@ -238,5 +253,15 @@ class TestValidateVariantAgainstStored:
 # ----- DEFAULT_MODEL constant -----
 
 def test_default_model_constant_resolves():
-    """DEFAULT_MODEL should be the model name for the default variant."""
-    assert config.get_model_name_for_variant(config.DEFAULT_VARIANT) == config.DEFAULT_MODEL
+    """DEFAULT_MODEL must match the model for the runtime variant.
+
+    Asserts that DEFAULT_MODEL is consistent with the active variant
+    the env declares at import time. The constant is env-driven, so
+    it follows SIGLIP_VARIANT — DEFAULT_VARIANT is irrelevant here.
+    """
+    variant = config.get_siglip_variant()
+    expected = config.get_model_name_for_variant(variant)
+    assert config.DEFAULT_MODEL == expected, (
+        f"DEFAULT_MODEL={config.DEFAULT_MODEL!r} != "
+        f"model for active variant {variant!r} ({expected!r})"
+    )
