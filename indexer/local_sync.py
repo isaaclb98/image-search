@@ -168,8 +168,13 @@ def open_search_images_db():
     indexer then runs in Qdrant-only mode (used by tests and
     standalone callers that don't share a search app).
     """
-    db_path = os.environ.get("INDEX_DB_PATH")
-    if not db_path or db_path == ":memory:":
+    # Mirror search/config.py's fallback logic so the indexer
+    # subprocess opens the same file the search app opens when
+    # INDEX_DB_PATH isn't explicitly set in the compose env. The
+    # fallback is `./data/images.db` (relative) — inside the
+    # container the cwd is /app, so this resolves to /app/data/.
+    db_path = os.environ.get("INDEX_DB_PATH") or "./data/images.db"
+    if db_path == ":memory:":
         return None
     p = Path(db_path)
     if not p.parent.exists():
