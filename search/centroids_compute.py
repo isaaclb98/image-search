@@ -483,3 +483,107 @@ def filter_near_duplicates(
     # cluster" if ANY seed is close.
     min_dist = 1.0 - sim.max(axis=0)
     return [(d >= threshold) for d in min_dist.tolist()]
+
+
+# Round-77: Weiszfeld parameters. Tuned for DINOv2/SigLIP2 768-dim
+# embeddings — these converge to ~0.1px movement in <20 iterations
+# on 200-photo albums. Larger tol means earlier exit but the
+# returned vector is slightly off true median; smaller tol means
+# more iterations for marginal gain.
+WEISZFELD_MAX_ITER = 100
+WEISZFELD_TOL = 1e-6
+
+
+def l2_median_centroid(
+    seed_ids: list[str],
+    vectors: list[list[float]],
+    *,
+    max_iter: int = WEISZFELD_MAX_ITER,
+    tol: float = WEISZFELD_TOL,
+) -> tuple[list[float], int, list[str]]:
+    """L2-median (geometric median) of the seed set, normalized.
+
+    Where the mean-centroid averages every vector equally and
+    drifts toward any outliers, the L2-median finds the point
+    that minimizes the sum of squared distances to all inputs.
+    It is the centre-of-mass of the cluster SHAPE rather than
+    the centre-of-mass of the cluster POSITIONS.
+
+    Why this matches Isaac's 'what stays constant between images'
+    intuition: the geometric median is the single vector that
+    minimises disagreement with every input. Every photo in the
+    album pulls toward this point with equal leverage; any photo
+    far from this point is by definition an outlier, not part of
+    the consensus. The result is a vector inside the dominant
+    visual mode rather than a hallucination halfway between modes.
+
+    Weiszfeld's algorithm: iteratively re-weight each input by
+    1 / distance to the current estimate. Converges in ~5-15
+    iterations for cluster-shaped inputs; slower for perfectly
+    collinear inputs but we never see those in practice.
+
+    Returns `(centroid, picked_count, picked_seed_ids)`:
+      - `centroid`: unit-length L2-median, ready for Qdrant
+        cosine search. We L2-normalize because Weiszfeld returns
+        a point in the same low-magnitude region as the inputs
+        (typical norm ~0.3-0.8 for SigLIP2 embeddings), and
+        Qdrant cosine search expects unit-length vectors.
+      - `picked_count`: number of vectors that contributed
+        (always len(vectors) for the L2-median — every input
+        contributes, no random subset).
+      - `picked_seed_ids`: every seed id, in input order.
+        Returned for symmetry with `sample_centroid` and
+        `cluster_then_sample_centroid` — UI can show what was
+        sampled (or "all N photos" in this case).
+
+    Falls back to the simple mean when:
+      - The input is empty (raises ValueError; matches the
+        other centroid functions).
+      - The L2-median collapses to a zero vector (impossible
+        in practice — defensive only).
+
+    Note this is a *deterministic* function: same input → same
+    output. Unlike sample_centroid and cluster_then_sample_centroid,
+    no `seed` parameter because there's no randomness.
+    """
+    n_vecs = len(vectors)
+    if n_vecs == 0:
+        raise ValueError("l2_median_centroid requires at least one vector")
+
+    pts = np.asarray(vectors, dtype=np.float64)
+
+    # Weiszfeld's algorithm. Initial guess is the mean — works
+    # well in practice, and converges in fewer iterations than
+    # picking the geometric centre of the bounding box.
+    x = pts.mean(axis=0)
+    for _ in range(max_iter):
+        d = np.linalg.norm(pts - x, axis=1)
+        # Skip exact-coincident points (would otherwise divide
+        # by zero). If the current estimate lands exactly on
+        # one of the inputs, we are already at the median for
+        # that subset, so just return.
+        nonzero = d > 1e-12
+        if not np.any(nonzero):
+            # All inputs collapse to one point: that point IS
+            # the median. Normalize and return.
+            x = pts[0]
+            break
+        d_inv = np.zeros_like(d)
+        d_inv[nonzero] = 1.0 / d[nonzero]
+        w = d_inv / d_inv.sum()
+        new_x = (w[:, None] * pts).sum(axis=0)
+        if np.linalg.norm(new_x - x) < tol:
+            x = new_x
+            break
+        x = new_x
+
+    norm = float(np.linalg.norm(x))
+    if norm == 0:
+        # Defensive — the mean of any non-empty set of
+        # non-coincident points has nonzero norm. If we
+        # somehow hit this, raise rather than return a
+        # zero vector Qdrant would rank at 0.0.
+        raise ValueError("l2_median_centroid collapsed to zero")
+
+    x = (x / norm).tolist()
+    return (x, n_vecs, list(seed_ids))

@@ -59,6 +59,19 @@
   function searchByUserAlbumSurprise(albumId: number) {
     searchByAlbumSurprise(`album:${albumId}`);
   }
+  // Round-77: L2-median (geometric median) entry point. Same
+  // destination as searchByAlbum but appends &mode=l2median.
+  // The L2-median is deterministic (no refresh surprise), but
+  // it's robust to outliers — unlike `centroid` (mean), a few
+  // off-vibe photos in the album don't pull the query vector.
+  // Isaac wanted to A/B this against the mean before deciding
+  // to keep it.
+  function searchByAlbumL2(centroidName: string) {
+    goto(`/?centroid=${encodeURIComponent(centroidName)}&mode=l2median`);
+  }
+  function searchByUserAlbumL2(albumId: number) {
+    searchByAlbumL2(`album:${albumId}`);
+  }
 
   let albums = $state<AlbumSummary[]>([]);
   let loading = $state(true);
@@ -239,6 +252,19 @@
         aria-label="Surprise me: search by a random sample of Likes"
         title="Search by a random sample of your Likes"
       >Surprise</Button>
+      <!-- Round-77: third button for L2-median mode (geometric
+           median, robust to outliers). Trialing — Isaac wanted to
+           A/B against the mean before deciding to keep it. -->
+      <Button
+        variant="secondary"
+        size="sm"
+        class="search-btn l2"
+        data={{ 'data-centroid': LIKES_CENTROID, 'data-mode': 'l2median' }}
+        onclick={() => searchByAlbumL2(LIKES_CENTROID)}
+        disabled={likesCount === 0}
+        aria-label="Search by the geometric median (L2-median) of Likes"
+        title="L2-median mode: the geometric median of your Likes — robust to outliers"
+      >L2</Button>
     </div>
   </article>
   <article class="card glass">
@@ -276,6 +302,16 @@
         aria-label="Surprise me: search by a random sample of Dislikes"
         title="Search by a random sample of your Dislikes"
       >Surprise</Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        class="search-btn l2"
+        data={{ 'data-centroid': DISLIKES_CENTROID, 'data-mode': 'l2median' }}
+        onclick={() => searchByAlbumL2(DISLIKES_CENTROID)}
+        disabled={dislikesCount === 0}
+        aria-label="Search by the geometric median (L2-median) of Dislikes"
+        title="L2-median mode: the geometric median of your Dislikes — robust to outliers"
+      >L2</Button>
     </div>
   </article>
 

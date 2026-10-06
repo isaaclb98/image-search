@@ -93,7 +93,11 @@
   // /search. The "Surprise me" button on /albums writes both
   // params; the album-detail page or other callers don't
   // currently set this.
-  let centroidMode = $state<'centroid' | 'sample'>('centroid');
+  // Round-77: 'l2median' (geometric median / Weiszfeld) joined the
+  // union. It's deterministic (no refresh surprise) and lives
+  // alongside the existing 'centroid' (mean) and 'sample'
+  // (cluster-then-sample) modes.
+  let centroidMode = $state<'centroid' | 'sample' | 'l2median'>('centroid');
 
   function readFromUrl() {
     const q = $page.url.searchParams;
@@ -112,7 +116,9 @@
     // UX forgiving.
     const rawMode = q.get('mode');
     centroidMode =
-      rawMode === 'sample' || rawMode === 'centroid' ? rawMode : 'centroid';
+      rawMode === 'sample' || rawMode === 'centroid' || rawMode === 'l2median'
+        ? rawMode
+        : 'centroid';
   }
 
   function writeToUrl() {
@@ -200,8 +206,8 @@
           // also defaults to 'centroid' when omitted, so omitting
           // is the safe choice for non-centroid paths.
           centroidMode:
-            activeCentroid && centroidMode === 'sample'
-              ? 'sample'
+            activeCentroid && (centroidMode === 'sample' || centroidMode === 'l2median')
+              ? centroidMode
               : 'centroid',
           collections: collections.length ? collections : undefined
         },
@@ -228,7 +234,9 @@
         limit: PAGE, offset,
         centroid: activeCentroid ?? undefined,
         centroidMode:
-          activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
+          activeCentroid && (centroidMode === 'sample' || centroidMode === 'l2median')
+            ? centroidMode
+            : 'centroid',
         collections: collections.length ? collections : undefined,
       }, signal);
       const more = (res?.results ?? []) as Item[];
