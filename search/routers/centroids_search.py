@@ -105,7 +105,7 @@ logger = logging.getLogger(__name__)
 # they 400 on `mode=sample` rather than silently doing the same
 # thing as `mode=centroid`. Dynamic centroids (likes, dislikes,
 # album:{id}) accept both.
-_VALID_MODES = frozenset({"centroid", "sample"})
+_VALID_MODES = frozenset({"centroid", "sample", "l2median"})
 
 
 def build_centroids_search_router(
