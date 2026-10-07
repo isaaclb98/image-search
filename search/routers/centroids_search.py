@@ -255,7 +255,7 @@ def build_centroids_search_router(
                 full_vector, _n_images, full_seed_ids = dyn
                 if dyn_spec is not None:
                     centroid_name = dyn_spec.name
-                if mode == "sample":
+                if mode in ("sample", "l2median"):
                     # Round-34: re-pick a fresh K-subset and search
                     # against the mean of THAT subset, instead of the
                     # full mean. We pull the seed vectors from Qdrant
@@ -264,10 +264,18 @@ def build_centroids_search_router(
                     # after compute). No per-request cache: each call
                     # re-rolls, so refreshing the home page surfaces a
                     # different cluster each time.
+                    #
+                    # Round-77: l2median reuses the same vector-pull
+                    # path; it just feeds the full set (no random
+                    # subset) to l2_median_centroid. The picked_ids
+                    # / picked_vecs locals are shared across both
+                    # branches — declared once outside the mode
+                    # check so Python doesn't treat them as
+                    # mode-conditional locals (UnboundLocalError).
                     if not full_seed_ids:
                         return bad_request(  # type: ignore[return-value]
                             f"centroid {name!r} has no seed ids; "
-                            f"sample mode requires a non-empty source set"
+                            f"sample/l2median modes require a non-empty source set"
                         )
                     seed_pairs = qdrant.retrieve_batch_with_vectors(
                         full_seed_ids,
