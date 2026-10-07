@@ -357,6 +357,20 @@
             aria-label="Surprise me: search by a random sample of {a.name}"
             title="Search by a random sample of {a.name}"
           >Surprise</Button>
+          <!-- Round-78a: third button mirrors the Likes/Dislikes
+               card layout. L2-median is outlier-robust — useful for
+               user-curated albums that may contain a few off-vibe
+               photos (where mean would pull the query vector). -->
+          <Button
+            variant="secondary"
+            size="sm"
+            class="search-btn l2"
+            data={{ 'data-centroid': `album:${a.id}`, 'data-mode': 'l2median' }}
+            onclick={() => searchByUserAlbumL2(a.id)}
+            disabled={(a.member_count ?? 0) === 0}
+            aria-label="Search by the geometric median (L2-median) of {a.name}"
+            title="L2-median mode: the geometric median of {a.name} — robust to outliers"
+          >L2</Button>
         </div>
       </article>
     {/each}
