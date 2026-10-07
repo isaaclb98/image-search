@@ -357,27 +357,4 @@ jobs:
               count=$((count + 1))
             fi
           done
-          echo "Pruned $count untagged versions (kept newest ${KEEP_UNTAGGED})."${PACKAGE_NAME}..."
-          # Same endpoint, but select entries where tags is empty.
-          mapfile -t UNTAGGED < <(gh api \
-            --paginate \
-            -q '.[] | select((.metadata.container.tags // []) | length == 0) | "\(.id)\t\(.created_at)"' \
-            "/users/${PACKAGE_OWNER}/packages/container/${PACKAGE_NAME}/versions")
-          echo "Found ${#UNTAGGED[@]} untagged versions (newest first)."
-
-          # Delete everything beyond the keep-window. Same tail-from-N+1
-          # pattern as the sha-* prune so the behaviour is predictable.
-          TO_DELETE=$(printf '%s\n' "${UNTAGGED[@]}" | tail -n +$((KEEP_UNTAGGED + 1)))
-          if [[ -z "$TO_DELETE" ]]; then
-            echo "Nothing to delete (${#UNTAGGED[@]} <= ${KEEP_UNTAGGED})."
-            exit 0
-          fi
-
-          count=0
-          for id in $TO_DELETE; do
-            if gh api -X DELETE \
-              "/users/${PACKAGE_OWNER}/packages/container/${PACKAGE_NAME}/versions/${id}"; then
-              count=$((count + 1))
-            fi
-          done
           echo "Pruned $count untagged versions (kept newest ${KEEP_UNTAGGED})."
