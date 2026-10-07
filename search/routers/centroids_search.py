@@ -89,6 +89,7 @@ from search.centroids_compute import (
     DEFAULT_CLUSTER_SAMPLE_N,
     DEFAULT_SAMPLE_K,
     cluster_then_sample_centroid,
+    l2_median_centroid,
 )
 from search.diversity import (
     resolve_depth,
@@ -205,10 +206,17 @@ def build_centroids_search_router(
         # a cached stable ranking is meaningless (and would silently
         # defeat the re-roll). Mutual exclusion mirrors the
         # surprise+diversity rule on /api/search.
-        if diversity_active and mode == "sample":
+        if mode not in ("centroid", "sample", "l2median"):
+            return bad_request(  # type: ignore[return-value]
+                f"unknown mode={mode!r}; expected 'centroid', "
+                f"'sample', or 'l2median'"
+            )
+        if diversity_active and mode in ("sample", "l2median"):
             return bad_request(
-                "Diversity cannot be combined with sample mode "
-                "(Surprise Me). Choose one retrieval mode."
+                f"Diversity cannot be combined with {mode} mode "
+                f"(the diversity re-ranking needs a randomized "
+                f"surprise surface to be meaningful). Choose one "
+                f"retrieval mode."
             )  # type: ignore[return-value]
         # Look up static first; fall back to dynamic (registry does
         # lazy compute + cache). This keeps the route's contract
@@ -292,6 +300,22 @@ def build_centroids_search_router(
                     # is "about", so excluding it is the analogous
                     # behaviour.)
                     seed_ids = picked_seed_ids
+                elif mode == 'l2median':
+                    # Round-77: L2-median (geometric median) of the
+                    # seed set. Same input set as the full-mean path
+                    # (no random subset), but the aggregation is the
+                    # point that minimises sum-of-squared-distances
+                    # rather than the arithmetic mean. Robust to
+                    # outliers; matches Isaac's 'what stays constant
+                    # between images' intuition.
+                    vector, _picked_count, picked_seed_ids = l2_median_centroid(
+                        picked_ids, picked_vecs,
+                    )
+                    # Exclude the FULL seed set — the L2-median
+                    # represents the entire album, so all of those
+                    # photos are part of "what we're searching for"
+                    # and would echo back as redundant results.
+                    seed_ids = full_seed_ids
                 else:
                     vector = full_vector
                     seed_ids = full_seed_ids

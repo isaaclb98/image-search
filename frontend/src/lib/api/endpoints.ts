@@ -26,7 +26,7 @@ export type AlbumDetail = components['schemas']['AlbumDetailResponse'];
 
 // ---------- Search ----------
 
-export type CentroidMode = 'centroid' | 'sample';
+export type CentroidMode = 'centroid' | 'sample' | 'l2median';
 
 export type SearchParams = {
   positives?: string[];
@@ -41,12 +41,20 @@ export type SearchParams = {
   centroid?: string;
   /**
    * Retrieval mode for centroid searches. Only meaningful when
-   * `centroid` is also set. `centroid` (default) uses the full
-   * mean of the seed set; `sample` (Round-75) clusters the seed
-   * set into K groups via k-means, then averages N of those
-   * cluster centroids per request. Each refresh picks a fresh
-   * subset of clusters. The backend's static .pt centroids
-   * reject `sample` with 400.
+   * `centroid` is also set.
+   *
+   *   `centroid` (default) — full arithmetic mean of the seed set.
+   *   `sample` (Round-75) — clusters seeds into K groups via k-means,
+   *     then averages N of those cluster centroids per request. Each
+   *     refresh picks a fresh subset of clusters.
+   *   `l2median` (Round-77) — geometric median (Weiszfeld) of the
+   *     seed set. Robust to outliers; deterministic (no refresh
+   *     surprise); matches the 'what stays constant between images'
+   *     intuition. Use as a baseline to compare against `centroid`.
+   *
+   * The backend's static .pt centroids reject `sample` and `l2median`
+   * with 400 — only dynamic (album/likes/dislikes) centroids have a
+   * source population to operate on.
    */
   centroidMode?: CentroidMode;
   /**

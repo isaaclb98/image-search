@@ -358,15 +358,22 @@ def _write_images_cache(
     rows = [
         {
             "id": pid,
-            "path": payload.get("path", ""),
-            "shard": payload.get("shard", ""),
-            "collection": payload.get("collection", ""),
+            # `path` may be a PosixPath object (local_sync sets
+            # `payload["path"] = path` after build_payload) rather
+            # than a string. Coerce defensively so SQLite doesn't
+            # choke on a non-string bind. round-35: surfaced when
+            # the indexer's INDEX_DB_PATH fallback to
+            # `./data/images.db` started actually firing writes in
+            # the test suite (which inherits the same bug).
+            "path": str(payload.get("path", "") or ""),
+            "shard": str(payload.get("shard", "") or ""),
+            "collection": str(payload.get("collection", "") or ""),
             "mtime": int(payload.get("mtime") or 0),
             "size": int(payload.get("size") or 0),
-            "indexed_at": payload.get("indexed_at", ""),
+            "indexed_at": str(payload.get("indexed_at", "") or ""),
             "width": int(payload["width"]) if payload.get("width") is not None else None,
             "height": int(payload["height"]) if payload.get("height") is not None else None,
-            "blurhash": payload.get("blurhash", ""),
+            "blurhash": str(payload.get("blurhash", "") or ""),
         }
         for (_pid, _vec, payload) in items
         for pid in [_pid]
