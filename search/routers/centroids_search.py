@@ -255,6 +255,14 @@ def build_centroids_search_router(
                 full_vector, _n_images, full_seed_ids = dyn
                 if dyn_spec is not None:
                     centroid_name = dyn_spec.name
+                # Default to the full-mean vector. The sample and
+                # l2median branches below overwrite `vector` with
+                # their own aggregation when they run. Defaulting
+                # here keeps the post-loop `vector is None` 404
+                # check from firing when the per-mode branch is
+                # skipped (e.g. `mode=centroid`).
+                vector = full_vector
+                seed_ids = full_seed_ids
                 if mode in ("sample", "l2median"):
                     # Round-34: re-pick a fresh K-subset and search
                     # against the mean of THAT subset, instead of the
@@ -321,22 +329,22 @@ def build_centroids_search_router(
                         # is "about", so excluding it is the analogous
                         # behaviour.)
                         seed_ids = picked_seed_ids
-                elif mode == 'l2median':
-                    # Round-77: L2-median (geometric median) of the
-                    # seed set. Same input set as the full-mean path
-                    # (no random subset), but the aggregation is the
-                    # point that minimises sum-of-squared-distances
-                    # rather than the arithmetic mean. Robust to
-                    # outliers; matches Isaac's 'what stays constant
-                    # between images' intuition.
-                    vector, _picked_count, picked_seed_ids = l2_median_centroid(
-                        picked_ids, picked_vecs,
-                    )
-                    # Exclude the FULL seed set — the L2-median
-                    # represents the entire album, so all of those
-                    # photos are part of "what we're searching for"
-                    # and would echo back as redundant results.
-                    seed_ids = full_seed_ids
+                    elif mode == 'l2median':
+                        # Round-77: L2-median (geometric median) of the
+                        # seed set. Same input set as the full-mean path
+                        # (no random subset), but the aggregation is the
+                        # point that minimises sum-of-squared-distances
+                        # rather than the arithmetic mean. Robust to
+                        # outliers; matches Isaac's 'what stays constant
+                        # between images' intuition.
+                        vector, _picked_count, picked_seed_ids = l2_median_centroid(
+                            picked_ids, picked_vecs,
+                        )
+                        # Exclude the FULL seed set — the L2-median
+                        # represents the entire album, so all of those
+                        # photos are part of "what we're searching for"
+                        # and would echo back as redundant results.
+                        seed_ids = full_seed_ids
                 else:
                     vector = full_vector
                     seed_ids = full_seed_ids
