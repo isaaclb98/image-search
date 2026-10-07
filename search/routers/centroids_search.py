@@ -292,22 +292,35 @@ def build_centroids_search_router(
                             f"could not retrieve seed vectors for "
                             f"centroid {name!r}"
                         )
-                    # Round-75: cluster the seed set into K groups,
-                    # then average N of those cluster centroids per
-                    # request. Each cluster represents one visual
-                    # mode of the album, so the sub-centroid blends
-                    # those modes instead of relying on which photos
-                    # happened to land in the random K-sample.
-                    vector, _picked_count, picked_seed_ids = cluster_then_sample_centroid(
-                        picked_ids, picked_vecs, k=sample_k, n=sample_n,
-                    )
-                    # Use the picked subset as the exclude list so
-                    # the results don't echo back the sample itself.
-                    # (The full centroid path excludes the FULL seed
-                    # set; here the picked set IS what the centroid
-                    # is "about", so excluding it is the analogous
-                    # behaviour.)
-                    seed_ids = picked_seed_ids
+                    if mode == "sample":
+                        # Round-75: cluster the seed set into K groups,
+                        # then average N of those cluster centroids per
+                        # request. Each cluster represents one visual
+                        # mode of the album, so the sub-centroid blends
+                        # those modes instead of relying on which photos
+                        # happened to land in the random K-sample.
+                        #
+                        # Round-78: this is the sample branch only. The
+                        # l2median branch below shares the
+                        # picked_ids/picked_vecs pair but computes its
+                        # own centroid and uses the FULL seed set as the
+                        # exclude list. Without the `if mode == "sample"`
+                        # gate, l2median requests would silently fall
+                        # into the sample branch (the elif below would
+                        # be unreachable) and `seed_ids` would be set
+                        # to the cluster subset — leaving ~3-of-10
+                        # cluster members excluded instead of every
+                        # album photo.
+                        vector, _picked_count, picked_seed_ids = cluster_then_sample_centroid(
+                            picked_ids, picked_vecs, k=sample_k, n=sample_n,
+                        )
+                        # Use the picked subset as the exclude list so
+                        # the results don't echo back the sample itself.
+                        # (The full centroid path excludes the FULL seed
+                        # set; here the picked set IS what the centroid
+                        # is "about", so excluding it is the analogous
+                        # behaviour.)
+                        seed_ids = picked_seed_ids
                 elif mode == 'l2median':
                     # Round-77: L2-median (geometric median) of the
                     # seed set. Same input set as the full-mean path
