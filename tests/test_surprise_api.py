@@ -277,12 +277,12 @@ def test_surprise_rejects_out_of_range_pool(app_with_qdrant_big):
     )
     assert resp.status_code == 400
     assert "surprise_pool" in resp.json()["detail"]
-    # POOL_SIZE_MAX is now 2_000_000 — anything above is rejected.
-    # The 20000 case is allowed (route clamps to corpus size at
-    # runtime) so the rejection only kicks in for the truly huge
-    # values.
+    # POOL_SIZE_MAX is now 50_000 — anything above is rejected.
+    # The Qdrant server-side HNSW search crosses its 30s
+    # timeout for pool sizes much above this on a 2M-point
+    # corpus, so we cap the slider at 50k.
     resp = app_with_qdrant_big.get(
-        "/api/search?q=cat&surprise=true&surprise_pool=3000000"
+        "/api/search?q=cat&surprise=true&surprise_pool=75000"
     )
     assert resp.status_code == 400
     assert "surprise_pool" in resp.json()["detail"]

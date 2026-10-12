@@ -110,18 +110,25 @@
   let corpusSize = $state<number | null>(null);
   let surpriseOn = $state(false);
   let surpriseTemperature = $state(0.05);
-  // Pool slider values are 6 log-spaced stops; the rightmost is
-  // the "All" sentinel that resolves to the corpus size at
-  // request time. The slider emits an index into POOL_STOPS;
-  // we keep both the index (for the slider) and the resolved
-  // size (for the request) in state.
-  const POOL_STOPS = [200, 1_000, 10_000, 100_000, 1_000_000] as const;
-  const POOL_ALL_INDEX = POOL_STOPS.length; // index for "All" position
-  let surprisePoolIndex = $state(2); // default = 10_000
+  // Pool slider stops. The rightmost is the upper bound for
+  // the route (currently 50k — see POOL_SIZE_MAX in
+  // search/surprise_deck.py for the why). 50k is the practical
+  // ceiling for a Qdrant HNSW `limit` on a 2M-point corpus:
+  // beyond it, the server-side 30s timeout fires before the
+  // search returns the candidate set. A Gumbel draw over 50k
+  // already gives a wide distribution because the score
+  // distribution has a long tail (~0.04-0.06 for the bulk of
+  // the pool, vs ~0.16 for the top-200). The slider is
+  // log-spaced so the wide range is reachable in 5 ticks.
+  const POOL_STOPS = [200, 1_000, 5_000, 20_000, 50_000] as const;
+  const POOL_ALL_INDEX = POOL_STOPS.length; // index for "Max" position
+  let surprisePoolIndex = $state(2); // default = 5_000
   let surprisePool = $derived(
     surprisePoolIndex < POOL_ALL_INDEX
       ? POOL_STOPS[surprisePoolIndex]
-      : (corpusSize ?? POOL_STOPS[POOL_STOPS.length - 1])
+      : (corpusSize !== null && corpusSize < POOL_STOPS[POOL_STOPS.length - 1]
+          ? corpusSize
+          : POOL_STOPS[POOL_STOPS.length - 1])
   );
   let surpriseSession = $state<string | null>(null);
   let surpriseTotal = $state<number | null>(null);
@@ -131,10 +138,14 @@
   }
 
   function formatPool(size: number, total: number | null): string {
-    if (size >= 1_000_000 || (total !== null && size >= total)) {
-      return total !== null
+    const max = POOL_STOPS[POOL_STOPS.length - 1];
+    if (size >= max) {
+      // The "Max" position: if the corpus is smaller than the
+      // slider max, show "All (N)" so the user sees they're
+      // sampling from the full library. Otherwise show "Max".
+      return total !== null && total < max
         ? `All (${total.toLocaleString()})`
-        : "All";
+        : "Max";
     }
     return size.toLocaleString();
   }
@@ -571,7 +582,7 @@
         <label class="surprise-slider">
           <span class="surprise-label">
             Pool: <strong>{formatPool(surprisePool, corpusSize)}</strong>
-            <span class="hint">— candidates the Gumbel draw is taken from. "All" uses the full corpus (slow first page).</span>
+            <span class="hint">— candidates the Gumbel draw is taken from. "Max" is the Qdrant search ceiling (50k).</span>
           </span>
           <input
             type="range"
