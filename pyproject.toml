@@ -148,3 +148,4 @@ extend-select = ["I", "S", "C4", "SIM", "B", "UP"]
 # Don't touch vendored / generated artifacts.
 "**/__pycache__" = ["F401", "F403"]
 ".venv/**" = ["F401", "F403", "E402"]
+# Round-78 cache bust - touch 2026-10-07 to force rebuild after GHCR corruption
