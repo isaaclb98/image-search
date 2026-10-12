@@ -14,7 +14,6 @@ from __future__ import annotations
 import sqlite3
 import uuid
 
-import pytest
 
 from indexer import upsert
 from indexer.upsert import VECTOR_DIM
@@ -193,7 +192,7 @@ def test_search_index_db_uses_wal_mode(tmp_path):
     # constructor doesn't actually use it for the WAL test — we only
     # care that the PRAGMA is set on the freshly-opened connection.
     fake_qdrant = MagicMock()
-    index_db = IndexDB(db_path=str(db_path), qdrant_client=fake_qdrant)
+    IndexDB(db_path=str(db_path), qdrant_client=fake_qdrant)
 
     # Read the journal_mode pragma directly from the file.
     conn = sqlite3.connect(str(db_path))

@@ -1974,11 +1974,11 @@ def create_app(
                         ),
                         "job_id": idx_status.job_id,
                     }
-            except Exception:  # noqa: BLE001
+            except Exception:
                 # Defensive: status probe failures shouldn't block the
                 # manual refresh — they did the right thing before
                 # round-35, so keep working if the probe breaks.
-                pass
+                logger.debug("refresh status probe failed; proceeding anyway", exc_info=True)
 
         # Cooperative refresh lock. If the periodic task is in the
         # middle of a refresh, the manual call bails immediately

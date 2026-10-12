@@ -95,6 +95,29 @@
   // currently set this.
   let centroidMode = $state<'centroid' | 'sample'>('centroid');
 
+  // Round-78: Surprise Me pre-generated deck state. When
+  // `surpriseOn` is true, reload() appends ?surprise=true plus
+  // the three knobs (temperature, pool, seed) to the request and
+  // stores the response's session_id so loadMore() can walk the
+  // cached deck without recomputing. Bump `surpriseSeed` (via
+  // the "New random draw" button) to roll a new deck; the
+  // session is invalidated automatically because the cache key
+  // includes the seed.
+  let surpriseOn = $state(false);
+  let surpriseTemperature = $state(0.05);
+  let surprisePool = $state(5000);
+  let surpriseSeed = $state(1);
+  let surpriseSession = $state<string | null>(null);
+  let surpriseTotal = $state<number | null>(null);
+
+  function rollNewDeck() {
+    // Bump the seed and drop the session. The next reload()
+    // will pass the new seed, the cache key will differ, and
+    // the route will build a fresh deck.
+    surpriseSeed = surpriseSeed + 1;
+    surpriseSession = null;
+  }
+
   function readFromUrl() {
     const q = $page.url.searchParams;
     positives = q.getAll('positives');
@@ -160,6 +183,8 @@
     items = [];
     error = null;
     hasMore = false;
+    surpriseSession = null;
+    surpriseTotal = null;
 
     // Round‑29: centroid search activates on `?centroid=` even if
     // the composer is empty. Otherwise the user must fill a prompt
@@ -189,7 +214,7 @@
           positives,
           negatives,
           filename,
-          diversityMode,
+          diversityMode: surpriseOn ? 'off' : diversityMode,
           diversityDepth,
           limit: PAGE,
           offset: 0,
@@ -203,13 +228,33 @@
             activeCentroid && centroidMode === 'sample'
               ? 'sample'
               : 'centroid',
-          collections: collections.length ? collections : undefined
+          collections: collections.length ? collections : undefined,
+          // Round-78: pass the surprise knobs through; the
+          // backend caches the deck under a hash of these plus
+          // the search params, so the same combo always returns
+          // the same deck.
+          surprise: surpriseOn,
+          surpriseTemperature: surpriseOn ? surpriseTemperature : undefined,
+          surprisePool: surpriseOn ? surprisePool : undefined,
+          surpriseSeed: surpriseOn ? surpriseSeed : undefined,
+          surpriseSession: surpriseOn ? surpriseSession ?? undefined : undefined,
         },
         ctrl.signal
       );
       items = (res?.results ?? []) as Item[];
       offset = items.length;
       hasMore = items.length >= PAGE && !!res?.has_more;
+      // Capture the surprise session for the next page; without
+      // this, loadMore() would either rebuild the deck (slow)
+      // or send surprise_session="" and miss the cache (also
+      // slow). Set on every response so the latest session id
+      // is the one we walk.
+      if (surpriseOn) {
+        const sid = (res as { session_id?: string | null })?.session_id;
+        if (sid) surpriseSession = sid;
+        const total = (res as { session_total?: number | null })?.session_total;
+        surpriseTotal = total ?? null;
+      }
     } catch (e: unknown) {
       if ((e as { name?: string }).name === 'AbortError') return;
       error = (e as Error).message ?? 'search failed';
@@ -224,17 +269,30 @@
     try {
       const res = await search({
         positives, negatives, filename,
-        diversityMode, diversityDepth,
+        diversityMode: surpriseOn ? 'off' : diversityMode, diversityDepth,
         limit: PAGE, offset,
         centroid: activeCentroid ?? undefined,
         centroidMode:
           activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
         collections: collections.length ? collections : undefined,
+        surprise: surpriseOn,
+        surpriseTemperature: surpriseOn ? surpriseTemperature : undefined,
+        surprisePool: surpriseOn ? surprisePool : undefined,
+        surpriseSeed: surpriseOn ? surpriseSeed : undefined,
+        surpriseSession: surpriseOn ? surpriseSession ?? undefined : undefined,
       }, signal);
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
       offset += more.length;
       hasMore = more.length >= PAGE && !!res?.has_more;
+      // Refresh the session id in case the backend regenerated
+      // it (e.g. a cache miss with a fresh key).
+      if (surpriseOn) {
+        const sid = (res as { session_id?: string | null })?.session_id;
+        if (sid) surpriseSession = sid;
+        const total = (res as { session_total?: number | null })?.session_total;
+        surpriseTotal = total ?? null;
+      }
     } catch (e) {
       if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
@@ -429,7 +487,78 @@
       >
         Search
       </Button>
+      <Button
+        variant={surpriseOn ? 'primary' : 'secondary'}
+        size="lg"
+        onclick={() => {
+          surpriseOn = !surpriseOn;
+          // Reset the session so the next reload rebuilds
+          // the deck. The toggle is the user's signal that
+          // they want Surprise to start fresh, not continue
+          // the previous session.
+          surpriseSession = null;
+          surpriseTotal = null;
+        }}
+        disabled={loading}
+        title={surpriseOn
+          ? 'Surprise Me is on — click to turn off (returns to top-K)'
+          : 'Turn on Surprise Me (random deck from the top candidates)'}
+        aria-pressed={surpriseOn}
+      >
+        {surpriseOn ? '🎲 Surprise: on' : '🎲 Surprise me'}
+      </Button>
     </div>
+    {#if surpriseOn}
+      <div class="surprise-controls">
+        <label class="surprise-slider">
+          <span class="surprise-label">
+            Temperature: <strong>{surpriseTemperature.toFixed(2)}</strong>
+            <span class="hint">— 0 = top-K, 1 = roughly uniform</span>
+          </span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            bind:value={surpriseTemperature}
+            aria-label="Surprise temperature"
+          />
+        </label>
+        <label class="surprise-slider">
+          <span class="surprise-label">
+            Pool: <strong>{surprisePool.toLocaleString()}</strong>
+            <span class="hint">— candidates the Gumbel draw is taken from</span>
+          </span>
+          <input
+            type="range"
+            min="200"
+            max="10000"
+            step="100"
+            bind:value={surprisePool}
+            aria-label="Surprise pool size"
+          />
+        </label>
+        <div class="surprise-row">
+          <Button
+            variant="secondary"
+            size="sm"
+            onclick={rollNewDeck}
+            disabled={loading}
+            title="Roll a new random deck (bumps the seed)"
+          >
+            🔀 New random draw
+          </Button>
+          {#if surpriseTotal !== null}
+            <span class="surprise-deck-info">
+              Deck: {surpriseTotal.toLocaleString()} photos
+              {#if hasMore}
+                · scrolling past page {Math.ceil(offset / PAGE)}
+              {/if}
+            </span>
+          {/if}
+        </div>
+      </div>
+    {/if}
   {:else}
     <div class="search-actions">
       <Button
@@ -559,6 +688,49 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--s-2);
+  }
+  /* Round-78: Surprise Me control panel — two sliders
+     (temperature, pool) plus a "New random draw" button and
+     a small status line ("Deck: 2400 photos · page 3").
+     Sits below the search actions, right-aligned to match
+     the .search-actions row above. The sliders are full-width
+     within their column so the temperature read-out doesn't
+     wrap awkwardly. */
+  .surprise-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    align-items: stretch;
+    margin-top: var(--s-2);
+    padding: var(--s-3);
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+    border-radius: var(--r-md, 8px);
+    background: var(--surface-2, rgba(0, 0, 0, 0.02));
+  }
+  .surprise-slider {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+  }
+  .surprise-label {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+    font-size: 0.9em;
+  }
+  .surprise-label .hint {
+    color: var(--text-muted, rgba(0, 0, 0, 0.6));
+    font-weight: normal;
+  }
+  .surprise-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    flex-wrap: wrap;
+  }
+  .surprise-deck-info {
+    font-size: 0.85em;
+    color: var(--text-muted, rgba(0, 0, 0, 0.6));
   }
   /* Round-56: h1 + .sub removed — the title block is now in a
      <PageHeader> card with its own chrome. The .hero still owns
