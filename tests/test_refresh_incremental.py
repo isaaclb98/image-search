@@ -161,7 +161,7 @@ def test_refresh_incremental_inserts_new_ids(seeded_index_db, refresh_app):
                     "blurhash": "",
                 },
             )
-            for i, pid in zip([3, 4], new_ids)
+            for i, pid in zip([3, 4], new_ids, strict=False)
         ],
         wait=True,
     )
@@ -238,7 +238,7 @@ def test_refresh_incremental_handles_mixed_drift(seeded_index_db, refresh_app):
                     "blurhash": "",
                 },
             )
-            for i, pid in zip([5, 6], new_ids)
+            for i, pid in zip([5, 6], new_ids, strict=False)
         ],
         wait=True,
     )

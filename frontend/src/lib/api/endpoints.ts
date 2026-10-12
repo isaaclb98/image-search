@@ -62,6 +62,38 @@ export type SearchParams = {
   sampleN?: number;
   /** Restrict to one or more `collection` payload values. Empty/undefined = whole library. */
   collections?: string[];
+  /**
+   * Round-78: Surprise Me mode. When true, the backend samples
+   * a 2400-photo deck from a Gumbel-perturbed softmax over the
+   * top-N Qdrant candidates and returns it page-by-page via
+   * `surpriseSession`. Same query + temperature + pool + seed =
+   * same deck (deterministic). Mutually exclusive with
+   * `diversityMode`.
+   */
+  surprise?: boolean;
+  /**
+   * Gumbel noise scale for Surprise Me. 0 = deterministic top-K,
+   * 1.0 = roughly uniform. Default 0.05. Ignored unless
+   * `surprise=true`.
+   */
+  surpriseTemperature?: number;
+  /**
+   * How many top candidates the Gumbel draw is taken from.
+   * Larger = more variety, slower first page. Range 200..10000,
+   * default 5000. Ignored unless `surprise=true`.
+   */
+  surprisePool?: number;
+  /**
+   * Reseed knob. Same query+seed = same deck; bump to roll a new
+   * deck. Ignored unless `surprise=true`.
+   */
+  surpriseSeed?: number;
+  /**
+   * Opaque session id from a prior Surprise Me response. Pass
+   * back with the next `offset` to walk the cached deck without
+   * recomputing. Ignored unless `surprise=true`.
+   */
+  surpriseSession?: string;
 };
 
 export function search(params: SearchParams, signal?: AbortSignal) {
@@ -86,6 +118,21 @@ export function search(params: SearchParams, signal?: AbortSignal) {
   }
   if (params.limit !== undefined) qs.set('limit', String(params.limit));
   if (params.offset !== undefined) qs.set('offset', String(params.offset));
+  if (params.surprise) {
+    qs.set('surprise', 'true');
+    if (params.surpriseTemperature !== undefined) {
+      qs.set('surprise_temperature', String(params.surpriseTemperature));
+    }
+    if (params.surprisePool !== undefined) {
+      qs.set('surprise_pool', String(params.surprisePool));
+    }
+    if (params.surpriseSeed !== undefined) {
+      qs.set('surprise_seed', String(params.surpriseSeed));
+    }
+    if (params.surpriseSession) {
+      qs.set('surprise_session', params.surpriseSession);
+    }
+  }
   if (params.centroid && params.centroidMode) {
     // Only attach `mode=` for centroid searches — /api/search
     // doesn't accept it, and a stray `?mode=` there would 400.

@@ -599,7 +599,7 @@ class IndexDB:
                     collection_name=self.qdrant_client.collection,
                 ).count
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("refresh_incremental: Qdrant count() failed: %s", e)
             raise
 
@@ -693,7 +693,7 @@ class IndexDB:
                         chunk = list(orphan_ids)[i : i + 999]
                         placeholders = ",".join("?" for _ in chunk)
                         cur = self._conn.execute(
-                            f"DELETE FROM images WHERE id IN ({placeholders})",
+                            f"DELETE FROM images WHERE id IN ({placeholders})",  # noqa: S608
                             chunk,
                         )
                         deleted += cur.rowcount

@@ -44,6 +44,11 @@
      *  trigger snippet, so Button needs to carry the state
      *  rather than hardcoding it. */
     'aria-expanded'?: boolean;
+    /** Pressed-state passthrough for toggle buttons (e.g. the
+     *  Surprise Me on/off button on the home page). Lets screen
+     *  readers announce the toggle state without forcing the
+     *  consumer to drop down to a raw <button>. */
+    'aria-pressed'?: boolean;
     /** Accessible name for icon-only triggers. */
     'aria-label'?: string;
     /** Extra class merged onto the button — for consumer-side
@@ -68,6 +73,7 @@
     danger = false,
     'aria-haspopup': ariaHaspopup,
     'aria-expanded': ariaExpanded,
+    'aria-pressed': ariaPressed,
     'aria-label': ariaLabel,
     class: extraClass,
     data,
@@ -84,6 +90,7 @@
     {target}
     {rel}
     aria-disabled={disabled ? 'true' : undefined}
+    aria-pressed={ariaPressed}
     {title}
   >
     {#if children}{@render children()}{/if}
@@ -100,6 +107,7 @@
     {onclick}
     aria-haspopup={ariaHaspopup}
     aria-expanded={ariaExpanded}
+    aria-pressed={ariaPressed}
     aria-label={ariaLabel}
   >
     {#if children}{@render children()}{/if}

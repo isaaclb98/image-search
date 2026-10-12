@@ -18,7 +18,6 @@ from typing import Any
 
 from qdrant_client import QdrantClient
 
-
 SCROLL_BATCH = 10_000  # how many ids per scroll call
 WRITE_BATCH = 1000     # how many ids per set_payload call
 

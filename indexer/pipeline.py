@@ -270,7 +270,11 @@ class IndexerPipeline:
         rollback based on the report's failure list).
         """
         from image_search_kernel.registry import get as _registry_get
-        from indexer.run_pipeline import _resolve_active_model_name, _resolve_active_model_revision, _resolve_active_model_variant
+        from indexer.run_pipeline import (
+            _resolve_active_model_name,
+            _resolve_active_model_revision,
+            _resolve_active_model_variant,
+        )
 
         t0 = time.perf_counter()
         embedder = _registry_get(config.model_name).vision

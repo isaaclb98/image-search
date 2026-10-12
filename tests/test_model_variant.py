@@ -7,7 +7,6 @@ from leaking into subsequent test modules (test_v2_smoke.py
 chokes on it because config.get_siglip_variant() reads the env
 at call time, not at import time).
 """
-import json
 import pytest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from search import config
@@ -323,7 +322,7 @@ def test_default_model_constant_resolves():
     """
     variant = config.get_siglip_variant()
     expected = config.get_model_name_for_variant(variant)
-    assert config.DEFAULT_MODEL == expected, (
+    assert expected == config.DEFAULT_MODEL, (
         f"DEFAULT_MODEL={config.DEFAULT_MODEL!r} != "
         f"model for active variant {variant!r} ({expected!r})"
     )

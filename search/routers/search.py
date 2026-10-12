@@ -35,6 +35,7 @@ import logging
 import time
 from typing import Any
 
+import numpy as np
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
@@ -44,7 +45,6 @@ from search._indexed_helpers import (
     normalize_prompt_state,
     resolve_filename_filter,
     results_from_hits,
-    surprise_search,
 )
 from search._result_helpers import (
     bad_request,
@@ -59,8 +59,88 @@ from search._result_helpers import (
 )
 from search.diversity import resolve_depth, resolve_mode
 from search.models import DiversityMetadata, SearchResponse
+from search.surprise_deck import (
+    DEFAULT_DECK_SIZE,
+    DEFAULT_POOL_SIZE,
+    DEFAULT_TEMPERATURE,
+    POOL_SIZE_MAX,
+    POOL_SIZE_MIN,
+    TEMPERATURE_MAX,
+    TEMPERATURE_MIN,
+    SurpriseDeckCache,
+    compute_cache_key,
+    gumbel_top_k,
+)
 
 logger = logging.getLogger(__name__)
+
+
+async def _build_surprise_deck(
+    *,
+    qdrant: Any,
+    vec: list[float],
+    collections: list[str],
+    surprise_allowed_ids: list[str] | None,
+    surprise_pool: int,
+    surprise_temperature: float,
+    surprise_seed: int,
+    surprise_session: str | None,
+    surprise_cache_key: str,
+    surprise_deck_cache: SurpriseDeckCache,
+    effective_limit: int,
+    offset: int,
+) -> tuple[list, bool, list[str]]:
+    """
+    Build or fetch the Gumbel-sampled Surprise Me deck and return
+    the requested page.
+
+    The cache key doubles as the session id: same params → same
+    key → same deck. On a cache hit, no Qdrant search and no
+    Gumbel draw happen — we just slice the cached deck.
+
+    Returns `(hits_for_this_page, has_more, full_deck_ids)`.
+    `full_deck_ids` is the entire deck (not just this page) so
+    the caller can compute `session_total` for the response.
+    """
+    cached = (
+        surprise_deck_cache.get(surprise_cache_key)
+        if surprise_session and surprise_session == surprise_cache_key
+        else None
+    )
+    if cached is not None:
+        _, entry = cached
+        deck_ids = list(entry.point_ids)
+    else:
+        pool_hits, _ = await asyncio.to_thread(
+            qdrant.search,
+            vec,
+            surprise_pool,
+            0,
+            collections or None,
+            surprise_allowed_ids,
+        )
+        scores = [h.score for h in pool_hits]
+        picked_indices = gumbel_top_k(
+            scores,
+            k=min(DEFAULT_DECK_SIZE, len(pool_hits)),
+            temperature=surprise_temperature,
+            rng=np.random.default_rng(surprise_seed),
+        )
+        deck_ids = [pool_hits[i].id for i in picked_indices]
+        surprise_deck_cache.put(surprise_cache_key, deck_ids)
+
+    start = offset
+    end = start + effective_limit
+    page_ids = deck_ids[start:end]
+    has_more = end < len(deck_ids)
+    if not page_ids:
+        return [], has_more, deck_ids
+    hydrated = await asyncio.to_thread(qdrant.retrieve_batch, page_ids)
+    by_id = {h.id: h for h in hydrated}
+    # Use the deck order so a refresh of the same query+seed
+    # gives the same page.
+    hits = [by_id[pid] for pid in page_ids if pid in by_id]
+    return hits, has_more, deck_ids
 
 
 def build_search_router(
@@ -86,10 +166,16 @@ def build_search_router(
         vector resolver (passed through for now — §B2 step 41
         will lift it to module level).
       - `favorite_ids_for_filter`: closure-bound favorites-set
-        resolver (passed through for now — §B2 step 42 will lift
-        it to module level).
+        resolver (passed through for now — §B2 step 42 will
+        lift it to module level).
     """
     router = APIRouter()
+    # Process-local cache of pre-generated Surprise Me decks. Keyed
+    # by the ETag hash of the params, so the same query+temperature
+    # +pool+seed always hits the same deck and a different seed
+    # always produces a new one. Deliberately per-process — see
+    # search/surprise_deck.py for the rationale.
+    surprise_deck_cache = SurpriseDeckCache()
 
     @router.get("/api/search", response_model=SearchResponse)
     async def api_search(
@@ -107,6 +193,22 @@ def build_search_router(
             None, description="Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
         ),
         surprise: bool = Query(False, description="Surprise Me — random sample from deep pool"),
+        surprise_temperature: float = Query(
+            DEFAULT_TEMPERATURE,
+            description="Gumbel noise scale for Surprise Me. T=0 is deterministic; higher = more variety.",
+        ),
+        surprise_pool: int = Query(
+            DEFAULT_POOL_SIZE,
+            description="How many top candidates the Gumbel draw is taken from. Larger = more variety, slower first page.",
+        ),
+        surprise_seed: int = Query(
+            1,
+            description="Reseed knob for Surprise Me. Same query+seed = same deck; bump to roll a new deck.",
+        ),
+        surprise_session: str | None = Query(
+            None,
+            description="Opaque session id from a prior Surprise Me response. Pass back with offset to walk the cached deck without recomputing.",
+        ),
     ) -> JSONResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         view = coerce_view(view)
@@ -176,6 +278,40 @@ def build_search_router(
             )
         effective_limit = min(limit, cfg.max_results_total - offset)
 
+        # Validate the surprise knobs up front (any branch — pure
+        # surprise, surprise+favorites, or just favorites where
+        # the request is rejected — needs the same bounds check).
+        # We keep the *parsed* values in the locals so the ETag
+        # pre-compute and the cache lookup agree.
+        surprise_temperature_parsed: float = DEFAULT_TEMPERATURE
+        surprise_pool_parsed: int = DEFAULT_POOL_SIZE
+        surprise_seed_parsed: int = 1
+        if surprise:
+            try:
+                surprise_temperature_parsed = float(surprise_temperature)
+            except (TypeError, ValueError):
+                return bad_request("surprise_temperature must be a number")  # type: ignore[return-value]
+            if not (TEMPERATURE_MIN <= surprise_temperature_parsed <= TEMPERATURE_MAX):
+                return bad_request(  # type: ignore[return-value]
+                    f"surprise_temperature must be in "
+                    f"[{TEMPERATURE_MIN}, {TEMPERATURE_MAX}]; "
+                    f"got {surprise_temperature_parsed}"
+                )
+            try:
+                surprise_pool_parsed = int(surprise_pool)
+            except (TypeError, ValueError):
+                return bad_request("surprise_pool must be an integer")  # type: ignore[return-value]
+            if not (POOL_SIZE_MIN <= surprise_pool_parsed <= POOL_SIZE_MAX):
+                return bad_request(  # type: ignore[return-value]
+                    f"surprise_pool must be in "
+                    f"[{POOL_SIZE_MIN}, {POOL_SIZE_MAX}]; "
+                    f"got {surprise_pool_parsed}"
+                )
+            try:
+                surprise_seed_parsed = int(surprise_seed)
+            except (TypeError, ValueError):
+                return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
+
         collections = parse_collections(request)
 
         if surprise and not prompt_state.positives and not active_centroids:
@@ -204,9 +340,33 @@ def build_search_router(
                 return bad_request(vec_detail or "at least one positive prompt is required")  # type: ignore[return-value]
 
         t0 = time.time()
+        # Pre-compute the Surprise Me cache key from the request
+        # inputs. The cache key is what gates a cache hit and is
+        # also the session id we echo back. Computing it once at
+        # the top of the handler means the ETag is deterministic
+        # from the inputs alone — no matter which branch actually
+        # built the deck, the ETag is stable across the
+        # `allowed_ids is None and not allowed_ids` short-circuit.
+        surprise_cache_key = (
+            compute_cache_key(
+                q=q,
+                positives=list(prompt_state.positives),
+                negatives=list(prompt_state.negatives),
+                centroids=list(active_centroids),
+                weights=list(active_weights) if active_weights else None,
+                collections=collections,
+                favorites=favorites,
+                filename=filename_pattern,
+                temperature=surprise_temperature_parsed,
+                pool_size=surprise_pool_parsed,
+                seed=surprise_seed_parsed,
+            )
+            if surprise else None
+        )
         # `allowed_ids == []` short-circuit: skip the Qdrant round-trip
         # and return zero hits. See the matching block in `/` for why
         # we can't pass `has_id=[]` directly to HasIdCondition.
+        deck_ids: list = []  # populated by the surprise branch; empty otherwise
         if allowed_ids is not None and not allowed_ids:
             hits: list = []
             has_more = False
@@ -237,31 +397,56 @@ def build_search_router(
                         pool_depth=diversity_pool_depth,
                     )
                 elif favorites:
+                    # The favorites branch owns surprise+favorites
+                    # composition too, because `favorites` is the
+                    # more specific filter (it restricts the Qdrant
+                    # pool to a whitelist). When `surprise` is also
+                    # set, run the Gumbel deck flow over the
+                    # favorites-restricted pool; otherwise the
+                    # plain page-through-the-pool flow.
                     favorite_ids = await fav_task
-                    hits, has_more = await asyncio.to_thread(
-                        qdrant.search,
-                        vec,
-                        effective_limit,
-                        offset,
-                        collections or None,
-                        list(favorite_ids),
-                    )
+                    fav_allowed = list(favorite_ids)
+                    if surprise:
+                        hits, has_more, deck_ids = await _build_surprise_deck(
+                            qdrant=qdrant,
+                            vec=vec,
+                            collections=collections,
+                            surprise_allowed_ids=fav_allowed,
+                            surprise_pool=surprise_pool_parsed,
+                            surprise_temperature=surprise_temperature_parsed,
+                            surprise_seed=surprise_seed_parsed,
+                            surprise_session=surprise_session,
+                            surprise_cache_key=surprise_cache_key,
+                            surprise_deck_cache=surprise_deck_cache,
+                            effective_limit=effective_limit,
+                            offset=offset,
+                        )
+                    else:
+                        hits, has_more = await asyncio.to_thread(
+                            qdrant.search,
+                            vec,
+                            effective_limit,
+                            offset,
+                            collections or None,
+                            fav_allowed,
+                        )
                     diversity_meta = DiversityMetadata()
                 elif surprise:
-                    # Pull a deep pool then random-sample. The pool
-                    # depth is a multiple of `effective_limit` so the
-                    # sample isn't degenerate on a small result set.
-                    pool_size = max(effective_limit * 4, 200)
-                    pool_hits, _ = await asyncio.to_thread(
-                        qdrant.search,
-                        vec,
-                        pool_size,
-                        offset,
-                        collections or None,
-                        allowed_ids,
+                    # Pure surprise (no favorites filter).
+                    hits, has_more, deck_ids = await _build_surprise_deck(
+                        qdrant=qdrant,
+                        vec=vec,
+                        collections=collections,
+                        surprise_allowed_ids=allowed_ids,
+                        surprise_pool=surprise_pool_parsed,
+                        surprise_temperature=surprise_temperature_parsed,
+                        surprise_seed=surprise_seed_parsed,
+                        surprise_session=surprise_session,
+                        surprise_cache_key=surprise_cache_key,
+                        surprise_deck_cache=surprise_deck_cache,
+                        effective_limit=effective_limit,
+                        offset=offset,
                     )
-                    hits = surprise_search(pool_hits, effective_limit)
-                    has_more = len(pool_hits) >= pool_size
                     diversity_meta = DiversityMetadata()
                 else:
                     favorite_ids = set()
@@ -298,6 +483,16 @@ def build_search_router(
             index_db, cfg=cfg, hits=hits,
             favorite_ids=favorite_ids if favorites else None,
         )
+        # Surprise Me: emit the session id (= cache_key) and deck
+        # total so the client can walk the deck with offset+session.
+        # Non-surprise requests leave both fields None (unchanged
+        # from before this feature landed).
+        surprise_session_out = (
+            surprise_cache_key if (surprise and deck_ids) else None
+        )
+        surprise_total_out = (
+            len(deck_ids) if (surprise and deck_ids) else None
+        )
         body = SearchResponse(
             query=prompt_state.q,
             positives=prompt_state.positives,
@@ -314,6 +509,8 @@ def build_search_router(
             offset=offset,
             limit=limit,
             has_more=has_more,
+            session_id=surprise_session_out,
+            session_total=surprise_total_out,
         )
         # ETag over every field that can change the response so
         # the browser's If-None-Match returns 304 only on truly
@@ -346,6 +543,12 @@ def build_search_router(
                 f"{diversity_strength:.6f}",
                 diversity_depth_mode,
                 str(diversity_pool_depth),
+                # Surprise Me: include the cache_key so different
+                # seeds/temperatures/pools collapse to different
+                # ETags. Non-surprise requests have a fixed "off"
+                # sentinel so the ETag is byte-for-byte identical
+                # to before this feature landed.
+                "off" if not surprise else (surprise_cache_key or "off"),
             ]
         ).encode("utf-8")
         etag = hashlib.sha256(etag_input).hexdigest()[:16]

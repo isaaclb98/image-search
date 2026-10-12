@@ -28,17 +28,20 @@
 
 name: ci
 
-# Per Isaac's request (Aug 2026): CI runs on main only.
+# Triggers (revised Oct 2026 per Isaac's request):
+#   - push:main: post-merge validation. Catches test rot that
+#     could sneak in via a fast follow-up merge.
+#   - push:dev: pre-merge validation. Catches lint/test failures
+#     before they reach main, so dev stays green-as-it-shelves.
+#   - pull_request:main: the PR workflow when one is opened.
+#   - workflow_dispatch: manual re-runs as an escape hatch.
 #
-# Rationale: with a single dev branch, every push-to-dev was a CI
-# run on the same code that was about to go to main anyway — the
-# dev run was redundant work. Push-to-main fires once when code
-# lands, and PR-to-main covers the rarer case of reviewing
-# something before merging. workflow_dispatch stays as an escape
-# hatch for manual re-runs.
+# Note: this doubles the runner-minutes on dev pushes. Previous
+# Aug 2026 rationale ("redundant work, code is about to go to
+# main anyway") is reversed — Isaac wants the dev signal.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches: [main]
   workflow_dispatch:
