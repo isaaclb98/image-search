@@ -142,12 +142,15 @@ DEFAULT_POOL_SIZE = 5000
 TEMPERATURE_MIN = 0.0
 TEMPERATURE_MAX = 1.0
 POOL_SIZE_MIN = 200
-# Upper bound for the pool-size slider. The route caps at the
-# actual Qdrant collection size when the requested pool exceeds
-# it, so a "Pool = all" setting on a 2M-point corpus draws from
-# 2M candidates (cost: ~10-30s for the initial Gumbel draw,
-# cached after that).
-POOL_SIZE_MAX = 2_000_000
+# Upper bound for the pool-size slider. Beyond ~75k the
+# Qdrant server-side HNSW search crosses its 30s timeout
+# for a 2M-point corpus (the cost scales with `limit`:
+# scoring + sorting + payload transfer for the candidate
+# set). 50k keeps the first-page latency under 10s on
+# the current corpus; the route still clamps the actual
+# pool to the corpus size when the slider value exceeds
+# it, so this is a UX ceiling, not a correctness one.
+POOL_SIZE_MAX = 50_000
 
 DECK_TTL_S = 30 * 60
 
