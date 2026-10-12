@@ -135,6 +135,20 @@ jobs:
         # overwrite each other. The `create-index` job below
         # combines the two per-arch images into a multi-arch
         # `:latest` index.
+        #
+        # Why provenance=false and sbom=false: build-push-action
+        # v5+ defaults to producing SLSA provenance + SBOM
+        # attestations wrapped in an OCI image index. That
+        # adds a separate attestation manifest + config blob
+        # per image, and `imagetools create` propagates the
+        # attestation references into the multi-arch index.
+        # When the prune-untagged-versions step deletes the
+        # attestation manifests (they go untagged after the
+        # next build), the per-arch image indexes' references
+        # to them dangle and `docker pull :latest` returns
+        # 404. Disabling both keeps the build output a single
+        # image manifest per arch — no OCI index wrapper, no
+        # attestation blobs to get orphaned.
         id: build
         uses: docker/build-push-action@v5
         with:
@@ -144,6 +158,8 @@ jobs:
           load: false
           platforms: linux/${{ matrix.arch }}
           tags: ghcr.io/${{ github.repository }}:latest-${{ matrix.arch }}
+          provenance: false
+          sbom: false
           labels: |
             org.opencontainers.image.title=image-search
             org.opencontainers.image.description=Self-hosted semantic image search (SigLIP2 → Qdrant)
