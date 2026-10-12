@@ -135,12 +135,13 @@ def test_gumbel_top_k_does_not_mutate_caller_scores():
 
 def test_deck_cache_put_then_get_round_trip():
     cache = SurpriseDeckCache()
-    sid = cache.put("k1", ["a", "b", "c", "d"])
+    sid = cache.put("k1", ["a", "b", "c", "d"], [0.1, 0.2, 0.3, 0.4])
     result = cache.get("k1")
     assert result is not None
     got_sid, entry = result
     assert got_sid == "k1"
     assert entry.point_ids == ("a", "b", "c", "d")
+    assert entry.scores == (0.1, 0.2, 0.3, 0.4)
     assert sid == "k1"  # put() returns the same key it was given
 
 
@@ -156,7 +157,7 @@ def test_deck_cache_empty_key_returns_none():
 
 def test_deck_cache_expiry_drops_entry():
     cache = SurpriseDeckCache(ttl_s=0.05)
-    cache.put("k1", ["x"])
+    cache.put("k1", ["x"], [0.5])
     assert cache.get("k1") is not None
     time.sleep(0.1)
     assert cache.get("k1") is None
@@ -164,8 +165,8 @@ def test_deck_cache_expiry_drops_entry():
 
 def test_deck_cache_clear_empties_all():
     cache = SurpriseDeckCache()
-    cache.put("k1", ["a"])
-    cache.put("k2", ["b"])
+    cache.put("k1", ["a"], [0.1])
+    cache.put("k2", ["b"], [0.2])
     assert len(cache) == 2
     cache.clear()
     assert len(cache) == 0
@@ -173,10 +174,17 @@ def test_deck_cache_clear_empties_all():
 
 def test_deck_cache_same_key_overwrites():
     cache = SurpriseDeckCache()
-    cache.put("k1", ["a", "b"])
-    cache.put("k1", ["c", "d", "e"])
+    cache.put("k1", ["a", "b"], [0.1, 0.2])
+    cache.put("k1", ["c", "d", "e"], [0.3, 0.4, 0.5])
     _, entry = cache.get("k1")
     assert entry.point_ids == ("c", "d", "e")
+    assert entry.scores == (0.3, 0.4, 0.5)
+
+
+def test_deck_cache_put_rejects_length_mismatch():
+    cache = SurpriseDeckCache()
+    with pytest.raises(ValueError, match="same length"):
+        cache.put("k1", ["a", "b", "c"], [0.1, 0.2])
 
 
 # ---------------- compute_cache_key: determinism + collision avoidance ----------------

@@ -42,7 +42,7 @@ BASELINE: dict[str, int] = {
     "for_you.py": 8,  # round‑14: cold‑start + reset_feedback wrap
     "random.py": 1,
     "saved_searches.py": 4,
-    "search.py": 4,
+    "search.py": 5,  # 5: count_points wraps qdrant.count for pool-size clamp
     "similar.py": 4,
     "system.py": 7,
     "thumbnails.py": 0,

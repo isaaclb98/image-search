@@ -296,6 +296,29 @@ class QdrantSearch:
             for p in points
         ]
 
+    def count_points(self) -> int:
+        """
+        Return the total number of points in the collection.
+
+        Used by the Surprise Me route to cap the requested pool
+        size at the actual corpus size — a slider set to "All"
+        on a 2M-point corpus should sample from 2M, not error
+        out because the requested pool exceeded the corpus.
+        Returns 0 if the count call fails (the route then uses
+        the requested pool as-is, which is the pre-fix
+        behaviour).
+        """
+        try:
+            result = self.client.count(
+                collection_name=self.collection,
+                exact=True,
+                timeout=self.timeout_ms // 1000,
+            )
+            return int(result.count)
+        except Exception as e:  # noqa: BLE001
+            logger.debug("count_points failed: %s", e)
+            return 0
+
     def search_with_vectors(
         self, vector: list[float], limit: int, offset: int = 0,
         collections: list[str] | None = None,
