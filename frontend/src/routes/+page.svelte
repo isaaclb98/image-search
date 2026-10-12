@@ -97,25 +97,46 @@
 
   // Round-78: Surprise Me pre-generated deck state. When
   // `surpriseOn` is true, reload() appends ?surprise=true plus
-  // the three knobs (temperature, pool, seed) to the request and
-  // stores the response's session_id so loadMore() can walk the
-  // cached deck without recomputing. Bump `surpriseSeed` (via
-  // the "New random draw" button) to roll a new deck; the
-  // session is invalidated automatically because the cache key
-  // includes the seed.
+  // the three knobs (temperature, pool) to the request and stores
+  // the response's session_id so loadMore() can walk the cached
+  // deck without recomputing. A new search auto-rolls a fresh
+  // deck server-side (the route generates a random seed when
+  // the client omits surprise_seed); the session is invalidated
+  // by reload() which clears surpriseSession.
+  // Corpus size is loaded once on mount so the "All" label
+  // shows the actual count. The route clamps the pool to the
+  // corpus at request time too, so a stale UI value is
+  // recoverable (the request will just use the lower of the two).
+  let corpusSize = $state<number | null>(null);
   let surpriseOn = $state(false);
   let surpriseTemperature = $state(0.05);
-  let surprisePool = $state(5000);
-  let surpriseSeed = $state(1);
+  // Pool slider values are 6 log-spaced stops; the rightmost is
+  // the "All" sentinel that resolves to the corpus size at
+  // request time. The slider emits an index into POOL_STOPS;
+  // we keep both the index (for the slider) and the resolved
+  // size (for the request) in state.
+  const POOL_STOPS = [200, 1_000, 10_000, 100_000, 1_000_000] as const;
+  const POOL_ALL_INDEX = POOL_STOPS.length; // index for "All" position
+  let surprisePoolIndex = $state(2); // default = 10_000
+  let surprisePool = $derived(
+    surprisePoolIndex < POOL_ALL_INDEX
+      ? POOL_STOPS[surprisePoolIndex]
+      : (corpusSize ?? POOL_STOPS[POOL_STOPS.length - 1])
+  );
   let surpriseSession = $state<string | null>(null);
   let surpriseTotal = $state<number | null>(null);
 
-  function rollNewDeck() {
-    // Bump the seed and drop the session. The next reload()
-    // will pass the new seed, the cache key will differ, and
-    // the route will build a fresh deck.
-    surpriseSeed = surpriseSeed + 1;
-    surpriseSession = null;
+  function onPoolIndexChange(idx: number) {
+    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_ALL_INDEX));
+  }
+
+  function formatPool(size: number, total: number | null): string {
+    if (size >= 1_000_000 || (total !== null && size >= total)) {
+      return total !== null
+        ? `All (${total.toLocaleString()})`
+        : "All";
+    }
+    return size.toLocaleString();
   }
 
   function readFromUrl() {
@@ -208,6 +229,13 @@
     }
     hasSearched = true;
     loading = true;
+    // New search: drop the cached session so the server's
+    // auto-random seed rolls a fresh deck. Without this, a
+    // search-then-search would hit the same cached deck
+    // (because the cache key would re-derive to the same value
+    // if all params were equal).
+    surpriseSession = null;
+    surpriseTotal = null;
     try {
       const res = await search(
         {
@@ -232,11 +260,12 @@
           // Round-78: pass the surprise knobs through; the
           // backend caches the deck under a hash of these plus
           // the search params, so the same combo always returns
-          // the same deck.
+          // the same deck. We deliberately omit surpriseSeed —
+          // the server auto-generates a fresh random seed on
+          // every new search so a fresh query gives a fresh deck.
           surprise: surpriseOn,
           surpriseTemperature: surpriseOn ? surpriseTemperature : undefined,
           surprisePool: surpriseOn ? surprisePool : undefined,
-          surpriseSeed: surpriseOn ? surpriseSeed : undefined,
           surpriseSession: surpriseOn ? surpriseSession ?? undefined : undefined,
         },
         ctrl.signal
@@ -278,7 +307,6 @@
         surprise: surpriseOn,
         surpriseTemperature: surpriseOn ? surpriseTemperature : undefined,
         surprisePool: surpriseOn ? surprisePool : undefined,
-        surpriseSeed: surpriseOn ? surpriseSeed : undefined,
         surpriseSession: surpriseOn ? surpriseSession ?? undefined : undefined,
       }, signal);
       const more = (res?.results ?? []) as Item[];
@@ -328,6 +356,22 @@
   // URL has params (so deep links like /?positives=cat or
   // /?centroid=album_2 still load).
   onMount(async () => {
+    // Fetch the corpus size so the "All" position on the pool
+    // slider can show the actual count. Fire-and-forget — a stale
+    // or null corpusSize just means the slider label shows
+    // "All" without a number, not that the request fails. The
+    // route clamps the pool to the corpus at request time so
+    // any UI/server drift is handled gracefully.
+    void fetch("/api/system/status", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && typeof d.qdrant_count === "number" && d.qdrant_count > 0) {
+          corpusSize = d.qdrant_count;
+        }
+      })
+      .catch(() => {
+        /* leave corpusSize null */
+      });
     readFromUrl();
     await tick();
     if (
@@ -526,28 +570,20 @@
         </label>
         <label class="surprise-slider">
           <span class="surprise-label">
-            Pool: <strong>{surprisePool.toLocaleString()}</strong>
-            <span class="hint">— candidates the Gumbel draw is taken from</span>
+            Pool: <strong>{formatPool(surprisePool, corpusSize)}</strong>
+            <span class="hint">— candidates the Gumbel draw is taken from. "All" uses the full corpus (slow first page).</span>
           </span>
           <input
             type="range"
-            min="200"
-            max="10000"
-            step="100"
-            bind:value={surprisePool}
+            min="0"
+            max={POOL_STOPS.length - 1}
+            step="1"
+            value={surprisePoolIndex}
+            oninput={(e) => onPoolIndexChange(+e.currentTarget.value)}
             aria-label="Surprise pool size"
           />
         </label>
         <div class="surprise-row">
-          <Button
-            variant="secondary"
-            size="sm"
-            onclick={rollNewDeck}
-            disabled={loading}
-            title="Roll a new random deck (bumps the seed)"
-          >
-            🔀 New random draw
-          </Button>
           {#if surpriseTotal !== null}
             <span class="surprise-deck-info">
               Deck: {surpriseTotal.toLocaleString()} photos
@@ -690,12 +726,14 @@
     gap: var(--s-2);
   }
   /* Round-78: Surprise Me control panel — two sliders
-     (temperature, pool) plus a "New random draw" button and
-     a small status line ("Deck: 2400 photos · page 3").
-     Sits below the search actions, right-aligned to match
-     the .search-actions row above. The sliders are full-width
-     within their column so the temperature read-out doesn't
-     wrap awkwardly. */
+     (temperature, pool) plus a small status line ("Deck: 2400
+     photos · page 3"). Sits below the search actions, right-
+     aligned to match the .search-actions row above. The sliders
+     are full-width within their column so the temperature
+     read-out doesn't wrap awkwardly.
+     The "New random draw" button was removed when the server
+     started auto-generating a fresh random seed per request —
+     a new search already gives a new deck. */
   .surprise-controls {
     display: flex;
     flex-direction: column;

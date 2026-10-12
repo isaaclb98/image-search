@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import secrets
 import time
 from typing import Any
 
@@ -110,6 +111,7 @@ async def _build_surprise_deck(
     if cached is not None:
         _, entry = cached
         deck_ids = list(entry.point_ids)
+        deck_scores = list(entry.scores)
     else:
         pool_hits, _ = await asyncio.to_thread(
             qdrant.search,
@@ -127,7 +129,12 @@ async def _build_surprise_deck(
             rng=np.random.default_rng(surprise_seed),
         )
         deck_ids = [pool_hits[i].id for i in picked_indices]
-        surprise_deck_cache.put(surprise_cache_key, deck_ids)
+        # Capture the raw cosine of each picked photo. The hydration
+        # path (qdrant.retrieve_batch) doesn't compute scores — it
+        # only returns id+payload — so we need to set them here
+        # otherwise the UI shows 0.0 on hover.
+        deck_scores = [float(scores[i]) for i in picked_indices]
+        surprise_deck_cache.put(surprise_cache_key, deck_ids, deck_scores)
 
     start = offset
     end = start + effective_limit
@@ -138,8 +145,20 @@ async def _build_surprise_deck(
     hydrated = await asyncio.to_thread(qdrant.retrieve_batch, page_ids)
     by_id = {h.id: h for h in hydrated}
     # Use the deck order so a refresh of the same query+seed
-    # gives the same page.
-    hits = [by_id[pid] for pid in page_ids if pid in by_id]
+    # gives the same page. Override the (zeroed) score with the
+    # value captured during the pool search so the UI sees the
+    # real cosine similarity.
+    page_score_by_id = {
+        deck_ids[i]: deck_scores[i]
+        for i in range(start, min(end, len(deck_ids)))
+    }
+    hits: list = []
+    for pid in page_ids:
+        h = by_id.get(pid)
+        if h is None:
+            continue
+        h.score = page_score_by_id[pid]
+        hits.append(h)
     return hits, has_more, deck_ids
 
 
@@ -201,9 +220,9 @@ def build_search_router(
             DEFAULT_POOL_SIZE,
             description="How many top candidates the Gumbel draw is taken from. Larger = more variety, slower first page.",
         ),
-        surprise_seed: int = Query(
-            1,
-            description="Reseed knob for Surprise Me. Same query+seed = same deck; bump to roll a new deck.",
+        surprise_seed: int | None = Query(
+            None,
+            description="Reseed knob for Surprise Me. Omit (or pass a fresh random int) for a new deck every search; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default.",
         ),
         surprise_session: str | None = Query(
             None,
@@ -285,7 +304,12 @@ def build_search_router(
         # pre-compute and the cache lookup agree.
         surprise_temperature_parsed: float = DEFAULT_TEMPERATURE
         surprise_pool_parsed: int = DEFAULT_POOL_SIZE
-        surprise_seed_parsed: int = 1
+        # Default to None (random) so a fresh search gives a fresh
+        # deck. The route generates an int from secrets when the
+        # client didn't pass one. Existing callers that pass an
+        # explicit seed still get the deterministic shareable URL
+        # behaviour.
+        surprise_seed_parsed: int | None = None
         if surprise:
             try:
                 surprise_temperature_parsed = float(surprise_temperature)
@@ -307,10 +331,21 @@ def build_search_router(
                     f"[{POOL_SIZE_MIN}, {POOL_SIZE_MAX}]; "
                     f"got {surprise_pool_parsed}"
                 )
+            # `surprise_seed` may be absent (None) or an integer.
+            # The Qdrant corpus size caps the pool slider at the
+            # upper end; query the count lazily and clamp the
+            # requested pool to it.
+            if surprise_seed is not None:
+                try:
+                    surprise_seed_parsed = int(surprise_seed)
+                except (TypeError, ValueError):
+                    return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
+            # Cap pool to actual corpus size when oversized.
             try:
-                surprise_seed_parsed = int(surprise_seed)
-            except (TypeError, ValueError):
-                return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
+                corpus_size = await asyncio.to_thread(qdrant.count_points)
+                surprise_pool_parsed = min(surprise_pool_parsed, corpus_size)
+            except Exception as e:  # noqa: BLE001
+                logger.debug("count_points failed; using requested pool as-is: %s", e)
 
         collections = parse_collections(request)
 
@@ -340,6 +375,22 @@ def build_search_router(
                 return bad_request(vec_detail or "at least one positive prompt is required")  # type: ignore[return-value]
 
         t0 = time.time()
+        # If the client didn't pass a seed, generate a fresh random
+        # one for this request so each new search gives a new deck.
+        # The seed flows into both the Gumbel RNG and the cache key
+        # (which is the session id), so the same session reuses the
+        # same deck but different sessions are different. Materialise
+        # the seed here — before the cache key is computed — so the
+        # type narrows to int and downstream callers see a real int.
+        if surprise and surprise_seed_parsed is None:
+            surprise_seed_parsed = secrets.randbelow(2**31)
+        # If the client is paginating an existing session, we don't
+        # need (or want) a fresh seed — the original request's seed
+        # is encoded in the session id. Use 0 as a placeholder; the
+        # session-id branch below skips compute_cache_key entirely.
+        seed_for_cache_key: int = (
+            surprise_seed_parsed if surprise_seed_parsed is not None else 0
+        )
         # Pre-compute the Surprise Me cache key from the request
         # inputs. The cache key is what gates a cache hit and is
         # also the session id we echo back. Computing it once at
@@ -347,21 +398,34 @@ def build_search_router(
         # from the inputs alone — no matter which branch actually
         # built the deck, the ETag is stable across the
         # `allowed_ids is None and not allowed_ids` short-circuit.
+        #
+        # When the client passes a session id, the session id IS
+        # the cache key from the original request — we use it
+        # directly so pagination of an existing session hits the
+        # same cache entry even if the request is missing fields
+        # the original had (e.g. an auto-random seed the client
+        # doesn't know). Without this, every page request with a
+        # session id would miss the cache and rebuild the deck
+        # from scratch.
         surprise_cache_key = (
-            compute_cache_key(
-                q=q,
-                positives=list(prompt_state.positives),
-                negatives=list(prompt_state.negatives),
-                centroids=list(active_centroids),
-                weights=list(active_weights) if active_weights else None,
-                collections=collections,
-                favorites=favorites,
-                filename=filename_pattern,
-                temperature=surprise_temperature_parsed,
-                pool_size=surprise_pool_parsed,
-                seed=surprise_seed_parsed,
+            surprise_session
+            if surprise and surprise_session
+            else (
+                compute_cache_key(
+                    q=q,
+                    positives=list(prompt_state.positives),
+                    negatives=list(prompt_state.negatives),
+                    centroids=list(active_centroids),
+                    weights=list(active_weights) if active_weights else None,
+                    collections=collections,
+                    favorites=favorites,
+                    filename=filename_pattern,
+                    temperature=surprise_temperature_parsed,
+                    pool_size=surprise_pool_parsed,
+                    seed=seed_for_cache_key,
+                )
+                if surprise else None
             )
-            if surprise else None
         )
         # `allowed_ids == []` short-circuit: skip the Qdrant round-trip
         # and return zero hits. See the matching block in `/` for why

@@ -137,7 +137,65 @@ def test_surprise_same_seed_same_deck(app_with_qdrant_big):
     a_ids = [r["id"] for r in a["results"]]
     b_ids = [r["id"] for r in b["results"]]
     assert a_ids == b_ids
-    assert a["session_id"] == b["session_id"]
+
+
+def test_surprise_no_seed_gives_different_decks(app_with_qdrant_big):
+    # When the client doesn't pass surprise_seed, the server picks
+    # a fresh random one per request, so the same query twice
+    # returns two different decks. (The previous default of seed=1
+    # made this test fail.)
+    a = app_with_qdrant_big.get(
+        "/api/search?q=cat&surprise=true&limit=20"
+    ).json()
+    b = app_with_qdrant_big.get(
+        "/api/search?q=cat&surprise=true&limit=20"
+    ).json()
+    a_ids = [r["id"] for r in a["results"]]
+    b_ids = [r["id"] for r in b["results"]]
+    assert a["session_id"] != b["session_id"]
+    assert a_ids != b_ids
+
+
+def test_surprise_returns_real_scores(app_with_qdrant_big):
+    # Bug fix: previously the score=0.0 on every result because
+    # retrieve_batch doesn't populate scores. The route now stores
+    # the raw cosine in the deck cache and hydrates the hit.score
+    # from there.
+    body = app_with_qdrant_big.get(
+        "/api/search?q=cat&surprise=true&limit=10&surprise_seed=1"
+    ).json()
+    for r in body["results"]:
+        # Cosine sim is in [-1, 1]; SigLIP2 can produce negative
+        # similarities for unrelated points.
+        assert -1.0 <= r["score"] <= 1.0
+        # score_str mirrors score rounded to 3dp.
+        assert r["score_str"] == f"{r['score']:.3f}"
+    # At least one result should have a non-trivial score
+    # (the corpus is "cat" + 49 random labels, so most have ~0
+    # similarity but at least the "cat" point should be > 0.1).
+    assert any(r["score"] > 0.05 for r in body["results"])
+
+
+def test_surprise_scores_persist_across_pagination(app_with_qdrant_big):
+    # First page: build the deck.
+    first = app_with_qdrant_big.get(
+        "/api/search?q=cat&surprise=true&limit=10&offset=0&surprise_seed=7"
+    ).json()
+    session_id = first["session_id"]
+    first_scores = [r["score"] for r in first["results"]]
+    # Second page: same session, different offset.
+    second = app_with_qdrant_big.get(
+        f"/api/search?q=cat&surprise=true&limit=10&offset=10"
+        f"&surprise_session={session_id}"
+    ).json()
+    second_scores = [r["score"] for r in second["results"]]
+    # All scores should be real, including on the cached page
+    # (no 0.0).
+    for s in first_scores + second_scores:
+        # Cosine sim is in [-1, 1]; SigLIP2 can produce negative
+        # similarities for unrelated points.
+        assert -1.0 <= s <= 1.0
+    assert any(s > 0.05 for s in first_scores + second_scores)
 
 
 def test_surprise_different_seed_different_deck(app_with_qdrant_big):
@@ -219,8 +277,12 @@ def test_surprise_rejects_out_of_range_pool(app_with_qdrant_big):
     )
     assert resp.status_code == 400
     assert "surprise_pool" in resp.json()["detail"]
+    # POOL_SIZE_MAX is now 2_000_000 — anything above is rejected.
+    # The 20000 case is allowed (route clamps to corpus size at
+    # runtime) so the rejection only kicks in for the truly huge
+    # values.
     resp = app_with_qdrant_big.get(
-        "/api/search?q=cat&surprise=true&surprise_pool=20000"
+        "/api/search?q=cat&surprise=true&surprise_pool=3000000"
     )
     assert resp.status_code == 400
     assert "surprise_pool" in resp.json()["detail"]
