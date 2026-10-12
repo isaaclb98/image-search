@@ -62,7 +62,7 @@ class TestModuleConstants:
         from search.config import get_model_name_for_variant, get_siglip_variant
         active_variant = get_siglip_variant()
         expected = get_model_name_for_variant(active_variant)
-        assert DEFAULT_MODEL_NAME == expected, (
+        assert expected == DEFAULT_MODEL_NAME, (
             f"text encoder default {DEFAULT_MODEL_NAME!r} != "
             f"model for active variant {active_variant!r} ({expected!r})"
         )

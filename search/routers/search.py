@@ -65,9 +65,9 @@ from search.surprise_deck import (
     DEFAULT_TEMPERATURE,
     POOL_SIZE_MAX,
     POOL_SIZE_MIN,
-    SurpriseDeckCache,
     TEMPERATURE_MAX,
     TEMPERATURE_MIN,
+    SurpriseDeckCache,
     compute_cache_key,
     gumbel_top_k,
 )

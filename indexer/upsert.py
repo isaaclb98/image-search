@@ -539,7 +539,7 @@ def prune_missing(
                     placeholders = ",".join("?" for _ in chunk)
                     with sqlite_conn:
                         sqlite_conn.execute(
-                            f"DELETE FROM images WHERE id IN ({placeholders})",
+                            f"DELETE FROM images WHERE id IN ({placeholders})",  # noqa: S608
                             chunk,
                         )
 

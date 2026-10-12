@@ -147,8 +147,8 @@ def test_surprise_different_seed_different_deck(app_with_qdrant_big):
     b = app_with_qdrant_big.get(
         "/api/search?q=cat&surprise=true&limit=20&surprise_seed=2"
     ).json()
-    a_ids = set(r["id"] for r in a["results"])
-    b_ids = set(r["id"] for r in b["results"])
+    a_ids = {r["id"] for r in a["results"]}
+    b_ids = {r["id"] for r in b["results"]}
     # Two independent Gumbel draws from the same 50-point pool
     # should differ; with 20 picks out of 50 the chance of
     # identical draws is ~0.
@@ -162,8 +162,8 @@ def test_surprise_different_temperature_different_deck(app_with_qdrant_big):
     b = app_with_qdrant_big.get(
         "/api/search?q=cat&surprise=true&limit=20&surprise_temperature=0.5"
     ).json()
-    a_ids = set(r["id"] for r in a["results"])
-    b_ids = set(r["id"] for r in b["results"])
+    a_ids = {r["id"] for r in a["results"]}
+    b_ids = {r["id"] for r in b["results"]}
     # Different temperature → different softmax distribution →
     # different top-20 sample. Not guaranteed disjoint (small
     # overlap is possible), but the multisets should not match.
@@ -278,10 +278,8 @@ def test_surprise_composes_with_favorites_filter(app_with_qdrant_big):
     # Mark one photo as a favorite, then ask for favorites +
     # surprise. The Surprise Me deck should be drawn from the
     # favourite-only pool, not the full corpus.
-    from indexer import upsert as upsert_mod
-    from search.index_db import IndexDB
     from search.config import Config as _Cfg
-    cfg = _Cfg(
+    _Cfg(
         qdrant_url="memory://",
         qdrant_collection="ignored",
         qdrant_api_key=None,
@@ -291,7 +289,7 @@ def test_surprise_composes_with_favorites_filter(app_with_qdrant_big):
         top_k_default=35,
         top_k_max=200,
         query_timeout_ms=2000,
-        nas_images_base="/tmp/ignored",
+        nas_images_base="/tmp/ignored",  # noqa: S108
         path_prefix="",
         web_ui_url="http://localhost:8000",
         log_level="WARNING",
