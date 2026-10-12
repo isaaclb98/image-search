@@ -142,17 +142,30 @@ DEFAULT_POOL_SIZE = 5000
 TEMPERATURE_MIN = 0.0
 TEMPERATURE_MAX = 1.0
 POOL_SIZE_MIN = 200
-POOL_SIZE_MAX = 10_000
+# Upper bound for the pool-size slider. The route caps at the
+# actual Qdrant collection size when the requested pool exceeds
+# it, so a "Pool = all" setting on a 2M-point corpus draws from
+# 2M candidates (cost: ~10-30s for the initial Gumbel draw,
+# cached after that).
+POOL_SIZE_MAX = 2_000_000
 
 DECK_TTL_S = 30 * 60
 
 
 @dataclass
 class _DeckEntry:
-    """One cached Surprise Me deck: list of point ids + timestamp."""
+    """One cached Surprise Me deck: list of (point_id, score) pairs + timestamp.
+
+    Scores are the raw cosine similarities from the pool search that
+    produced the deck. They survive across page requests via this
+    cache so the UI can display them on hover — the hydration path
+    (qdrant.retrieve_batch) doesn't have access to the score from
+    a query, only the cached value.
+    """
 
     created_at: float
     point_ids: tuple[str, ...]
+    scores: tuple[float, ...]
 
 
 class SurpriseDeckCache:
@@ -189,12 +202,28 @@ class SurpriseDeckCache:
             return None
         return cache_key, entry
 
-    def put(self, cache_key: str, point_ids: Iterable[str]) -> str:
+    def put(
+        self,
+        cache_key: str,
+        point_ids: Iterable[str],
+        scores: Iterable[float],
+    ) -> str:
         """Materialise a fresh deck under the given key. Returns
-        the same key (the session id is the cache key)."""
+        the same key (the session id is the cache key). The
+        `point_ids` and `scores` iterables must be the same length
+        and in the same order — `scores[i]` is the cosine
+        similarity of the photo with id `point_ids[i]`."""
+        ids = tuple(point_ids)
+        scs = tuple(scores)
+        if len(ids) != len(scs):
+            raise ValueError(
+                f"point_ids ({len(ids)}) and scores ({len(scs)}) "
+                "must be the same length"
+            )
         self._decks[cache_key] = _DeckEntry(
             created_at=time.monotonic(),
-            point_ids=tuple(point_ids),
+            point_ids=ids,
+            scores=scs,
         )
         return cache_key
 
