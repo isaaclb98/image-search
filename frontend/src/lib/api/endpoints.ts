@@ -197,56 +197,69 @@ export function random(params: RandomParams | number = {}, signal?: AbortSignal)
   });
 }
 
-// ---------- For You (shuffled-pool ranker) ----------
+// ---------- For You (Gumbel-max taste sampler) ----------
 
 /**
  * Parameters for forYouFeed.
  *
- * `diversity` / `diversity_depth` were removed in the round-33
- * swap from diversity rerank to shuffled pool: the new
- * /api/for-you/feed ranks the top `top_pct`% of library by your
- * taste direction and returns a random walk, no MMR.
+ * Round-88: the /for-you algorithm swapped from "uniform
+ * shuffle the top X% of library by taste" to "Gumbel-max
+ * sample from a Qdrant recommend() pool of pool_size
+ * candidates." The temperature slider controls the
+ * Gumbel noise scale: T=0 is the deterministic top-K,
+ * T=1.0 is near-uniform random over the pool.
  *
- * `seed` is an opaque string forwarded to the server. Pass a
- * fresh random value on every page reload so the user sees a
- * different shuffle; reuse the same value for paginated scroll
- * calls within the same page-mount to keep the walk coherent.
+ * `seed` is a numeric random seed (int). Pass a fresh
+ * random int on every page reload so the user sees a
+ * different deck; reuse the same value for paginated
+ * scroll calls within a single page-mount to walk
+ * through the same deck coherently.
+ *
+ * `session` is the opaque cache key from a prior
+ * response. Pass back with offset=N to walk the same
+ * deck without recomputing.
  */
 export interface ForYouFeedParams {
   /** Photos per page. 1..100. Default 30. */
   limit?: number;
-  /** Zero-based offset into the shuffled pool. */
-  page?: number;
-  /** Percentile of library to use as the random pool. (0, 100].
-   * Default 1.0 (1% → 8000 candidates at 800k library). */
-  top_pct?: number;
-  /** Result view: 'grid' (default) or 'feed'. */
-  view?: string;
-  /** Opaque shuffle seed. See interface docstring. */
-  seed?: string;
+  /** Zero-based offset into the cached Gumbel deck. */
+  offset?: number;
+  /** Number of recommend() candidates the Gumbel draw is
+   * taken from. Default 2000. Range [200, 50_000]. */
+  pool_size?: number;
+  /** Gumbel temperature. 0.0..1.0. Default 0.05. */
+  temperature?: number;
+  /** Numeric random seed. See interface docstring. */
+  seed?: number;
+  /** Opaque cache key from a prior response. */
+  session?: string;
   /** Abort the request. */
   signal?: AbortSignal;
 }
 
 /**
- * For You — random walk through the top `top_pct`% of library
- * ranked by your taste direction. Like /random but constrained
- * to "photos you'd probably have liked anyway, in a different
- * order." The server caches the shuffled pool keyed by
- * (fav_ids, dis_ids, top_pct, seed): same seed → same shuffle
- * (coherent pagination), different seed → fresh shuffle (page
- * reload).
+ * For You — Gumbel-max sample from a Qdrant recommend()
+ * pool of `pool_size` candidates. The Gumbel noise scale
+ * (temperature) controls how biased the deck is toward
+ * high-scoring photos: T=0 is deterministic top-K (curated),
+ * T=1.0 is near-uniform random over the pool.
  *
- * See: search/for_you.py for the endpoint wiring.
+ * The server caches the deck keyed by
+ * (fav_ids, dis_ids, temperature, pool_size, seed). Same
+ * seed → same deck (coherent pagination), different
+ * seed → fresh deck (page reload).
+ *
+ * See: search/routers/for_you.py for the endpoint wiring.
  */
 export function forYouFeed(params: ForYouFeedParams = {}, signal?: AbortSignal) {
   const sig = signal ?? params.signal;
   const search = new URLSearchParams();
   if (params.limit !== undefined) search.set('limit', String(params.limit));
-  if (params.page !== undefined) search.set('page', String(params.page));
-  if (params.top_pct !== undefined) search.set('top_pct', String(params.top_pct));
-  if (params.view !== undefined) search.set('view', params.view);
-  if (params.seed !== undefined) search.set('seed', params.seed);
+  if (params.offset !== undefined) search.set('offset', String(params.offset));
+  if (params.pool_size !== undefined) search.set('pool_size', String(params.pool_size));
+  if (params.temperature !== undefined) search.set('temperature', String(params.temperature));
+  if (params.seed !== undefined) search.set('seed', String(params.seed));
+  if (params.session !== undefined) search.set('session', params.session);
   return apiGet<SearchResponse>(`/api/for-you/feed?${search.toString()}`, {
     signal: sig,
     schema: Z.SearchResponse,
