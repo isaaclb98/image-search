@@ -118,34 +118,17 @@
   // distribution has a long tail (~0.04-0.06 for the bulk of
   // the pool, vs ~0.16 for the top-200). The slider is
   // log-spaced so the wide range is reachable in 5 ticks.
+  // Round-90: POOL_STOPS also lives in AdditionalFilters (the
+  // Surprise section is rendered there now) so the slider
+  // markup and the size-array stay in sync.
   const POOL_STOPS = [200, 1_000, 5_000, 20_000, 50_000] as const;
-  const POOL_ALL_INDEX = POOL_STOPS.length; // index for "Max" position
   let surprisePoolIndex = $state(2); // default = 5_000
-  let surprisePool = $derived(
-    surprisePoolIndex < POOL_ALL_INDEX
-      ? POOL_STOPS[surprisePoolIndex]
-      : (corpusSize !== null && corpusSize < POOL_STOPS[POOL_STOPS.length - 1]
-          ? corpusSize
-          : POOL_STOPS[POOL_STOPS.length - 1])
-  );
+  let surprisePool = $derived(POOL_STOPS[surprisePoolIndex]);
   let surpriseSession = $state<string | null>(null);
   let surpriseTotal = $state<number | null>(null);
 
   function onPoolIndexChange(idx: number) {
-    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_ALL_INDEX));
-  }
-
-  function formatPool(size: number, total: number | null): string {
-    const max = POOL_STOPS[POOL_STOPS.length - 1];
-    if (size >= max) {
-      // The "Max" position: if the corpus is smaller than the
-      // slider max, show "All (N)" so the user sees they're
-      // sampling from the full library. Otherwise show "Max".
-      return total !== null && total < max
-        ? `All (${total.toLocaleString()})`
-        : "Max";
-    }
-    return size.toLocaleString();
+    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_STOPS.length - 1));
   }
 
   function readFromUrl() {
@@ -358,12 +341,15 @@
   // URL has params (so deep links like /?positives=cat or
   // /?centroid=album_2 still load).
   onMount(async () => {
-    // Fetch the corpus size so the "All" position on the pool
-    // slider can show the actual count. Fire-and-forget — a stale
-    // or null corpusSize just means the slider label shows
-    // "All" without a number, not that the request fails. The
-    // route clamps the pool to the corpus at request time so
-    // any UI/server drift is handled gracefully.
+    // Fetch the corpus size so the pool slider's "Max" label
+    // can show "All (N)" when the corpus is smaller than the
+    // 50k slider cap (a fresh install with 30k photos
+    // shouldn't be limited to 30k of 50k for no reason).
+    // Fire-and-forget — a stale or null corpusSize just means
+    // the label shows "Max" without a number, not that the
+    // request fails. The route clamps the pool to the corpus
+    // at request time so any UI/server drift is handled
+    // gracefully.
     void fetch("/api/system/status", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -482,11 +468,13 @@
     />
   {/if}
 
-  <!-- Diversity / filename controls + collections chip filter.
-       Rendered inside .hero (next to the PromptChips, not nested
-       inside the composer component) so they share the composer's
-       card width — the user wants this panel to read as part of
-       the search section, not the photo grid. -->
+  <!-- Additional options panel: filename + collections chip
+       filter + (on the home page, when not in centroid mode)
+       the Surprise me controls. Round-90: Surprise me was
+       moved from a separate inline panel + action-row button
+       into this single panel. The toggle, temperature slider,
+       and pool slider all live here. The action row only has
+       Saved + Search. -->
   <AdditionalFilters
     open={filtersOpen}
     {filename}
@@ -494,6 +482,28 @@
     onToggle={() => (filtersOpen = !filtersOpen)}
     onFilename={(v) => (filename = v)}
     onToggleCollection={toggleCollection}
+    showSurprise={!activeCentroid}
+    {surpriseOn}
+    {surpriseTemperature}
+    {surprisePoolIndex}
+    {surpriseTotal}
+    {corpusSize}
+    onSurpriseToggle={() => {
+      surpriseOn = !surpriseOn;
+      // Reset the session so the next reload rebuilds the
+      // deck. The toggle is the user's signal that they want
+      // Surprise to start fresh, not continue the previous
+      // session.
+      surpriseSession = null;
+      surpriseTotal = null;
+      // Auto-open the panel when turning Surprise on so the
+      // sliders are visible without a second click. When
+      // turning off, leave the panel state alone so the user
+      // can re-enable without reopening.
+      if (surpriseOn) filtersOpen = true;
+    }}
+    onSurpriseTemperature={(v) => (surpriseTemperature = v)}
+    onSurprisePoolIndex={(v) => onPoolIndexChange(v)}
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
@@ -528,70 +538,7 @@
       >
         Search
       </Button>
-      <Button
-        variant={surpriseOn ? 'primary' : 'secondary'}
-        size="lg"
-        onclick={() => {
-          surpriseOn = !surpriseOn;
-          // Reset the session so the next reload rebuilds
-          // the deck. The toggle is the user's signal that
-          // they want Surprise to start fresh, not continue
-          // the previous session.
-          surpriseSession = null;
-          surpriseTotal = null;
-        }}
-        disabled={loading}
-        title={surpriseOn
-          ? 'Surprise Me is on — click to turn off (returns to top-K)'
-          : 'Turn on Surprise Me (random deck from the top candidates)'}
-        aria-pressed={surpriseOn}
-      >
-        {surpriseOn ? 'Surprise: on' : 'Surprise me'}
-      </Button>
     </div>
-    {#if surpriseOn}
-      <div class="surprise-controls">
-        <label class="surprise-slider">
-          <span class="surprise-label">
-            Temperature: <strong>{surpriseTemperature.toFixed(2)}</strong>
-            <span class="hint">— 0 = top-K, 1 = roughly uniform</span>
-          </span>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            bind:value={surpriseTemperature}
-            aria-label="Surprise temperature"
-          />
-        </label>
-        <label class="surprise-slider">
-          <span class="surprise-label">
-            Pool: <strong>{formatPool(surprisePool, corpusSize)}</strong>
-            <span class="hint">— candidates the Gumbel draw is taken from. "Max" is the Qdrant search ceiling (50k).</span>
-          </span>
-          <input
-            type="range"
-            min="0"
-            max={POOL_STOPS.length - 1}
-            step="1"
-            value={surprisePoolIndex}
-            oninput={(e) => onPoolIndexChange(+e.currentTarget.value)}
-            aria-label="Surprise pool size"
-          />
-        </label>
-        <div class="surprise-row">
-          {#if surpriseTotal !== null}
-            <span class="surprise-deck-info">
-              Deck: {surpriseTotal.toLocaleString()} photos
-              {#if hasMore}
-                · scrolling past page {Math.ceil(offset / PAGE)}
-              {/if}
-            </span>
-          {/if}
-        </div>
-      </div>
-    {/if}
   {:else}
     <div class="search-actions">
       <Button
@@ -722,51 +669,9 @@
     justify-content: flex-end;
     gap: var(--s-2);
   }
-  /* Round-78: Surprise Me control panel — two sliders
-     (temperature, pool) plus a small status line ("Deck: 2400
-     photos · page 3"). Sits below the search actions, right-
-     aligned to match the .search-actions row above. The sliders
-     are full-width within their column so the temperature
-     read-out doesn't wrap awkwardly.
-     The "New random draw" button was removed when the server
-     started auto-generating a fresh random seed per request —
-     a new search already gives a new deck. */
-  .surprise-controls {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-2);
-    align-items: stretch;
-    margin-top: var(--s-2);
-    padding: var(--s-3);
-    border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
-    border-radius: var(--r-md, 8px);
-    background: var(--surface-2, rgba(0, 0, 0, 0.02));
-  }
-  .surprise-slider {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-1);
-  }
-  .surprise-label {
-    display: flex;
-    align-items: baseline;
-    gap: var(--s-2);
-    font-size: 0.9em;
-  }
-  .surprise-label .hint {
-    color: var(--text-muted, rgba(0, 0, 0, 0.6));
-    font-weight: normal;
-  }
-  .surprise-row {
-    display: flex;
-    align-items: center;
-    gap: var(--s-3);
-    flex-wrap: wrap;
-  }
-  .surprise-deck-info {
-    font-size: 0.85em;
-    color: var(--text-muted, rgba(0, 0, 0, 0.6));
-  }
+  /* Round-90: the Surprise me controls (toggle + sliders) moved
+     from this page into the AdditionalFilters component. The
+     visual styling lives there now. */
   /* Round-56: h1 + .sub removed — the title block is now in a
      <PageHeader> card with its own chrome. The .hero still owns
      the hero stack layout (gap between PageHeader, composer,
