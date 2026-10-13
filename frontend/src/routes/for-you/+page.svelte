@@ -15,13 +15,20 @@
    * the Gumbel draw is taken from. Larger pool = more variety
    * but slower first page.
    *
-   * On page mount we generate a fresh random `seed` and pass
-   * it to every request within this page-mount. The server
-   * caches the deck keyed on (fav_ids, dis_ids, temperature,
-   * pool_size, seed). Same seed → same deck (so paginated
-   * scroll walks forward through page=0, page=1, ... with no
-   * overlap). A new seed (new mount, or after a slider change)
-   * → fresh deck.
+   * Round-91: the page no longer auto-fetches. The user has
+   * to press the "Surprise me" button to fetch a deck. The
+   * sliders only update pending state. The button label is
+   * always "Surprise me" — no state suffix — clicking it
+   * always commits the current slider values with a fresh
+   * seed (a new random draw). Same text as the home page's
+   * Surprise me button.
+   *
+   * The visual is one .card.glass (same as the home page's
+   * Additional options panel) with the two sliders directly
+   * inside, no card title, no description. The page header
+   * says what the page is. The button is right-aligned
+   * below the card, mirroring the home page's "Search"
+   * button placement.
    *
    * Round-88. Replaces the previous uniform-shuffle-the-top-1%
    * implementation. The uniform shuffle destroyed the ranking
@@ -29,11 +36,11 @@
    * /random. Gumbel-max preserves the ranking as a
    * controllable knob.
    */
-  import { onMount } from 'svelte';
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import Button from '$lib/components/Button.svelte';
 
   type Item = {
     id: string;
@@ -57,29 +64,38 @@
   // the route. Log spacing because the taste pool can be much
   // larger than the cosine pool (top-2k is already plenty).
   const POOL_STOPS = [200, 500, 1_000, 2_000, 10_000, 50_000] as const;
+  // Default pool is index 3 = 2,000. Smaller than the home
+  // page's 5,000 default because the taste pool is denser
+  // (every photo has a strong relevance signal) so 2,000
+  // already covers the top of the curve.
+  const DEFAULT_POOL_INDEX = 3;
+  const DEFAULT_TEMPERATURE = 0.05;
 
   let items = $state<Item[]>([]);
-  // Initialise loading=true so the PhotoGrid's spinner renders on the
-  // very first paint — without this, the empty-state message below
-  // shows for one frame before onMount() flips loading=true, which is
-  // jarring on a 2-10s (occasionally 30s+) /api/for-you/feed call.
-  let loading = $state(true);
-  let hasMore = $state(true);
+  let loading = $state(false);
+  let hasMore = $state(false);
   let nextPage = $state(0);
-  // One seed per page-mount AND per (temperature, poolSize)
-  // combo. A slider change bumps the seed → fresh deck. The
-  // seed is a uint32 — the route accepts any int.
-  let temperature = $state(0.05);
-  let poolSizeIndex = $state(3); // default = 2_000
+  // Sliders update these freely; the "Surprise me" button
+  // is the only thing that commits them into a request.
+  let temperature = $state(DEFAULT_TEMPERATURE);
+  let poolSizeIndex = $state(DEFAULT_POOL_INDEX);
   let poolSize = $derived(POOL_STOPS[poolSizeIndex]);
   let sessionId = $state<string | null>(null);
+  // The seed is set fresh on every "Surprise me" press.
+  // Same seed within a deck → same first page; paginated
+  // scroll walks the same deck forward. Different seed →
+  // fresh deck.
   let mountSeed = $state(0);
   let errorMsg = $state<string | null>(null);
+  // AbortController for the in-flight first-page request.
+  // If the user clicks the button again while a request is
+  // in flight, we cancel the previous one before firing the
+  // new one. Without this, two requests can race and the
+  // later one (or earlier, depending on response order) can
+  // clobber the deck.
+  let inFlight = $state<AbortController | null>(null);
 
   function rollSeed(): number {
-    // crypto.getRandomValues is available in all modern
-    // browsers; fall back to Math.random for SSR or older
-    // runtimes.
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
       const buf = new Uint32Array(1);
       crypto.getRandomValues(buf);
@@ -92,35 +108,30 @@
     const clamped = Math.max(0, Math.min(idx, POOL_STOPS.length - 1));
     if (clamped === poolSizeIndex) return;
     poolSizeIndex = clamped;
-    // Slider change → fresh deck. Bump the seed and clear
-    // the session so the next refresh builds a new deck.
-    mountSeed = rollSeed();
-    sessionId = null;
-    items = [];
-    nextPage = 0;
-    hasMore = true;
-    refresh();
   }
 
   function onTemperatureChange(v: number) {
     if (v === temperature) return;
     temperature = v;
+  }
+
+  function formatPool(idx: number): string {
+    return POOL_STOPS[idx].toLocaleString();
+  }
+
+  async function onSurprise() {
+    // Cancel any in-flight request so the previous fetch
+    // doesn't clobber the new deck.
+    inFlight?.abort();
+    const ctrl = new AbortController();
+    inFlight = ctrl;
     mountSeed = rollSeed();
     sessionId = null;
     items = [];
     nextPage = 0;
-    hasMore = true;
-    refresh();
-  }
-
-  function formatPool(idx: number): string {
-    const n = POOL_STOPS[idx];
-    return n.toLocaleString();
-  }
-
-  async function refresh() {
-    loading = true;
+    hasMore = false;
     errorMsg = null;
+    loading = true;
     try {
       const res = await forYouFeed({
         limit: PAGE,
@@ -128,12 +139,14 @@
         temperature,
         pool_size: poolSize,
         seed: mountSeed,
+        signal: ctrl.signal
       });
       items = (res?.results ?? []) as Item[];
       nextPage = 1;
       sessionId = res?.session_id ?? null;
       hasMore = !!res?.has_more && items.length > 0;
     } catch (e: any) {
+      if (ctrl.signal.aborted) return;
       // 400 with "for-you requires at least one favourite"
       // is a friendly error, not a server problem. Surface
       // it inline.
@@ -141,11 +154,12 @@
       if (typeof detail === 'string' && detail.includes('favourite')) {
         errorMsg = 'Like a few photos first to seed the taste signal.';
       } else {
-        items = [];
+        errorMsg = 'Could not load recommendations. Please try again.';
       }
       hasMore = false;
     } finally {
-      loading = false;
+      if (!ctrl.signal.aborted) loading = false;
+      if (inFlight === ctrl) inFlight = null;
     }
   }
 
@@ -160,7 +174,7 @@
         pool_size: poolSize,
         seed: mountSeed,
         session: sessionId ?? undefined,
-        signal,
+        signal
       });
       const more = (res?.results ?? []) as Item[];
       items = [...items, ...more];
@@ -206,21 +220,32 @@
     } catch {
     }
   }
-
-  onMount(() => {
-    mountSeed = rollSeed();
-    refresh();
-  });
 </script>
+
+<svelte:head>
+  <title>For you · Image Search</title>
+</svelte:head>
 
 <PageHeader
   title="For you"
   subtitle="Photos matched to your taste, with a knob for how much variety."
 />
 
-<div class="surprise-panel">
-  <label class="surprise-knob">
-    <small>Surprise: <strong>{temperature.toFixed(2)}</strong></small>
+<!--
+  Round-91: single .card.glass (same pattern as Settings) with
+  the two sliders directly inside. No "Surprise me" card title,
+  no description — the page header "For you" + subtitle already
+  says what the page is. The "Surprise me" button below mirrors
+  the home page's button label (text-only, no icon, no state
+  suffix — clicking it always commits the current slider
+  values with a fresh seed).
+-->
+<section class="card glass">
+  <div class="slider-row">
+    <span class="slider-label">
+      Temperature: <strong>{temperature.toFixed(2)}</strong>
+      <span class="hint">— 0 = top-K, 1 = roughly uniform</span>
+    </span>
     <input
       type="range"
       min={TEMPERATURE_MIN}
@@ -229,11 +254,13 @@
       value={temperature}
       oninput={(e) => onTemperatureChange(parseFloat((e.target as HTMLInputElement).value))}
       aria-label="Surprise temperature"
-      title="0 = curated top-K, 1 = near-uniform random over the pool"
     />
-  </label>
-  <label class="surprise-knob">
-    <small>Pool: <strong>{formatPool(poolSizeIndex)}</strong></small>
+  </div>
+  <div class="slider-row">
+    <span class="slider-label">
+      Pool: <strong>{formatPool(poolSizeIndex)}</strong>
+      <span class="hint">— candidates the Gumbel draw is taken from. "Max" is the Qdrant search ceiling (50k).</span>
+    </span>
     <input
       type="range"
       min="0"
@@ -242,16 +269,27 @@
       value={poolSizeIndex}
       oninput={(e) => onPoolIndexChange(parseInt((e.target as HTMLInputElement).value, 10))}
       aria-label="Pool size"
-      title="How many recommend() candidates the Gumbel draw is taken from"
     />
-  </label>
+  </div>
+</section>
+
+<div class="actions">
+  <Button
+    variant="primary"
+    size="md"
+    onclick={onSurprise}
+    disabled={loading}
+    title="Roll a new deck with the current slider values"
+  >
+    Surprise me
+  </Button>
 </div>
 
 {#if errorMsg}
-  <div class="state empty">{errorMsg}</div>
-{:else if items.length === 0 && !loading}
-  <div class="state empty">No recommendations yet — like or dislike a few photos to seed the signal.</div>
-{:else}
+  <div class="error-msg">{errorMsg}</div>
+{/if}
+
+{#if items.length > 0 || loading}
   <PhotoGrid
     items={items as any}
     {hasMore}
@@ -263,41 +301,71 @@
 {/if}
 
 <style>
-  /* Round-88: the Surprise panel mirrors the home-page layout
-     so the two feel like the same control. Two sliders
-     (temperature, pool) sit above the grid; the values read
-     out inline next to the labels. */
-  .surprise-panel {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--s-3);
-    padding: var(--s-2) var(--s-3);
-    margin: 0 auto var(--s-3);
+  /* Round-91: the Surprise card is a single .card.glass with
+     sliders directly inside — no nested .surprise-controls
+     block, no orphan "Surprise me" label. The button sits
+     below the card, right-aligned, mirroring the home page's
+     "Search" button placement. */
+  .card {
+    /* Match the home page's AdditionalFilters width so the two
+       pages feel like one app: the home page uses
+       --grid-width as the max-width; settings uses the same.
+       width: 100% makes the block-level card fill the available
+       space up to --grid-width — without it the card shrinks
+       to the slider's intrinsic width and ends up narrower
+       than the actions row below it, which looks misaligned. */
+    width: 100%;
     max-width: var(--grid-width, 1200px);
-  }
-  .surprise-knob {
+    margin: 0 auto var(--s-3);
+    padding: var(--s-3);
     display: flex;
-    align-items: center;
-    gap: var(--s-2);
+    flex-direction: column;
+    gap: var(--s-3);
+    box-sizing: border-box;
+  }
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+  }
+  .slider-label {
     color: var(--fg-2);
     font-size: var(--fs-sm);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-wrap: wrap;
   }
-  .surprise-knob small {
-    min-width: 110px;
-    flex-shrink: 0;
-  }
-  .surprise-knob strong {
+  .slider-label strong {
     color: var(--fg-1);
     font-weight: 600;
-    margin-left: 4px;
   }
-  .surprise-knob input[type='range'] {
-    flex: 1;
+  .slider-label .hint {
+    color: var(--fg-2);
+    opacity: 0.7;
+  }
+  .slider-row input[type='range'] {
+    width: 100%;
     accent-color: var(--accent);
   }
-  .state.empty {
+  .actions {
+    /* Match the card's width so the button is on the
+       same right edge as the card's right edge. Without
+       width:100% the flex container would shrink-to-fit
+       the button and "justify-content: flex-end" would
+       just hug the button to the left. */
+    width: 100%;
+    max-width: var(--grid-width, 1200px);
+    margin: 0 auto var(--s-3);
+    padding: 0 var(--s-3);
+    display: flex;
+    justify-content: flex-end;
+  }
+  .error-msg {
+    max-width: var(--grid-width, 1200px);
+    margin: 0 auto var(--s-3);
+    padding: var(--s-2) var(--s-3);
+    color: var(--accent);
     text-align: center;
-    padding: var(--s-4);
-    color: var(--fg-2);
   }
 </style>
