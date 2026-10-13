@@ -1,68 +1,113 @@
 """search/routers/for_you.py — /api/for-you/feed.
 
-GET /api/for-you/feed?top_pct=1&limit=30&page=0&seed=<opaque>:
-    Walk through the top `top_pct`% of library ranked by the user's
-    taste direction. Like /random but with the pool constrained
-    to "points that match your likes minus dislikes."
+GET /api/for-you/feed?pool_size=2000&limit=30&offset=0&temperature=0.05&seed=<int>&session=<opaque>:
+    Walk through a Gumbel-sampled deck of photos in your taste
+    neighborhood. The candidate pool is sourced from Qdrant
+    `recommend(positive=likes, negative=dislikes)`, which returns
+    the photos most relevant to your taste vector. The Gumbel
+    draw is biased toward high scores (top of the recommend()
+    ranking) but mixes in randomness as the temperature rises.
 
-    The shuffled pool is cached server-side, keyed by
-    `(fav_ids, dis_ids, top_pct, seed)`. A new `seed` produces a
-    fresh shuffle; reusing the same `seed` walks forward through
-    the same shuffle across paginated scroll calls.
+    The deck is cached server-side for 30 minutes, keyed by
+    (fav_ids, dis_ids, temperature, pool_size, seed). A new
+    seed produces a fresh deck; the same seed reproduces it.
+
+Round-88. Replaces the previous uniform-shuffle-the-top-1%
+implementation. The uniform shuffle destroyed the ranking
+signal — the user could not tell the difference from /random.
+Gumbel-max preserves the ranking as a controllable knob, and
+the temperature slider lets the user pick "curated top-K" (T=0)
+versus "random walk through taste" (T=1.0).
 
 Query params
 ------------
-    top_pct : float, default 1.0, range (0, 100].
-        Percentile of library to use as the random pool. At 800k
-        library: 1% → 8000 candidates, 0.5% → 4000, 5% → 40000.
-        No ceiling; large values fetch proportionally more from
-        Qdrant (recommend() is the dominant cost: ~1-3s for
-        8000, ~5-10s for 40000).
+    pool_size : int, default 2000, range [200, 50_000].
+        Number of recommend() candidates. The Qdrant 30s
+        server-side timeout fires for larger pools on a 2M
+        corpus. 2000 covers a taste neighborhood thoroughly;
+        larger values widen the search for the user who wants
+        more variety.
 
     limit : int, default 30, ge=1.
-        Photos per page. No upper bound — the natural limit is the
-        pool size (top_pct × library size). Asking for limit > pool
-        size returns the entire pool.
+        Photos per page. No upper bound — the natural cap is
+        `min(limit, pool_size)`.
 
-    page : int, default 0, range [0, ∞).
-        Zero-based offset into the cached shuffled pool.
+    offset : int, default 0, ge=0.
+        Zero-based offset into the cached Gumbel deck.
 
-    seed : string, optional.
-        Opaque caller-supplied shuffle key. Pass a fresh random
-        value on every page reload for a fresh shuffle; reuse
-        the same value for paginated scroll calls to walk through
-        the same shuffle. Without a seed, all callers share the
-        cached shuffle until the TTL expires (legacy behaviour).
+    temperature : float, default 0.05, range [0.0, 1.0].
+        Gumbel noise scale. T=0 is deterministic top-K (the
+        same 30 photos at offset=0 every time); T=1.0 is
+        near-uniform over the pool. The home-page Surprise Me
+        uses the same parameter so the two sliders feel
+        consistent.
+
+    seed : int, optional.
+        Random seed for the Gumbel draw. Pass a fresh random
+        int on every page reload so the user sees a different
+        deck each time. Pass the same value for paginated
+        scroll within a single page-mount to walk through
+        the same deck. Without a seed, the route generates a
+        fresh random int per request.
+
+    session : string, optional.
+        Opaque cache key (sha256 of the inputs). Pass back
+        with offset=N to walk the same deck without
+        recomputing. Server-side cached for 30 minutes.
 
 Response
 --------
-    Same SearchResponse shape as /api/random — the frontend can
-    use the same render path. `session_id` is None because this
-    endpoint doesn't track sessions server-side; `session_total`
-    is the pool size so the frontend can show "8000 photos in
-    pool".
+    Same SearchResponse shape as /api/search. `session_id` is
+    the cache key (so the client can paginate by sending it
+    back as `session`). `session_total` is the deck size
+    (2400 by default).
 
 Cold start
 ----------
-    No favorites yet → falls back to a zero-vector search instead
-    of recommend(). The result is the full library ranked by
-    relevance-to-zero (effectively random order), which mirrors
-    /api/random for fresh users. The endpoint shape and
-    semantics are otherwise identical to the recommend() path.
+    No favorites yet → 400 returned with a friendly message.
+    The previous version fell back to a zero-vector search
+    that degraded to /random-equivalent behaviour; the
+    Gumbel path has no equivalent fallback because the taste
+    signal is undefined. Cold-start users should land on
+    /random or the home page until they have at least one
+    like.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from search.for_you import DEFAULT_FOR_YOU_TOP_PCT, filter_live_ids, rank_for_you
-from search.models import ErrorResponse, SearchResponse
+from search.for_you import filter_live_ids
+from search.for_you_deck import (
+    DEFAULT_DECK_SIZE as DEFAULT_FOR_YOU_DECK_SIZE,
+)
+from search.for_you_deck import (
+    DEFAULT_POOL_SIZE,
+    POOL_SIZE_MAX,
+    POOL_SIZE_MIN,
+    TEMPERATURE_MAX,
+    TEMPERATURE_MIN,
+    ForYouDeckCache,
+    build_for_you_deck,
+    compute_for_you_cache_key,
+)
+from search.image_resolver import resolve_url
+from search.models import ErrorResponse, SearchResponse, SearchResult
+from search.surprise_deck import DEFAULT_TEMPERATURE
 
 logger = logging.getLogger(__name__)
+
+
+# Process-local deck cache. Module-level so all requests share
+# the same in-memory map. Mirrors `SurpriseDeckCache` from
+# search/surprise_deck.py but lives in its own module to keep
+# the home-page and for-you TTLs independent.
+_for_you_deck_cache = ForYouDeckCache()
 
 
 def _bad_request(detail: str) -> JSONResponse:
@@ -88,59 +133,101 @@ def build_for_you_router(
     sqlite index, config), all passed in explicitly. Tests can
     inject fakes via this factory.
 
-    Unlike the for-you router, this one does NOT take a
-    `invalidate_*` callback — cache invalidation is wired at the
-    favorites/dislikes routes via the same pattern that invalidates
-    `search.for_you.invalidate_for_you_cache()`.
+    Cache invalidation is wired at the favorites/dislikes routes
+    via `invalidate_for_you_cache()` so the next /api/for-you/feed
+    request after a like/dislike change sees a fresh deck.
     """
     router = APIRouter()
     _web_ui_url = cfg.web_ui_url
 
     @router.get("/api/for-you/feed", response_model=SearchResponse)
     async def for_you_feed(
-        top_pct: Annotated[
-            float,
+        pool_size: Annotated[
+            int,
             Query(
-                ge=0.001,
-                le=100.0,
+                ge=POOL_SIZE_MIN,
+                le=POOL_SIZE_MAX,
                 description=(
-                    "Percentile of library to use as the random pool. "
-                    "Default 1.0 (1% → 8000 candidates at 800k library). "
-                    "No ceiling; large values fetch proportionally more."
+                    f"Number of recommend() candidates the Gumbel "
+                    f"draw is taken from. Default {DEFAULT_POOL_SIZE}. "
+                    f"Range [{POOL_SIZE_MIN}, {POOL_SIZE_MAX}]. "
+                    f"Higher = more variety, slower first page."
                 ),
             ),
-        ] = DEFAULT_FOR_YOU_TOP_PCT,
+        ] = DEFAULT_POOL_SIZE,
         limit: Annotated[
             int,
             Query(ge=1, description="Photos per page. No upper bound."),
         ] = 30,
-        page: Annotated[
+        offset: Annotated[
             int,
-            Query(ge=0, description="Zero-based offset into the shuffled pool."),
+            Query(
+                ge=0,
+                description=(
+                    "Zero-based offset into the cached Gumbel deck. "
+                    "Pass the same `session` value to walk forward "
+                    "through the same deck without recomputing."
+                ),
+            ),
         ] = 0,
+        temperature: Annotated[
+            float,
+            Query(
+                ge=TEMPERATURE_MIN,
+                le=TEMPERATURE_MAX,
+                description=(
+                    "Gumbel noise scale. T=0 is deterministic top-K "
+                    "(curated). T=1.0 is near-uniform random over the "
+                    f"pool. Default {DEFAULT_TEMPERATURE}."
+                ),
+            ),
+        ] = DEFAULT_TEMPERATURE,
         seed: Annotated[
+            int | None,
+            Query(
+                description=(
+                    "Random seed for the Gumbel draw. Pass a fresh "
+                    "random int on every page reload so the user sees "
+                    "a different deck each time. Pass the same value "
+                    "for paginated scroll within a single page-mount "
+                    "to walk through the same deck. If omitted, the "
+                    "route generates a fresh random seed per request."
+                ),
+            ),
+        ] = None,
+        session: Annotated[
             str | None,
             Query(
                 description=(
-                    "Optional opaque string. Frontend passes a fresh "
-                    "random value on every page reload so the user "
-                    "sees a different shuffle each time; reuse the same "
-                    "value for paginated scroll calls within a single "
-                    "page-mount to walk through the same shuffle across "
-                    "page=0, page=1, ... Different seeds produce different "
-                    "shuffles (server-side cached keyed on this value)."
+                    "Opaque cache key from a prior /api/for-you/feed "
+                    "response. Pass back with offset=N to walk the "
+                    "same deck without recomputing. Server-cached "
+                    "for 30 minutes."
                 ),
             ),
         ] = None,
     ) -> SearchResponse:
-        """Materialise the top `top_pct`% of library by taste,
-        uniformly shuffle, return `limit` ids starting at `page`.
+        """
+        Walk through a Gumbel-sampled deck of photos in the user's
+        taste neighborhood.
 
-        The shuffle is keyed by `(fav_ids, dis_ids, top_pct, seed)`.
-        A client that keeps all four stable across multiple `page`
-        values walks through the same shuffle. A new `seed` produces
-        a fresh shuffle. If no seed is supplied, all requests share
-        the same cached shuffle until the TTL expires.
+        The candidate pool is sourced from Qdrant
+        `recommend(positive=likes, negative=dislikes)`. The
+        recommend() results are ordered by score descending, and
+        the Gumbel draw biases the deck toward high scores by
+        the temperature. At T=0 the deck is the deterministic
+        top-K; at T=1.0 the deck is near-uniform random over the
+        pool.
+
+        Cache key: `compute_for_you_cache_key(fav_ids, dis_ids,
+        temperature, pool_size, seed)`. A client that keeps
+        these stable across multiple offsets walks through the
+        same deck. A new seed (or a new fav_ids/dis_ids after a
+        like/dislike) produces a fresh deck.
+
+        Cold start: 0 favourites returns 400. The /for-you page
+        surfaces a "Like a few photos to seed" empty state
+        before sending a request.
         """
         try:
             raw_fav_ids, raw_dis_ids = await asyncio.gather(
@@ -151,11 +238,22 @@ def build_for_you_router(
             logger.exception("for-you: failed to read fav/dis ids")
             return _bad_request("failed to read user signal")  # type: ignore[return-value]
 
-        # Qdrant's recommend() requires every positive/negative id to
-        # exist; orphans in the SQLite fav/dis tables (kept for
-        # re-attach semantics — see index_db.py) would 404 the whole
-        # call and pin the user to an empty pool for the cache TTL.
-        # Strip orphans via retrieve_batch before seeding recommend.
+        if not raw_fav_ids:
+            # Cold start: no taste signal yet. The previous
+            # implementation fell back to a zero-vector search
+            # (effectively /random), but the Gumbel path has no
+            # meaningful ranking without likes to seed recommend().
+            # Tell the client to send the user elsewhere.
+            return _bad_request(  # type: ignore[return-value]
+                "for-you requires at least one favourite to seed "
+                "the taste signal. Like a few photos and try again."
+            )
+
+        # Qdrant's recommend() requires every positive/negative id
+        # to exist; orphans would 404 the whole call and pin the
+        # user to an empty pool for the cache TTL. Strip orphans
+        # via retrieve_batch before seeding recommend. (See
+        # search/for_you.py:filter_live_ids for the same pattern.)
         try:
             fav_ids, dis_ids = await asyncio.gather(
                 asyncio.to_thread(filter_live_ids, raw_fav_ids, qdrant),
@@ -165,36 +263,112 @@ def build_for_you_router(
             logger.exception("for-you: orphan-filter failed; falling back to raw ids")
             fav_ids, dis_ids = raw_fav_ids, raw_dis_ids
 
-        try:
-            page_hits, pool_total, has_more = await asyncio.to_thread(
-                rank_for_you,
+        if not fav_ids:
+            return _bad_request(  # type: ignore[return-value]
+                "all favourites are missing from the index. Like a "
+                "few photos that are still in the library and try again."
+            )
+
+        # Seed defaults to a fresh random int per request so a
+        # user who doesn't pass one gets a fresh deck on every
+        # call. The frontend explicitly passes the same seed on
+        # pagination requests within a single page-mount to walk
+        # the cached deck.
+        effective_seed = seed if seed is not None else secrets.randbelow(2**32)
+
+        # When `session` is provided, use it as the cache key
+        # directly. Otherwise derive one from the inputs. This
+        # mirrors the home-page Surprise Me behaviour: client
+        # captures session_id from the first response, sends it
+        # back on subsequent pages, server uses it as the lookup
+        # key.
+        if session:
+            cache_key = session
+        else:
+            cache_key = compute_for_you_cache_key(
                 fav_ids=fav_ids,
                 dis_ids=dis_ids,
-                qdrant=qdrant,
-                index_db=index_db,
-                limit=limit,
-                page=page,
-                top_pct=top_pct,
-                seed=seed,
+                temperature=temperature,
+                pool_size=pool_size,
+                seed=effective_seed,
             )
-        except Exception:
-            logger.exception("for-you: rank failed")
-            return _bad_request("rank failed")  # type: ignore[return-value]
 
-        results = []
-        for h in page_hits:
+        # Look up the cached deck. If we have a session id (or
+        # computed cache_key) and it's in the cache, hydrate
+        # from there — no Qdrant call. Otherwise build a fresh
+        # deck.
+        cached = _for_you_deck_cache.get(cache_key)
+        if cached is not None:
+            _cached_key, entry = cached
+            deck_ids = list(entry.point_ids)
+            deck_scores = list(entry.scores)
+        else:
+            try:
+                deck_ids, deck_scores = await asyncio.to_thread(
+                    build_for_you_deck,
+                    fav_ids=fav_ids,
+                    dis_ids=dis_ids,
+                    qdrant=qdrant,
+                    pool_size=pool_size,
+                    deck_size=DEFAULT_FOR_YOU_DECK_SIZE,
+                    temperature=temperature,
+                    seed=effective_seed,
+                )
+            except RuntimeError as exc:
+                logger.warning("for-you: deck build failed: %s", exc)
+                return _bad_request(str(exc))  # type: ignore[return-value]
+            except ValueError as exc:
+                return _bad_request(str(exc))  # type: ignore[return-value]
+
+            _for_you_deck_cache.put(
+                cache_key, deck_ids, deck_scores,
+            )
+
+        pool_total = len(deck_ids)
+        if pool_total == 0:
+            return _bad_request("for-you: empty deck")  # type: ignore[return-value]
+
+        start = offset
+        if start >= pool_total:
+            page_ids: list[str] = []
+            page_scores: list[float] = []
+            has_more = False
+        else:
+            end = start + limit
+            page_ids = deck_ids[start:end]
+            page_scores = deck_scores[start:end]
+            has_more = end < pool_total
+
+        # Hydrate payloads via retrieve_batch. Cached hits don't
+        # need re-fetch on pagination, but we still call
+        # retrieve_batch to materialise path/blurhash/etc. The
+        # retrieve_batch path is O(page_size), not O(pool), so
+        # the cost is bounded.
+        hits = await asyncio.to_thread(qdrant.retrieve_batch, page_ids) if page_ids else []
+        by_id = {h.id: h for h in hits}
+        results: list[SearchResult] = []
+        for pid, score in zip(page_ids, page_scores, strict=True):
+            h = by_id.get(pid)
+            if h is None:
+                # Id was deleted between deck build and page
+                # request; skip it. The deck shape (length)
+                # stays consistent with the session_total.
+                continue
             payload = h.payload or {}
-            results.append({
-                "id": h.id,
-                "path": h.path,
-                "score": float(getattr(h, "score", 0.0) or 0.0),
-                "url": f"{_web_ui_url.rstrip('/')}/photo/{h.id}/raw" if _web_ui_url else f"/photo/{h.id}/raw",
-                "is_favorite": False,
-                "is_disliked": False,
-                "blurhash": payload.get("blurhash", ""),
-                "width": int(payload.get("width", 0) or 0),
-                "height": int(payload.get("height", 0) or 0),
-            })
+            results.append(
+                SearchResult(
+                    id=str(h.id),
+                    path=str(h.path),
+                    score=float(score),
+                    score_str=f"{score:.3f}",
+                    url=resolve_url(str(h.id), _web_ui_url),
+                    is_favorite=False,
+                    is_disliked=False,
+                    blurhash=payload.get("blurhash", "") or None,
+                    width=int(payload.get("width", 0) or 0),
+                    height=int(payload.get("height", 0) or 0),
+                )
+            )
 
         return SearchResponse(
             query="",
@@ -207,12 +381,22 @@ def build_for_you_router(
             weights=None,
             results=results,
             took_ms=0,
-            offset=page * limit,
+            offset=offset,
             limit=limit,
             has_more=has_more,
-            session_id=None,
+            session_id=cache_key,
             session_total=pool_total,
             surprise=False,
         )
 
     return router
+
+
+def invalidate_for_you_cache() -> None:
+    """Drop all cached Gumbel decks. Call after every Like/Dislike
+    write so the next /api/for-you/feed request sees a fresh
+    deck reflecting the new taste signal.
+
+    Wired from the favorites and dislikes routes.
+    """
+    _for_you_deck_cache.clear()

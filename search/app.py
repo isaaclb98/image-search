@@ -37,7 +37,6 @@ from search.diversity import (
     DiversityResultCache,
     DiversityStats,
 )
-from search.for_you import invalidate_for_you_cache as _for_you_invalidate_pool
 from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
@@ -47,6 +46,7 @@ from search.models import (
 )
 from search.qdrant_client import QdrantSearch
 from search.random import RandomPicker
+from search.routers.for_you import invalidate_for_you_cache as _for_you_invalidate_deck
 from search.search_snapshot import SearchSnapshotCache
 
 logger = logging.getLogger(__name__)
@@ -988,14 +988,14 @@ def create_app(
         index_db=index_db,
         cfg=_cfg,
         invalidate_likes_centroid=_invalidate_likes_centroid,
-        invalidate_for_you=_for_you_invalidate_pool,
+        invalidate_for_you=_for_you_invalidate_deck,
     ))
     app.include_router(build_dislikes_router(
         index_db=index_db,
         cfg=_cfg,
         invalidate_likes_centroid=_invalidate_likes_centroid,
         invalidate_dislikes_centroid=_invalidate_dislikes_centroid,  # round‑29
-        invalidate_for_you=_for_you_invalidate_pool,
+        invalidate_for_you=_for_you_invalidate_deck,
     ))
     app.include_router(build_albums_router(
         index_db=index_db,
