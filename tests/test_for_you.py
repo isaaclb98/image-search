@@ -654,18 +654,18 @@ class TestRouter:
         assert "offset" in body
         assert "limit" in body
 
-    def test_top_pct_zero_rejected(self) -> None:
-        """top_pct=0.0 → 422 (Query validator)."""
+    def test_pool_size_zero_rejected(self) -> None:
+        """pool_size=0 → 422 (Query validator)."""
         app, _, _ = self._build_router()
         with TestClient(app) as client:
-            response = client.get("/api/for-you/feed?top_pct=0.0")
+            response = client.get("/api/for-you/feed?pool_size=0")
         assert response.status_code == 422
 
-    def test_top_pct_over_100_rejected(self) -> None:
-        """top_pct=101 → 422."""
+    def test_pool_size_over_max_rejected(self) -> None:
+        """pool_size above POOL_SIZE_MAX (50_000) → 422."""
         app, _, _ = self._build_router()
         with TestClient(app) as client:
-            response = client.get("/api/for-you/feed?top_pct=101")
+            response = client.get("/api/for-you/feed?pool_size=50001")
         assert response.status_code == 422
 
     def test_limit_zero_rejected(self) -> None:
@@ -675,22 +675,23 @@ class TestRouter:
             response = client.get("/api/for-you/feed?limit=0")
         assert response.status_code == 422
 
-    def test_page_negative_rejected(self) -> None:
-        """page=-1 → 422."""
+    def test_offset_negative_rejected(self) -> None:
+        """offset=-1 → 422."""
         app, _, _ = self._build_router()
         with TestClient(app) as client:
-            response = client.get("/api/for-you/feed?page=-1")
+            response = client.get("/api/for-you/feed?offset=-1")
         assert response.status_code == 422
 
     def test_response_results_have_required_fields(self) -> None:
         """Each result has id, path, url, blurhash, width, height."""
-        app, _, _ = self._build_router(
-            point_count=200, hit_ids=["id-0", "id-1"],
-        )
-        # Override the cfg to a known URL
+        # Round-88: a fav id is now required (Gumbel path has
+        # no zero-vector fallback). The fake_qdrant returns 2
+        # hits; pool_size=2 is below the 200 minimum, so the
+        # route's pool_size param defaults to 2000 and the
+        # deck is the 2 hits.
         from search.routers.for_you import build_for_you_router
 
-        index_db = _fake_index_db(point_count=200)
+        index_db = _fake_index_db(fav_ids=["some-fav"], point_count=200)
         qdrant = _fake_qdrant(["id-0", "id-1"])
         cfg = _fake_cfg(web_ui_url="http://test:1234")
         router = build_for_you_router(
@@ -699,10 +700,10 @@ class TestRouter:
         app = _wrap(router)
 
         with TestClient(app) as client:
-            response = client.get("/api/for-you/feed?limit=2")
+            response = client.get("/api/for-you/feed?limit=2&pool_size=200")
         body = response.json()
         ids_in_response = {r["id"] for r in body["results"]}
-        # Pool is randomly shuffled — assert both ids are returned
+        # Pool is Gumbel-sampled — assert both ids are returned
         # (modulo the auto-fill path), not specific order.
         assert {"id-0", "id-1"} <= ids_in_response
         # First result carries the SearchResult-shape fields.
@@ -710,14 +711,25 @@ class TestRouter:
         assert "url" in first
         assert first["url"].startswith("http://test:1234/photo/")
         assert first["url"].endswith("/raw")
+        # Round-88: Gumbel deck carries real cosine scores
+        # (0.0-1.0 range, two decimals), not the previous
+        # 0.0 default.
+        assert "score" in first
+        assert 0.0 <= first["score"] <= 1.0
+        assert "score_str" in first
 
-    def test_session_total_reflects_pool_size(self) -> None:
-        """session_total in the response is the pool size (library × top_pct)."""
-        app, _, _ = self._build_router(point_count=500)
+    def test_session_total_reflects_deck_size(self) -> None:
+        """session_total in the response is the deck size (DEFAULT_DECK_SIZE = 2400)."""
+        # Round-88: requires a fav id. pool_size=200 (the
+        # minimum) means the pool has 10 ids (the fake qdrant
+        # returns 10 by default), and the deck is capped at 10.
+        app, _, _ = self._build_router(fav_ids=["some-fav"], point_count=500)
         with TestClient(app) as client:
-            response = client.get("/api/for-you/feed?top_pct=2&limit=5")
+            response = client.get("/api/for-you/feed?pool_size=200&limit=5")
         body = response.json()
-        # 500 photos × 2% = 10 candidates
+        # pool_size=200 is well below the deck size of 2400, so
+        # the deck is capped at the 10 ids the fake qdrant
+        # returns. (Real prod returns up to pool_size candidates.)
         assert body["session_total"] == 10
 
     def test_orphan_favorites_filtered_before_recommend(self) -> None:
@@ -759,10 +771,11 @@ class TestRouter:
         assert body["session_total"] > 0
         assert len(body["results"]) > 0
 
-    def test_all_favorites_orphan_falls_back_to_cold_start(self) -> None:
-        """Every favourite orphaned → fav_ids filters to empty →
-        build_for_you_pool takes the zero-vector cold-start path
-        instead of 404ing recommend. The user still gets photos.
+    def test_all_favorites_orphan_returns_400(self) -> None:
+        """Every favourite orphaned → fav_ids filters to empty → no
+        taste signal available. The Gumbel path returns 400 with a
+        friendly message; the user is told to like a few photos
+        that still exist in the library.
         """
         from search.routers.for_you import build_for_you_router
 
@@ -775,40 +788,47 @@ class TestRouter:
 
         with TestClient(app) as client:
             response = client.get("/api/for-you/feed?limit=5")
-        assert response.status_code == 200
+        assert response.status_code == 400
         body = response.json()
-        assert body["session_total"] > 0
+        assert "favourite" in body["detail"].lower() or "missing" in body["detail"].lower()
         qdrant.recommend.assert_not_called()
-        qdrant.search.assert_called_once()  # zero-vector cold-start path
 
     def test_offset_echoes_input(self) -> None:
-        """page=2, limit=10 → offset=20 in the response."""
-        app, _, _ = self._build_router(point_count=1000)
+        """offset=20, limit=10 → offset=20 in the response."""
+        # Round-88: requires a fav id.
+        app, _, _ = self._build_router(fav_ids=["some-fav"], point_count=1000)
         with TestClient(app) as client:
-            response = client.get("/api/for-you/feed?page=2&limit=10")
+            response = client.get("/api/for-you/feed?offset=20&limit=10")
         body = response.json()
         assert body["offset"] == 20
         assert body["limit"] == 10
 
     def test_invalidate_callback_clears_cache(self) -> None:
         """Calling invalidate_for_you_cache() forces the next request to rebuild."""
-        # Use fav_ids=["fav-1"] so the recommend() path is exercised
-        # (cold start uses qdrant.search, not qdrant.recommend).
+        # Use fav_ids=["fav-1"] so the recommend() path is exercised.
+        # Round-88: the cache is in search.routers.for_you (the
+        # Gumbel deck), not the old search.for_you uniform-shuffle
+        # pool. We import the new helper for the invalidation step.
+        # Pass the same `seed` on every call so the cache key
+        # is stable — without it, the route generates a fresh
+        # random seed per request, which means each call is a
+        # cache miss and recommend() fires every time.
+        from search.routers.for_you import invalidate_for_you_cache as new_invalidate
         app, _, qdrant = self._build_router(
             fav_ids=["fav-1"], point_count=1000,
         )
         with TestClient(app) as client:
-            # First call: builds pool
-            client.get("/api/for-you/feed?limit=5")
+            # First call: builds deck
+            client.get("/api/for-you/feed?limit=5&pool_size=200&seed=42")
             assert qdrant.recommend.call_count == 1
 
             # Same call again within TTL: cache hit, no rebuild
-            client.get("/api/for-you/feed?limit=5")
+            client.get("/api/for-you/feed?limit=5&pool_size=200&seed=42")
             assert qdrant.recommend.call_count == 1
 
             # Invalidate: next call rebuilds
-            invalidate_for_you_cache()
-            client.get("/api/for-you/feed?limit=5")
+            new_invalidate()
+            client.get("/api/for-you/feed?limit=5&pool_size=200&seed=42")
             assert qdrant.recommend.call_count == 2
 
 
