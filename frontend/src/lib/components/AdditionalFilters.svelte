@@ -2,14 +2,15 @@
   /**
    * AdditionalFilters — the collapsible panel below the search
    * controls. Has a header with title + chevron, body has the
-   * filename input, diversity controls, and (on the home page)
-   * the collections chip filter.
+   * filename input, and (on the home page) the collections chip
+   * filter.
    *
-   * Diversity API contract (see search/diversity.py):
-   *   diversity_mode  ∈ {off, low, balanced, high}
-   *   diversity_depth ∈ {auto, 500, 1000, 2000, 5000, 10000}
-   *   (diversity_strength was a 0–1 slider; removed in round-4
-   *    per king — the mode dropdown is enough.)
+   * Round-87: the diversity dropdowns were removed. The MMR
+   * diversity rerank still exists on the backend as a query
+   * parameter (`diverse=true` / `diversity=balanced`) for
+   * external API consumers, but the home page UI no longer
+   * surfaces it — Surprise Me (the Gumbel-max sample) is the
+   * variety mechanism across the app.
    *
    * Collections: optional. Pass `collections` + `onToggleCollection`
    * to surface the chip-row filter inside this panel. Used on the
@@ -20,24 +21,16 @@
   type Props = {
     open: boolean;
     filename: string;
-    diversityMode: 'off' | 'low' | 'balanced' | 'high' | string;
-    diversityDepth?: 'auto' | '500' | '1000' | '2000' | '5000' | '10000' | string;
     onToggle: () => void;
     onFilename: (v: string) => void;
-    onDiversityMode: (v: string) => void;
-    onDiversityDepth?: (v: string) => void;
     collections?: string[];
     onToggleCollection?: (name: string) => void;
   };
   let {
     open,
     filename,
-    diversityMode,
-    diversityDepth = 'auto',
     onToggle,
     onFilename,
-    onDiversityMode,
-    onDiversityDepth,
     collections = [],
     onToggleCollection
   }: Props = $props();
@@ -66,41 +59,6 @@
           spellcheck="false"
         />
       </label>
-      <div class="field">
-        <span class="lab">Diversity</span>
-        <div class="row">
-          <select
-            value={diversityMode}
-            onchange={(e) => onDiversityMode((e.target as HTMLSelectElement).value)}
-            aria-label="Diversity mode"
-          >
-            <option value="off">Off</option>
-            <option value="low">Low</option>
-            <option value="balanced">Balanced</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-      </div>
-      {#if onDiversityDepth}
-        <div class="field">
-          <span class="lab">Diversity depth</span>
-          <div class="row">
-            <select
-              value={diversityDepth}
-              onchange={(e) => onDiversityDepth((e.target as HTMLSelectElement).value)}
-              aria-label="Diversity depth"
-              title="How many top results to re-rank across for diversity"
-            >
-              <option value="auto">Auto</option>
-              <option value="500">500 photos</option>
-              <option value="1000">1,000 photos</option>
-              <option value="2000">2,000 photos</option>
-              <option value="5000">5,000 photos</option>
-              <option value="10000">10,000 photos</option>
-            </select>
-          </div>
-        </div>
-      {/if}
       {#if onToggleCollection}
         <div class="collections-row">
           <span class="lab">Limit to library</span>

@@ -64,8 +64,6 @@
   let input = $state('');
   let mode = $state<'pos' | 'neg'>('pos');
   let filename = $state('');
-  let diversityMode = $state('off');
-  let diversityDepth = $state('auto');
   let collections = $state<string[]>([]);
   let filtersOpen = $state(false);
 
@@ -155,10 +153,8 @@
     positives = q.getAll('positives');
     negatives = q.getAll('negatives');
     filename = q.get('filename') ?? '';
-    diversityMode = q.get('diversity') ?? 'off';
-    diversityDepth = q.get('diversity_depth') ?? 'auto';
     collections = q.getAll('collection');
-    filtersOpen = !!filename || diversityMode !== 'off' || diversityDepth !== 'auto' || collections.length > 0;
+    filtersOpen = !!filename || collections.length > 0;
     activeCentroid = q.get('centroid');
     // Validate the mode param — anything other than the two
     // known values is treated as the default so a stale or
@@ -180,8 +176,6 @@
     positives.forEach((p) => qs.append('positives', p));
     negatives.forEach((n) => qs.append('negatives', n));
     if (filename) qs.set('filename', filename);
-    if (diversityMode !== 'off') qs.set('diversity', diversityMode);
-    if (diversityDepth && diversityDepth !== 'auto') qs.set('diversity_depth', diversityDepth);
     collections.forEach((c) => qs.append('collection', c));
     const next = qs.toString();
     if ($page.url.search.replace(/^\?/, '') !== next) {
@@ -253,8 +247,6 @@
           positives,
           negatives,
           filename,
-          diversityMode: surpriseOn ? 'off' : diversityMode,
-          diversityDepth,
           limit: PAGE,
           offset: 0,
           centroid: activeCentroid ?? undefined,
@@ -309,7 +301,6 @@
     try {
       const res = await search({
         positives, negatives, filename,
-        diversityMode: surpriseOn ? 'off' : diversityMode, diversityDepth,
         limit: PAGE, offset,
         centroid: activeCentroid ?? undefined,
         centroidMode:
@@ -426,8 +417,6 @@
     void positives;
     void negatives;
     void filename;
-    void diversityMode;
-    void diversityDepth;
     void input;
     if (!browser) return;
     writeToUrl();
@@ -501,24 +490,21 @@
   <AdditionalFilters
     open={filtersOpen}
     {filename}
-    {diversityMode}
-    {diversityDepth}
     {collections}
     onToggle={() => (filtersOpen = !filtersOpen)}
     onFilename={(v) => (filename = v)}
-    onDiversityMode={(v) => (diversityMode = v)}
-    onDiversityDepth={(v) => (diversityDepth = v)}
     onToggleCollection={toggleCollection}
   />
 
   <!-- Search button + saved-searches menu. Pulled out of
        PromptChips so it sits AFTER the additional-options
-       panel — visual order: search inputs → diversity options
-       → action buttons. In centroid mode the saved-searches menu
-       doesn't apply (the centroid IS the query), but the Search
-       button does: filter changes (diversity, filename,
-       collections) stage into state and run only on this click —
-       same explicit-run contract as the home search. -->
+       panel — visual order: search inputs → filename +
+       collections → action buttons. In centroid mode the
+       saved-searches menu doesn't apply (the centroid IS the
+       query), but the Search button does: filter changes
+       (filename, collections) stage into state and run only
+       on this click — same explicit-run contract as the home
+       search. -->
   {#if !activeCentroid}
     <div class="search-actions">
       <SavedSearchesMenu
@@ -560,7 +546,7 @@
           : 'Turn on Surprise Me (random deck from the top candidates)'}
         aria-pressed={surpriseOn}
       >
-        {surpriseOn ? '🎲 Surprise: on' : '🎲 Surprise me'}
+        {surpriseOn ? 'Surprise: on' : 'Surprise me'}
       </Button>
     </div>
     {#if surpriseOn}
@@ -727,9 +713,9 @@
     color: var(--fg-1);
   }
   /* Saved-searches + Search button. Pulled out of PromptChips
-     so the action row sits below the diversity panel, not below
-     the search inputs (matches the layout the user wants:
-     inputs → diversity options → actions). */
+     so the action row sits below the additional-options panel,
+     not below the search inputs (matches the layout the user
+     wants: inputs → filename + collections → actions). */
   .search-actions {
     display: flex;
     align-items: center;
@@ -791,7 +777,7 @@
   /* Spacing inside the hero stack:
        composer (PromptChips + CollectionsChips)
          ↓ 14px
-       diversity / filename controls (AdditionalFilters)
+       filename / collections controls (AdditionalFilters)
          ↓ 10px
        search actions (Saved + Search)
      These gaps are deliberate — title→subtitle is 6px (they
