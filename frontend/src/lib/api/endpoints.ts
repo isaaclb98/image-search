@@ -32,9 +32,6 @@ export type SearchParams = {
   positives?: string[];
   negatives?: string[];
   filename?: string;
-  diversityMode?: string;
-  diversityStrength?: number;
-  diversityDepth?: string;
   limit?: number;
   offset?: number;
   /** When set, queries the centroid search endpoint. */
@@ -67,8 +64,9 @@ export type SearchParams = {
    * a 2400-photo deck from a Gumbel-perturbed softmax over the
    * top-N Qdrant candidates and returns it page-by-page via
    * `surpriseSession`. Same query + temperature + pool + seed =
-   * same deck (deterministic). Mutually exclusive with
-   * `diversityMode`.
+   * same deck (deterministic). The backend also accepts the
+   * legacy `diversity` parameter (MMR rerank) for external
+   * API consumers, but the two are mutually exclusive.
    */
   surprise?: boolean;
   /**
@@ -101,13 +99,12 @@ export function search(params: SearchParams, signal?: AbortSignal) {
   (params.positives ?? []).forEach((p) => qs.append('positives', p));
   (params.negatives ?? []).forEach((p) => qs.append('negatives', p));
   if (params.filename) qs.set('filename', params.filename);
-  // Backend param name is `diversity` (NOT `diversity_mode`); see
-  // search/app.py:/api/search signature.
-  if (params.diversityMode) qs.set('diversity', params.diversityMode);
-  if (params.diversityStrength !== undefined)
-    qs.set('diversity_strength', String(params.diversityStrength));
-  if (params.diversityDepth && params.diversityDepth !== 'auto')
-    qs.set('diversity_depth', params.diversityDepth);
+  // Round-87: diversity parameters (diverse, diversity,
+  // diversity_depth) are no longer emitted from the UI. The
+  // backend still accepts them for external API consumers,
+  // but the home page uses Surprise Me as the variety
+  // mechanism and the additional-filters UI no longer
+  // surfaces the diversity dropdowns.
   // Backend /api/search reads `?collection=` (singular, repeated),
   // not the plural — see `parse_collections` in
   // `search/_result_helpers.py`. Sending the plural here silently
