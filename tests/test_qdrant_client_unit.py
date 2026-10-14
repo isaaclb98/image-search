@@ -359,11 +359,15 @@ class TestQdrantSearchConfig:
 
     def test_default_timeout(self, in_memory_qdrant):
         search = QdrantSearch(in_memory_qdrant, "x")
-        assert search.timeout_ms == 2000
-        # Default bumped 10s -> 40s to match config.py (search/qdrant_client.py
-        # and config.py must agree). Heavy recommend() at prod library size
-        # (1.96M points, 409 fav ids) regularly takes 2-10s; 10s was too tight.
-        assert search.recommend_timeout_ms == 40000
+        # Defaults bumped 2s -> 60s and 40s -> 60s to match
+        # config.py (search/qdrant_client.py and config.py must
+        # agree). The Surprise Me slider's max pool of 50k on
+        # the 2M-point production corpus completes in 22-27s;
+        # 30s was the cliff and produced intermittent 504s on
+        # transient Qdrant load. 60s gives ~2x headroom without
+        # binding gunicorn's 2-minute worker timeout.
+        assert search.timeout_ms == 60000
+        assert search.recommend_timeout_ms == 60000
 
     def test_custom_timeout(self, in_memory_qdrant):
         search = QdrantSearch(in_memory_qdrant, "x", timeout_ms=500)

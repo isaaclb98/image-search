@@ -39,20 +39,18 @@ class QdrantSearch:
         self,
         client: Any,
         collection: str,
-        timeout_ms: int = 2000,
-        recommend_timeout_ms: int = 40000,
+        timeout_ms: int = 60000,
+        recommend_timeout_ms: int = 60000,
     ):
         self.client = client
         self.collection = collection
         self.timeout_ms = timeout_ms
         # Per-request timeout for the recommend() call. The default
-        # 2s (set by `timeout_ms`) is too tight for the recommend path
-        # over HTTPS through a reverse proxy on a large collection:
-        # Qdrant has to fetch the positive/negative point vectors,
-        # compute their mean, then run an HNSW search. 10s is generous;
-        # in practice a healthy Qdrant returns in <1s. Configurable
-        # via Config (RECOMMEND_TIMEOUT_MS env var) so the operator
-        # can tune without code changes.
+        # 60s matches the query path — both run the same HNSW walk
+        # but on different inputs (raw vector vs mean of
+        # positive+negative ids). The 60s budget gives the larger
+        # pool sizes (~50k in the Surprise Me slider) enough
+        # headroom on the 2M-point production corpus.
         self.recommend_timeout_ms = recommend_timeout_ms
 
     def search(
@@ -234,8 +232,8 @@ class QdrantSearch:
                 with_payload=True,
                 with_vectors=with_vector,
                 # Use the dedicated, more generous timeout — the
-                # default 2s (timeout_ms) is too tight for the
-                # heavier recommend path on a real collection.
+                # recommend path needs more headroom than the
+                # default search path on the 2M-point corpus.
                 timeout=self.recommend_timeout_ms // 1000,
             )
         except Exception as e:  # noqa: BLE001
