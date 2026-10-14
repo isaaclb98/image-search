@@ -49,6 +49,21 @@ behaviours:
    otherwise succeed; the route's 400 path is reserved for
    the explicit-ask case where a static centroid was named.
 
+4. **Surprise Me on centroid search (round-91, `?surprise=true`).**
+   When `surprise` is set, the route runs the same Gumbel-max
+   deck flow as `/api/search?surprise=true` but with the
+   centroid vector as the query. Same temperature / pool / seed
+   / session contract; same `SurpriseDeckCache` shape; same
+   `surprise_session` round-trip. Mutually exclusive with
+   `mode=sample` (both randomize, pick one) and with
+   `diversity` (MMR re-rank on a per-request randomized pool
+   is meaningless). The seed ids of the centroid are passed
+   to Qdrant as `exclude_ids` so the results don't echo back
+   the album members / favourites. The `centroids=[name]`
+   field of the cache key is what scopes each centroid's
+   deck — different centroids produce different decks even
+   with identical temperature/pool/seed.
+
 Tests pin:
 - 404 for unknown centroid names.
 - 404 for "loaded but empty" dynamic centroids (the empty-state
@@ -57,11 +72,19 @@ Tests pin:
 - `exclude_ids` Layer 1 includes the seed ids when the centroid
   is dynamic.
 - Static centroids skip Layer 1 / Layer 2 entirely.
+- Round-91: surprise=true on a centroid returns a Surprise
+  deck (session_id, session_total, surprise=true in the
+  response). Same-seed=Same-deck, Different-seed=Different-deck.
+- Round-91: surprise + mode=sample and surprise + diversity
+  both 400 (mutex).
+- Round-91: surprise_temperature out of [0, 1] 400, surprise_pool
+  out of [200, 50000] 400, surprise_seed non-integer 400.
 """
 
 from __future__ import annotations
 
 import logging
+import secrets
 import time
 from typing import Any
 
@@ -95,6 +118,17 @@ from search.diversity import (
     resolve_mode,
 )
 from search.models import DiversityMetadata, SearchResponse, SearchResult
+from search.routers.search import _build_surprise_deck
+from search.surprise_deck import (
+    DEFAULT_POOL_SIZE,
+    DEFAULT_TEMPERATURE,
+    POOL_SIZE_MAX,
+    POOL_SIZE_MIN,
+    TEMPERATURE_MAX,
+    TEMPERATURE_MIN,
+    SurpriseDeckCache,
+    compute_cache_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +163,16 @@ def build_centroids_search_router(
         are not cached across requests/pagination).
     """
     router = APIRouter()
+    # Process-local cache of pre-generated Surprise Me decks for
+    # centroid searches. Keyed by the ETag hash of the params
+    # (centroid name + temperature + pool + seed), so the same
+    # centroid + knobs always hit the same deck and a different
+    # seed always produces a new one. Mirrors the per-router
+    # cache in build_search_router — process-local because
+    # "give me a fresh deck on refresh" is the desired UX and
+    # a shared cache would turn the cache into a sticky-session
+    # failure mode on a load balancer.
+    surprise_deck_cache = SurpriseDeckCache()
 
     @router.get("/api/centroids/{name}/search", response_model=SearchResponse)
     async def search_by_centroid(
@@ -166,6 +210,51 @@ def build_centroids_search_router(
         ),
         diversity_depth: str | None = Query(
             None, description="Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
+        ),
+        surprise: bool = Query(
+            False,
+            description=(
+                "Surprise Me — Gumbel-max over the top N candidates from "
+                "this centroid. Mutually exclusive with mode=sample and "
+                "with diversity. Same cache+session contract as "
+                "/api/search?surprise=true."
+            ),
+        ),
+        surprise_temperature: float = Query(
+            DEFAULT_TEMPERATURE,
+            description=(
+                "Gumbel noise scale for Surprise Me on centroid search. "
+                "T=0 is deterministic top-K; higher = more variety. "
+                "Ignored unless surprise=true."
+            ),
+        ),
+        surprise_pool: int = Query(
+            DEFAULT_POOL_SIZE,
+            description=(
+                "How many top candidates the Gumbel draw is taken from "
+                "for centroid search. Larger = more variety, slower "
+                "first page. Range 200..50000, default 5000. Ignored "
+                "unless surprise=true."
+            ),
+        ),
+        surprise_seed: int | None = Query(
+            None,
+            description=(
+                "Reseed knob for Surprise Me on centroid search. Pass "
+                "a fresh random int for a new deck every request; pass "
+                "the same value across requests for a shareable "
+                "deterministic URL. The route generates a random int "
+                "when this is absent so each new search gives a "
+                "different deck by default. Ignored unless surprise=true."
+            ),
+        ),
+        surprise_session: str | None = Query(
+            None,
+            description=(
+                "Opaque session id from a prior Surprise Me response on "
+                "this centroid. Pass back with offset to walk the cached "
+                "deck without recomputing. Ignored unless surprise=true."
+            ),
         ),
     ) -> SearchResponse:
         """Search using a loaded centroid as the query vector."""
@@ -210,6 +299,59 @@ def build_centroids_search_router(
                 "Diversity cannot be combined with sample mode "
                 "(Surprise Me). Choose one retrieval mode."
             )  # type: ignore[return-value]
+        # Round-91: Surprise Me on centroid search. Same Gumbel-max
+        # algorithm as /api/search?surprise=true but with the
+        # centroid vector as the query. Mutex with mode=sample
+        # (both randomize the result, pick one) and with diversity
+        # (MMR rerank on a per-request randomized pool is
+        # meaningless). Surprise is allowed for both static and
+        # dynamic centroids — a static .pt has a fixed vector but
+        # the pool around it is still meaningful.
+        if surprise and mode == "sample":
+            return bad_request(
+                "Surprise Me cannot be combined with mode=sample. "
+                "Choose one retrieval mode."
+            )  # type: ignore[return-value]
+        if surprise and diversity_active:
+            return bad_request(
+                "Diversity cannot be combined with Surprise Me. "
+                "Choose one search mode."
+            )  # type: ignore[return-value]
+        # Surprise knob validation — lifted above the branch so the
+        # ETag pre-compute (when added) and the branch see the same
+        # parsed values. Mirrors the validation block in
+        # /api/search. Centroid search has no `q` / `positives` /
+        # `negatives`, so the cache-key input is just the centroid
+        # name and the surprise knobs.
+        surprise_temperature_parsed: float = DEFAULT_TEMPERATURE
+        surprise_pool_parsed: int = DEFAULT_POOL_SIZE
+        surprise_seed_parsed: int | None = None
+        if surprise:
+            try:
+                surprise_temperature_parsed = float(surprise_temperature)
+            except (TypeError, ValueError):
+                return bad_request("surprise_temperature must be a number")  # type: ignore[return-value]
+            if not (TEMPERATURE_MIN <= surprise_temperature_parsed <= TEMPERATURE_MAX):
+                return bad_request(  # type: ignore[return-value]
+                    f"surprise_temperature must be in "
+                    f"[{TEMPERATURE_MIN}, {TEMPERATURE_MAX}], "
+                    f"got {surprise_temperature_parsed}"
+                )
+            try:
+                surprise_pool_parsed = int(surprise_pool)
+            except (TypeError, ValueError):
+                return bad_request("surprise_pool must be an integer")  # type: ignore[return-value]
+            if not (POOL_SIZE_MIN <= surprise_pool_parsed <= POOL_SIZE_MAX):
+                return bad_request(  # type: ignore[return-value]
+                    f"surprise_pool must be in "
+                    f"[{POOL_SIZE_MIN}, {POOL_SIZE_MAX}], "
+                    f"got {surprise_pool_parsed}"
+                )
+            if surprise_seed is not None:
+                try:
+                    surprise_seed_parsed = int(surprise_seed)
+                except (TypeError, ValueError):
+                    return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
         # Look up static first; fall back to dynamic (registry does
         # lazy compute + cache). This keeps the route's contract
         # the same regardless of which backend the centroid came from.
@@ -351,9 +493,57 @@ def build_centroids_search_router(
                 f"invalid filename pattern {filename_pattern!r}"
             )
 
+        # Auto-roll a fresh seed when surprise is on but the client
+        # didn't provide one. Same pattern as /api/search. Type
+        # narrows to int so downstream callers see a real int.
+        if surprise and surprise_seed_parsed is None:
+            surprise_seed_parsed = secrets.randbelow(2**31)
+        # Use 0 as a placeholder when not surprise — the session
+        # branch below uses the session id directly and skips the
+        # cache-key recompute when session is present.
+        seed_for_cache_key: int = (
+            surprise_seed_parsed if surprise_seed_parsed is not None else 0
+        )
+        # Pre-compute the Surprise Me cache key from the request
+        # inputs. Same role as in /api/search: the key gates the
+        # cache hit and doubles as the session id. For centroid
+        # search the only "query" input is the centroid name —
+        # there's no `q`, no positives/negatives, no favorites
+        # flag. The `centroids=[centroid_name]` field on
+        # compute_cache_key is what makes the deck
+        # centroid-specific; different centroids get different
+        # decks even with the same temperature/pool/seed.
+        # `collections` is included so a different
+        # `?collections=foo` filter produces a different deck
+        # (the underlying pool is narrower).
+        surprise_cache_key: str | None = (
+            surprise_session
+            if surprise and surprise_session
+            else (
+                compute_cache_key(
+                    q="",
+                    positives=[],
+                    negatives=[],
+                    centroids=[centroid_name],
+                    weights=None,
+                    collections=collections,
+                    favorites=False,
+                    filename="",
+                    temperature=surprise_temperature_parsed,
+                    pool_size=surprise_pool_parsed,
+                    seed=seed_for_cache_key,
+                )
+                if surprise else None
+            )
+        )
+
         t0 = time.time()
         # `allowed_ids == []` short-circuit (see `/` and `/api/search`
-        # for the rationale).
+        # for the rationale). `deck_ids` is declared up-front so every
+        # branch (surprise / diversity / default) can populate it; the
+        # default branch leaves it empty since it's only meaningful
+        # for the surprise path.
+        deck_ids: list[str] = []
         if allowed_ids is not None and not allowed_ids:
             hits: list = []
             has_more = False
@@ -390,6 +580,47 @@ def build_centroids_search_router(
                     return qdrant_timeout(str(e))  # type: ignore[return-value]
                 logger.exception("centroid diversity search failed")
                 return internal_error(str(e))  # type: ignore[return-value]
+        elif surprise and surprise_cache_key is not None:
+            # Round-91: Surprise Me on centroid search. Same
+            # Gumbel-max algorithm as /api/search?surprise=true
+            # but with the centroid vector as the query. Excludes
+            # the centroid's seed ids at the Qdrant level so the
+            # results don't echo the inputs (matches the
+            # non-surprise centroid path's Layer 1 exclusion). No
+            # Layer 2 near-dup post-pass — at high temperature
+            # the Gumbel draw dilutes near-dups; at T=0 a few
+            # near-dups may surface. Acceptable trade-off for
+            # keeping the route simple.
+            try:
+                hits, has_more, deck_ids = await _build_surprise_deck(
+                    qdrant=qdrant,
+                    vec=vector,
+                    collections=collections,
+                    surprise_allowed_ids=allowed_ids,
+                    surprise_pool=surprise_pool_parsed,
+                    surprise_temperature=surprise_temperature_parsed,
+                    surprise_seed=(
+                        surprise_seed_parsed if surprise_seed_parsed is not None else 0
+                    ),
+                    surprise_session=surprise_session,
+                    surprise_cache_key=surprise_cache_key,
+                    surprise_deck_cache=surprise_deck_cache,
+                    effective_limit=effective_limit,
+                    offset=offset,
+                    exclude_ids=seed_ids or None,
+                )
+            except (ConnectionError, OSError) as e:
+                logger.warning(
+                    "Qdrant unreachable for centroid surprise: %s", e,
+                )
+                return qdrant_unreachable(str(e))  # type: ignore[return-value]
+            except Exception as e:
+                if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
+                    logger.warning("Qdrant surprise timeout: %s", e)
+                    return qdrant_timeout(str(e))  # type: ignore[return-value]
+                logger.exception("centroid surprise search failed")
+                return internal_error(str(e))  # type: ignore[return-value]
+            diversity_meta = DiversityMetadata()
         else:
             diversity_meta = None
             # See module docstring for the over-fetch + two-layer
@@ -488,6 +719,18 @@ def build_centroids_search_router(
         results: list[SearchResult] = await results_from_hits(
             index_db, cfg=cfg, hits=hits,
         )
+        # Round-91: Surprise Me on centroid search echoes the
+        # session id + total in the response so the client can
+        # walk the deck page-by-page (same contract as
+        # /api/search?surprise=true and /api/random).
+        session_id_out = (
+            surprise_cache_key
+            if (surprise and surprise_cache_key and deck_ids)
+            else None
+        )
+        session_total_out = (
+            len(deck_ids) if (surprise and deck_ids) else None
+        )
         return SearchResponse(
             query="",
             positives=[],
@@ -495,6 +738,7 @@ def build_centroids_search_router(
             diverse=diversity_active,
             diversity=diversity_meta if diversity_meta is not None
             else DiversityMetadata(depth="auto", pool_depth=0),
+            surprise=surprise and bool(deck_ids),
             view=coerce_view(cfg.default_view),
             centroid=centroid_name,
             results=results,
@@ -502,6 +746,8 @@ def build_centroids_search_router(
             offset=offset,
             limit=limit,
             has_more=has_more,
+            session_id=session_id_out,
+            session_total=session_total_out,
         )
 
     return router
