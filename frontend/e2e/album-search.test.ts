@@ -7,6 +7,11 @@
  *   3. Home page renders search results inline (no composer)
  *   4. URL stays on the centroid so reload restores the search
  *   5. Empty albums disable the button
+ *   6. The Surprise-me affordance lives in the home page's
+ *      Additional options panel (round-91/92) — the per-card
+ *      "Surprise" button that used to set `?mode=sample` was
+ *      removed because the in-panel Gumbel-max toggle is
+ *      strictly more capable.
  *
  * These are happy-path checks against the live dev server. They
  * require at least one non-empty album (the built-in Likes
@@ -28,21 +33,20 @@ test.describe('album card Search button (round‑29)', () => {
     await expect(page.locator('h1', { hasText: 'Albums' })).toBeVisible();
 
     // Every system card AND every user album card has a Search
-    // AND a Surprise button (round-34). Both share the
-    // .search-btn class — the data-mode attribute is the
-    // discriminator: Search has none, Surprise is data-mode="sample".
+    // button. Round-92: the per-card "Surprise" button was
+    // removed — Surprise me is now the Additional options
+    // panel on the centroid page, which is strictly more
+    // capable than the old per-card Gumbel-less cluster
+    // re-roll. The .search-btn class is still on the Search
+    // buttons for the test harness.
     const cards = page.locator('article.card');
     const cardCount = await cards.count();
     expect(cardCount).toBeGreaterThan(0);
 
     const searchButtons = page.locator(
-      'article.card button.search-btn:not([data-mode])'
-    );
-    const surpriseButtons = page.locator(
-      'article.card button.search-btn[data-mode="sample"]'
+      'article.card button.search-btn'
     );
     await expect(searchButtons).toHaveCount(cardCount);
-    await expect(surpriseButtons).toHaveCount(cardCount);
 
     // Every Search button has a data-centroid attribute so the
     // wire shape is visible to the test harness (and to humans
@@ -63,7 +67,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const likesButton = page.locator(
-      'button.search-btn:not([data-mode])[data-centroid="likes"]'
+      'button.search-btn[data-centroid="likes"]'
     );
     // Skip when Likes is empty — button is disabled.
     if (await likesButton.isDisabled()) {
@@ -102,7 +106,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const btn = page.locator(
-      'button.search-btn:not([data-mode])[data-centroid="dislikes"]'
+      'button.search-btn[data-centroid="dislikes"]'
     );
     if (await btn.isDisabled()) {
       test.skip(true, 'Dislikes album is empty');
@@ -131,7 +135,7 @@ test.describe('album card Search button (round‑29)', () => {
     await appReady(page);
 
     const btn = page.locator(
-      'button.search-btn:not([data-mode])[data-centroid="dislikes"]'
+      'button.search-btn[data-centroid="dislikes"]'
     );
     if (await btn.isDisabled()) {
       test.skip(true, 'Dislikes album is empty');
@@ -208,7 +212,7 @@ test.describe('album card Search button (round‑29)', () => {
     // The data-centroid^="album:" prefix already distinguishes
     // user albums from the built-in likes/dislikes centroids.
     const userBtn = page
-      .locator('button.search-btn:not([data-mode])[data-centroid^="album:"]:not([disabled])')
+      .locator('button.search-btn[data-centroid^="album:"]:not([disabled])')
       .first();
 
     if (await userBtn.count() === 0) {

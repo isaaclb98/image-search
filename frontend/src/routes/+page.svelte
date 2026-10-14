@@ -47,17 +47,6 @@
 
   const PAGE = GRID_PAGE_SIZE;
 
-  // Round-75: cluster count (K) and per-request pick (N) for
-  // sample-centroid retrieval. Mirror the backend defaults
-  // (`DEFAULT_SAMPLE_K` / `DEFAULT_CLUSTER_SAMPLE_N` in
-  // `search/centroids_compute.py`). Each refresh of /albums →
-  // Surprise me picks a fresh N of K cluster centroids to
-  // average — clusters are visual modes of the album, so the
-  // sub-centroid blends those modes rather than averaging K
-  // random photos.
-  const SAMPLE_K = 10;
-  const SAMPLE_N = 3;
-
   // Composer state (hoisted from PromptChips).
   let positives = $state<string[]>([]);
   let negatives = $state<string[]>([]);
@@ -84,14 +73,6 @@
   // centroid endpoint instead of /api/search. URL ?centroid=...
   // sets this on mount; writing back to URL is suppressed.
   let activeCentroid = $state<string | null>(null);
-
-  // Round‑34: sample-centroid mode flag. Only meaningful when
-  // `activeCentroid` is also set — the home page reads `?mode=`
-  // alongside `?centroid=` and forwards it to /api/centroids/...
-  // /search. The "Surprise me" button on /albums writes both
-  // params; the album-detail page or other callers don't
-  // currently set this.
-  let centroidMode = $state<'centroid' | 'sample'>('centroid');
 
   // Round-78: Surprise Me pre-generated deck state. When
   // `surpriseOn` is true, reload() appends ?surprise=true plus
@@ -139,14 +120,14 @@
     collections = q.getAll('collection');
     filtersOpen = !!filename || collections.length > 0;
     activeCentroid = q.get('centroid');
-    // Validate the mode param — anything other than the two
-    // known values is treated as the default so a stale or
-    // hand-edited URL doesn't 400 the page. The backend
-    // validates again, but tolerating bad input here keeps the
-    // UX forgiving.
-    const rawMode = q.get('mode');
-    centroidMode =
-      rawMode === 'sample' || rawMode === 'centroid' ? rawMode : 'centroid';
+    // Round-92: removed the `mode=sample` URL param. The
+    // per-card "Surprise" button on /albums that wrote it was
+    // removed because the in-panel Surprise toggle is now
+    // strictly more capable (Gumbel-max + temperature + pool
+    // sliders, not a per-refresh cluster re-roll). External
+    // links with `?mode=sample` are silently treated as the
+    // default centroid search — the `mode=` query param is
+    // ignored here and never sent to the backend.
   }
 
   function writeToUrl() {
@@ -233,15 +214,12 @@
           limit: PAGE,
           offset: 0,
           centroid: activeCentroid ?? undefined,
-          // Only forward `centroidMode` when actually in a
-          // centroid search — the bare /api/search endpoint
-          // doesn't accept `mode=` and would 400. The endpoint
-          // also defaults to 'centroid' when omitted, so omitting
-          // is the safe choice for non-centroid paths.
-          centroidMode:
-            activeCentroid && centroidMode === 'sample'
-              ? 'sample'
-              : 'centroid',
+          // Round-92: `centroidMode` is no longer forwarded.
+          // The old "centroid" / "sample" discriminator (which
+          // the per-card Surprise button on /albums used to
+          // drive) is gone — the in-panel Surprise toggle is
+          // the only randomisation UI now, and it composes
+          // with `centroid` (not `sample`) on the backend.
           collections: collections.length ? collections : undefined,
           // Round-78: pass the surprise knobs through; the
           // backend caches the deck under a hash of these plus
@@ -286,8 +264,8 @@
         positives, negatives, filename,
         limit: PAGE, offset,
         centroid: activeCentroid ?? undefined,
-        centroidMode:
-          activeCentroid && centroidMode === 'sample' ? 'sample' : 'centroid',
+        // Round-92: `centroidMode` no longer forwarded (see
+        // reload() for the full rationale).
         collections: collections.length ? collections : undefined,
         surprise: surpriseOn,
         surpriseTemperature: surpriseOn ? surpriseTemperature : undefined,
@@ -444,11 +422,9 @@
   {#if activeCentroid}
     <PageHeader
       title="Searching by album"
-      subtitle={centroidMode === 'sample'
-        ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}.`
-        : surpriseOn
-          ? `Surprise Me on ${activeCentroid} — Gumbel-sampling the top ${surprisePool} closest photos at temperature ${surpriseTemperature.toFixed(2)}.`
-          : `Showing the photos closest to the average of ${activeCentroid}.`}
+      subtitle={surpriseOn
+        ? `Surprise Me on ${activeCentroid} — Gumbel-sampling the top ${surprisePool} closest photos at temperature ${surpriseTemperature.toFixed(2)}.`
+        : `Showing the photos closest to the average of ${activeCentroid}.`}
     />
   {:else}
     <PageHeader
@@ -480,13 +456,15 @@
        Round-91: Surprise me also works in centroid search
        (`?centroid=...`). The route runs the same Gumbel-max
        deck with the centroid vector as the query, so the
-       panel is shown unless the centroid is in `mode=sample`.
-       `mode=sample` already randomizes (the query, not the
-       results) and is mutually exclusive with Surprise on the
-       backend — the panel hides the section in that case.
-       The Albums page "Surprise" button is the entry point
-       to `mode=sample`; the panel's Surprise toggle is for
-       the Gumbel-result randomisation. -->
+       panel is shown regardless of `activeCentroid`.
+
+       Round-92: the per-card "Surprise" button on /albums
+       (which set `?centroid=...&mode=sample` to use the old
+       cluster re-roll) was removed because the in-panel
+       Surprise toggle is strictly more capable. `mode=sample`
+       is now an un-surfaced backend primitive — the panel's
+       Surprise toggle is the only randomisation entry point
+       on the home page. -->
   <AdditionalFilters
     open={filtersOpen}
     {filename}
@@ -494,7 +472,7 @@
     onToggle={() => (filtersOpen = !filtersOpen)}
     onFilename={(v) => (filename = v)}
     onToggleCollection={toggleCollection}
-    showSurprise={centroidMode !== 'sample'}
+    showSurprise={true}
     {surpriseOn}
     {surpriseTemperature}
     {surprisePoolIndex}
