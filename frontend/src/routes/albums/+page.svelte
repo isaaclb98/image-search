@@ -12,6 +12,14 @@
    * Round‑29b: the Likes centroid is now registered under
    * `likes` (was `favourites`). The backend keeps `favourites`
    * as a back-compat alias so legacy URLs still resolve.
+   *
+   * Round‑92: the per-card "Surprise" button was removed. The
+   * home page now exposes Surprise me (Gumbel-max deck with
+   * temperature + pool sliders) on every centroid via the
+   * Additional options panel, which is strictly more capable
+   * than the old `mode=sample` cluster re-roll. Users who want
+   * a randomized centroid search land on `/?centroid=...` and
+   * toggle Surprise in the panel.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -44,20 +52,6 @@
     // `album:<id>` (colon, not underscore). Sending `album_<id>`
     // 404s. See `_album_centroid_name` in search/app.py.
     searchByAlbum(`album:${albumId}`);
-  }
-
-  // Round‑34: Surprise-me entry point. Same destination as
-  // searchByAlbum, but appends `&mode=sample` so the home page
-  // uses the K-of-N sample-centroid path. Each request re-rolls
-  // the random subset, so refreshing surfaces a different
-  // cluster. Disabled when the album is empty for the same
-  // reason the regular Search button is — sample mode is a
-  // no-op for empty source sets.
-  function searchByAlbumSurprise(centroidName: string) {
-    goto(`/?centroid=${encodeURIComponent(centroidName)}&mode=sample`);
-  }
-  function searchByUserAlbumSurprise(albumId: number) {
-    searchByAlbumSurprise(`album:${albumId}`);
   }
 
   let albums = $state<AlbumSummary[]>([]);
@@ -216,9 +210,12 @@
          centroid is named "likes" on the backend (round‑29b);
          "favourites" is a back‑compat alias. Clicking either
          takes the user to the home page with results.
-         Round‑34: a sibling "Surprise" button lands on the same
-         destination with `&mode=sample` so the home page uses
-         the K-of-N sample-centroid path. -->
+         Round‑92: removed the sibling "Surprise" button. The
+         home page's Additional options panel now exposes
+         Surprise me on every centroid (Gumbel-max deck with
+         temperature + pool sliders) — strictly more capable
+         than the old `mode=sample` cluster re-roll this
+         button used to trigger. -->
     <div class="search-row">
       <Button
         variant="ghost"
@@ -229,16 +226,6 @@
         disabled={likesCount === 0}
         aria-label="Search by Likes centroid"
       >Search</Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        class="search-btn surprise"
-        data={{ 'data-centroid': LIKES_CENTROID, 'data-mode': 'sample' }}
-        onclick={() => searchByAlbumSurprise(LIKES_CENTROID)}
-        disabled={likesCount === 0}
-        aria-label="Surprise me: search by a random sample of Likes"
-        title="Search by a random sample of your Likes"
-      >Surprise</Button>
     </div>
   </article>
   <article class="card glass">
@@ -266,16 +253,6 @@
         disabled={dislikesCount === 0}
         aria-label="Search by Dislikes centroid"
       >Search</Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        class="search-btn surprise"
-        data={{ 'data-centroid': DISLIKES_CENTROID, 'data-mode': 'sample' }}
-        onclick={() => searchByAlbumSurprise(DISLIKES_CENTROID)}
-        disabled={dislikesCount === 0}
-        aria-label="Surprise me: search by a random sample of Dislikes"
-        title="Search by a random sample of your Dislikes"
-      >Surprise</Button>
     </div>
   </article>
 
@@ -311,16 +288,6 @@
             disabled={(a.member_count ?? 0) === 0}
             aria-label="Search by {a.name} centroid"
           >Search</Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            class="search-btn surprise"
-            data={{ 'data-centroid': `album:${a.id}`, 'data-mode': 'sample' }}
-            onclick={() => searchByUserAlbumSurprise(a.id)}
-            disabled={(a.member_count ?? 0) === 0}
-            aria-label="Surprise me: search by a random sample of {a.name}"
-            title="Search by a random sample of {a.name}"
-          >Surprise</Button>
         </div>
       </article>
     {/each}
@@ -328,23 +295,19 @@
 </div>
 
 <style>
-  /* Round‑34: side-by-side Search + Surprise row. The two
-     buttons share a horizontal flex container; the first one
-     stretches to fill the row and the second one stays
-     intrinsic-width so the layout reads as "[ Search… | Surp ]"
-     instead of two equal-width buttons. Button visuals come
-     from the Button primitive (Search = ghost.sm, Surprise =
-     secondary.sm); only the row layout lives here. The
-     .search-btn class rides on Button's root element, so the
-     first-child selector needs :global() to cross the component
-     scope boundary. */
+  /* Search button row at the bottom of each album card.
+     Round‑92: the per-card "Surprise" button was removed
+     (the home page now exposes Surprise me on every centroid
+     via the Additional options panel). The row now holds a
+     single Search button, which can stretch full-width
+     instead of competing for space with a sibling. */
   .search-row {
     margin-top: auto;
     display: flex;
     gap: var(--s-1);
     align-self: stretch;
   }
-  .search-row :global(.search-btn:first-child) {
+  .search-row :global(.search-btn) {
     flex: 1 1 auto;
   }
 
