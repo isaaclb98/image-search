@@ -579,8 +579,20 @@ def load() -> Config:
         device=os.environ.get("DEVICE", "cpu"),
         top_k_default=top_k_default,
         top_k_max=top_k_max,
-        query_timeout_ms=_int("QUERY_TIMEOUT_MS", 30000),
-        recommend_timeout_ms=_int("RECOMMEND_TIMEOUT_MS", 40000),
+        # Per-request timeout for the search API (query_points). The
+        # default of 60s is generous for the production corpus (2M
+        # points): a 50k limit typically completes in 22-27s and
+        # would otherwise be at the edge of an older 30s default,
+        # which produced intermittent 504s on transient Qdrant load.
+        # 60s leaves ~2x headroom without binding gunicorn (which
+        # is configured with a 2-minute worker timeout).
+        query_timeout_ms=_int("QUERY_TIMEOUT_MS", 60000),
+        # Per-request timeout for the recommend() path. Recommend
+        # has a separate budget because the HNSW walk over a
+        # positive+negative vector mean takes a different code path
+        # with a different cost profile. Bumped to match the search
+        # timeout so the two paths have symmetric headroom.
+        recommend_timeout_ms=_int("RECOMMEND_TIMEOUT_MS", 60000),
         nas_images_base=photos_dir,
         path_prefix=os.environ.get("PATH_PREFIX", ""),
         web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),
