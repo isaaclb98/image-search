@@ -26,8 +26,6 @@ export type AlbumDetail = components['schemas']['AlbumDetailResponse'];
 
 // ---------- Search ----------
 
-export type CentroidMode = 'centroid' | 'sample';
-
 export type SearchParams = {
   positives?: string[];
   negatives?: string[];
@@ -36,27 +34,14 @@ export type SearchParams = {
   offset?: number;
   /** When set, queries the centroid search endpoint. */
   centroid?: string;
-  /**
-   * Retrieval mode for centroid searches. Only meaningful when
-   * `centroid` is also set. `centroid` (default) uses the full
-   * mean of the seed set; `sample` (Round-75) clusters the seed
-   * set into K groups via k-means, then averages N of those
-   * cluster centroids per request. Each refresh picks a fresh
-   * subset of clusters. The backend's static .pt centroids
-   * reject `sample` with 400.
-   */
-  centroidMode?: CentroidMode;
-  /**
-   * Round-75: cluster count (k-means K) when centroidMode='sample'.
-   * Defaults to 10 on the backend. Mirrors `DEFAULT_SAMPLE_K`.
-   */
-  sampleK?: number;
-  /**
-   * Round-75: number of cluster centroids to average per request
-   * when centroidMode='sample'. Defaults to 3 on the backend.
-   * Mirrors `DEFAULT_CLUSTER_SAMPLE_N`. Must satisfy 1 <= n <= K.
-   */
-  sampleN?: number;
+  // Round-92: removed `centroidMode` / `sampleK` / `sampleN` from
+  // the public SearchParams shape. The per-card "Surprise" button
+  // on /albums (which forwarded `mode=sample`) was removed
+  // because the in-panel Surprise toggle is the only randomisation
+  // entry point on the home page now. The backend still accepts
+  // `?mode=sample` for external API consumers, but no UI caller
+  // sends it. If you need it from JS, set `qs.set('mode', 'sample')`
+  // manually after `search()` returns, or open a PR.
   /** Restrict to one or more `collection` payload values. Empty/undefined = whole library. */
   collections?: string[];
   /**
@@ -130,17 +115,12 @@ export function search(params: SearchParams, signal?: AbortSignal) {
       qs.set('surprise_session', params.surpriseSession);
     }
   }
-  if (params.centroid && params.centroidMode) {
-    // Only attach `mode=` for centroid searches — /api/search
-    // doesn't accept it, and a stray `?mode=` there would 400.
-    qs.set('mode', params.centroidMode);
-    // Round-75: K and N for sample mode. Both default to the
-    // backend's values when omitted (10 and 3 respectively), so
-    // existing URLs keep working.
-    if (params.centroidMode === 'sample') {
-      if (params.sampleK !== undefined) qs.set('sample_k', String(params.sampleK));
-      if (params.sampleN !== undefined) qs.set('sample_n', String(params.sampleN));
-    }
+  if (params.centroid) {
+    // Round-92: removed the `?mode=` forwarding. The
+    // sample-centroid path is no longer reachable from the
+    // home page UI (the in-panel Surprise toggle is the only
+    // randomisation entry point). The backend's `mode=sample`
+    // is still served for external API consumers.
   }
   const base = params.centroid
     ? `/api/centroids/${encodeURIComponent(params.centroid)}/search`
