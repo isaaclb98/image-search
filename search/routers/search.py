@@ -90,6 +90,7 @@ async def _build_surprise_deck(
     surprise_deck_cache: SurpriseDeckCache,
     effective_limit: int,
     offset: int,
+    exclude_ids: list[str] | None = None,
 ) -> tuple[list, bool, list[str]]:
     """
     Build or fetch the Gumbel-sampled Surprise Me deck and return
@@ -120,6 +121,7 @@ async def _build_surprise_deck(
             0,
             collections or None,
             surprise_allowed_ids,
+            exclude_ids,
         )
         scores = [h.score for h in pool_hits]
         picked_indices = gumbel_top_k(

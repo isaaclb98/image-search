@@ -446,7 +446,9 @@
       title="Searching by album"
       subtitle={centroidMode === 'sample'
         ? `Sample mode — averaging ${SAMPLE_N} of ${SAMPLE_K} cluster centroids from ${activeCentroid}.`
-        : `Showing the photos closest to the average of ${activeCentroid}.`}
+        : surpriseOn
+          ? `Surprise Me on ${activeCentroid} — Gumbel-sampling the top ${surprisePool} closest photos at temperature ${surpriseTemperature.toFixed(2)}.`
+          : `Showing the photos closest to the average of ${activeCentroid}.`}
     />
   {:else}
     <PageHeader
@@ -469,12 +471,22 @@
   {/if}
 
   <!-- Additional options panel: filename + collections chip
-       filter + (on the home page, when not in centroid mode)
-       the Surprise me controls. Round-90: Surprise me was
-       moved from a separate inline panel + action-row button
-       into this single panel. The toggle, temperature slider,
-       and pool slider all live here. The action row only has
-       Saved + Search. -->
+       filter + (most cases) the Surprise me controls. Round-90:
+       Surprise me was moved from a separate inline panel +
+       action-row button into this single panel. The toggle,
+       temperature slider, and pool slider all live here. The
+       action row only has Saved + Search.
+
+       Round-91: Surprise me also works in centroid search
+       (`?centroid=...`). The route runs the same Gumbel-max
+       deck with the centroid vector as the query, so the
+       panel is shown unless the centroid is in `mode=sample`.
+       `mode=sample` already randomizes (the query, not the
+       results) and is mutually exclusive with Surprise on the
+       backend — the panel hides the section in that case.
+       The Albums page "Surprise" button is the entry point
+       to `mode=sample`; the panel's Surprise toggle is for
+       the Gumbel-result randomisation. -->
   <AdditionalFilters
     open={filtersOpen}
     {filename}
@@ -482,7 +494,7 @@
     onToggle={() => (filtersOpen = !filtersOpen)}
     onFilename={(v) => (filename = v)}
     onToggleCollection={toggleCollection}
-    showSurprise={!activeCentroid}
+    showSurprise={centroidMode !== 'sample'}
     {surpriseOn}
     {surpriseTemperature}
     {surprisePoolIndex}

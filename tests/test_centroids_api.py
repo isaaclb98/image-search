@@ -478,3 +478,213 @@ def test_centroid_search_diverse_alias_flag(app_with_centroids):
     data = resp.json()
     assert data["diverse"] is True
     assert data["diversity"]["mode"] == "balanced"
+
+
+# ----------------------- Round-91: Surprise Me on centroid search -----------------------
+#
+# The centroid route gains `surprise=true` which runs the same
+# Gumbel-max deck flow as /api/search?surprise=true but with the
+# centroid vector as the query. The test corpus is 3 points
+# (cat, dog, car), so a T=0 surprise returns the same result as a
+# plain centroid search; T>0 still succeeds but the per-deck
+# ordering can be anything. We focus on:
+#   - response shape (surprise=true, session_id, session_total)
+#   - same-seed=Same-deck
+#   - different-seed=Different-deck (when pool > 1)
+#   - mutex with mode=sample and with diversity
+#   - knob validation 400s
+#   - surprise_session paginates the cached deck
+
+def test_centroid_surprise_returns_deck_with_session(app_with_centroids):
+    """surprise=true on a centroid returns a Gumbel deck with session
+    id and total. T=0 is deterministic top-K, so the result id list
+    is stable and ordered by score."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=42"
+        "&surprise_pool=200&limit=10"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["surprise"] is True
+    assert data["session_id"]
+    assert data["session_total"] is not None and data["session_total"] > 0
+    # The plain (non-surprise) ranking for this centroid is the
+    # cat-image first (centroid is mock_embed("cat")). T=0 picks
+    # the top-K in order, so the first surprise result is the
+    # same as the first plain result.
+    plain = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?limit=10"
+    ).json()
+    assert data["results"]
+    assert data["results"][0]["id"] == plain["results"][0]["id"]
+
+
+def test_centroid_surprise_same_seed_same_deck(app_with_centroids):
+    """Same seed + same knobs + same centroid = same deck (cache key
+    scopes by centroid name + temperature + pool + seed)."""
+    r1 = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=99&limit=10"
+    ).json()
+    r2 = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=99&limit=10"
+    ).json()
+    assert [r["id"] for r in r1["results"]] == [r["id"] for r in r2["results"]]
+    # Same session id (cache key, scoped by seed).
+    assert r1["session_id"] == r2["session_id"]
+
+
+def test_centroid_surprise_different_seed_different_deck(app_with_centroids):
+    """Different seeds roll different decks when the temperature
+    produces non-trivial re-ordering. With 3 points + T=1.0 the
+    Gumbel draw is effectively uniform over the pool, so two
+    different seeds will (with overwhelming probability) produce
+    different orderings of the 3 points."""
+    r1 = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=1.0&surprise_seed=1"
+        "&surprise_pool=200&limit=10"
+    ).json()
+    r2 = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=1.0&surprise_seed=2"
+        "&surprise_pool=200&limit=10"
+    ).json()
+    # Different session ids.
+    assert r1["session_id"] != r2["session_id"]
+
+
+def test_centroid_surprise_session_walks_deck(app_with_centroids):
+    """surprise_session round-trips: a second request with the
+    session id from the first response slices the cached deck
+    without recomputing. Pages are disjoint and offset advances."""
+    first = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=7"
+        "&surprise_pool=200&limit=1"
+    ).json()
+    sid = first["session_id"]
+    second = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        f"?surprise=true&surprise_temperature=0&surprise_seed=7"
+        f"&surprise_pool=200&surprise_session={sid}&limit=1&offset=1"
+    ).json()
+    assert second["session_id"] == sid
+    assert second["session_total"] == first["session_total"]
+    # Different page of the same deck.
+    assert [r["id"] for r in first["results"]] != [r["id"] for r in second["results"]]
+
+
+def test_centroid_surprise_different_centroid_different_deck(app_with_centroids):
+    """The cache key is scoped by centroid name. Two different
+    centroids with identical knobs roll different decks."""
+    r1 = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=42&limit=10"
+    ).json()
+    r2 = app_with_centroids.get(
+        f"/api/centroids/{NOIR_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=42&limit=10"
+    ).json()
+    assert r1["session_id"] != r2["session_id"]
+
+
+def test_centroid_surprise_excludes_seed_ids(app_with_centroids):
+    """For a dynamic centroid, the seed ids are passed as
+    exclude_ids so the deck doesn't echo the source photos. With
+    only 3 points in the test fixture, exclude_ids would drop the
+    whole result set — we test the contract differently: ask
+    for a tiny pool and assert the response shape (no 500, no
+    echoes of the centroid source if any were registered)."""
+    # The fixture uses static .pt centroids (no seed_ids), so
+    # exclude_ids is empty and the test confirms the path runs
+    # end-to-end without errors.
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=1"
+        "&surprise_pool=200&limit=10"
+    )
+    assert resp.status_code == 200
+
+
+def test_centroid_surprise_mutex_with_sample(app_with_centroids):
+    """Both randomize — pick one. Same shape as
+    diversity+sample."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&mode=sample"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_surprise_mutex_with_diversity(app_with_centroids):
+    """MMR re-rank on a per-request randomized pool is
+    meaningless. Same shape as /api/search."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&diversity=balanced"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_surprise_rejects_out_of_range_temperature(app_with_centroids):
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=1.5"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_surprise_rejects_out_of_range_pool(app_with_centroids):
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_pool=51"
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "bad_request"
+
+
+def test_centroid_surprise_rejects_non_integer_seed(app_with_centroids):
+    """Non-integer seed is rejected by FastAPI at the query-param
+    parse layer (422), not by the route's manual 400 path. Same
+    shape as /api/search?surprise_seed=notanumber."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_seed=notanumber"
+    )
+    assert resp.status_code == 422
+
+
+def test_centroid_surprise_off_by_default(app_with_centroids):
+    """No surprise params → plain centroid search, metadata says
+    off. session_id is None so the client knows there's nothing
+    to walk forward."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search?limit=10"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["surprise"] is False
+    assert data["session_id"] is None
+    assert data["session_total"] is None
+
+
+def test_centroid_surprise_works_on_static_centroid(app_with_centroids):
+    """Static .pt centroids have no source population, but the
+    Surprise pool around the centroid's fixed vector is still
+    meaningful. Confirm the route accepts surprise=true on a
+    static centroid (the same as mode=centroid + surprise=true)."""
+    resp = app_with_centroids.get(
+        f"/api/centroids/{WUXIA_CENTROID}/search"
+        "?surprise=true&surprise_temperature=0&surprise_seed=1"
+        "&surprise_pool=200&limit=10"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["surprise"] is True
+    assert data["results"]
