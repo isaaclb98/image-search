@@ -119,7 +119,6 @@ from search.diversity import (
     resolve_mode,
 )
 from search.models import DiversityMetadata, SearchResponse, SearchResult
-from search.routers.search import _build_surprise_deck
 from search.surprise_deck import (
     DEFAULT_POOL_SIZE,
     DEFAULT_TEMPERATURE,
@@ -128,6 +127,7 @@ from search.surprise_deck import (
     TEMPERATURE_MAX,
     TEMPERATURE_MIN,
     SurpriseDeckCache,
+    build_surprise_deck,
     compute_cache_key,
 )
 
@@ -593,7 +593,7 @@ def build_centroids_search_router(
             # near-dups may surface. Acceptable trade-off for
             # keeping the route simple.
             try:
-                hits, has_more, deck_ids = await _build_surprise_deck(
+                hits, has_more, deck_ids = await build_surprise_deck(
                     qdrant=qdrant,
                     vec=vector,
                     collections=collections,

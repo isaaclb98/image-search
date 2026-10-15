@@ -30,7 +30,7 @@ open a follow-up — this plan doesn't touch them.
 | # | Branch | Title | Effort | Risk | Status |
 |---|---|---|---|---|---|
 | 1 | `refactor/plan-001-suppression-discipline` | Suppression discipline + lint tightening | 1 afternoon | Trivial | **DONE** (PR #13, CI green, 2026-10-15) |
-| 2 | `refactor/plan-002-module-layout` | Standardize router / compute / deck / config split | 2-3 days | Low | Next |
+| 2 | `refactor/plan-002-module-layout` | Standardize router / compute / deck / config split | 2-3 days | Low | **DONE** (PR #14, CI green, 2026-10-15) — extracted `RandomSessionStore` to its own module, moved `build_surprise_deck` to `surprise_deck.py`, deduped `_bad_request`/`_coerce_view` against `_result_helpers.py` canonicals, added `__all__` to public modules. App.py + 36 BLE001/S608/S324 suppressions still pending (PR 3+ work). |
 | 3 | `refactor/plan-003-type-the-search-surface` | Type the public surface of `search/` (mypy per-module) | 3-4 days | Medium | |
 | 4 | `refactor/plan-004-pydantic-search-results` | Replace ad-hoc dicts with typed payload models | 2-3 days | Low | |
 | 5 | `refactor/plan-005-settings-class` | Centralize env-var parsing into a pydantic-settings class | 1-2 days | Low | |

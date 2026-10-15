@@ -82,6 +82,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
+from search._result_helpers import bad_request
 from search.for_you import filter_live_ids
 from search.for_you_deck import (
     DEFAULT_DECK_SIZE as DEFAULT_FOR_YOU_DECK_SIZE,
@@ -97,7 +98,7 @@ from search.for_you_deck import (
     compute_for_you_cache_key,
 )
 from search.image_resolver import resolve_url
-from search.models import ErrorResponse, SearchResponse, SearchResult
+from search.models import SearchResponse, SearchResult
 from search.surprise_deck import DEFAULT_TEMPERATURE
 
 logger = logging.getLogger(__name__)
@@ -108,16 +109,6 @@ logger = logging.getLogger(__name__)
 # search/surprise_deck.py but lives in its own module to keep
 # the home-page and for-you TTLs independent.
 _for_you_deck_cache = ForYouDeckCache()
-
-
-def _bad_request(detail: str) -> JSONResponse:
-    """Build a 400 JSONResponse with the documented error envelope."""
-    return JSONResponse(
-        status_code=400,
-        content=ErrorResponse(
-            error="bad_request", detail=detail, code="bad_request",
-        ).model_dump(),
-    )
 
 
 def build_for_you_router(
@@ -236,7 +227,7 @@ def build_for_you_router(
             )
         except Exception:
             logger.exception("for-you: failed to read fav/dis ids")
-            return _bad_request("failed to read user signal")
+            return bad_request("failed to read user signal")
 
         if not raw_fav_ids:
             # Cold start: no taste signal yet. The previous
@@ -244,7 +235,7 @@ def build_for_you_router(
             # (effectively /random), but the Gumbel path has no
             # meaningful ranking without likes to seed recommend().
             # Tell the client to send the user elsewhere.
-            return _bad_request(
+            return bad_request(
                 "for-you requires at least one favourite to seed "
                 "the taste signal. Like a few photos and try again."
             )
@@ -264,7 +255,7 @@ def build_for_you_router(
             fav_ids, dis_ids = raw_fav_ids, raw_dis_ids
 
         if not fav_ids:
-            return _bad_request(
+            return bad_request(
                 "all favourites are missing from the index. Like a "
                 "few photos that are still in the library and try again."
             )
@@ -316,9 +307,9 @@ def build_for_you_router(
                 )
             except RuntimeError as exc:
                 logger.warning("for-you: deck build failed: %s", exc)
-                return _bad_request(str(exc))
+                return bad_request(str(exc))
             except ValueError as exc:
-                return _bad_request(str(exc))
+                return bad_request(str(exc))
 
             _for_you_deck_cache.put(
                 cache_key, deck_ids, deck_scores,
@@ -326,7 +317,7 @@ def build_for_you_router(
 
         pool_total = len(deck_ids)
         if pool_total == 0:
-            return _bad_request("for-you: empty deck")
+            return bad_request("for-you: empty deck")
 
         start = offset
         if start >= pool_total:

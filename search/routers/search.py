@@ -36,7 +36,6 @@ import secrets
 import time
 from typing import Any
 
-import numpy as np
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
@@ -61,7 +60,6 @@ from search._result_helpers import (
 from search.diversity import resolve_depth, resolve_mode
 from search.models import DiversityMetadata, SearchResponse
 from search.surprise_deck import (
-    DEFAULT_DECK_SIZE,
     DEFAULT_POOL_SIZE,
     DEFAULT_TEMPERATURE,
     POOL_SIZE_MAX,
@@ -69,99 +67,11 @@ from search.surprise_deck import (
     TEMPERATURE_MAX,
     TEMPERATURE_MIN,
     SurpriseDeckCache,
+    build_surprise_deck,
     compute_cache_key,
-    gumbel_top_k,
 )
 
 logger = logging.getLogger(__name__)
-
-
-async def _build_surprise_deck(
-    *,
-    qdrant: Any,
-    vec: list[float],
-    collections: list[str],
-    surprise_allowed_ids: list[str] | None,
-    surprise_pool: int,
-    surprise_temperature: float,
-    surprise_seed: int,
-    surprise_session: str | None,
-    surprise_cache_key: str,
-    surprise_deck_cache: SurpriseDeckCache,
-    effective_limit: int,
-    offset: int,
-    exclude_ids: list[str] | None = None,
-) -> tuple[list, bool, list[str]]:
-    """
-    Build or fetch the Gumbel-sampled Surprise Me deck and return
-    the requested page.
-
-    The cache key doubles as the session id: same params → same
-    key → same deck. On a cache hit, no Qdrant search and no
-    Gumbel draw happen — we just slice the cached deck.
-
-    Returns `(hits_for_this_page, has_more, full_deck_ids)`.
-    `full_deck_ids` is the entire deck (not just this page) so
-    the caller can compute `session_total` for the response.
-    """
-    cached = (
-        surprise_deck_cache.get(surprise_cache_key)
-        if surprise_session and surprise_session == surprise_cache_key
-        else None
-    )
-    if cached is not None:
-        _, entry = cached
-        deck_ids = list(entry.point_ids)
-        deck_scores = list(entry.scores)
-    else:
-        pool_hits, _ = await asyncio.to_thread(
-            qdrant.search,
-            vec,
-            surprise_pool,
-            0,
-            collections or None,
-            surprise_allowed_ids,
-            exclude_ids,
-        )
-        scores = [h.score for h in pool_hits]
-        picked_indices = gumbel_top_k(
-            scores,
-            k=min(DEFAULT_DECK_SIZE, len(pool_hits)),
-            temperature=surprise_temperature,
-            rng=np.random.default_rng(surprise_seed),
-        )
-        deck_ids = [pool_hits[i].id for i in picked_indices]
-        # Capture the raw cosine of each picked photo. The hydration
-        # path (qdrant.retrieve_batch) doesn't compute scores — it
-        # only returns id+payload — so we need to set them here
-        # otherwise the UI shows 0.0 on hover.
-        deck_scores = [float(scores[i]) for i in picked_indices]
-        surprise_deck_cache.put(surprise_cache_key, deck_ids, deck_scores)
-
-    start = offset
-    end = start + effective_limit
-    page_ids = deck_ids[start:end]
-    has_more = end < len(deck_ids)
-    if not page_ids:
-        return [], has_more, deck_ids
-    hydrated = await asyncio.to_thread(qdrant.retrieve_batch, page_ids)
-    by_id = {h.id: h for h in hydrated}
-    # Use the deck order so a refresh of the same query+seed
-    # gives the same page. Override the (zeroed) score with the
-    # value captured during the pool search so the UI sees the
-    # real cosine similarity.
-    page_score_by_id = {
-        deck_ids[i]: deck_scores[i]
-        for i in range(start, min(end, len(deck_ids)))
-    }
-    hits: list = []
-    for pid in page_ids:
-        h = by_id.get(pid)
-        if h is None:
-            continue
-        h.score = page_score_by_id[pid]
-        hits.append(h)
-    return hits, has_more, deck_ids
 
 
 def build_search_router(
@@ -473,7 +383,7 @@ def build_search_router(
                     favorite_ids = await fav_task
                     fav_allowed = list(favorite_ids)
                     if surprise:
-                        hits, has_more, deck_ids = await _build_surprise_deck(
+                        hits, has_more, deck_ids = await build_surprise_deck(
                             qdrant=qdrant,
                             vec=vec,
                             collections=collections,
@@ -499,7 +409,7 @@ def build_search_router(
                     diversity_meta = DiversityMetadata()
                 elif surprise:
                     # Pure surprise (no favorites filter).
-                    hits, has_more, deck_ids = await _build_surprise_deck(
+                    hits, has_more, deck_ids = await build_surprise_deck(
                         qdrant=qdrant,
                         vec=vec,
                         collections=collections,

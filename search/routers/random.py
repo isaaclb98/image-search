@@ -19,9 +19,9 @@ GET /api/random?session=&offset=&limit=&collections=&view=:
 Two non-obvious things the route does:
 
 1. **Session TTL** — sessions live 30 minutes by default
-   (RANDOM_SESSION_TTL_S). After that the shuffled deck is
-   discarded and the next call gets a fresh shuffle. Configurable
-   for tests.
+   (`random_session.RANDOM_SESSION_TTL_S`). After that the shuffled
+   deck is discarded and the next call gets a fresh shuffle.
+   Configurable for tests.
 
 2. **No liveness filter** — the random route does NOT drop
    dead-NAS-file rows. The /random UX tolerates a broken tile for
@@ -41,15 +41,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import secrets
-import time
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from search._result_helpers import coerce_view
 from search.image_resolver import resolve_url
 from search.models import ErrorResponse, SearchResponse, SearchResult
+from search.random_session import RandomSessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +58,8 @@ logger = logging.getLogger(__name__)
 # constant so callers / tests / docs can reference one source of truth.
 RANDOM_MAX_LIMIT = 200
 
-# Default session lifetime. After this many seconds the shuffled
-# deck is discarded and the next call gets a fresh shuffle.
-RANDOM_SESSION_TTL_S = 30 * 60
+# Default session lifetime is in search/random_session.py
+# (RANDOM_SESSION_TTL_S). Imported from there.
 
 
 def _random_rows_to_results(
@@ -101,83 +100,6 @@ def _random_rows_to_results(
     return out
 
 
-def _coerce_view(raw: str | None) -> str:
-    """Coerce view param to a known value. Defaults to 'grid'."""
-    if raw in ("grid", "feed"):
-        return raw
-    return "grid"
-
-
-# ---------------------------------------------------------------------------
-# Session store — in-memory, per-process. One shuffled deck per session id.
-# ---------------------------------------------------------------------------
-
-
-class _RandomSession:
-    """One shuffled walk through the library."""
-
-    __slots__ = ("created_at", "ids", "ttl_s")
-
-    def __init__(self, ids: list[str], ttl_s: float):
-        self.ids = ids
-        self.created_at = time.monotonic()
-        self.ttl_s = ttl_s
-
-    def is_alive(self) -> bool:
-        return (time.monotonic() - self.created_at) < self.ttl_s
-
-
-class _RandomSessionStore:
-    """Process-local map of session_id → shuffled deck.
-
-    Deliberately NOT shared across processes — a shuffle is cheap to
-    rebuild, and cross-process state would mean sticky sessions on a
-    load balancer, which is the opposite of what /random wants.
-    """
-
-    def __init__(self, ttl_s: float = RANDOM_SESSION_TTL_S):
-        self._sessions: dict[str, _RandomSession] = {}
-        self._ttl_s = ttl_s
-
-    def get(
-        self,
-        session_id: str | None,
-    ) -> tuple[str, _RandomSession] | None:
-        """Look up a live session by id. Returns None if the id is
-        missing, or if the session has expired (in which case the
-        entry is removed).
-
-        Splitting lookup from creation lets the caller run
-        materialize off the event loop (asyncio.to_thread) without
-        awkward sync/async interleaving in the store.
-        """
-        if not session_id:
-            return None
-        sess = self._sessions.get(session_id)
-        if sess is None:
-            return None
-        if not sess.is_alive():
-            del self._sessions[session_id]
-            return None
-        return session_id, sess
-
-    def put_new(self, ids: list[str]) -> tuple[str, _RandomSession]:
-        """Materialize a fresh session with a new id and the given
-        shuffled deck. The caller is responsible for having run the
-        materialize (possibly in a thread).
-        """
-        new_id = secrets.token_urlsafe(16)
-        sess = _RandomSession(ids, self._ttl_s)
-        self._sessions[new_id] = sess
-        return new_id, sess
-
-    def clear(self) -> None:
-        """Drop all sessions. Used by tests."""
-        self._sessions.clear()
-
-    def __len__(self) -> int:
-        return len(self._sessions)
-
 
 def build_random_router(
     index_db: Any,
@@ -185,7 +107,7 @@ def build_random_router(
 ) -> APIRouter:
     """Build the random router with the live dependencies."""
     router = APIRouter()
-    store = _RandomSessionStore()
+    store = RandomSessionStore()
 
     @router.get("/api/random", response_model=SearchResponse)
     async def api_random(
@@ -202,7 +124,7 @@ def build_random_router(
         ] = None,
         view: str = Query(cfg.default_view, description="result view: 'grid' or 'feed'"),
     ) -> SearchResponse | JSONResponse:
-        view = _coerce_view(view)
+        view = coerce_view(view)
         try:
             limit = int(limit)
         except (TypeError, ValueError):

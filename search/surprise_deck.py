@@ -12,7 +12,7 @@ This module owns:
     the original array, sampled without replacement from the
     softmax distribution `p_i ∝ exp(score_i / temperature)`.
   - `SurpriseDeckCache` — process-local map of cache_key → deck.
-    Mirrors `_RandomSessionStore` in `search/routers/random.py`
+    Mirrors `RandomSessionStore` in `search/random_session.py`
     (session TTL, in-memory dict, explicit `clear()` for tests).
   - The "cache_key" itself: a sha256 hash over every search param
     that influences the deck (q, positives, negatives, centroids,
@@ -30,10 +30,12 @@ calls, ~tens of ms for n=10000, k=2400.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -180,7 +182,7 @@ class SurpriseDeckCache:
     cross-process state would mean sticky sessions on a load
     balancer, which is the opposite of what Surprise Me wants.
 
-    Mirrors `_RandomSessionStore` in `search/routers/random.py`:
+    Mirrors `RandomSessionStore` in `search/random_session.py`:
     same TTL semantics, same in-memory dict, same explicit
     `clear()` for tests. The cache_key (not a token) is used as
     the session id, so the same query+params+seed always hits
@@ -236,3 +238,116 @@ class SurpriseDeckCache:
 
     def __len__(self) -> int:
         return len(self._decks)
+
+
+
+# ---------------------------------------------------------------------------
+# Deck-builder — the async helper that ties Qdrant + Gumbel + cache together.
+# Moved from `search/routers/search.py` in round-93 PR 2
+# (`refactor/plan-002-module-layout`). Lives here because it composes
+# SurpriseDeckCache + gumbel_top_k; the cross-router import
+# (`from search.routers.search import _build_surprise_deck`) was a smell.
+# ---------------------------------------------------------------------------
+
+
+async def build_surprise_deck(
+    *,
+    qdrant: Any,
+    vec: list[float],
+    collections: list[str],
+    surprise_allowed_ids: list[str] | None,
+    surprise_pool: int,
+    surprise_temperature: float,
+    surprise_seed: int,
+    surprise_session: str | None,
+    surprise_cache_key: str,
+    surprise_deck_cache: SurpriseDeckCache,
+    effective_limit: int,
+    offset: int,
+    exclude_ids: list[str] | None = None,
+) -> tuple[list, bool, list[str]]:
+    """
+    Build or fetch the Gumbel-sampled Surprise Me deck and return
+    the requested page.
+
+    The cache key doubles as the session id: same params → same
+    key → same deck. On a cache hit, no Qdrant search and no
+    Gumbel draw happen — we just slice the cached deck.
+
+    Returns `(hits_for_this_page, has_more, full_deck_ids)`.
+    `full_deck_ids` is the entire deck (not just this page) so
+    the caller can compute `session_total` for the response.
+    """
+    cached = (
+        surprise_deck_cache.get(surprise_cache_key)
+        if surprise_session and surprise_session == surprise_cache_key
+        else None
+    )
+    if cached is not None:
+        _, entry = cached
+        deck_ids = list(entry.point_ids)
+        deck_scores = list(entry.scores)
+    else:
+        pool_hits, _ = await asyncio.to_thread(
+            qdrant.search,
+            vec,
+            surprise_pool,
+            0,
+            collections or None,
+            surprise_allowed_ids,
+            exclude_ids,
+        )
+        scores = [h.score for h in pool_hits]
+        picked_indices = gumbel_top_k(
+            scores,
+            k=min(DEFAULT_DECK_SIZE, len(pool_hits)),
+            temperature=surprise_temperature,
+            rng=np.random.default_rng(surprise_seed),
+        )
+        deck_ids = [pool_hits[i].id for i in picked_indices]
+        # Capture the raw cosine of each picked photo. The hydration
+        # path (qdrant.retrieve_batch) doesn't compute scores — it
+        # only returns id+payload — so we need to set them here
+        # otherwise the UI shows 0.0 on hover.
+        deck_scores = [float(scores[i]) for i in picked_indices]
+        surprise_deck_cache.put(surprise_cache_key, deck_ids, deck_scores)
+
+    start = offset
+    end = start + effective_limit
+    page_ids = deck_ids[start:end]
+    has_more = end < len(deck_ids)
+    if not page_ids:
+        return [], has_more, deck_ids
+    hydrated = await asyncio.to_thread(qdrant.retrieve_batch, page_ids)
+    by_id = {h.id: h for h in hydrated}
+    # Use the deck order so a refresh of the same query+seed
+    # gives the same page. Override the (zeroed) score with the
+    # value captured during the pool search so the UI sees the
+    # real cosine similarity.
+    page_score_by_id = {
+        deck_ids[i]: deck_scores[i]
+        for i in range(start, min(end, len(deck_ids)))
+    }
+    hits: list = []
+    for pid in page_ids:
+        h = by_id.get(pid)
+        if h is None:
+            continue
+        h.score = page_score_by_id[pid]
+        hits.append(h)
+    return hits, has_more, deck_ids
+
+
+__all__ = [
+    "DEFAULT_DECK_SIZE",
+    "DEFAULT_POOL_SIZE",
+    "DEFAULT_TEMPERATURE",
+    "POOL_SIZE_MAX",
+    "POOL_SIZE_MIN",
+    "TEMPERATURE_MAX",
+    "TEMPERATURE_MIN",
+    "SurpriseDeckCache",
+    "build_surprise_deck",
+    "compute_cache_key",
+    "gumbel_top_k",
+]
