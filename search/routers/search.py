@@ -236,13 +236,13 @@ def build_search_router(
         try:
             diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
         except ValueError as exc:
-            return bad_request(str(exc))  # type: ignore[return-value]
+            return bad_request(str(exc))
         try:
             diversity_depth_mode, diversity_pool_depth = resolve_depth(
                 diversity_depth, diversity_mode,
             )
         except ValueError as exc:
-            return bad_request(str(exc))  # type: ignore[return-value]
+            return bad_request(str(exc))
         diverse = diversity_mode != "off"
         if surprise and diverse:
             return bad_request(
@@ -275,15 +275,15 @@ def build_search_router(
         try:
             limit = int(limit)
         except (TypeError, ValueError):
-            return bad_request("limit must be an integer")  # type: ignore[return-value]
+            return bad_request("limit must be an integer")
         if not (1 <= limit <= cfg.top_k_max):
-            return bad_request(f"limit must be in [1, {cfg.top_k_max}]")  # type: ignore[return-value]
+            return bad_request(f"limit must be in [1, {cfg.top_k_max}]")
         try:
             offset = int(offset)
         except (TypeError, ValueError):
-            return bad_request("offset must be an integer")  # type: ignore[return-value]
+            return bad_request("offset must be an integer")
         if offset < 0:
-            return bad_request("offset must be >= 0")  # type: ignore[return-value]
+            return bad_request("offset must be >= 0")
         if offset >= cfg.max_results_total:
             return JSONResponse(
                 content=SearchResponse(
@@ -316,9 +316,9 @@ def build_search_router(
             try:
                 surprise_temperature_parsed = float(surprise_temperature)
             except (TypeError, ValueError):
-                return bad_request("surprise_temperature must be a number")  # type: ignore[return-value]
+                return bad_request("surprise_temperature must be a number")
             if not (TEMPERATURE_MIN <= surprise_temperature_parsed <= TEMPERATURE_MAX):
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"surprise_temperature must be in "
                     f"[{TEMPERATURE_MIN}, {TEMPERATURE_MAX}]; "
                     f"got {surprise_temperature_parsed}"
@@ -326,9 +326,9 @@ def build_search_router(
             try:
                 surprise_pool_parsed = int(surprise_pool)
             except (TypeError, ValueError):
-                return bad_request("surprise_pool must be an integer")  # type: ignore[return-value]
+                return bad_request("surprise_pool must be an integer")
             if not (POOL_SIZE_MIN <= surprise_pool_parsed <= POOL_SIZE_MAX):
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"surprise_pool must be in "
                     f"[{POOL_SIZE_MIN}, {POOL_SIZE_MAX}]; "
                     f"got {surprise_pool_parsed}"
@@ -341,7 +341,7 @@ def build_search_router(
                 try:
                     surprise_seed_parsed = int(surprise_seed)
                 except (TypeError, ValueError):
-                    return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
+                    return bad_request("surprise_seed must be an integer")
             # Cap pool to actual corpus size when oversized.
             try:
                 corpus_size = await asyncio.to_thread(qdrant.count_points)
@@ -372,9 +372,9 @@ def build_search_router(
                 collections=collections,
             )
             if vec_err == "centroid_not_found":
-                return bad_request(vec_detail or f"centroid {active_centroid!r} not loaded")  # type: ignore[return-value]
+                return bad_request(vec_detail or f"centroid {active_centroid!r} not loaded")
             if vec_err == "empty":
-                return bad_request(vec_detail or "at least one positive prompt is required")  # type: ignore[return-value]
+                return bad_request(vec_detail or "at least one positive prompt is required")
 
         t0 = time.time()
         # If the client didn't pass a seed, generate a fresh random
@@ -534,13 +534,13 @@ def build_search_router(
                     diversity_meta = DiversityMetadata()
             except (ConnectionError, OSError) as e:
                 logger.warning("Qdrant unreachable for /api/search: %s", e)
-                return qdrant_unreachable(str(e))  # type: ignore[return-value]
+                return qdrant_unreachable(str(e))
             except Exception as e:
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                     logger.warning("Qdrant timeout: %s", e)
-                    return qdrant_timeout(str(e))  # type: ignore[return-value]
+                    return qdrant_timeout(str(e))
                 logger.exception("search failed")
-                return internal_error(str(e))  # type: ignore[return-value]
+                return internal_error(str(e))
         took_ms = int((time.time() - t0) * 1000)
         # Resolve fav/dis for the SearchResult list via the indexed
         # helper. The diversity path already pulled the favorite set;

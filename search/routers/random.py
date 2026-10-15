@@ -201,20 +201,20 @@ def build_random_router(
             Query(description="restrict to one or more collections; empty = whole set"),
         ] = None,
         view: str = Query(cfg.default_view, description="result view: 'grid' or 'feed'"),
-    ) -> SearchResponse:
+    ) -> SearchResponse | JSONResponse:
         view = _coerce_view(view)
         try:
             limit = int(limit)
         except (TypeError, ValueError):
-            return _bad_request("limit must be an integer")  # type: ignore[return-value]
+            return _bad_request("limit must be an integer")
         if not (1 <= limit <= RANDOM_MAX_LIMIT):
-            return _bad_request(f"limit must be in [1, {RANDOM_MAX_LIMIT}]")  # type: ignore[return-value]
+            return _bad_request(f"limit must be in [1, {RANDOM_MAX_LIMIT}]")
         try:
             offset = int(offset)
         except (TypeError, ValueError):
-            return _bad_request("offset must be an integer")  # type: ignore[return-value]
+            return _bad_request("offset must be an integer")
         if offset < 0:
-            return _bad_request("offset must be >= 0")  # type: ignore[return-value]
+            return _bad_request("offset must be >= 0")
 
         # Clean up the collection list (drop empties, dedupe while
         # preserving order so the response is stable for the client).
@@ -242,7 +242,7 @@ def build_random_router(
                 session_id, sess = existing
         except Exception:
             logger.exception("random session materialize failed")
-            return JSONResponse(  # type: ignore[return-value]
+            return JSONResponse(
                 status_code=500,
                 content=ErrorResponse(
                     error="internal_error",
@@ -265,7 +265,7 @@ def build_random_router(
                 rows = index_db.rows_by_ids(batch_ids)
             except Exception:
                 logger.exception("random deck lookup failed")
-                return JSONResponse(  # type: ignore[return-value]
+                return JSONResponse(
                     status_code=500,
                     content=ErrorResponse(
                         error="internal_error",
@@ -301,7 +301,11 @@ def build_random_router(
 
     # Expose the session store for tests via the router object.
     # `router._random_session_store` is an implementation detail.
-    router._random_session_store = store  # type: ignore[attr-defined]
+    # setattr (vs. router._x = store) because APIRouter has no
+    # such attribute and we don't want to monkey-patch the
+    # starlette class. B010 is "setattr with constant"; this
+    # is the legitimate form for adding attrs at runtime.
+    setattr(router, "_random_session_store", store)  # noqa: B010
 
     return router
 
