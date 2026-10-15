@@ -46,6 +46,7 @@ from search._indexed_helpers import (
     resolve_filename_filter,
     results_from_hits,
 )
+from search._logging import log_qdrant_error, log_qdrant_timeout
 from search._result_helpers import (
     bad_request,
     coerce_view,
@@ -469,13 +470,18 @@ def build_search_router(
                     )
                     diversity_meta = DiversityMetadata()
             except (ConnectionError, OSError) as e:
-                logger.warning("Qdrant unreachable for /api/search: %s", e)
+                log_qdrant_error(logger, endpoint="/api/search", error=e, op="search")
                 return qdrant_unreachable(str(e))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
-                    logger.warning("Qdrant timeout: %s", e)
+                    log_qdrant_timeout(
+                        logger, endpoint="/api/search", op="search",
+                        timeout_ms=cfg.query_timeout_ms,
+                    )
                     return qdrant_timeout(str(e))
-                logger.exception("search failed")
+                log_qdrant_error(
+                    logger, endpoint="/api/search", error=e, op="search",
+                )
                 return internal_error(str(e))
         took_ms = int((time.time() - t0) * 1000)
         # Resolve fav/dis for the SearchResult list via the indexed

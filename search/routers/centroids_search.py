@@ -96,6 +96,7 @@ from search._indexed_helpers import (
     resolve_filename_filter,
     results_from_hits,
 )
+from search._logging import log_qdrant_error, log_qdrant_timeout
 from search._result_helpers import (
     bad_request,
     coerce_view,
@@ -572,15 +573,22 @@ def build_centroids_search_router(
                     pool_depth=diversity_pool_depth,
                 )
             except (ConnectionError, OSError) as e:
-                logger.warning(
-                    "Qdrant unreachable for centroid diversity search: %s", e,
+                log_qdrant_error(
+                    logger, endpoint="/api/centroids/{name}/search",
+                    op="diversity", error=e,
                 )
                 return qdrant_unreachable(str(e))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
-                    logger.warning("Qdrant diversity timeout: %s", e)
+                    log_qdrant_timeout(
+                        logger, endpoint="/api/centroids/{name}/search",
+                        op="diversity", timeout_ms=cfg.query_timeout_ms,
+                    )
                     return qdrant_timeout(str(e))
-                logger.exception("centroid diversity search failed")
+                log_qdrant_error(
+                    logger, endpoint="/api/centroids/{name}/search",
+                    op="diversity", error=e,
+                )
                 return internal_error(str(e))
         elif surprise and surprise_cache_key is not None:
             # Round-91: Surprise Me on centroid search. Same
@@ -612,15 +620,22 @@ def build_centroids_search_router(
                     exclude_ids=seed_ids or None,
                 )
             except (ConnectionError, OSError) as e:
-                logger.warning(
-                    "Qdrant unreachable for centroid surprise: %s", e,
+                log_qdrant_error(
+                    logger, endpoint="/api/centroids/{name}/search",
+                    op="surprise", error=e,
                 )
                 return qdrant_unreachable(str(e))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
-                    logger.warning("Qdrant surprise timeout: %s", e)
+                    log_qdrant_timeout(
+                        logger, endpoint="/api/centroids/{name}/search",
+                        op="surprise", timeout_ms=cfg.query_timeout_ms,
+                    )
                     return qdrant_timeout(str(e))
-                logger.exception("centroid surprise search failed")
+                log_qdrant_error(
+                    logger, endpoint="/api/centroids/{name}/search",
+                    op="surprise", error=e,
+                )
                 return internal_error(str(e))
             diversity_meta = DiversityMetadata()
         else:
@@ -703,15 +718,22 @@ def build_centroids_search_router(
                         allowed_ids=allowed_ids,
                     )
             except (ConnectionError, OSError) as e:
-                logger.warning(
-                    "Qdrant unreachable for centroid search: %s", e,
+                log_qdrant_error(
+                    logger, endpoint="/api/centroids/{name}/search",
+                    op="search", error=e,
                 )
                 return qdrant_unreachable(str(e))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
-                    logger.warning("Qdrant timeout: %s", e)
+                    log_qdrant_timeout(
+                        logger, endpoint="/api/centroids/{name}/search",
+                        op="search", timeout_ms=cfg.query_timeout_ms,
+                    )
                     return qdrant_timeout(str(e))
-                logger.exception("centroid search failed")
+                log_qdrant_error(
+                    logger, endpoint="/api/centroids/{name}/search",
+                    op="search", error=e,
+                )
                 return internal_error(str(e))
         took_ms = int((time.time() - t0) * 1000)
         # Resolve fav/dis for the SearchResult list via the indexed
