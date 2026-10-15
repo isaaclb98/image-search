@@ -5,7 +5,7 @@ search/models.py — Pydantic response models for /api/search.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -229,6 +229,102 @@ class SavedSearchListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ---------------------- System / Health / Cache ----------------------
+
+class HealthzResponse(BaseModel):
+    """GET /healthz — operator + load-balancer probe.
+
+    Kept intentionally tiny: `qdrant` is the only required
+    dependency the LB cares about (the rest of the system can be
+    degraded without taking the container out of rotation). The
+    `test_mode` flag is informational — it tells operators
+    whether this is the prod-shaped config or a test fixture.
+    """
+    qdrant: bool
+    test_mode: bool
+
+
+class SystemStatusResponse(BaseModel):
+    """GET /api/system/status — frontend dashboard telemetry.
+
+    The frontend's settings panel reads this to surface model
+    load state, point counts, and the last successful
+    indexer→IndexDB refresh. Field types are chosen so the
+    JS layer can `JSON.parse` and consume without coercion.
+    """
+    model_status: dict[str, Any]
+    qdrant_count: int
+    index_db_count: int
+    last_refresh: float | None
+
+
+class CacheStatusResponse(BaseModel):
+    """GET /api/cache/status — operator visibility into dual-store sync.
+
+    `drift` is the integer point-count gap between Qdrant and
+    IndexDB, or the string "unknown" when Qdrant is unreachable
+    (qdrant_count < 0). The string sentinel is intentional:
+    returning -1 or 0 would be misleading — a negative number
+    conflates "Qdrant down" with "0 drift", and 0 would imply
+    the stores are in sync when we don't actually know.
+
+    `path_liveness_cache_size` / `_max` are the runtime liveness
+    cache's current size and its eviction cap. These matter
+    because the cache lives in memory and a leak would
+    eventually OOM the container.
+    """
+    last_refresh: float | None
+    qdrant_count: int
+    index_db_count: int
+    drift: int | str  # "unknown" when qdrant is unreachable
+    refresh_interval_seconds: float
+    path_liveness_ttl_seconds: float
+    path_liveness_cache_size: int
+    path_liveness_cache_max: int
+
+
+class CollectionsListResponse(BaseModel):
+    """GET /api/collections — list of Qdrant collections with point counts.
+
+    `collections` is the raw shape `qdrant.list_collections_with_counts()`
+    returns. Each entry is a dict; the exact keys are the
+    qdrant-client stub's responsibility (currently `name` +
+    `points_count`), and we keep the dict shape so the frontend
+    stays forward-compatible when qdrant-client adds fields.
+    """
+    collections: list[dict[str, Any]]
+
+
+class ReloadCentroidsResponse(BaseModel):
+    """POST /api/centroids/reload — operator-initiated centroid refresh.
+
+    `count` is the number of centroids the store successfully
+    loaded. `centroids_dir` is the absolute filesystem path
+    the store scanned (or None when the store has no
+    configured directory — same shape as a config-disabled
+    store).
+    """
+    count: int
+    centroids_dir: str | None
+
+
+class CentroidListResponse(BaseModel):
+    """GET /api/centroids — static + dynamic centroid inventory.
+
+    `centroids` is the static (filesystem-backed) list.
+    `dynamic_centroids` is the runtime registry (favourites,
+    tag-based, custom). `expected_model` and
+    `expected_feature_dim` are None when the static store
+    isn't initialised; the frontend uses these to warn when
+    the user has a config that doesn't match the current
+    SigLIP2 model.
+    """
+    centroids: list[dict[str, Any]]
+    dynamic_centroids: list[dict[str, Any]]
+    expected_model: str | None
+    expected_feature_dim: int | None
 
 
 @dataclass(frozen=True)

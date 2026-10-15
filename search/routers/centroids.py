@@ -27,6 +27,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from search.models import ReloadCentroidsResponse
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,19 +43,19 @@ def build_centroids_reload_router(*, centroid_store: Any) -> APIRouter:
     """
     router = APIRouter()
 
-    @router.post("/api/centroids/reload")
-    async def reload_centroids() -> dict[str, Any]:
+    @router.post("/api/centroids/reload", response_model=ReloadCentroidsResponse)
+    async def reload_centroids() -> ReloadCentroidsResponse:
         if centroid_store is None:
             raise HTTPException(
                 status_code=503, detail="centroid store not initialized",
             )
         count = centroid_store.load()
-        return {
-            "count": count,
-            "centroids_dir": (
+        return ReloadCentroidsResponse(
+            count=count,
+            centroids_dir=(
                 str(centroid_store.centroids_dir)
                 if centroid_store.centroids_dir else None
             ),
-        }
+        )
 
     return router
