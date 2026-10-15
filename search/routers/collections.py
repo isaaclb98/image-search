@@ -33,8 +33,8 @@ def build_collections_router(*, qdrant: Any) -> APIRouter:
     """Build the collections router with the live Qdrant client."""
     router = APIRouter()
 
-    @router.get("/api/collections")
-    async def list_collections():
+    @router.get("/api/collections", response_model=None)
+    async def list_collections() -> JSONResponse | dict[str, Any]:
         """List distinct library collections with point counts."""
         try:
             return {"collections": qdrant.list_collections_with_counts()}

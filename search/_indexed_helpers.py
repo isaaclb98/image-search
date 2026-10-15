@@ -19,6 +19,7 @@ import asyncio
 import logging
 import random
 import threading
+from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlencode
 
@@ -259,7 +260,7 @@ def normalize_prompt_state(
     q: str,
     positives_raw: list[str],
     negatives_raw: list[str],
-):
+) -> Any:
     """
     Normalize q/positive/negative prompt inputs for search.
 
@@ -597,7 +598,7 @@ def centroid_diversity_page(
     return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
 
 
-def _digest_values(values) -> str:
+def _digest_values(values: Iterable[str] | None) -> str:
     """SHA-256 digest of a list/set/None of strings — used to hash
     request-shape inputs into the diversity cache key.
 

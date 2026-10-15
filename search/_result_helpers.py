@@ -162,7 +162,7 @@ def parse_centroids(request: Request) -> list[str]:
     ]
 
 
-def parse_weights(request: Request, n: int):
+def parse_weights(request: Request, n: int) -> list[float] | None:
     """
     Parse `?weights=` from the request, returning a list of
     length `n` or None to mean "use defaults (all 1.0)".

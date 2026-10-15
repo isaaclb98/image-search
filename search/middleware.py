@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import Response
 
 __all__ = ["RequestTimingMiddleware"]
 
@@ -43,7 +45,9 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     pin the field set.
     """
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         t0 = time.perf_counter()
         status_code = 500  # default; overwritten on a successful response
         try:

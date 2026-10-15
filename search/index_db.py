@@ -1686,7 +1686,7 @@ class IndexDB:
             "blurhash": str(payload.get("blurhash") or ""),
         }
 
-    def upsert_records(self, points) -> int:
+    def upsert_records(self, points: Any) -> int:
         """Round‑21: insert or replace rows in the local SQLite cache.
 
         Used by the SyncManager after moving points from

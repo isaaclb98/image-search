@@ -71,6 +71,7 @@ import hashlib
 import logging
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -260,7 +261,7 @@ def snapshot_key(
     ))
 
 
-def _digest(values) -> str:
+def _digest(values: Iterable[str] | None) -> str:
     """Stable digest of a list/set/None of strings.
 
     Sorted + UTF-8 with replacement, so equivalent inputs in any

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -93,14 +94,14 @@ class DiversityRanking:
 # ---------------------------------------------------------------------------
 
 
-def _normalise_vector(vector):
+def _normalise_vector(vector: np.ndarray) -> np.ndarray:
     norm = float(np.linalg.norm(vector))
     if norm <= 1e-12:
         return np.zeros_like(vector)
     return vector / norm
 
 
-def _normalise_matrix(matrix):
+def _normalise_matrix(matrix: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     return matrix / np.maximum(norms, 1e-12)
 
@@ -109,7 +110,7 @@ def _cosine_sim(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=True))
 
 
-def _as_float_list(v) -> list[float]:
+def _as_float_list(v: Any) -> list[float]:
     if v is None:
         return []
     if isinstance(v, list):
@@ -312,8 +313,8 @@ def mmr_rerank(
 
 
 def rank_diverse(
-    hits_with_vectors,
-    query_vector,
+    hits_with_vectors: list[tuple[SearchHit, list[float]]],
+    query_vector: list[float],
     *,
     mode: str = "balanced",
     strength: float | None = None,

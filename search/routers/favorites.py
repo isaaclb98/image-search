@@ -129,7 +129,7 @@ def build_favorites_router(
         invalidate_likes_centroid()
         invalidate_for_you()
 
-    @router.get("/api/favorites")
+    @router.get("/api/favorites", response_model=None)
     async def api_favorites(
         limit: int = Query(
             cfg.top_k_default, description="max favourites",
@@ -140,7 +140,7 @@ def build_favorites_router(
         as_results: bool = Query(
             False, description="return SearchResponse-compatible shape",
         ),
-    ):
+    ) -> SearchResponse | FavoritesListResponse | JSONResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         # No upper cap on limit — Likes albums can grow arbitrarily
         # large and the caller (frontend) walks them via

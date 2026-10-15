@@ -121,14 +121,14 @@ def build_dislikes_router(
         if invalidate_for_you is not None:
             invalidate_for_you()
 
-    @router.get("/api/dislikes")
+    @router.get("/api/dislikes", response_model=None)
     async def list_dislikes(
         limit: int = Query(cfg.top_k_default, description="max dislikes"),
         offset: int = Query(0, description="offset into dislikes"),
         as_results: bool = Query(
             False, description="return SearchResponse-compatible shape",
         ),
-    ):
+    ) -> SearchResponse | dict[str, Any] | JSONResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         # No upper cap on limit — Dislikes albums can grow arbitrarily
         # large and the caller (frontend) walks them via

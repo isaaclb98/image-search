@@ -247,7 +247,7 @@ def _coerce_view(raw: str | None) -> str:
 
 
 def _make_favourites_centroid_spec(
-    qdrant, index_db,
+    qdrant: Any, index_db: Any,
 ) -> DynamicCentroidSpec:
     """Build the registration spec for the favourites dynamic centroid.
 
@@ -296,7 +296,7 @@ def _make_favourites_centroid_spec(
 
 
 def _make_likes_centroid_spec(
-    qdrant, index_db,
+    qdrant: Any, index_db: Any,
 ) -> DynamicCentroidSpec:
     """Build the registration spec for the likes dynamic centroid.
 
@@ -345,7 +345,7 @@ def _make_likes_centroid_spec(
 
 
 def _make_dislikes_centroid_spec(
-    qdrant, index_db,
+    qdrant: Any, index_db: Any,
 ) -> DynamicCentroidSpec:
     """Build the registration spec for the dislikes dynamic centroid.
 
@@ -437,7 +437,7 @@ def _album_centroid_name(album_id: int) -> str:
 
 
 def _make_album_centroid_spec(
-    qdrant, index_db, album_id: int,
+    qdrant: Any, index_db: Any, album_id: int,
 ) -> DynamicCentroidSpec:
     """Build a DynamicCentroidSpec for an album.
 
@@ -1584,7 +1584,7 @@ def create_app(
     # ---------------------- Favourites ----------------------
 
     def _favorite_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 iv = int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1608,7 +1608,7 @@ def create_app(
     def _dislike_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Same shape as `_favorite_rows_to_results`; is_favorite comes
         from a fresh favourites lookup so tiles show true heart state."""
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 return int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1656,7 +1656,7 @@ def create_app(
                 len(rows) - len(alive), len(rows),
             )
         rows = alive
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 iv = int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1691,7 +1691,7 @@ def create_app(
         in `_favorite_rows_to_results` (album view) stays on because
         that path can't over-fetch and broken tiles there are jarring.
         """
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 iv = int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1933,7 +1933,7 @@ def create_app(
     # refresh runs at a time; the other short-circuits with a
     # clear log message.
 
-    @app.api_route("/api/cache/refresh", methods=["GET", "POST"])
+    @app.api_route("/api/cache/refresh", methods=["GET", "POST"], response_model=None)
     async def api_cache_refresh(
         request: Request,
         full: bool = Query(
@@ -1948,7 +1948,7 @@ def create_app(
                                 "actually drifted."
                             ),
         ),
-    ):
+    ) -> dict[str, Any] | JSONResponse:
         # Round-35: refuse a manual rebuild while the indexer is
         # actively writing. The wipe+rebuild here races the
         # indexer's INSERTs and would lose any Qdrant points
@@ -2083,7 +2083,7 @@ def create_app(
                 response, including /_app/immutable/.../LICENSES.txt.
                 """
 
-                def file_response(self, *args, **kwargs):
+                def file_response(self, *args: Any, **kwargs: Any) -> Response:
                     resp = super().file_response(*args, **kwargs)
                     resp.headers["Cache-Control"] = (
                         "public, max-age=31536000, immutable"
@@ -2102,7 +2102,7 @@ def create_app(
         # index.html. API routes get proper 404 JSON instead of
         # being silently swallowed by the SPA catch-all.
         @app.get("/{full_path:path}", include_in_schema=False)
-        async def spa_shell(full_path: str):
+        async def spa_shell(full_path: str) -> FileResponse:
             # Never serve SPA HTML for /api/* — those should 404
             # with a proper JSON detail so API clients can
             # distinguish "endpoint doesn't exist" from "got HTML".

@@ -19,26 +19,11 @@ class SearchResult(BaseModel):
                        "Computed server-side so SSR + JS render identically."
     )
     url: str = Field("", description="Public URL for the /photo/{id}/raw endpoint")
-    is_favorite: bool = Field(False, description="True when the image is marked as a favourite")
-    is_disliked: bool = Field(False, description="True when the image is marked as a dislike (hides it from future recommendations)")
-    blurhash: str | None = Field(
-        None,
-        description=(
-            "LQIP (low-quality image placeholder). Decoded client-side into a tinted"
-            " background while the real image loads. None when the encoder failed"
-            " or the point was indexed before the blurhash feature shipped."
-        ),
-    )
-    width: int | None = Field(
-        None,
-        description="Photo width in pixels, when known. None for older rows that"
-                    " were indexed before width/height were recorded.",
-    )
-    height: int | None = Field(
-        None,
-        description="Photo height in pixels, when known. None for older rows that"
-                    " were indexed before width/height were recorded.",
-    )
+    is_favorite: bool = False
+    is_disliked: bool = False
+    blurhash: str | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 class DiversityMetadata(BaseModel):
@@ -52,45 +37,22 @@ class DiversityMetadata(BaseModel):
     result_count: int = 0
     duplicate_images_collapsed: int = 0
     semantic_groups_covered: int = 0
-    depth: str = Field(
-        "auto",
-        description="Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.",
-    )
-    pool_depth: int = Field(
-        0,
-        description="Number of candidates actually retrieved for the ranking pass.",
-    )
+    depth: str = "auto"
+    pool_depth: int = 0
 
 
 class SearchResponse(BaseModel):
     query: str
     positives: list[str] = Field(default_factory=list)
     negatives: list[str] = Field(default_factory=list)
-    diverse: bool = Field(
-        False,
-        description="Backwards-compatible flag; true when search Diversity was applied.",
-    )
+    diverse: bool = False
     diversity: DiversityMetadata = Field(
         default_factory=DiversityMetadata,
         description="Diagnostics for the search-only Diversity ranking pass.",
     )
-    surprise: bool = Field(
-        False,
-        description="True when results were randomly sampled from a deep pool (Surprise Me mode).",
-    )
-    view: str = Field(
-        "grid",
-        description="Result view requested: 'grid' (default) or 'feed' (single-column, full-width).",
-    )
-    centroid: str | None = Field(
-        None,
-        description=(
-            "First active centroid name, when any centroids are in play. "
-            "Kept for backward compat with single-centroid clients; the "
-            "full list lives in `centroids`. Mutually exclusive with "
-            "q/positives/negatives."
-        ),
-    )
+    surprise: bool = False
+    view: str = "grid"
+    centroid: str | None = None
     centroids: list[str] = Field(
         default_factory=list,
         description=(
@@ -98,37 +60,14 @@ class SearchResponse(BaseModel):
             "search is in play. One or more names blends via weighted mean."
         ),
     )
-    weights: list[float] | None = Field(
-        None,
-        description=(
-            "Per-centroid weights, same order as `centroids`. None means "
-            "all weights equal 1.0 (the default)."
-        ),
-    )
+    weights: list[float] | None = None
     results: list[SearchResult]
     took_ms: int
-    offset: int = Field(0, description="Offset of this page in the full result set")
+    offset: int = 0
     limit: int = Field(..., description="Max results requested for this page")
-    has_more: bool = Field(
-        False,
-        description="True when more results likely exist on a subsequent page",
-    )
-    session_id: str | None = Field(
-        None,
-        description=(
-            "Opaque session id. For /api/random this identifies the "
-            "shuffled deck; pass it back with an incremented `offset` "
-            "to walk forward. None for non-session endpoints (search, "
-            "similar, etc.) — those use offset/limit directly against Qdrant."
-        ),
-    )
-    session_total: int | None = Field(
-        None,
-        description=(
-            "Total photos in the session deck. Only set for /api/random. "
-            "Use this with `offset` to know when you've walked everything."
-        ),
-    )
+    has_more: bool = False
+    session_id: str | None = None
+    session_total: int | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -292,23 +231,8 @@ class SavedSearchListResponse(BaseModel):
     offset: int
 
 
-class PromptState:
-    """Normalized q/positive/negative prompt state for search.
-
-    Plain dataclass (not a Pydantic BaseModel) because it's an
-    internal value object — it's only ever passed around between
-    the prompt-normalisation helper and the search route, never
-    serialised to JSON.
-    """
-    q: str
-    positives: list[str]
-    negatives: list[str]
-    positive_chips: list[str]
-    negative_chips: list[str]
-
-
 @dataclass(frozen=True)
-class PromptState:  # noqa: F811
+class PromptState:
     """Normalized q/positive/negative prompt state for search.
 
     Plain dataclass (not a Pydantic BaseModel) because it's an
