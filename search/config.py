@@ -493,6 +493,36 @@ def _bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _str(name: str, default: str) -> str:
+    """Read a string env var, falling back to default when unset/empty."""
+    raw = os.environ.get(name, default)
+    return raw if raw else default
+
+
+def _opt_str(name: str) -> str | None:
+    """Read an optional string env var. Returns None when unset or empty.
+
+    Distinguishes "" (treated as None) so callers that use the
+    "configured or None" idiom (`os.environ.get(name) or None`)
+    see the same value. None and "" both round-trip to None.
+    """
+    raw = os.environ.get(name)
+    if not raw:
+        return None
+    return raw
+
+
+def _str_any_present(name: str) -> str | None:
+    """Read an env var, returning None ONLY when fully absent.
+
+    Unlike `_opt_str` this preserves the empty string when the
+    variable is set to "" — needed by flags like SEARCH_TEST_MODE
+    that are checked for "is this set?" rather than "is this
+    truthy?".
+    """
+    return os.environ.get(name)
+
+
 def load() -> Config:
     """
     Load config from environment. Validates required fields and
@@ -510,8 +540,8 @@ def load() -> Config:
     # `nas_images_base=` as a keyword arg, and renaming the field
     # would be a no-value churn. The user-facing name (env var +
     # error message + docs) is what matters to deployers.
-    photos_dir = os.environ.get("PHOTOS_DIR", "").strip()
-    legacy_nas_base = os.environ.get("NAS_IMAGES_BASE", "").strip()
+    photos_dir = _str("PHOTOS_DIR", "").strip()
+    legacy_nas_base = _str("NAS_IMAGES_BASE", "").strip()
     if not photos_dir and legacy_nas_base:
         photos_dir = legacy_nas_base
         warnings.warn(
@@ -531,16 +561,16 @@ def load() -> Config:
 
     # Validate SigLIP2 variant before loading the rest of the config
     variant = get_siglip_variant()
-    index_db_path = os.environ.get("INDEX_DB_PATH")
+    index_db_path = _opt_str("INDEX_DB_PATH")
     if not index_db_path and os.environ.get("SEARCH_TEST_MODE"):
         index_db_path = ":memory:"
     if not index_db_path:
         index_db_path = "./data/images.db"
-    
+
     # Determine data directory from index_db_path (kept for any future
     # path-aware logic; the Qdrant reconciler below does not use it).
     _data_dir = "./data" if index_db_path == ":memory:" else str(Path(index_db_path).parent)
-    
+
     # Reconcile env variant against Qdrant on startup. Qdrant is the
     # single source of truth — its dim + per-point payload together
     # tell us whether the indexed vectors match the env variant. On
@@ -548,9 +578,9 @@ def load() -> Config:
     # Never raises.
     reconcile_variant_from_qdrant(
         variant,
-        qdrant_url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
-        qdrant_api_key=os.environ.get("QDRANT_API_KEY") or None,
-        qdrant_collection=os.environ.get("QDRANT_COLLECTION", DEFAULT_COLLECTION),
+        qdrant_url=_str("QDRANT_URL", "http://localhost:6333"),
+        qdrant_api_key=_opt_str("QDRANT_API_KEY"),
+        qdrant_collection=_str("QDRANT_COLLECTION", DEFAULT_COLLECTION),
     )
 
     top_k_default = _int("TOP_K_DEFAULT", DEFAULT_RESULT_LIMIT)
@@ -561,22 +591,16 @@ def load() -> Config:
         )
 
     expected_model, expected_dim = centroid_compat_for(
-        os.environ.get("MODEL_NAME", DEFAULT_MODEL)
+        _str("MODEL_NAME", DEFAULT_MODEL)
     )
 
-    index_db_path = os.environ.get("INDEX_DB_PATH")
-    if not index_db_path and os.environ.get("SEARCH_TEST_MODE"):
-        index_db_path = ":memory:"
-    if not index_db_path:
-        index_db_path = "./data/images.db"
-
     cfg = Config(
-        qdrant_url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
-        qdrant_collection=os.environ.get("QDRANT_COLLECTION", DEFAULT_COLLECTION),
-        qdrant_api_key=os.environ.get("QDRANT_API_KEY") or None,
-        model_name=os.environ.get("MODEL_NAME", DEFAULT_MODEL),
-        model_revision=os.environ.get("MODEL_REVISION", ""),
-        device=os.environ.get("DEVICE", "cpu"),
+        qdrant_url=_str("QDRANT_URL", "http://localhost:6333"),
+        qdrant_collection=_str("QDRANT_COLLECTION", DEFAULT_COLLECTION),
+        qdrant_api_key=_opt_str("QDRANT_API_KEY"),
+        model_name=_str("MODEL_NAME", DEFAULT_MODEL),
+        model_revision=_str("MODEL_REVISION", ""),
+        device=_str("DEVICE", "cpu"),
         top_k_default=top_k_default,
         top_k_max=top_k_max,
         # Per-request timeout for the search API (query_points). The
@@ -594,9 +618,9 @@ def load() -> Config:
         # timeout so the two paths have symmetric headroom.
         recommend_timeout_ms=_int("RECOMMEND_TIMEOUT_MS", 60000),
         nas_images_base=photos_dir,
-        path_prefix=os.environ.get("PATH_PREFIX", ""),
-        web_ui_url=os.environ.get("WEB_UI_URL", "http://localhost:8000"),
-        log_level=os.environ.get("LOG_LEVEL", "INFO"),
+        path_prefix=_str("PATH_PREFIX", ""),
+        web_ui_url=_str("WEB_UI_URL", "http://localhost:8000"),
+        log_level=_str("LOG_LEVEL", "INFO"),
         test_mode=bool(
             os.environ.get("SEARCH_TEST_MODE")
             or os.environ.get("SEARCH_NO_MODEL")
@@ -618,7 +642,7 @@ def load() -> Config:
         search_prefetch_next_band=_bool(
             "SEARCH_PREFETCH_NEXT_BAND", True
         ),
-        centroids_dir=os.environ.get("CENTROIDS_DIR") or None,
+        centroids_dir=_opt_str("CENTROIDS_DIR"),
         centroid_expected_model=expected_model,
         centroid_expected_feature_dim=expected_dim,
         index_db_path=index_db_path,
@@ -634,13 +658,13 @@ def load() -> Config:
         # single-source setup just sets the latter.
         indexer_sources=tuple(
             s.strip()
-            for s in os.environ.get(
+            for s in _str(
                 "INDEXER_SOURCES",
-                os.environ.get("NAS_IMAGES_PATH", ""),
+                _str("NAS_IMAGES_PATH", ""),
             ).split(",")
             if s.strip()
         ),
-        indexer_device=os.environ.get("INDEXER_DEVICE", "cpu"),
+        indexer_device=_str("INDEXER_DEVICE", "cpu"),
         indexer_batch_size=_int("INDEXER_BATCH_SIZE", 8),
         # Auth removed — no env vars to read here.
     )
