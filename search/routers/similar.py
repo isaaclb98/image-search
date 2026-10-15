@@ -38,12 +38,13 @@ from fastapi import APIRouter, HTTPException, Query
 
 from search.image_resolver import resolve_url
 from search.models import DiversityMetadata, SearchResponse, SearchResult
+from search.qdrant_client import SearchHit
 
 logger = logging.getLogger(__name__)
 
 
 def _results_from_hits(
-    hits: list[Any],
+    hits: list[SearchHit],
     *,
     web_ui_url: str,
     favorite_ids: set[str] | None = None,

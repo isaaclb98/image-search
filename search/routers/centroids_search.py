@@ -119,6 +119,7 @@ from search.diversity import (
     resolve_mode,
 )
 from search.models import DiversityMetadata, SearchResponse, SearchResult
+from search.qdrant_client import SearchHit
 from search.surprise_deck import (
     DEFAULT_POOL_SIZE,
     DEFAULT_TEMPERATURE,
@@ -546,7 +547,7 @@ def build_centroids_search_router(
         # for the surprise path.
         deck_ids: list[str] = []
         if allowed_ids is not None and not allowed_ids:
-            hits: list = []
+            hits: list[SearchHit] = []
             has_more = False
             diversity_meta = None
         elif diversity_active:

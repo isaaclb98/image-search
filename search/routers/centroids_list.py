@@ -49,17 +49,17 @@ def build_centroids_list_router(
     router = APIRouter()
 
     @router.get("/api/centroids")
-    async def list_centroids() -> dict:
+    async def list_centroids() -> dict[str, Any]:
         """List static + dynamic centroids with metadata."""
         if centroid_store is None:
-            static: list = []
+            static: list[dict[str, Any]] = []
             expected_model = None
             expected_feature_dim = None
         else:
             static = [c.as_dict() for c in centroid_store.list()]
             expected_model = centroid_store.expected_model()
             expected_feature_dim = centroid_store.expected_feature_dim()
-        dynamic: list = []
+        dynamic: list[dict[str, Any]] = []
         if dynamic_centroids is not None:
             for spec in dynamic_centroids.list():
                 # Trigger a compute (cached) so the API response

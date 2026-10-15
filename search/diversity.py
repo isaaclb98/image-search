@@ -22,6 +22,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from search.diversity_compute import (  # noqa: F401
     DIVERSITY_AUTO_DEPTHS,
@@ -41,6 +42,9 @@ from search.diversity_compute import (  # noqa: F401
     _normalise_matrix,
     _normalise_vector,
 )
+
+if TYPE_CHECKING:
+    from search.qdrant_client import SearchHit
 
 # Re-export the pure compute surface so existing call sites continue
 # to import from `search.diversity` without a sweeping import rewrite.
@@ -147,7 +151,7 @@ class _CachedResult:
     """One cached Diversity ranking: tuple of hits + stats + timestamp."""
 
     created_at: float
-    hits: tuple
+    hits: tuple[SearchHit, ...]
     stats: DiversityStats
 
 
@@ -177,7 +181,7 @@ class DiversityResultCache:
             return None
         return entry
 
-    def put(self, key: str, hits: Iterable, stats: DiversityStats) -> None:
+    def put(self, key: str, hits: Iterable[SearchHit], stats: DiversityStats) -> None:
         if self.ttl_seconds == 0:
             return
         if key in self._entries:

@@ -63,7 +63,7 @@ RANDOM_MAX_LIMIT = 200
 
 
 def _random_rows_to_results(
-    rows: list[dict], *, web_ui_url: str,
+    rows: list[dict[str, Any]], *, web_ui_url: str,
 ) -> list[SearchResult]:
     """Build SearchResult objects from SQLite random-sample rows.
 
@@ -181,7 +181,7 @@ def build_random_router(
         batch_ids = sess.ids[effective_offset : effective_offset + limit]
 
         # Materialize full SearchResults from the deck ids.
-        rows: list[dict] = []
+        rows: list[dict[str, Any]] = []
         if batch_ids:
             try:
                 rows = index_db.rows_by_ids(batch_ids)

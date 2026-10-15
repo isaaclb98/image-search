@@ -339,7 +339,7 @@ def diversity_page(
     strength: float,
     depth: str,
     pool_depth: int,
-) -> tuple[list, bool, Any]:
+) -> tuple[list[SearchHit], bool, Any]:
     """Build or retrieve one complete, stable Diversity ordering.
 
     Wraps the closure that was previously in `create_app`. The
@@ -497,7 +497,7 @@ def centroid_diversity_page(
     strength: float,
     depth: str,
     pool_depth: int,
-) -> tuple[list, bool, Any]:
+) -> tuple[list[SearchHit], bool, Any]:
     """Diversity ranking for centroid/album search — the Layer-2-aware
     analogue of `diversity_page`.
 
@@ -659,7 +659,7 @@ async def materialize_search_page(
     collections: list[str],
     allowed_ids: list[str] | None,
     favorite_ids: set[str] | None,
-) -> tuple[list, bool]:
+) -> tuple[list[SearchHit], bool]:
     """Return one page of a *stable* ranking, plus `has_more`.
 
     Drop-in replacement for the plain-search call
@@ -759,7 +759,7 @@ async def materialize_search_page(
     # a dead tile from rendering, and has_more is computed from the
     # snapshot rather than the hydrated length so one dropped id can't
     # make the client think the result set ended.
-    hits_out: list = []
+    hits_out: list[SearchHit] = []
     for pid in page_ids:
         hit = by_id.get(pid)
         if hit is None:

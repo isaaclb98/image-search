@@ -24,6 +24,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from search.qdrant_client import SearchHit
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -82,7 +84,7 @@ class DiversityStats:
 class DiversityRanking:
     """Ordered hits plus diagnostics for a complete candidate pool."""
 
-    hits: list
+    hits: list[SearchHit]
     stats: DiversityStats
 
 
@@ -116,9 +118,9 @@ def _as_float_list(v) -> list[float]:
 
 
 def _collapse_duplicate_indices(
-    hits: list,
+    hits: list[SearchHit],
     *,
-    query_scores,
+    query_scores: list[float],
     duplicate_hamming_distance: int,
 ) -> list[int]:
     """Keep the highest-relevance representative of fingerprint groups.
@@ -237,11 +239,11 @@ def _collapse_duplicate_indices(
     representatives.sort()
     return representatives
 def mmr_rerank(
-    hits_with_vectors: list[tuple],
+    hits_with_vectors: list[tuple[SearchHit, list[float]]],
     query_vector: list[float],
     k: int,
     lambda_: float = 0.5,
-) -> list:
+) -> list[SearchHit]:
     """Backwards-compatible MMR helper retained for existing callers/tests.
 
     ``lambda_`` keeps the historical meaning here: 1.0 is pure relevance,
@@ -290,7 +292,7 @@ def mmr_rerank(
     except ImportError:
         # Keep the pure-Python fallback for unusual deployments and make the
         # failure explicit rather than returning a partially ranked result.
-        selected: list[tuple] = []
+        selected: list[tuple[SearchHit, list[float]]] = []
         candidates = list(hits_with_vectors)
         while len(selected) < min(k, len(hits_with_vectors)) and candidates:
             best_idx = 0

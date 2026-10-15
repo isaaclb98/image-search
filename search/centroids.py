@@ -38,6 +38,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import torch
 
@@ -78,7 +79,7 @@ class CentroidSpec:
     extracted_at: str
     source_path: Path
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """Public-facing summary for the JSON list endpoint."""
         return {
             "name": self.name,
@@ -367,7 +368,7 @@ class DynamicCentroidSpec:
         "Not enough data yet — keep using the app and check back."
     )
 
-    def public_dict(self, n_images: int | None = None) -> dict:
+    def public_dict(self, n_images: int | None = None) -> dict[str, Any]:
         """JSON shape for /api/centroids. `n_images` is the count from
         the most recent successful compute, or None when nothing has
         been computed yet (cold cache).

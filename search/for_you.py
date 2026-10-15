@@ -47,6 +47,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import random
 
+    from search.qdrant_client import SearchHit
+
 logger = logging.getLogger(__name__)
 
 
@@ -235,7 +237,7 @@ def rank_for_you(
     top_pct: float = DEFAULT_FOR_YOU_TOP_PCT,
     rng: random.Random | None = None,
     seed: str | None = None,
-) -> tuple[list, int, bool]:
+) -> tuple[list[SearchHit], int, bool]:
     """Slice a page of `limit` items starting at `page * limit` from
     a shuffled pool. Returns (hits, pool_total, has_more).
 

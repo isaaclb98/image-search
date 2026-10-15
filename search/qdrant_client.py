@@ -23,7 +23,7 @@ class SearchHit:
     id: str
     path: str
     score: float
-    payload: dict | None = None
+    payload: dict[str, Any] | None = None
 
 
 class QdrantSearch:
@@ -435,7 +435,7 @@ class QdrantSearch:
             out.append((str(p.id), list(vec)))
         return out
 
-    def scroll_all(self, batch_size: int = 1000) -> Iterator[list[dict]]:
+    def scroll_all(self, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
         """
         Paginate through every point in the collection.
 
@@ -649,7 +649,7 @@ class QdrantSearch:
             payload=payload,
         )
 
-    def list_collections_with_counts(self) -> list[dict]:
+    def list_collections_with_counts(self) -> list[dict[str, Any]]:
         """
         Return a list of distinct `collection` payload values in the
         index, with point counts.
@@ -682,7 +682,7 @@ class QdrantSearch:
             limit=100,  # plenty for any sane library count
             timeout=self.timeout_ms // 1000,
         )
-        items: list[dict] = []
+        items: list[dict[str, Any]] = []
         for h in response.hits:
             value = h.value
             # FacetValueHit.value is typed as union[str, int, bool]

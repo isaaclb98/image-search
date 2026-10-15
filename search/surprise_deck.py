@@ -35,7 +35,10 @@ import hashlib
 import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from search.qdrant_client import SearchHit
 
 import numpy as np
 
@@ -265,7 +268,7 @@ async def build_surprise_deck(
     effective_limit: int,
     offset: int,
     exclude_ids: list[str] | None = None,
-) -> tuple[list, bool, list[str]]:
+) -> tuple[list[SearchHit], bool, list[str]]:
     """
     Build or fetch the Gumbel-sampled Surprise Me deck and return
     the requested page.
@@ -328,7 +331,7 @@ async def build_surprise_deck(
         deck_ids[i]: deck_scores[i]
         for i in range(start, min(end, len(deck_ids)))
     }
-    hits: list = []
+    hits: list[SearchHit] = []
     for pid in page_ids:
         h = by_id.get(pid)
         if h is None:
