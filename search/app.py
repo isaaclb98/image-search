@@ -28,6 +28,7 @@ from qdrant_client import QdrantClient
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search import config, text_encoder
+from search._result_helpers import internal_error, qdrant_unreachable
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -42,7 +43,6 @@ from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
     DiversityMetadata,
-    ErrorResponse,
     PromptState,
     SearchResult,
 )
@@ -1389,31 +1389,6 @@ def create_app(
             pool_depth=stats.pool_depth,
         )
 
-
-    def _bad_request(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=400,
-            content=ErrorResponse(error="bad_request", detail=detail, code="bad_request").model_dump(),
-        )
-
-    def _qdrant_unreachable(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=502,
-            content=ErrorResponse(error="qdrant_unreachable", detail=detail, code="qdrant_unreachable").model_dump(),
-        )
-
-    def _qdrant_timeout(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=504,
-            content=ErrorResponse(error="qdrant_timeout", detail=detail, code="qdrant_timeout").model_dump(),
-        )
-
-    def _internal_error(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=500,
-            content=ErrorResponse(error="internal_error", detail=detail, code="internal_error").model_dump(),
-        )
-
     @app.get("/api/photo/{point_id}")
     async def photo_metadata(point_id: str) -> JSONResponse:
         """Fetch metadata for a single photo by ID.
@@ -2039,24 +2014,10 @@ def create_app(
             }
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for cache refresh: %s", e)
-            return JSONResponse(
-                status_code=502,
-                content=ErrorResponse(
-                    error="qdrant_unreachable",
-                    detail=str(e),
-                    code="qdrant_unreachable",
-                ).model_dump(),
-            )
+            return qdrant_unreachable(str(e))
         except Exception as e:
             logger.exception("cache refresh failed")
-            return JSONResponse(
-                status_code=500,
-                content=ErrorResponse(
-                    error="internal_error",
-                    detail=str(e),
-                    code="internal_error",
-                ).model_dump(),
-            )
+            return internal_error(str(e))
         finally:
             await asyncio.to_thread(index_db.release_refresh_lock)
 

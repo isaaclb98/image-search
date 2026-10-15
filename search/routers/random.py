@@ -46,6 +46,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from search._result_helpers import bad_request as _bad_request
 from search._result_helpers import coerce_view
 from search.image_resolver import resolve_url
 from search.models import ErrorResponse, SearchResponse, SearchResult
@@ -230,13 +231,3 @@ def build_random_router(
     setattr(router, "_random_session_store", store)  # noqa: B010
 
     return router
-
-
-def _bad_request(detail: str) -> JSONResponse:
-    """Build a 400 JSONResponse with the documented error envelope."""
-    return JSONResponse(
-        status_code=400,
-        content=ErrorResponse(
-            error="bad_request", detail=detail, code="bad_request",
-        ).model_dump(),
-    )
