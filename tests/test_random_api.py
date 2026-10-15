@@ -378,11 +378,11 @@ def test_session_expiry_yields_new_session(random_app):
     to avoid coupling to the router's internal state.
     """
     import time as _time
-    from search.routers.random import _RandomSession, _RandomSessionStore
+    from search.random_session import RandomSession, RandomSessionStore
 
-    store = _RandomSessionStore()
+    store = RandomSessionStore()
     # Seed a session that's already past its TTL.
-    expired = _RandomSession(ids=["a", "b", "c", "d"], ttl_s=60.0)
+    expired = RandomSession(ids=["a", "b", "c", "d"], ttl_s=60.0)
     expired.created_at = _time.monotonic() - 120.0  # 2 minutes ago, TTL is 60s
     store._sessions["stale-id"] = expired
 

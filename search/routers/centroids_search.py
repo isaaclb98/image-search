@@ -89,6 +89,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from search._indexed_helpers import (
     centroid_diversity_page,
@@ -118,7 +119,7 @@ from search.diversity import (
     resolve_mode,
 )
 from search.models import DiversityMetadata, SearchResponse, SearchResult
-from search.routers.search import _build_surprise_deck
+from search.qdrant_client import SearchHit
 from search.surprise_deck import (
     DEFAULT_POOL_SIZE,
     DEFAULT_TEMPERATURE,
@@ -127,6 +128,7 @@ from search.surprise_deck import (
     TEMPERATURE_MAX,
     TEMPERATURE_MIN,
     SurpriseDeckCache,
+    build_surprise_deck,
     compute_cache_key,
 )
 
@@ -256,7 +258,7 @@ def build_centroids_search_router(
                 "deck without recomputing. Ignored unless surprise=true."
             ),
         ),
-    ) -> SearchResponse:
+    ) -> SearchResponse | JSONResponse:
         """Search using a loaded centroid as the query vector."""
         if centroid_store is None:
             raise HTTPException(
@@ -268,13 +270,13 @@ def build_centroids_search_router(
         if mode not in _VALID_MODES:
             return bad_request(
                 f"mode must be one of {sorted(_VALID_MODES)}, got {mode!r}"
-            )  # type: ignore[return-value]
+            )
         if sample_k <= 0:
-            return bad_request("sample_k must be > 0")  # type: ignore[return-value]
+            return bad_request("sample_k must be > 0")
         if sample_n <= 0:
-            return bad_request("sample_n must be > 0")  # type: ignore[return-value]
+            return bad_request("sample_n must be > 0")
         if sample_n > sample_k:
-            return bad_request(  # type: ignore[return-value]
+            return bad_request(
                 f"sample_n ({sample_n}) must be <= sample_k ({sample_k})"
             )
         # Diversity resolution — identical contract to /api/search
@@ -282,13 +284,13 @@ def build_centroids_search_router(
         try:
             diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
         except ValueError as exc:
-            return bad_request(str(exc))  # type: ignore[return-value]
+            return bad_request(str(exc))
         try:
             diversity_depth_mode, diversity_pool_depth = resolve_depth(
                 diversity_depth, diversity_mode,
             )
         except ValueError as exc:
-            return bad_request(str(exc))  # type: ignore[return-value]
+            return bad_request(str(exc))
         diversity_active = diversity_mode != "off"
         # Sample mode re-rolls a different query vector per request, so
         # a cached stable ranking is meaningless (and would silently
@@ -298,7 +300,7 @@ def build_centroids_search_router(
             return bad_request(
                 "Diversity cannot be combined with sample mode "
                 "(Surprise Me). Choose one retrieval mode."
-            )  # type: ignore[return-value]
+            )
         # Round-91: Surprise Me on centroid search. Same Gumbel-max
         # algorithm as /api/search?surprise=true but with the
         # centroid vector as the query. Mutex with mode=sample
@@ -311,12 +313,12 @@ def build_centroids_search_router(
             return bad_request(
                 "Surprise Me cannot be combined with mode=sample. "
                 "Choose one retrieval mode."
-            )  # type: ignore[return-value]
+            )
         if surprise and diversity_active:
             return bad_request(
                 "Diversity cannot be combined with Surprise Me. "
                 "Choose one search mode."
-            )  # type: ignore[return-value]
+            )
         # Surprise knob validation — lifted above the branch so the
         # ETag pre-compute (when added) and the branch see the same
         # parsed values. Mirrors the validation block in
@@ -330,9 +332,9 @@ def build_centroids_search_router(
             try:
                 surprise_temperature_parsed = float(surprise_temperature)
             except (TypeError, ValueError):
-                return bad_request("surprise_temperature must be a number")  # type: ignore[return-value]
+                return bad_request("surprise_temperature must be a number")
             if not (TEMPERATURE_MIN <= surprise_temperature_parsed <= TEMPERATURE_MAX):
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"surprise_temperature must be in "
                     f"[{TEMPERATURE_MIN}, {TEMPERATURE_MAX}], "
                     f"got {surprise_temperature_parsed}"
@@ -340,9 +342,9 @@ def build_centroids_search_router(
             try:
                 surprise_pool_parsed = int(surprise_pool)
             except (TypeError, ValueError):
-                return bad_request("surprise_pool must be an integer")  # type: ignore[return-value]
+                return bad_request("surprise_pool must be an integer")
             if not (POOL_SIZE_MIN <= surprise_pool_parsed <= POOL_SIZE_MAX):
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"surprise_pool must be in "
                     f"[{POOL_SIZE_MIN}, {POOL_SIZE_MAX}], "
                     f"got {surprise_pool_parsed}"
@@ -351,7 +353,7 @@ def build_centroids_search_router(
                 try:
                     surprise_seed_parsed = int(surprise_seed)
                 except (TypeError, ValueError):
-                    return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
+                    return bad_request("surprise_seed must be an integer")
         # Look up static first; fall back to dynamic (registry does
         # lazy compute + cache). This keeps the route's contract
         # the same regardless of which backend the centroid came from.
@@ -375,7 +377,7 @@ def build_centroids_search_router(
             # "subset" would be the same as the whole, and a 400
             # is clearer than silently behaving like centroid mode.
             if mode == "sample":
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"mode=sample is not available for static centroid "
                     f"{name!r}; only dynamic (album/likes/dislikes) "
                     f"centroids have a source population to sample from"
@@ -399,7 +401,7 @@ def build_centroids_search_router(
                     # re-rolls, so refreshing the home page surfaces a
                     # different cluster each time.
                     if not full_seed_ids:
-                        return bad_request(  # type: ignore[return-value]
+                        return bad_request(
                             f"centroid {name!r} has no seed ids; "
                             f"sample mode requires a non-empty source set"
                         )
@@ -414,7 +416,7 @@ def build_centroids_search_router(
                         picked_ids.append(pid)
                         picked_vecs.append(vec)
                     if not picked_vecs:
-                        return bad_request(  # type: ignore[return-value]
+                        return bad_request(
                             f"could not retrieve seed vectors for "
                             f"centroid {name!r}"
                         )
@@ -464,15 +466,15 @@ def build_centroids_search_router(
         try:
             limit = int(limit)
         except (TypeError, ValueError):
-            return bad_request("limit must be an integer")  # type: ignore[return-value]
+            return bad_request("limit must be an integer")
         if not (1 <= limit <= cfg.top_k_max):
-            return bad_request(f"limit must be in [1, {cfg.top_k_max}]")  # type: ignore[return-value]
+            return bad_request(f"limit must be in [1, {cfg.top_k_max}]")
         try:
             offset = int(offset)
         except (TypeError, ValueError):
-            return bad_request("offset must be an integer")  # type: ignore[return-value]
+            return bad_request("offset must be an integer")
         if offset < 0:
-            return bad_request("offset must be >= 0")  # type: ignore[return-value]
+            return bad_request("offset must be >= 0")
         if offset >= cfg.max_results_total:
             return SearchResponse(
                 query="",
@@ -545,7 +547,7 @@ def build_centroids_search_router(
         # for the surprise path.
         deck_ids: list[str] = []
         if allowed_ids is not None and not allowed_ids:
-            hits: list = []
+            hits: list[SearchHit] = []
             has_more = False
             diversity_meta = None
         elif diversity_active:
@@ -573,13 +575,13 @@ def build_centroids_search_router(
                 logger.warning(
                     "Qdrant unreachable for centroid diversity search: %s", e,
                 )
-                return qdrant_unreachable(str(e))  # type: ignore[return-value]
+                return qdrant_unreachable(str(e))
             except Exception as e:
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                     logger.warning("Qdrant diversity timeout: %s", e)
-                    return qdrant_timeout(str(e))  # type: ignore[return-value]
+                    return qdrant_timeout(str(e))
                 logger.exception("centroid diversity search failed")
-                return internal_error(str(e))  # type: ignore[return-value]
+                return internal_error(str(e))
         elif surprise and surprise_cache_key is not None:
             # Round-91: Surprise Me on centroid search. Same
             # Gumbel-max algorithm as /api/search?surprise=true
@@ -592,7 +594,7 @@ def build_centroids_search_router(
             # near-dups may surface. Acceptable trade-off for
             # keeping the route simple.
             try:
-                hits, has_more, deck_ids = await _build_surprise_deck(
+                hits, has_more, deck_ids = await build_surprise_deck(
                     qdrant=qdrant,
                     vec=vector,
                     collections=collections,
@@ -613,13 +615,13 @@ def build_centroids_search_router(
                 logger.warning(
                     "Qdrant unreachable for centroid surprise: %s", e,
                 )
-                return qdrant_unreachable(str(e))  # type: ignore[return-value]
+                return qdrant_unreachable(str(e))
             except Exception as e:
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                     logger.warning("Qdrant surprise timeout: %s", e)
-                    return qdrant_timeout(str(e))  # type: ignore[return-value]
+                    return qdrant_timeout(str(e))
                 logger.exception("centroid surprise search failed")
-                return internal_error(str(e))  # type: ignore[return-value]
+                return internal_error(str(e))
             diversity_meta = DiversityMetadata()
         else:
             diversity_meta = None
@@ -704,13 +706,13 @@ def build_centroids_search_router(
                 logger.warning(
                     "Qdrant unreachable for centroid search: %s", e,
                 )
-                return qdrant_unreachable(str(e))  # type: ignore[return-value]
+                return qdrant_unreachable(str(e))
             except Exception as e:
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
                     logger.warning("Qdrant timeout: %s", e)
-                    return qdrant_timeout(str(e))  # type: ignore[return-value]
+                    return qdrant_timeout(str(e))
                 logger.exception("centroid search failed")
-                return internal_error(str(e))  # type: ignore[return-value]
+                return internal_error(str(e))
         took_ms = int((time.time() - t0) * 1000)
         # Resolve fav/dis for the SearchResult list via the indexed
         # helper. The dynamic-centroid path already pulled the seed

@@ -55,7 +55,7 @@ def _bad_request_json(detail: str) -> JSONResponse:
 
 
 def _dislike_rows_to_results(
-    rows: list[dict], *, web_ui_url: str, favorite_ids: set[str],
+    rows: list[dict[str, Any]], *, web_ui_url: str, favorite_ids: set[str],
 ) -> list[SearchResult]:
     """Convert dislike DB rows to SearchResult entries.
 
