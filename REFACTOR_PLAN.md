@@ -1,16 +1,18 @@
-# Image Search Backend — Refactor Plan (Round 93+)
+# Image Search Backend — Refactor Plan
 
 **Goal.** Make the backend easier to extend, easier to read, and harder to
 break. No functional changes; the public API contract and test suite are
 the regression net.
 
-**Strategy.** Eight independent PRs, each on its own branch, each small
-enough to review in one sitting, each merged to `dev` (never to `main`
-without explicit at-the-moment permission). PRs are ordered so each one
-makes the next one safer — the early ones are mechanical, the later ones
-are structural.
+**Strategy.** One sweep on `dev`, not 8 stacked PRs. Isaac confirmed
+2026-10-15: *"These shouldn't have been separate PRs in the first place. It
+is a big sweep for refactoring. Just merge into dev and work in dev branch
+for this."* So all work below lands directly on `dev` (or on a feature
+branch that gets merged to `dev`). No more `--base main` PRs for refactor
+work; the cumulative diff against `main` keeps growing and that was the
+original problem. `dev` is the integration branch for this sweep.
 
-**Out of scope (will NOT be touched in any PR below):**
+**Out of scope (will NOT be touched in any work below):**
 - `indexer/` (its own subsystem, not part of the search service surface)
 - `image_search_kernel/` (already strict-typed, CI-gated)
 - `frontend/` (refactor lives in a separate cycle)
@@ -25,112 +27,43 @@ open a follow-up — this plan doesn't touch them.
 
 ---
 
-## The eight PRs
+## What landed (2026-10-15)
 
-| # | Branch | Title | Effort | Risk | Status |
-|---|---|---|---|---|---|
-| 1 | `refactor/plan-001-suppression-discipline` | Suppression discipline + lint tightening | 1 afternoon | Trivial | **DONE** (PR #13, CI green, 2026-10-15) |
-| 2 | `refactor/plan-002-module-layout` | Standardize router / compute / deck / config split | 2-3 days | Low | **DONE** (PR #14, CI green, 2026-10-15) — extracted `RandomSessionStore` to its own module, moved `build_surprise_deck` to `surprise_deck.py`, deduped `_bad_request`/`_coerce_view` against `_result_helpers.py` canonicals, added `__all__` to public modules. App.py + 36 BLE001/S608/S324 suppressions still pending (PR 3+ work). |
-| 3 | `refactor/plan-003-type-the-search-surface` | Type the public surface of `search/` (mypy per-module) | 3-4 days | Medium | **3a DONE** (PR #16, base = refactor/plan-002-module-layout, 2026-10-15) — fixed all 70 `type-arg` errors in `search/` (parametrize `dict`/`list`/`tuple`/`Task`/`Popen` and add `SearchHit`/`SearchResult` imports). 3a/3b/3c split. 3b = call-arg + no-untyped-def (47+30 errors). 3c = the rest (arg-type, dict-item, no-untyped-call, assignment, return-value, override, attr-defined, etc.). |
-| 4 | `refactor/plan-004-pydantic-search-results` | Replace ad-hoc dicts with typed payload models | 2-3 days | Low | |
-| 5 | `refactor/plan-005-settings-class` | Centralize env-var parsing into a pydantic-settings class | 1-2 days | Low | |
-| 6 | `refactor/plan-006-problem-detail-errors` | RFC 7807 error envelopes + global exception handlers | 1-2 days | Low | |
-| 7 | `refactor/plan-007-api-naming-review` | API surface review + naming consistency | 2-3 days | Medium | |
-| 8 | `refactor/plan-008-final-tightening` | `Protocol`s, `__all__`, module docstrings, CI mypy gate on | 1-2 days | Low | |
+| Phase | Title | Status |
+|---|---|---|
+| 1 | Suppression discipline + lint tightening | DONE (1dd859e) — 62 `type: ignore` markers removed, return types widened to `SearchResponse \| JSONResponse`, named justifications for remaining suppressions |
+| 2 | Module layout (router / compute / deck / config split) | DONE (eaf2e2c) — extracted `RandomSessionStore` to `search/random_session.py`, moved `build_surprise_deck` to `search/surprise_deck.py`, deduped `_bad_request`/`_coerce_view` against `search/_result_helpers.py` canonicals, added `__all__` to public modules. Cross-router import gone. |
+| 3a | Type-arg pass on `search/` | DONE (5a055a4) — fixed all 70 `type-arg` errors in `search/`. Parametrized `dict`/`list`/`tuple`/`Task`/`Popen`, added `SearchHit`/`SearchResult` imports. No behavior changes. |
 
-**Total:** ~14-22 calendar days at sustainable pace. If you want me to
-slow down between PRs for review, the gap goes longer; if you want me
-to push through, this is the floor.
+**Merged into dev as a single merge commit** (63a112d, 2026-10-15) — 27 files, +557/-332.
 
----
+## What still needs to be done (continues on dev)
 
-## PR 1 — Suppression discipline + lint tightening (this PR)
+| Phase | Title | Notes |
+|---|---|---|
+| 3b | Call-arg + no-untyped-def pass on `search/` | 47 call-arg + 30 no-untyped-def = 77 mypy errors. Mostly missing/wrong kwargs on Pydantic models and missing function signatures on helpers. |
+| 3c | Remaining mypy pass (arg-type, dict-item, no-untyped-call, assignment, return-value, override, attr-defined) | ~50 errors scattered. Each is its own investigation; not as mechanical as 3a/3b. |
+| 4 | Replace ad-hoc dicts with typed payload models | `SearchHit`, `CentroidSearch`, `SurpriseContext`. Also where the `app.py` nested `_parse_*` / `_rows_to_results` duplicates get hoisted to module level. The 2131-line god module. |
+| 5 | Centralize env-var parsing into a pydantic-settings class | One `Settings` class instead of scattered `os.environ.get(...)` calls. |
+| 6 | RFC 7807 error envelopes + global exception handlers | `application/problem+json` responses instead of `{detail: ...}`. |
+| 7 | API surface review + naming consistency | Drop back-compat aliases, normalize route param names. |
+| 8 | Final tightening: `Protocol`s, `__all__` everywhere, module docstrings, CI mypy gate on `search/` | Lock the new types in. |
 
-**Files touched:** 7
+**Total mypy errors remaining on `search/` after phase 3a:** 147 across 21 files.
 
-1. `search/routers/search.py` — change `api_search` return annotation
-   to `SearchResponse | JSONResponse`; remove 12 `type: ignore[return-value]`
-2. `search/routers/centroids_search.py` — same fix on `search_by_centroid`;
-   remove 22 `type: ignore[return-value]`
-3. `search/routers/random.py` — same fix on `api_random`; remove 6
-   `type: ignore[return-value]`; replace 1 `# type: ignore[attr-defined]`
-   with a typed `setattr` (or a class-style attribute on the router)
-4. `search/routers/for_you.py` — same fix on `for_you_feed`; remove 7
-   `type: ignore[return-value]`
-5. `search/dev_server.py` — convert `# type: ignore[import-not-found]`
-   to a `try/except ImportError` with a guarded fallback, or move the
-   import to a typed lazy import.
-6. `pyproject.toml` — tighten ruff config: add per-file-ignores for
-   `search/routers/*` (suppress `BLE001` in known-defensive spots),
-   add a `[[tool.ruff.lint.per-file-ignores]]` block for
-   `scripts/*` (already there), document the policy in a comment.
-7. `.github/workflows/ci.yml` — **no change**. CI is not the gate
-   for suppression policy; review is.
+**Hard rules (don't violate):**
+- No behavior changes. Tests must keep passing (1517/1517 baseline). No "while I'm in there" bug fixes.
+- Each commit is coherent; commits are not "atomic per file."
+- Run `ruff check .` and `pytest tests/ --ignore=tests/test_local_sync_perf_helpers.py` after each meaningful chunk. CI runs on `push:dev`.
+- Don't touch `scripts/*` unless the mypy error is in a file the dev/CI workflow imports. CI doesn't gate `scripts/`, so errors there are out of scope for now.
+- Don't touch `indexer/`, `image_search_kernel/`, or `frontend/` in this sweep.
 
-**Suppressions that REMAIN after PR 1 (each one gets a named justification):**
-- 11 `BLE001` in `qdrant_client.py` (defensive fallbacks on optional
-  operations; logging rather than crashing on transient Qdrant issues
-  is the right call)
-- 4 `BLE001` in `app.py` (startup/shutdown background tasks; the alternative
-  is a crash loop)
-- 2 `S311` in `centroids_compute.py` (deterministic seeding for
-  reproducible tests; not a security context)
-- 2 `BLE001` in `search.py` (count_points fall-back; corpus-size cap
-  for Surprise Me is a perf optimization, not a security one)
-- 1 `BLE001` in `centroids.py` (torch.load on operator-provided
-  centroids; can fail with many error variants depending on torch version)
-- 1 `BLE001` in `lazy_index_cache.py` (cache hydration; empty cache
-  is a recoverable state)
-- 1 `BLE001` in `index_db.py` (qdrant_point_count; UI uses this for
-  display, not for security)
-- 2 `BLE001` in `config.py` (startup config validation; can't bring
-  the service up if these crash)
-- 2 `BLE001` in `text_encoder.py` (mock embedder registry fallback;
-  embedder resolution is best-effort at startup)
-- 1 `BLE001` in `for_you.py` (library size lookup; 0 is a valid value)
-- 1 `BLE001` in `admin_index.py` (count_images fallback; same as
-  for_you.py — 0 is a valid answer)
-- 6 `S608` in `index_db.py` (FTS-injection / SQL string-building;
-  all are column-name whitelists, not user input — see existing
-  comments)
-- 2 `S324` in `app.py` (md5 for ETag, not for security; HTTP cache
-  validators don't need cryptographic strength)
-- 1 `F811` in `models.py` (re-definition of `PromptState` after a
-  forward ref; intentional)
-- 1 `F401` in `diversity.py` + 1 `F401` in `centroids.py`
-  (re-exports of the public API from `_compute` modules; intentional
-  re-export via `__all__`)
-
-That's 36 suppressions going from "scattered `BLE001` with no context" to
-"named suppression with a one-line justification." Each one is human-
-readable in `git grep`.
-
-**Lint changes in `pyproject.toml`:**
-- Add `[[tool.ruff.lint.per-file-ignores]]` for `search/routers/*`:
-  - `BLE001` (defensive `except Exception` in router code is OK if
-    the alternative is a 500 cascade)
-  - `PLR0913` (router functions legitimately take many query params)
-  - `PLR0915` (router functions are long by nature; refactor to a
-    smaller sub-helper is PR 2's job, not a ruff concern)
-- Add a `tool.ruff.lint.flake8-bugbear.extend-immutable-calls` config
-  to acknowledge the `QdrantClient` and Pydantic model patterns.
-- Add a `tool.ruff.lint.pylint.max-args` override for routers
-  (routers take lots of query params; this is a FastAPI idiom).
-- Add a comment header documenting the policy: "suppressions are
-  fine, but each one gets a named justification; bare `noqa`
-  is forbidden."
-
-**Acceptance criteria for PR 1:**
-- 60 → 0 `type: ignore[return-value]` (or wherever they were, all gone)
-- All other suppressions have a one-line `# justification:` comment
-- `ruff check .` passes
-- `pytest tests/ --ignore=tests/test_local_sync_perf_helpers.py` still 1517 passing
-- mypy error count does not increase (this PR does not add types; it
-  removes a class of fake annotations)
-- Diff is reviewable in one sitting (~150-300 lines)
-
-**Out of scope for PR 1 (deferred):**
-- Adding return types to other functions (PR 3)
-- Replacing `SearchResponse`/`JSONResponse` union with a proper tagged
-  result type (PR 4)
-- Global exception handlers (PR 6)
+**Acceptance criteria for the sweep:**
+- `mypy search/` error count trends down (currently 147; target < 20)
+- `ruff check .` clean
+- `pytest tests/ --ignore=tests/test_local_sync_perf_helpers.py` = 1517/1517 pass
+- Public API contract unchanged (snapshot test in `tests/test_openapi_stability.py` still passes)
+- `search/app.py` shrinks from 2131 lines to < 800
+- `search/routers/centroids_search.py` shrinks from 600+ lines to < 300
+- All public modules have `__all__` declared
+- New types live in dedicated modules (not nested inside `app.py` closures)
