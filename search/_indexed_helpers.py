@@ -20,7 +20,7 @@ import logging
 import random
 import threading
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode
 
 from search.image_resolver import resolve_url
@@ -39,12 +39,12 @@ def favorite_id_set_sync(index_db: Any, point_ids: list[str]) -> set[str]:
     Single IN-clause query (Phase C1): was N individual get_by_id
     calls, now 1. ~10× faster on a 20-tile result page.
     """
-    return index_db.favorite_id_set(point_ids)
+    return cast(set[str], index_db.favorite_id_set(point_ids))
 
 
 async def favorite_id_set(index_db: Any, point_ids: list[str]) -> set[str]:
     """Async wrapper: SQLite read off the event loop."""
-    return await asyncio.to_thread(favorite_id_set_sync, index_db, point_ids)
+    return cast(set[str], await asyncio.to_thread(favorite_id_set_sync, index_db, point_ids))
 
 
 async def results_from_hits(
@@ -477,7 +477,7 @@ def _pool_depth_for(cfg: Any, mode: str, requested: int) -> int:
     explicitly request one (pool_depth <= 0). Falls back to the
     raw `requested` for unknown modes.
     """
-    overrides = getattr(cfg, "diversity_pool_depths", {}) or {}
+    overrides = cast(dict[str, int], getattr(cfg, "diversity_pool_depths", {}) or {})
     if requested > 0:
         return requested
     return overrides.get(mode, requested or 500)

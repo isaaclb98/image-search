@@ -262,6 +262,7 @@ def build_search_router(
 
         collections = parse_collections(request)
 
+        fav_task: asyncio.Task[set[str]] | None = None
         if surprise and not prompt_state.positives and not active_centroids:
             # Surprise with no query: use zero vector so Qdrant
             # returns results from the whole collection.
@@ -297,10 +298,11 @@ def build_search_router(
         # type narrows to int and downstream callers see a real int.
         if surprise and surprise_seed_parsed is None:
             surprise_seed_parsed = secrets.randbelow(2**31)
-        # If the client is paginating an existing session, we don't
-        # need (or want) a fresh seed — the original request's seed
-        # is encoded in the session id. Use 0 as a placeholder; the
-        # session-id branch below skips compute_cache_key entirely.
+        # At this point, if `surprise` is True, `surprise_seed_parsed`
+        # is guaranteed non-None (either user-supplied or generated).
+        # Materialise the narrowed-typed values so downstream callers
+        # (build_surprise_deck) see `int` and `str` rather than
+        # `int | None` / `str | None`.
         seed_for_cache_key: int = (
             surprise_seed_parsed if surprise_seed_parsed is not None else 0
         )
@@ -347,7 +349,7 @@ def build_search_router(
         if allowed_ids is not None and not allowed_ids:
             hits: list[SearchHit] = []
             has_more = False
-            favorite_ids = set()
+            favorite_ids: set[str] = set()
             diversity_meta = DiversityMetadata(
                 requested=diverse,
                 applied=False,
@@ -359,7 +361,15 @@ def build_search_router(
         else:
             try:
                 if diverse:
-                    favorite_ids = await fav_task if fav_task is not None else None
+                    if fav_task is not None:
+                        favorite_ids = await fav_task
+                    else:
+                        # No favorites filter requested — pass None
+                        # to diversity_page so it takes the request's
+                        # search_allowed_ids verbatim (not an empty
+                        # allowed_ids, which would short-circuit to
+                        # zero hits).
+                        favorite_ids = None  # type: ignore[assignment]
                     hits, has_more, diversity_meta = diversity_page(
                         cfg, qdrant, diversity_cache,
                         vector=vec,
@@ -381,9 +391,18 @@ def build_search_router(
                     # set, run the Gumbel deck flow over the
                     # favorites-restricted pool; otherwise the
                     # plain page-through-the-pool flow.
-                    favorite_ids = await fav_task
+                    if fav_task is not None:
+                        favorite_ids = await fav_task
+                    else:
+                        favorite_ids = set()
                     fav_allowed = list(favorite_ids)
                     if surprise:
+                        assert surprise_seed_parsed is not None, (  # noqa: S101
+                            "surprise_seed_parsed must be set when surprise=True"
+                        )
+                        assert surprise_cache_key is not None, (  # noqa: S101
+                            "surprise_cache_key must be set when surprise=True"
+                        )
                         hits, has_more, deck_ids = await build_surprise_deck(
                             qdrant=qdrant,
                             vec=vec,
@@ -410,6 +429,12 @@ def build_search_router(
                     diversity_meta = DiversityMetadata()
                 elif surprise:
                     # Pure surprise (no favorites filter).
+                    assert surprise_seed_parsed is not None, (  # noqa: S101
+                        "surprise_seed_parsed must be set when surprise=True"
+                    )
+                    assert surprise_cache_key is not None, (  # noqa: S101
+                        "surprise_cache_key must be set when surprise=True"
+                    )
                     hits, has_more, deck_ids = await build_surprise_deck(
                         qdrant=qdrant,
                         vec=vec,

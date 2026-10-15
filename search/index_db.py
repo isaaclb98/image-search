@@ -1219,6 +1219,8 @@ class IndexDB:
                 self._conn.commit()
             except sqlite3.IntegrityError as e:
                 raise ValueError(f"album name already exists: {name!r}") from e
+        if cur.lastrowid is None:
+            raise RuntimeError("sqlite INSERT did not return lastrowid")
         return int(cur.lastrowid)
 
     def rename_album(
@@ -1539,6 +1541,8 @@ class IndexDB:
                 self._conn.commit()
             except sqlite3.IntegrityError as e:
                 raise ValueError(f"saved search name already exists: {name!r}") from e
+        if cur.lastrowid is None:
+            raise RuntimeError("sqlite INSERT did not return lastrowid")
         return self.get_saved_search(int(cur.lastrowid)) or {}
 
     def list_saved_searches(
@@ -1564,8 +1568,10 @@ class IndexDB:
             total = self._conn.execute(
                 "SELECT COUNT(*) AS n FROM saved_searches"
             ).fetchone()
+        rows_typed = (_deserialize_saved_search_row(r) for r in rows)
+        deserialized = [r for r in rows_typed if r is not None]
         return (
-            [_deserialize_saved_search_row(r) for r in rows],
+            deserialized,
             int(total["n"] if total else 0),
         )
 

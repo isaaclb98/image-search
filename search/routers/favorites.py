@@ -35,6 +35,7 @@ from fastapi.responses import JSONResponse
 from search.image_resolver import resolve_url
 from search.models import (
     ErrorResponse,
+    FavoriteItem,
     FavoritesListResponse,
     FavoriteToggleResponse,
     SearchResponse,
@@ -176,11 +177,11 @@ def build_favorites_router(
             )
         return FavoritesListResponse(
             favorites=[
-                {
-                    "id": str(row["id"]),
-                    "path": str(row["path"]),
-                    "favorited_at": str(row["favorited_at"] or ""),
-                }
+                FavoriteItem(
+                    id=str(row["id"]),
+                    path=str(row["path"]),
+                    favorited_at=str(row["favorited_at"] or ""),
+                )
                 for row in rows
             ],
             total=total,

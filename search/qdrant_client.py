@@ -13,7 +13,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +115,12 @@ class QdrantSearch:
             # generous (4MB serialized) but a 1.5M-id list would
             # obviously overshoot it; we don't try to chunk.
             must_conditions.append(
-                qmodels.HasIdCondition(has_id=allowed_ids)
+                qmodels.HasIdCondition(has_id=cast("list[int|str|UUID]", allowed_ids))
             )
         must_not_conditions: list[Any] = []
         if exclude_ids:
             must_not_conditions.append(
-                qmodels.HasIdCondition(has_id=exclude_ids)
+                qmodels.HasIdCondition(has_id=cast("list[int|str|UUID]", exclude_ids))
             )
         query_filter = None
         if must_conditions or must_not_conditions:
@@ -201,12 +202,12 @@ class QdrantSearch:
             )
         if allowed_ids:
             must_conditions.append(
-                qmodels.HasIdCondition(has_id=allowed_ids)
+                qmodels.HasIdCondition(has_id=cast("list[int|str|UUID]", allowed_ids))
             )
         must_not_conditions: list[Any] = []
         if exclude_ids:
             must_not_conditions.append(
-                qmodels.HasIdCondition(has_id=exclude_ids)
+                qmodels.HasIdCondition(has_id=cast("list[int|str|UUID]", exclude_ids))
             )
         if must_conditions or must_not_conditions:
             query_filter = qmodels.Filter(
@@ -221,8 +222,8 @@ class QdrantSearch:
                 collection_name=self.collection,
                 query=qmodels.RecommendQuery(
                     recommend=qmodels.RecommendInput(
-                        positive=positive,
-                        negative=negative,
+                        positive=cast(Any, positive),
+                        negative=cast(Any, negative),
                     ),
                 ),
                 limit=limit,
@@ -351,12 +352,12 @@ class QdrantSearch:
             )
         if allowed_ids:
             must_conditions.append(
-                qmodels.HasIdCondition(has_id=allowed_ids)
+                qmodels.HasIdCondition(has_id=cast("list[int|str|UUID]", allowed_ids))
             )
         must_not_conditions: list[Any] = []
         if exclude_ids:
             must_not_conditions.append(
-                qmodels.HasIdCondition(has_id=exclude_ids)
+                qmodels.HasIdCondition(has_id=cast("list[int|str|UUID]", exclude_ids))
             )
         query_filter = None
         if must_conditions or must_not_conditions:

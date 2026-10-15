@@ -56,12 +56,12 @@ def build_centroids_list_router(
             expected_model = None
             expected_feature_dim = None
         else:
-            static = [c.as_dict() for c in centroid_store.list()]
+            static = [c.as_dict() for c in centroid_store.list_all()]
             expected_model = centroid_store.expected_model()
             expected_feature_dim = centroid_store.expected_feature_dim()
         dynamic: list[dict[str, Any]] = []
         if dynamic_centroids is not None:
-            for spec in dynamic_centroids.list():
+            for spec in dynamic_centroids.list_all():
                 # Trigger a compute (cached) so the API response
                 # includes the real n_images count rather than None.
                 dynamic_centroids.get_vector(spec.name)

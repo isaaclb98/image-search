@@ -18,7 +18,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -43,6 +43,7 @@ from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
     DiversityMetadata,
     ErrorResponse,
+    PromptState,
     SearchResult,
 )
 from search.qdrant_client import QdrantSearch, SearchHit
@@ -109,7 +110,13 @@ def _is_path_alive(path: str) -> bool:
         # so the caller skips it. The periodic refresh + scheduled
         # prune will eventually clean up the IndexDB row.
         exists = False
-    ttl = _cfg.path_liveness_ttl_seconds
+    if _cfg is None:  # noqa: SIM108 — if/else is clearer than ternary here
+        # Defensive: if config isn't loaded yet, fall back to a
+        # conservative TTL. The real TTL gets applied once create_app
+        # finishes wiring things up.
+        ttl = 60.0
+    else:
+        ttl = _cfg.path_liveness_ttl_seconds
     _path_liveness_cache[path] = (exists, now + ttl)
     # Evict the oldest 10% if we've blown past the cap. Cheap;
     # re-stats on next read. Defends against pathological workloads
@@ -209,11 +216,11 @@ def _resize_cached(point_id: str, width: int, source: Path) -> Path:
             # landscape with a rotation flag rather than the
             # rotated pixels. Without this fix-up, a portrait
             # shot would display sideways in the lightbox.
-            im = ImageOps.exif_transpose(im)
+            im = cast(Any, ImageOps.exif_transpose(im))
             im.load()  # force decode so resize sees real pixels
             # Convert non-JPEG sources to RGB for JPEG output.
             if im.mode not in ("RGB", "L"):
-                im = im.convert("RGB")
+                im = cast(Any, im.convert("RGB"))
             # Only downscale; never upscale. If the source is
             # smaller than the requested width, copy through.
             if im.width > width:
@@ -241,6 +248,8 @@ def _resize_cached(point_id: str, width: int, source: Path) -> Path:
 
 def _coerce_view(raw: str | None) -> str:
     """Return 'grid' or 'feed' from a query-param value; fallback to default."""
+    if _cfg is None:
+        return "grid"
     if raw and raw in _cfg.valid_views:
         return raw
     return _cfg.default_view
@@ -1094,10 +1103,11 @@ def create_app(
             value = raw.strip()
             if value:
                 return value
+        return None
 
     def _resolve_query_vector(
         centroid_names: list[str] | None,
-        prompt_state: PromptState,  # noqa: F821
+        prompt_state: PromptState,
         weights: list[float] | None = None,
         filename_pattern: str = "",
         centroid_specs: list[DynamicCentroidSpec] | None = None,
@@ -1511,8 +1521,10 @@ def create_app(
             lambda p: local is not None and _is_path_alive(p),
             str(local) if local is not None else "",
         )
-        if not is_alive:
+        if not is_alive or local is None:
             raise HTTPException(status_code=404, detail="File not found on disk")
+        # After this point mypy can narrow `local: Path` (not `Path | None`).
+        local_path: Path = local
 
         # ---- Resize branch ----
         # Only JPEG/PNG/WebP/HEIF are supported by PIL out of the box
@@ -1521,7 +1533,7 @@ def create_app(
         # resize fails for any reason, fall back to the original file.
         if w is not None:
             try:
-                cached = await asyncio.to_thread(_resize_cached, point_id, w, local)
+                cached = await asyncio.to_thread(_resize_cached, point_id, w, local_path)
             except _ResizeError as e:
                 logger.warning("Resize failed for %s @ w=%d: %s", point_id, w, e)
             else:
@@ -1551,7 +1563,7 @@ def create_app(
                     },
                 )
 
-        stat = await asyncio.to_thread(local.stat)
+        stat = await asyncio.to_thread(local_path.stat)
         etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()  # noqa: S324
 
         # Per-spec If-None-Match: respond 304 with no body if the
@@ -1569,10 +1581,10 @@ def create_app(
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers=cache_headers)
 
-        filename = local.name
+        filename = local_path.name
         return FileResponse(
-            local,
-            media_type=guess_content_type(local),
+            local_path,
+            media_type=guess_content_type(local_path),
             filename=filename,
             content_disposition_type="inline",
             headers=cache_headers,
