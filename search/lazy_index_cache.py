@@ -66,7 +66,7 @@ class LazyIndexCache:
         self._hydrate_finished_at: float | None = None
         self._refresh_in_progress: bool = False
         self._hydrate_lock = asyncio.Lock()
-        self._background_task: asyncio.Task | None = None
+        self._background_task: asyncio.Task[None] | None = None
 
     # -- Properties ----------------------------------------------------------
 
@@ -90,7 +90,7 @@ class LazyIndexCache:
 
     # -- B5 public contract --------------------------------------------------
 
-    def schedule_hydrate(self) -> asyncio.Task:
+    def schedule_hydrate(self) -> asyncio.Task[None]:
         """Schedule a background hydrate. Idempotent — a second
         call while the first is in flight is a no-op.
 
@@ -130,7 +130,7 @@ class LazyIndexCache:
             self._is_hydrated = True
             return int(count)
 
-    async def read(self, point_id: str) -> dict | None:
+    async def read(self, point_id: str) -> dict[str, Any] | None:
         """Read a single row, kicking off a hydrate if needed.
 
         Returns None if the cache is empty (i.e. the first read

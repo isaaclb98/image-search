@@ -53,7 +53,7 @@ def _bad_request_json(detail: str) -> JSONResponse:
 
 
 def _favorite_rows_to_results(
-    rows: list[dict], *, web_ui_url: str,
+    rows: list[dict[str, Any]], *, web_ui_url: str,
 ) -> list[SearchResult]:
     """Convert a list of favourite DB rows to SearchResult entries.
 

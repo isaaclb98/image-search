@@ -42,7 +42,7 @@ def build_centroids_reload_router(*, centroid_store: Any) -> APIRouter:
     router = APIRouter()
 
     @router.post("/api/centroids/reload")
-    async def reload_centroids() -> dict:
+    async def reload_centroids() -> dict[str, Any]:
         if centroid_store is None:
             raise HTTPException(
                 status_code=503, detail="centroid store not initialized",

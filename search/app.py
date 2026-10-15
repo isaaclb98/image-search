@@ -18,6 +18,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import Any
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -44,7 +45,7 @@ from search.models import (
     ErrorResponse,
     SearchResult,
 )
-from search.qdrant_client import QdrantSearch
+from search.qdrant_client import QdrantSearch, SearchHit
 from search.random import RandomPicker
 from search.routers.for_you import invalidate_for_you_cache as _for_you_invalidate_deck
 from search.search_snapshot import SearchSnapshotCache
@@ -123,7 +124,7 @@ def _is_path_alive(path: str) -> bool:
     return exists
 
 
-def _is_row_alive(row: dict | None) -> bool:
+def _is_row_alive(row: dict[str, Any] | None) -> bool:
     """True if the row's `path` field is currently alive on disk.
 
     Defensive wrapper: a None row is dead. Otherwise delegates to
@@ -788,7 +789,7 @@ def create_app(
             except Exception as e:  # noqa: BLE001
                 logger.warning("index cache background warm-up failed: %s", e)
 
-        refresh_task: asyncio.Task | None = None
+        refresh_task: asyncio.Task[None] | None = None
         # Log a warning immediately if Qdrant is unreachable so the
         # issue is visible in pod logs even before init_from_qdrant
         # completes. healthz() is sync but cheap (<10 ms typical) so
@@ -1311,7 +1312,7 @@ def create_app(
         return await asyncio.to_thread(_favorite_id_set_sync, point_ids)
 
     async def _results_from_hits(
-        hits: list,
+        hits: list[SearchHit],
         favorite_ids: set[str] | None = None,
         dislike_ids: set[str] | None = None,
     ) -> list[SearchResult]:
@@ -1582,7 +1583,7 @@ def create_app(
 
     # ---------------------- Favourites ----------------------
 
-    def _favorite_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _favorite_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         def _maybe_int(v):
             try:
                 iv = int(v) if v is not None else None
@@ -1604,7 +1605,7 @@ def create_app(
         ]
 
 
-    def _dislike_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _dislike_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Same shape as `_favorite_rows_to_results`; is_favorite comes
         from a fresh favourites lookup so tiles show true heart state."""
         def _maybe_int(v):
@@ -1627,7 +1628,7 @@ def create_app(
             for row in rows
         ]
 
-    def _album_member_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _album_member_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Same shape as `_favorite_rows_to_results` but does NOT
         hardcode is_favorite=True — album membership is independent
         of favourites status, so the favourite state on the tile
@@ -1675,7 +1676,7 @@ def create_app(
             for row in rows
         ]
 
-    def _random_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _random_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Build SearchResult objects from SQLite random-sample rows.
 
         Mirrors `_favorite_rows_to_results` but reads is_favorite from

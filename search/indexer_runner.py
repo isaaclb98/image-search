@@ -41,7 +41,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import IO
+from typing import IO, Any
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class IndexerProgress:
     skipped: int = 0
     errors: int = 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "indexed": self.indexed,
             "reembedded": self.reembedded,
@@ -91,7 +91,7 @@ class IndexerStatus:
     # the directory is empty".
     phase: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "state": self.state.value,
             "mode": self.mode,
@@ -152,7 +152,7 @@ class IndexerRunner:
         self._log_buffer: deque[str] = deque(maxlen=log_buffer_size)
         self._log_total: int = 0  # monotonic line counter
         self._lock = threading.Lock()
-        self._proc: subprocess.Popen | None = None
+        self._proc: subprocess.Popen[str] | None = None
         self._reader_thread: threading.Thread | None = None
         self._wait_thread: threading.Thread | None = None
         self._state: IndexerState = IndexerState.IDLE
@@ -313,7 +313,7 @@ class IndexerRunner:
                 phase=self._phase,
             )
 
-    def log(self, *, since_line: int = 0) -> dict:
+    def log(self, *, since_line: int = 0) -> dict[str, Any]:
         """Return log lines after `since_line` (0-based, exclusive).
 
         `since_line=0` returns everything in the buffer. The
@@ -364,7 +364,7 @@ class IndexerRunner:
         except Exception:
             logger.exception("indexer reader loop crashed")
 
-    def _handle_event(self, event: dict) -> None:
+    def _handle_event(self, event: dict[str, Any]) -> None:
         """Update progress / state from a JSON progress event. Caller
         must hold the lock."""
         kind = event.get("event")

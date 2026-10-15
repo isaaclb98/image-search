@@ -58,7 +58,8 @@ from search._result_helpers import (
     qdrant_unreachable,
 )
 from search.diversity import resolve_depth, resolve_mode
-from search.models import DiversityMetadata, SearchResponse
+from search.models import DiversityMetadata, SearchResponse, SearchResult
+from search.qdrant_client import SearchHit
 from search.surprise_deck import (
     DEFAULT_POOL_SIZE,
     DEFAULT_TEMPERATURE,
@@ -342,9 +343,9 @@ def build_search_router(
         # `allowed_ids == []` short-circuit: skip the Qdrant round-trip
         # and return zero hits. See the matching block in `/` for why
         # we can't pass `has_id=[]` directly to HasIdCondition.
-        deck_ids: list = []  # populated by the surprise branch; empty otherwise
+        deck_ids: list[str] = []  # populated by the surprise branch; empty otherwise
         if allowed_ids is not None and not allowed_ids:
-            hits: list = []
+            hits: list[SearchHit] = []
             has_more = False
             favorite_ids = set()
             diversity_meta = DiversityMetadata(
@@ -455,7 +456,7 @@ def build_search_router(
         # Resolve fav/dis for the SearchResult list via the indexed
         # helper. The diversity path already pulled the favorite set;
         # this is the parallel lookup against the IndexDB cache.
-        results: list = await results_from_hits(
+        results: list[SearchResult] = await results_from_hits(
             index_db, cfg=cfg, hits=hits,
             favorite_ids=favorite_ids if favorites else None,
         )

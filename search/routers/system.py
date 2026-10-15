@@ -35,14 +35,14 @@ def build_system_router(
     qdrant: Any,
     cfg: Any,
     index_db: Any,
-    path_liveness_cache: dict,
+    path_liveness_cache: dict[str, tuple[bool, float]],
     path_liveness_cache_max: int,
 ) -> APIRouter:
     """Build the system router with the live dependencies."""
     router = APIRouter()
 
     @router.get("/healthz")
-    async def healthz() -> dict:
+    async def healthz() -> dict[str, Any]:
         # qdrant.healthz() is a sync HTTP call. Running it directly
         # inside this async handler blocks the event loop for the
         # duration of any slow Qdrant response — with
@@ -53,7 +53,7 @@ def build_system_router(
         return {"qdrant": ok, "test_mode": cfg.test_mode}
 
     @router.get("/api/system/status")
-    async def system_status() -> dict:
+    async def system_status() -> dict[str, Any]:
         """System status with cache stats for the frontend dashboard."""
         from search import text_encoder
         model_status = text_encoder.get_status()
@@ -70,7 +70,7 @@ def build_system_router(
         }
 
     @router.get("/api/cache/status")
-    async def cache_status() -> dict:
+    async def cache_status() -> dict[str, Any]:
         """Operator visibility into the dual-store sync.
 
         Returns last refresh timestamp + duration, point counts in
