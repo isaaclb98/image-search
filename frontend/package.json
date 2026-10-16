@@ -14,7 +14,7 @@
     "gen": "npm run gen:openapi && npm run gen:types && npm run gen:zod",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "lint": "eslint ."
+    "lint": "eslint . && node scripts/check-css-tokens.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

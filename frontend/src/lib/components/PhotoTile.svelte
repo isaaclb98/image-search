@@ -222,9 +222,9 @@
     background: var(--bg-1);
     border: 1px solid var(--glass-edge);
     /* Round-38: lighter shadow on hover (was --shadow-glass-strong
-       which was tuned for dark surfaces). New tokens give a 1-2px
-       subtle shadow + 8px ambient that's right for light theme. */
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+       which was tuned for dark surfaces). --shadow-1 is the
+       standard tile resting shadow. */
+    box-shadow: var(--shadow-1);
     transition: transform var(--t-fast) var(--ease-out),
                 border-color var(--t-fast) var(--ease-out),
                 box-shadow var(--t-fast) var(--ease-out),
@@ -233,7 +233,7 @@
   .tile:hover {
     transform: translateY(-3px);
     border-color: var(--glass-edge-strong);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.06);
+    box-shadow: var(--shadow-3);
   }
   .tile.menu-open {
     border-color: var(--accent);
