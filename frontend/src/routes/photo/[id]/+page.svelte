@@ -44,6 +44,7 @@
     listAlbums,
     listAlbumsForFavorite
   } from '$lib/api/endpoints';
+  import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';
@@ -121,30 +122,32 @@
     }
   });
 
+  // Phase 3: usePhotoFeedback consolidates the like/dislike
+  // mutation pattern. The photo page owns the full
+  // bidirectional + mutual-exclusion behaviour, so the
+  // composable handles both directions here. The previous
+  // 55-line handwritten implementation is replaced with a
+  // 7-line configuration block.
+  const feedback = usePhotoFeedback({
+    get: () =>
+      photo
+        ? { is_favorite: !!photo.is_favorite, is_disliked: !!photo.is_disliked }
+        : undefined,
+    set: (_id, patch) => {
+      if (!photo) return;
+      photo = { ...photo, ...patch };
+    },
+    onLike: (id) => likePoint(id),
+    onUnlike: (id) => unlikePoint(id),
+    onDislike: (id) => dislikePoint(id),
+    onUndislike: (id) => undislikePoint(id)
+  });
+
   async function toggleFavorite() {
     if (!photo || actionInFlight) return;
     actionInFlight = true;
-    const wasFav = photo.is_favorite;
-    const wasDisliked = photo.is_disliked;
-    // Optimistic toggle — the Lightbox does the same. Pressing Like
-    // clears any active Dislike (mutual exclusivity: a photo can be
-    // liked or disliked, not both). Mirrors Lightbox.toggleFavorite.
-    photo = { ...photo, is_favorite: !wasFav, is_disliked: false };
     try {
-      if (wasFav) {
-        await unlikePoint(photo.id);
-      } else {
-        await likePoint(photo.id);
-        // Lightbox only toggles the favourite flag; the server-side
-        // dislike row (if any) was implicitly cleared by the like.
-        // For the dedicated photo page we own the dislike endpoint
-        // directly, so explicitly unmark so the row actually goes
-        // away on the server too.
-        if (wasDisliked) await undislikePoint(photo.id);
-      }
-    } catch {
-      // Roll back on failure.
-      photo = { ...photo, is_favorite: wasFav, is_disliked: wasDisliked };
+      await feedback.toggleFavorite(photo.id);
     } finally {
       actionInFlight = false;
     }
@@ -153,25 +156,8 @@
   async function toggleDislike() {
     if (!photo || actionInFlight) return;
     actionInFlight = true;
-    const wasDisliked = photo.is_disliked;
-    const wasFav = photo.is_favorite;
-    // Optimistic toggle — the Lightbox does the same. Pressing
-    // Dislike clears any active Like (mutual exclusivity). Mirrors
-    // Lightbox.toggleDislike.
-    photo = { ...photo, is_disliked: !wasDisliked, is_favorite: false };
     try {
-      if (wasDisliked) {
-        await undislikePoint(photo.id);
-      } else {
-        await dislikePoint(photo.id);
-        // Explicitly clear the like server-side too (the Lightbox
-        // relies on the parent to do this; here we own the endpoints
-        // directly, so do it ourselves).
-        if (wasFav) await unlikePoint(photo.id);
-      }
-    } catch {
-      // Roll back on failure.
-      photo = { ...photo, is_disliked: wasDisliked, is_favorite: wasFav };
+      await feedback.toggleDislike(photo.id);
     } finally {
       actionInFlight = false;
     }

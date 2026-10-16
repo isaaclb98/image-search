@@ -334,13 +334,25 @@ The breakdown:
 
 ### Phase 3: Composable — `usePhotoFeedback`
 
-- New `lib/composables/photoFeedback.ts` exporting
-  `usePhotoFeedback(items)` that returns
-  `{ toggleFavorite, toggleDislike }`.
+- New `lib/composables/usePhotoFeedback.ts` exporting
+  `usePhotoFeedback({ get, set, onLike, onUnlike, onDislike, onUndislike, mutualExclusion })`
+  that returns `{ toggleFavorite, toggleDislike, isInFlight }`.
 - The composable owns the optimistic-with-rollback
   pattern + the mutual-exclusion rule (pressing Like
   clears Dislike, per the existing pattern).
-- Migrate the 4 sites identified in #2.
+- Migrate the 3 sites that share the read-state + write-state
+  shape: `routes/+page.svelte`, `routes/for-you/+page.svelte`,
+  and `routes/photo/[id]/+page.svelte`. The composable
+  is callback-driven (get/set) so the per-site state shape
+  (list, single photo) doesn't have to change.
+- **Lightbox NOT migrated.** The Lightbox has a bespoke
+  local state (two separate $state booleans synced from
+  `items[idx]` via `lastSyncedIdx`) and fires a parent-owned
+  callback rather than calling the API itself. The composable
+  assumes a stable id + a per-id state record; forcing it
+  onto the Lightbox would either lose the idx-change sync
+  semantics or add a wrapper indirection with no real win.
+  Documented in the file with a `// Phase 3 note: ...` comment.
 - Unit test the composable.
 - Commit + push, wait CI.
 

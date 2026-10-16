@@ -37,6 +37,7 @@
    * controllable knob.
    */
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';
+  import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
   import {
     GRID_PAGE_SIZE,
     POOL_STOPS_FOR_YOU,
@@ -197,20 +198,29 @@
     indexById = m;
   });
 
+  // Phase 3: usePhotoFeedback consolidates the like/unlike
+  // mutation pattern. for-you's dislike is 1-way (set the
+  // flag, no toggle, no rollback — the dislikes page is
+  // the only place to un-dislike), so the composable only
+  // handles the favourite toggle here.
+  const feedback = usePhotoFeedback({
+    get: (id) => {
+      const idx = indexById.get(id);
+      if (idx === undefined) return undefined;
+      const it = items[idx];
+      return { is_favorite: !!it.is_favorite, is_disliked: !!it.is_disliked };
+    },
+    set: (id, patch) => {
+      const idx = indexById.get(id);
+      if (idx === undefined) return;
+      items[idx] = { ...items[idx], ...patch };
+    },
+    onLike: (id) => likePoint(id),
+    onUnlike: (id) => unlikePoint(id)
+  });
+
   function onToggleFavorite(id: string) {
-    const idx = indexById.get(id);
-    if (idx === undefined) return;
-    const wasFavorite = !!items[idx].is_favorite;
-    items[idx] = { ...items[idx], is_favorite: !wasFavorite };
-    (async () => {
-      try {
-        if (wasFavorite) await unlikePoint(id);
-        else await likePoint(id);
-      } catch {
-        // rollback
-        items[idx] = { ...items[idx], is_favorite: wasFavorite };
-      }
-    })();
+    void feedback.toggleFavorite(id);
   }
 
   async function onDislike(id: string) {

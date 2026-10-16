@@ -34,6 +34,7 @@
     getSystemStatus,
     getAdminIndexStatus
   } from '$lib/api/endpoints';
+  import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
   import type { SavedSearch } from '$lib/api/endpoints';
   import {
     GRID_PAGE_SIZE,
@@ -302,18 +303,26 @@
     }
   }
 
+  // Phase 3: usePhotoFeedback consolidates the like/unlike
+  // mutation pattern that was duplicated across home,
+  // for-you, Lightbox, and the photo page. Home's dislike
+  // remains its own 1-way function (the dislikes page is
+  // the only place to un-dislike), so the composable only
+  // handles the favourite toggle here.
+  const feedback = usePhotoFeedback({
+    get: (id) => {
+      const it = items.find((x) => x.id === id);
+      return it ? { is_favorite: !!it.is_favorite, is_disliked: !!it.is_disliked } : undefined;
+    },
+    set: (id, patch) => {
+      items = items.map((x) => (x.id === id ? { ...x, ...patch } : x));
+    },
+    onLike: (id) => likePoint(id),
+    onUnlike: (id) => unlikePoint(id)
+  });
+
   async function onToggleFavorite(id: string) {
-    const it = items.find((x) => x.id === id);
-    const liked = it?.is_favorite ?? false;
-    try {
-      if (liked) await unlikePoint(id);
-      else await likePoint(id);
-      items = items.map((x) =>
-        x.id === id ? { ...x, is_favorite: !liked } : x
-      );
-    } catch {
-      /* noop: like/unlike failure leaves state unchanged */
-    }
+    await feedback.toggleFavorite(id);
   }
 
   async function onDislike(id: string) {
@@ -323,7 +332,7 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
-      /* noop: dislike failure leaves state unchanged */
+      /* noop: dislike failure is non-critical */
     }
   }
 

@@ -206,6 +206,16 @@
     lastSyncedIdx = idx;
   });
 
+  // Phase 3 note: the Lightbox's toggle handlers (below) are
+  // intentionally NOT migrated to usePhotoFeedback. The
+  // composable assumes a stable photo id + a per-id state
+  // record; the Lightbox has its own bespoke pattern — two
+  // separate $state booleans synced from `items[idx]` via the
+  // `lastSyncedIdx` $effect, and it fires a parent-owned
+  // callback rather than calling the API itself. Forcing
+  // the composable onto this shape would either lose the
+  // idx-change sync semantics or add a wrapper indirection
+  // with no real win. The handlers stay as-is.
   function toggleFavorite() {
     const it = current();
     if (!it) return;
