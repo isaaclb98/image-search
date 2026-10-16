@@ -356,7 +356,7 @@ test('Random page walks through the full session without duplicates', async ({ p
 
     // Check if scroll has stopped firing. We do this by checking
     // the last /api/random response's has_more via a fresh call.
-    const r = await page.evaluate(async () => {
+    await page.evaluate(async () => {
       // Use a HEAD-like probe: fetch with limit=0 won't change
       // session state but returns the current has_more.
       // Actually we need to read from the component state. The

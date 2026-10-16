@@ -79,7 +79,7 @@ test('Preload window slides forward as the cursor moves', async ({ page }) => {
   expect(overlap.length).toBeLessThan(newSrcs.length);
 });
 
-test('Single-photo lightbox has no preload nodes', async ({ page }) => {
+test('Single-photo lightbox has no preload nodes', async ({ page: _page }) => {
   // Hit an album with exactly one photo so the lightbox opens
   // with items.length === 1. We pick an arbitrary album and
   // try to find a single-photo one... but the simpler check:

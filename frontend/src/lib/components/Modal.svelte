@@ -20,7 +20,7 @@
    *     {/snippet}
    *   </Modal>
    */
-  import { onMount, tick } from 'svelte';
+  import { tick } from 'svelte';
   import type { Snippet } from 'svelte';
 
   type Props = {
@@ -83,7 +83,7 @@
     }
   });
 
-  function focusableSelector(root: HTMLElement): string {
+  function focusableSelector(_root: HTMLElement): string {
     return [
       'a[href]',
       'button:not([disabled])',

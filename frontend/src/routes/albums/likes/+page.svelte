@@ -3,15 +3,13 @@
    * Likes — built-in non-deletable album. Reads from /api/favorites
    * and renders them in the same grid the user-created albums use.
    *
-   * "Like" / "Unlike" toggles go through PhotoGrid's
-   * onToggleFavorite handler (wired below). Unlike removes the
-   * photo from the grid.
+   * "Unlike" goes through the grid's onRemove handler wired below.
+   * Unlike drops the photo from the grid (optimistic, restored on
+   * failure).
    *
-   * Infinite scroll: walks /api/favorites?limit=&offset=&as_results=1
-   * in batches of GRID_PAGE_SIZE so the UI keeps working no
-   * matter how large the Likes album grows. The backend's
-   * SearchResponse envelope carries `has_more` which we propagate
-   * to PhotoGrid's intersection-observer sentinel.
+   * Phase 5: pagination + remove action were extracted to
+   * usePagedAlbumList. The page keeps the endpoint wiring,
+   * the title/subtitle copy, and the empty-state message.
    */
   import { onMount } from 'svelte';
   import {
@@ -19,6 +17,7 @@
     unlikePoint
   } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import { usePagedAlbumList } from '$lib/composables/usePagedAlbumList.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -31,87 +30,31 @@
 
   const PAGE = GRID_PAGE_SIZE;
 
-  let items = $state<Item[]>([]);
-  let loading = $state(true);
-  let loadingMore = $state(false);
-  let error = $state<string | null>(null);
-  let offset = $state(0);
-  let hasMore = $state(false);
-
-  async function load() {
-    loading = true;
-    try {
-      const res = (await listFavorites(PAGE, 0)) as {
+  // Phase 5: usePagedAlbumList owns the load/loadMore/remove
+  // pattern. The useIndexMap flag enables an O(1) SvelteMap
+  // shadow of items (worth it on Likes at 1000+ items).
+  const list = usePagedAlbumList<Item>({
+    pageSize: PAGE,
+    fetchPage: (limit, offset, signal) =>
+      // listFavorites returns the SearchResponse envelope when
+      // called via as_results=1 (which listFavorites sets).
+      // usePagedAlbumList only reads .results and .has_more
+      // so the type widening is fine here.
+      listFavorites(limit, offset, signal) as unknown as Promise<{
         results?: Item[];
         has_more?: boolean;
-      };
-      items = (res?.results ?? []) as Item[];
-      offset = items.length;
-      hasMore = !!res?.has_more && items.length >= PAGE;
-      error = null;
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to load likes';
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function loadMore(signal?: AbortSignal) {
-    if (loading || loadingMore || !hasMore) return;
-    loadingMore = true;
-    try {
-      const res = (await listFavorites(PAGE, offset, signal)) as {
-        results?: Item[];
-        has_more?: boolean;
-      };
-      const more = (res?.results ?? []) as Item[];
-      items = [...items, ...more];
-      offset += more.length;
-      hasMore = !!res?.has_more && more.length >= PAGE;
-    } catch (e) {
-      // Leave the existing list intact; the user can keep paging
-      // — losing scroll progress on a transient error is worse
-      // than a stuck spinner. A clean cancel from the pre-fetch
-      // retrigger is silent — no hasMore=false penalty.
-      if (signal?.aborted) return;
-    } finally {
-      loadingMore = false;
-    }
-  }
-
-  // Round-9 perf: O(1) item lookup + update via shadow Map.
-  // The .filter() we replaced was O(n) per Unlike click — fine
-  // for a 50-item list but noticeable at 1000+ items on a power
-  // user's Likes album. The Map mirrors `items`; removals use
-  // `splice(idx, 1)` for true O(1).
-  let indexById = $state(new Map<string, number>());
-  $effect(() => {
-    const map = new Map<string, number>();
-    for (let i = 0; i < items.length; i++) {
-      map.set(items[i].id, i);
-    }
-    indexById = map;
+      }>,
+    onRemove: (id) => unlikePoint(id),
+    useIndexMap: true
   });
 
-  async function onToggleFavorite(id: string) {
-    // Optimistic: drop from the local list so the grid animates
-    // the tile out, then call the API. On failure, restore + toast
-    // so the user doesn't lose the action.
-    const idx = indexById.get(id);
-    if (idx === undefined) return;
-    const before = items;
-    // O(1) splice: build a new array minus one element.
-    const next = items.slice();
-    next.splice(idx, 1);
-    items = next;
-    try {
-      await unlikePoint(id);
-    } catch (e: any) {
-      items = before;
-    }
-  }
+  onMount(() => {
+    list.load();
+  });
 
-  onMount(load);
+  function onToggleFavorite(id: string) {
+    return list.remove(id);
+  }
 </script>
 
 <svelte:head>
@@ -121,22 +64,22 @@
 <PageHeader
   title="Likes"
   subtitle="Photos you've liked. Built-in, always here."
-  meta="{items.length} photo{items.length === 1 ? '' : 's'}"
+  meta="{list.items.length} photo{list.items.length === 1 ? '' : 's'}"
 />
 
-{#if loading}
+{#if list.loading}
   <div class="state">Loading…</div>
-{:else if error}
-  <div class="state error">Couldn't load likes: {error}</div>
-{:else if items.length === 0}
+{:else if list.error}
+  <div class="state error">Couldn't load likes: {list.error}</div>
+{:else if list.items.length === 0}
   <div class="state empty">No likes yet — tap the heart on any photo to save it here.</div>
 {:else}
   <section>
     <PhotoGrid
-      {items}
-      loading={loadingMore}
-      {hasMore}
-      onLoadMore={loadMore}
+      items={list.items}
+      loading={list.loadingMore}
+      hasMore={list.hasMore}
+      onLoadMore={list.loadMore}
       {onToggleFavorite}
       onRemove={onToggleFavorite}
       removeLabel="Unlike"

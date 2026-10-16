@@ -1,4 +1,5 @@
 <script module lang="ts">
+  import { SvelteSet } from 'svelte/reactivity';
   /**
    * Dialog store: Promise-based `confirm()` and `prompt()`
    * helpers that render via the `Modal` primitive. Replaces
@@ -51,7 +52,7 @@
 
   function createDialogStore() {
     let current: DialogState = { kind: 'none' };
-    const subs = new Set<() => void>();
+    const subs = new SvelteSet<() => void>();
     const api = {
       confirm(opts: ConfirmOpts): Promise<boolean> {
         return new Promise((resolve) => {

@@ -20,6 +20,7 @@
   import { page } from '$app/stores';
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
+  import { resolve } from '$app/paths';
   import PromptChips from '$lib/components/PromptChips.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
   import AdditionalFilters from '$lib/components/AdditionalFilters.svelte';
@@ -28,10 +29,18 @@
     search,
     likePoint,
     unlikePoint,
-    dislikePoint
+    dislikePoint,
+    getSystemStatus,
+    getAdminIndexStatus
   } from '$lib/api/endpoints';
+  import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
+  import { readUrl, writeUrl, pushUrlSearch } from '$lib/state/urlState';
   import type { SavedSearch } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import {
+    GRID_PAGE_SIZE,
+    POOL_STOPS_HOME,
+    DEFAULT_POOL_INDEX_HOME
+  } from '$lib/api/limits';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -102,24 +111,50 @@
   // Round-90: POOL_STOPS also lives in AdditionalFilters (the
   // Surprise section is rendered there now) so the slider
   // markup and the size-array stay in sync.
-  const POOL_STOPS = [200, 1_000, 5_000, 20_000, 50_000] as const;
-  let surprisePoolIndex = $state(2); // default = 5_000
-  let surprisePool = $derived(POOL_STOPS[surprisePoolIndex]);
+  // Phase 1: now imported from $lib/api/limits so the home page,
+  // AdditionalFilters, and the for-you page all read the same
+  // list of legal values. The local POOL_STOPS const is gone.
+  let surprisePoolIndex = $state(DEFAULT_POOL_INDEX_HOME);
+  let surprisePool = $derived(POOL_STOPS_HOME[surprisePoolIndex]);
   let surpriseSession = $state<string | null>(null);
   let surpriseTotal = $state<number | null>(null);
 
   function onPoolIndexChange(idx: number) {
-    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_STOPS.length - 1));
+    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_STOPS_HOME.length - 1));
   }
 
+  // Phase 7: bindToUrl-style helpers in $lib/state/urlState
+  // replace the hand-rolled readFromUrl / writeToUrl pair.
+  // The schema declares which fields the URL carries and
+  // what kind (array vs string). Defaults are the empty
+  // state — any field at its default is elided from the
+  // URL.
+  const urlSchema = {
+    positives: { kind: 'array' as const, param: 'positives' },
+    negatives: { kind: 'array' as const, param: 'negatives' },
+    filename: { kind: 'string' as const, param: 'filename' },
+    collections: { kind: 'array' as const, param: 'collection' }
+  };
+  const urlDefaults = {
+    positives: [] as string[],
+    negatives: [] as string[],
+    filename: '',
+    collections: [] as string[]
+  };
+
   function readFromUrl() {
-    const q = $page.url.searchParams;
-    positives = q.getAll('positives');
-    negatives = q.getAll('negatives');
-    filename = q.get('filename') ?? '';
-    collections = q.getAll('collection');
+    const r = readUrl($page.url.search, urlSchema);
+    positives = r.positives;
+    negatives = r.negatives;
+    filename = r.filename;
+    collections = r.collections;
+    // activeCentroid isn't part of the writable schema —
+    // it's read once on mount but never written back
+    // (writeToUrl bails out while it's set, see the
+    // centroid-search comment below). Read it separately
+    // so deep links like /?centroid=album_2 still work.
+    activeCentroid = $page.url.searchParams.get('centroid');
     filtersOpen = !!filename || collections.length > 0;
-    activeCentroid = q.get('centroid');
     // Round-92: removed the `mode=sample` URL param. The
     // per-card "Surprise" button on /albums that wrote it was
     // removed because the in-panel Surprise toggle is now
@@ -136,15 +171,12 @@
     // running a centroid search — that would cause the URL to
     // flicker and could re-trigger reload via onMount.
     if (activeCentroid) return;
-    const qs = new URLSearchParams();
-    positives.forEach((p) => qs.append('positives', p));
-    negatives.forEach((n) => qs.append('negatives', n));
-    if (filename) qs.set('filename', filename);
-    collections.forEach((c) => qs.append('collection', c));
-    const next = qs.toString();
-    if ($page.url.search.replace(/^\?/, '') !== next) {
-      history.replaceState(history.state, '', `/${next ? '?' + next : ''}`);
-    }
+    const next = writeUrl(
+      { positives, negatives, filename, collections },
+      urlSchema,
+      urlDefaults
+    );
+    pushUrlSearch($page.url.search, next);
   }
 
   function addPrompt(text: string, kind: 'pos' | 'neg') {
@@ -284,7 +316,7 @@
         const total = (res as { session_total?: number | null })?.session_total;
         surpriseTotal = total ?? null;
       }
-    } catch (e) {
+    } catch (_e) {
       if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
@@ -292,17 +324,26 @@
     }
   }
 
+  // Phase 3: usePhotoFeedback consolidates the like/unlike
+  // mutation pattern that was duplicated across home,
+  // for-you, Lightbox, and the photo page. Home's dislike
+  // remains its own 1-way function (the dislikes page is
+  // the only place to un-dislike), so the composable only
+  // handles the favourite toggle here.
+  const feedback = usePhotoFeedback({
+    get: (id) => {
+      const it = items.find((x) => x.id === id);
+      return it ? { is_favorite: !!it.is_favorite, is_disliked: !!it.is_disliked } : undefined;
+    },
+    set: (id, patch) => {
+      items = items.map((x) => (x.id === id ? { ...x, ...patch } : x));
+    },
+    onLike: (id) => likePoint(id),
+    onUnlike: (id) => unlikePoint(id)
+  });
+
   async function onToggleFavorite(id: string) {
-    const it = items.find((x) => x.id === id);
-    const liked = it?.is_favorite ?? false;
-    try {
-      if (liked) await unlikePoint(id);
-      else await likePoint(id);
-      items = items.map((x) =>
-        x.id === id ? { ...x, is_favorite: !liked } : x
-      );
-    } catch {
-    }
+    await feedback.toggleFavorite(id);
   }
 
   async function onDislike(id: string) {
@@ -312,6 +353,7 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
+      /* noop: dislike failure is non-critical */
     }
   }
 
@@ -328,12 +370,13 @@
     // request fails. The route clamps the pool to the corpus
     // at request time so any UI/server drift is handled
     // gracefully.
-    void fetch("/api/system/status", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
+    // Phase 2: uses getSystemStatus() instead of a raw
+    // fetch(). The endpoint wrapper handles credentials,
+    // dev-mode Zod validation, and timeout/abort plumbing
+    // uniformly with the rest of the app.
+    void getSystemStatus()
       .then((d) => {
-        if (d && typeof d.qdrant_count === "number" && d.qdrant_count > 0) {
-          corpusSize = d.qdrant_count;
-        }
+        if (d.qdrant_count > 0) corpusSize = d.qdrant_count;
       })
       .catch(() => {
         /* leave corpusSize null */
@@ -360,16 +403,11 @@
     // (unknown): false-negatives on this banner are much less
     // annoying than false-positives, so we assume "not empty"
     // when we can't tell.
+    // Phase 2: getAdminIndexStatus() handles credentials and
+    // dev-mode Zod validation. Schema is on Z.IndexerStatus.
     try {
-      const s = await fetch('/api/admin/index/status', {
-        credentials: 'include'
-      });
-      if (s.ok) {
-        const body = await s.json();
-        if (typeof body.points_count === 'number' && body.points_count === 0) {
-          indexIsEmpty = true;
-        }
-      }
+      const body = await getAdminIndexStatus();
+      if (body.points_count === 0) indexIsEmpty = true;
     } catch {
       // ignore — admin endpoint may be unavailable in tests
     }
@@ -398,7 +436,7 @@
          it by going to Settings → Index (or by closing it manually). -->
     <div class="empty-prompt" role="status">
       <span>No photos indexed yet.</span>
-      <a href="/settings">Go to Settings → Index</a>
+      <a href={resolve('/settings')}>Go to Settings → Index</a>
       <button class="dismiss" onclick={() => (indexIsEmpty = false)} aria-label="Dismiss">×</button>
     </div>
   {/if}

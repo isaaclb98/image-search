@@ -64,11 +64,8 @@ test.describe('Journey: First-time visitor explores the library', () => {
     await appReady(page);
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 10000 });
 
-    // 2. Get a photo ID for later verification
+    // 2. Open the photo (use the first .grid-tile link)
     const photoLink = page.locator('.grid-tile a').first();
-    const photoHref = await photoLink.getAttribute('href');
-
-    // 3. Open the photo
     await photoLink.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 5000 });
 

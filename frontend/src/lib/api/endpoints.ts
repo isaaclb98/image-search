@@ -417,6 +417,80 @@ export function listCentroids() {
   });
 }
 
+// ---------- System / admin telemetry (Phase 2) ----------
+// Replaces the raw `fetch('/api/system/status')` and
+// `fetch('/api/admin/index/status')` calls in the home page.
+// The schemas in Z mirror the Pydantic models in
+// search/models.py so a backend drift trips the dev-mode
+// Zod assertion in client.ts.
+
+export function getSystemStatus(signal?: AbortSignal) {
+  return apiGet<{
+    model_status: Record<string, unknown>;
+    qdrant_count: number;
+    index_db_count: number;
+    last_refresh: number | null;
+  }>('/api/system/status', {
+    schema: Z.SystemStatus,
+    schemaName: 'SystemStatus',
+    signal
+  });
+}
+
+export function getAdminIndexStatus(signal?: AbortSignal) {
+  return apiGet<{
+    state: 'idle' | 'running' | 'failed';
+    mode?: 'incremental' | 'rebuild' | null;
+    job_id?: string | null;
+    pid?: number | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+    last_run_at?: string | null;
+    last_error?: string | null;
+    progress: {
+      indexed?: number;
+      total?: number;
+      current_file?: string;
+      eta_seconds?: number;
+    };
+    points_count?: number | null;
+  }>('/api/admin/index/status', {
+    schema: Z.IndexerStatus,
+    schemaName: 'IndexerStatus',
+    signal
+  });
+}
+
+// ---------- Count-only album endpoints (Phase 2) ----------
+// The Albums page header only needs the totals for the
+// "Likes" and "Dislikes" album cards. We don't want to ship
+// every favorite row just to count them; ?limit=1 gets the
+// envelope back and we read .total / .count.
+
+export async function getFavoriteCount(signal?: AbortSignal): Promise<number> {
+  const data = await apiGet<{
+    favorites: { id: string; path: string; favorited_at?: string }[];
+    total: number;
+  }>('/api/favorites?limit=1', {
+    schema: Z.FavoritesList,
+    schemaName: 'FavoritesList',
+    signal
+  });
+  return data.total;
+}
+
+export async function getDislikeCount(signal?: AbortSignal): Promise<number> {
+  const data = await apiGet<{
+    items: unknown[];
+    count: number;
+  }>('/api/dislikes?limit=1', {
+    schema: Z.DislikesList,
+    schemaName: 'DislikesList',
+    signal
+  });
+  return data.count;
+}
+
 // ---------- Photo URL passthrough ----------
 
 export { photoUrl, thumbUrl };

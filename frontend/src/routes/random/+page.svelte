@@ -13,6 +13,7 @@
    * stays in the grid either way.
    */
   import { onMount } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import {
     random,
     likePoint,
@@ -79,7 +80,7 @@
       items = [...items, ...more];
       nextOffset += more.length;
       hasMore = !!res?.has_more && more.length > 0;
-    } catch (e) {
+    } catch (_e) {
       if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
@@ -95,14 +96,15 @@
   // (id → index); updates stay O(1) as long as callers
   // don't reorder / splice the array (they don't — we only
   // push to the end or replace in-place).
-  let indexById = $state(new Map<string, number>());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned by $effect; SvelteMap alone doesn't track the variable reference
+  let indexById: SvelteMap<string, number> = $state(new SvelteMap());
 
   // Append-only when `items` changes; rebuilds only when
   // the array reference changes (after refresh / loadMore).
   // The shadow Map is never mutated directly — always
   // rebuilt from `items` so it can't drift.
   $effect(() => {
-    const map = new Map<string, number>();
+    const map = new SvelteMap<string, number>();
     for (let i = 0; i < items.length; i++) {
       map.set(items[i].id, i);
     }
@@ -123,6 +125,7 @@
       next[idx] = { ...next[idx], is_favorite: !liked };
       items = next;
     } catch {
+      /* noop: like/unlike failure leaves state unchanged */
     }
   }
 
@@ -135,6 +138,7 @@
       next[idx] = { ...next[idx], is_disliked: true };
       items = next;
     } catch {
+      /* noop: dislike failure leaves state unchanged */
     }
   }
 

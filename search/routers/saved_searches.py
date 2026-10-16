@@ -92,7 +92,7 @@ def build_saved_searches_router(
 
     @router.get(
         "/api/saved-searches",
-        response_model=None,
+        response_model=SavedSearchListResponse,
     )
     async def list_saved_searches(
         limit: int = Query(

@@ -3,16 +3,13 @@
    * Dislikes — built-in non-deletable album. Reads from
    * /api/dislikes and renders them in the standard grid.
    *
-   * No "Download zip" button — disliking is a signal, not a
-   * collection. The "−" button on each tile undoes the dislike
-   * via the onDislike handler wired below; that drops the photo
-   * out of the grid.
+   * "Remove dislike" goes through the grid's onRemove handler
+   * wired below; that drops the photo out of the grid.
    *
-   * Infinite scroll: walks /api/dislikes?limit=&offset=&as_results=1
-   * in batches of GRID_PAGE_SIZE so the UI keeps working no
-   * matter how large the Dislikes album grows. The backend's
-   * SearchResponse envelope carries `has_more` which we propagate
-   * to PhotoGrid's intersection-observer sentinel.
+   * Phase 5: pagination + remove action were extracted to
+   * usePagedAlbumList (see Likes for the same pattern). The
+   * Dislikes album is sparser in practice, so we don't enable
+   * the O(1) SvelteMap index shadow.
    */
   import { onMount } from 'svelte';
   import {
@@ -20,6 +17,7 @@
     undislikePoint
   } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import { usePagedAlbumList } from '$lib/composables/usePagedAlbumList.svelte';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -32,68 +30,25 @@
 
   const PAGE = GRID_PAGE_SIZE;
 
-  let items = $state<Item[]>([]);
-  let loading = $state(true);
-  let loadingMore = $state(false);
-  let error = $state<string | null>(null);
-  let offset = $state(0);
-  let hasMore = $state(false);
-
-  async function refresh() {
-    loading = true;
-    try {
-      const res = (await listDislikes(PAGE, 0)) as {
+  const list = usePagedAlbumList<Item>({
+    pageSize: PAGE,
+    fetchPage: (limit, offset, signal) =>
+      listDislikes(limit, offset, signal) as unknown as Promise<{
         results?: Item[];
         has_more?: boolean;
-      };
-      items = (res?.results ?? []) as Item[];
-      offset = items.length;
-      hasMore = !!res?.has_more && items.length >= PAGE;
-      error = null;
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to load dislikes';
-    } finally {
-      loading = false;
-    }
-  }
+      }>,
+    onRemove: (id) => undislikePoint(id)
+    // useIndexMap: false (default) — the dislikes list is
+    // small enough that a linear filter is fine.
+  });
 
-  async function loadMore(signal?: AbortSignal) {
-    if (loading || loadingMore || !hasMore) return;
-    loadingMore = true;
-    try {
-      const res = (await listDislikes(PAGE, offset, signal)) as {
-        results?: Item[];
-        has_more?: boolean;
-      };
-      const more = (res?.results ?? []) as Item[];
-      items = [...items, ...more];
-      offset += more.length;
-      hasMore = !!res?.has_more && more.length >= PAGE;
-    } catch (e) {
-      // Leave the existing list intact; the user can keep paging
-      // — losing scroll progress on a transient error is worse
-      // than a stuck spinner. A clean cancel from the pre-fetch
-      // retrigger is silent — no hasMore=false penalty.
-      if (signal?.aborted) return;
-    } finally {
-      loadingMore = false;
-    }
-  }
+  onMount(() => {
+    list.load();
+  });
 
-  async function onDislike(id: string) {
-    // Optimistic: drop from the local list so the grid animates
-    // the tile out, then call the API. On failure, restore + toast
-    // so the user doesn't lose the action.
-    const before = items;
-    items = items.filter((it) => it.id !== id);
-    try {
-      await undislikePoint(id);
-    } catch (e: any) {
-      items = before;
-    }
+  function onDislike(id: string) {
+    return list.remove(id);
   }
-
-  onMount(refresh);
 </script>
 
 <svelte:head>
@@ -103,22 +58,22 @@
 <PageHeader
   title="Dislikes"
   subtitle="Photos you've marked as not interested. Built-in, always here."
-  meta="{items.length} photo{items.length === 1 ? '' : 's'}"
+  meta="{list.items.length} photo{list.items.length === 1 ? '' : 's'}"
 />
 
-{#if loading}
+{#if list.loading}
   <div class="state">Loading…</div>
-{:else if error}
-  <div class="state error">Couldn't load dislikes: {error}</div>
-{:else if items.length === 0}
+{:else if list.error}
+  <div class="state error">Couldn't load dislikes: {list.error}</div>
+{:else if list.items.length === 0}
   <div class="state empty">No dislikes yet — tap the minus on any photo to mark it.</div>
 {:else}
   <section>
     <PhotoGrid
-      {items}
-      loading={loadingMore}
-      {hasMore}
-      onLoadMore={loadMore}
+      items={list.items}
+      loading={list.loadingMore}
+      hasMore={list.hasMore}
+      onLoadMore={list.loadMore}
       {onDislike}
       onRemove={onDislike}
       removeLabel="Remove dislike"

@@ -31,10 +31,10 @@
    * Dimensions + Size.
    */
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import type { PageData } from './$types';
   import {
     photoUrl,
-    thumbUrl,
     likePoint,
     unlikePoint,
     dislikePoint,
@@ -44,6 +44,8 @@
     listAlbums,
     listAlbumsForFavorite
   } from '$lib/api/endpoints';
+  import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
+  import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';
@@ -81,10 +83,19 @@
   // when the API 404s or errors. The placeholder.error block
   // below handles that case; the rest of the component only
   // runs when `photo` is non-null.
+  // svelte-ignore state_referenced_locally
+  // The page reads its initial photo from the load
+  // function's `data.photo`. The photo never changes
+  // while this page is open (the route is the photo ID
+  // itself, so navigating to a different photo unmounts
+  // this page). Capturing the initial value is the
+  // documented behaviour; using $derived would re-read
+  // `data` on every change but `data` is the SvelteKit
+  // load result, not a reactive source.
   let photo = $state<PhotoMeta | null>(
     (data.photo as PhotoMeta | null) ?? null
   );
-  let loading = $state(false);
+  // svelte-ignore state_referenced_locally
   let errorMsg = $state<string | null>(data.error ?? null);
   let actionInFlight = $state(false);
   // Albums for the "Add to album" dropdown. Lazy-loaded on first
@@ -95,7 +106,8 @@
   // already in. Loaded lazily on first dropdown open; refreshed
   // every time the dropdown opens so the indicator stays in
   // sync with the server.
-  let memberOf = $state<Set<number>>(new Set());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned on refresh; SvelteSet alone doesn't track the variable reference
+  let memberOf: SvelteSet<number> = $state(new SvelteSet());
   // Blurhash placeholder — async-decoded from the photo's blurhash
   // field after the metadata loads. Falls back to a dark surface
   // if decoding fails (no blurhash, malformed, etc.).
@@ -121,30 +133,32 @@
     }
   });
 
+  // Phase 3: usePhotoFeedback consolidates the like/dislike
+  // mutation pattern. The photo page owns the full
+  // bidirectional + mutual-exclusion behaviour, so the
+  // composable handles both directions here. The previous
+  // 55-line handwritten implementation is replaced with a
+  // 7-line configuration block.
+  const feedback = usePhotoFeedback({
+    get: () =>
+      photo
+        ? { is_favorite: !!photo.is_favorite, is_disliked: !!photo.is_disliked }
+        : undefined,
+    set: (_id, patch) => {
+      if (!photo) return;
+      photo = { ...photo, ...patch };
+    },
+    onLike: (id) => likePoint(id),
+    onUnlike: (id) => unlikePoint(id),
+    onDislike: (id) => dislikePoint(id),
+    onUndislike: (id) => undislikePoint(id)
+  });
+
   async function toggleFavorite() {
     if (!photo || actionInFlight) return;
     actionInFlight = true;
-    const wasFav = photo.is_favorite;
-    const wasDisliked = photo.is_disliked;
-    // Optimistic toggle — the Lightbox does the same. Pressing Like
-    // clears any active Dislike (mutual exclusivity: a photo can be
-    // liked or disliked, not both). Mirrors Lightbox.toggleFavorite.
-    photo = { ...photo, is_favorite: !wasFav, is_disliked: false };
     try {
-      if (wasFav) {
-        await unlikePoint(photo.id);
-      } else {
-        await likePoint(photo.id);
-        // Lightbox only toggles the favourite flag; the server-side
-        // dislike row (if any) was implicitly cleared by the like.
-        // For the dedicated photo page we own the dislike endpoint
-        // directly, so explicitly unmark so the row actually goes
-        // away on the server too.
-        if (wasDisliked) await undislikePoint(photo.id);
-      }
-    } catch {
-      // Roll back on failure.
-      photo = { ...photo, is_favorite: wasFav, is_disliked: wasDisliked };
+      await feedback.toggleFavorite(photo.id);
     } finally {
       actionInFlight = false;
     }
@@ -153,25 +167,8 @@
   async function toggleDislike() {
     if (!photo || actionInFlight) return;
     actionInFlight = true;
-    const wasDisliked = photo.is_disliked;
-    const wasFav = photo.is_favorite;
-    // Optimistic toggle — the Lightbox does the same. Pressing
-    // Dislike clears any active Like (mutual exclusivity). Mirrors
-    // Lightbox.toggleDislike.
-    photo = { ...photo, is_disliked: !wasDisliked, is_favorite: false };
     try {
-      if (wasDisliked) {
-        await undislikePoint(photo.id);
-      } else {
-        await dislikePoint(photo.id);
-        // Explicitly clear the like server-side too (the Lightbox
-        // relies on the parent to do this; here we own the endpoints
-        // directly, so do it ourselves).
-        if (wasFav) await unlikePoint(photo.id);
-      }
-    } catch {
-      // Roll back on failure.
-      photo = { ...photo, is_disliked: wasDisliked, is_favorite: wasFav };
+      await feedback.toggleDislike(photo.id);
     } finally {
       actionInFlight = false;
     }
@@ -188,43 +185,42 @@
     }
   }
 
-  async function addPhotoToAlbumAction(albumId: number, albumName: string) {
-    if (!photo) return;
-    const inThisAlbum = memberOf.has(albumId);
-    // Optimistic toggle: flip the Set locally so the
-    // checkmark updates instantly, then call the API. On
-    // failure, restore the previous Set.
-    const before = memberOf;
-    const next = new Set(memberOf);
-    if (inThisAlbum) next.delete(albumId);
-    else next.add(albumId);
-    memberOf = next;
-    try {
-      if (inThisAlbum) {
-        await removePhotoFromAlbum(albumId, photo.id);
-      } else {
-        await addPhotoToAlbum(albumId, photo.id);
-      }
-    } catch {
-      memberOf = before;
-    }
+  // Phase 4: useAlbumMembership consolidates the add/remove
+  // photo-from-album mutation pattern (was duplicated
+  // verbatim in the Lightbox's toggleMembership and here).
+  const albumMembership = useAlbumMembership({
+    getMemberOf: () => memberOf,
+    setMemberOf: (next) => {
+      memberOf = next;
+    },
+    getPointId: () => photo?.id,
+    onAdd: (albumId, pointId) => addPhotoToAlbum(albumId, pointId),
+    onRemove: (albumId, pointId) => removePhotoFromAlbum(albumId, pointId)
+  });
+
+  function addPhotoToAlbumAction(albumId: number, albumName: string) {
+    return albumMembership.toggle(albumId, albumName);
   }
 
   async function refreshMembership() {
     if (!photo) return;
     try {
       const albumsForPhoto = await listAlbumsForFavorite(photo.id);
-      memberOf = new Set(albumsForPhoto.map((a) => a.id));
+      // Phase 4: useAlbumMembership.setAll replaces the
+      // membership set in one place. Same SvelteSet identity
+      // pattern as the toggle path.
+      albumMembership.setAll(albumsForPhoto.map((a) => a.id));
     } catch {
       // Leave the previous Set — a transient failure shouldn't
       // blank out the indicator.
     }
   }
 
-  async function copyText(value: string, label: string) {
+  async function copyText(value: string, _label: string) {
     try {
       await navigator.clipboard.writeText(value);
     } catch {
+      /* noop: clipboard write may fail in non-secure contexts */
     }
   }
 
@@ -372,19 +368,6 @@
     box-sizing: border-box;
   }
 
-  .placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--s-3);
-    min-height: 50vh;
-    color: var(--fg-2);
-  }
-  .placeholder.error {
-    color: var(--negative);
-  }
-
   .layout {
     display: grid;
     /* Round-55: width matches --grid-width (1216px) so the
@@ -517,15 +500,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--s-1);
-  }
-
-  .meta h3 {
-    margin: 0 0 var(--s-1) 0;
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-medium);
-    text-transform: uppercase;
-    letter-spacing: var(--ls-widest);
-    color: var(--fg-3);
   }
 
   .meta dl {

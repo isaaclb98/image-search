@@ -21,8 +21,7 @@
    * (--s-4 and --grid-gutter), so the grid renders the same on every
    * page. No more divergent copy-paste.
    */
-  import { onMount, onDestroy } from 'svelte';
-  import { photoUrl } from '$lib/api/endpoints';
+  import { onDestroy } from 'svelte';
   import type { SearchResult } from '$lib/api/endpoints';
   import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
   import type { SvelteVirtualizer } from '@tanstack/svelte-virtual';
@@ -257,12 +256,6 @@
   // any search runs) still have the var set. PhotoGrid's
   // measurement is the source of truth when mounted; the layout
   // fallback handles the empty-items case.
-  let gridWidth = $derived(
-    columns > 0 && containerWidth > 0
-      ? Math.min(containerWidth, columns * tileSize + (columns - 1) * GAP)
-      : 0
-  );
-
   // Re-measure the rendered tile whenever items change OR the
   // container width changes. The CSS grid uses auto-fill, so the
   // number of columns (and therefore the tile width) depends on
@@ -403,7 +396,7 @@
           class="grid-row"
           style="position: absolute; top: 0; left: 0; width: 100%; height: {virtualRow.size}px; transform: translateY({virtualRow.start}px);"
         >
-          {#each rows[virtualRow.index] as item, colIndex}
+          {#each rows[virtualRow.index] as item, colIndex (item.id)}
             {@const itemIndex = virtualRow.index * columns + colIndex}
             <!-- Tier 1 of 3 (perf round 1): tag the first three tiles
                  of the first visible row as eager so the browser

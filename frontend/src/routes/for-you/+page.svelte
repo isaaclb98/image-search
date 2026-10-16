@@ -37,7 +37,16 @@
    * controllable knob.
    */
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
+  import {
+    GRID_PAGE_SIZE,
+    POOL_STOPS_FOR_YOU,
+    DEFAULT_POOL_INDEX_FOR_YOU,
+    DEFAULT_TEMPERATURE,
+    TEMPERATURE_MIN,
+    TEMPERATURE_MAX
+  } from '$lib/api/limits';
+  import { SvelteMap } from 'svelte/reactivity';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Button from '$lib/components/Button.svelte';
@@ -53,23 +62,12 @@
   };
 
   const PAGE = GRID_PAGE_SIZE;
-  // Round-88: temperature / pool bounds mirror the home-page
-  // Surprise Me sliders. Same Gumbel mechanism, so the user
-  // gets a consistent experience across the app.
-  const TEMPERATURE_MIN = 0;
-  const TEMPERATURE_MAX = 1;
-  const POOL_SIZE_MIN = 200;
-  const POOL_SIZE_MAX = 50_000;
-  // 6 log-spaced stops. The rightmost is the upper bound for
-  // the route. Log spacing because the taste pool can be much
-  // larger than the cosine pool (top-2k is already plenty).
-  const POOL_STOPS = [200, 500, 1_000, 2_000, 10_000, 50_000] as const;
-  // Default pool is index 3 = 2,000. Smaller than the home
-  // page's 5,000 default because the taste pool is denser
-  // (every photo has a strong relevance signal) so 2,000
-  // already covers the top of the curve.
-  const DEFAULT_POOL_INDEX = 3;
-  const DEFAULT_TEMPERATURE = 0.05;
+  // Phase 1: temperature / pool bounds now live in
+  // $lib/api/limits (POOL_STOPS_FOR_YOU, DEFAULT_POOL_INDEX_FOR_YOU,
+  // TEMPERATURE_MIN, TEMPERATURE_MAX, DEFAULT_TEMPERATURE) so the
+  // home page Surprise Me and the for-you Surprise Me read the
+  // same source of truth. The local POOL_STOPS / DEFAULT_POOL_INDEX
+  // / DEFAULT_TEMPERATURE / TEMPERATURE_* consts are gone.
 
   let items = $state<Item[]>([]);
   let loading = $state(false);
@@ -78,8 +76,8 @@
   // Sliders update these freely; the "Surprise me" button
   // is the only thing that commits them into a request.
   let temperature = $state(DEFAULT_TEMPERATURE);
-  let poolSizeIndex = $state(DEFAULT_POOL_INDEX);
-  let poolSize = $derived(POOL_STOPS[poolSizeIndex]);
+  let poolSizeIndex = $state(DEFAULT_POOL_INDEX_FOR_YOU);
+  let poolSize = $derived(POOL_STOPS_FOR_YOU[poolSizeIndex]);
   let sessionId = $state<string | null>(null);
   // The seed is set fresh on every "Surprise me" press.
   // Same seed within a deck → same first page; paginated
@@ -105,7 +103,7 @@
   }
 
   function onPoolIndexChange(idx: number) {
-    const clamped = Math.max(0, Math.min(idx, POOL_STOPS.length - 1));
+    const clamped = Math.max(0, Math.min(idx, POOL_STOPS_FOR_YOU.length - 1));
     if (clamped === poolSizeIndex) return;
     poolSizeIndex = clamped;
   }
@@ -116,7 +114,7 @@
   }
 
   function formatPool(idx: number): string {
-    return POOL_STOPS[idx].toLocaleString();
+    return POOL_STOPS_FOR_YOU[idx].toLocaleString();
   }
 
   async function onSurprise() {
@@ -145,12 +143,13 @@
       nextPage = 1;
       sessionId = res?.session_id ?? null;
       hasMore = !!res?.has_more && items.length > 0;
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (ctrl.signal.aborted) return;
       // 400 with "for-you requires at least one favourite"
       // is a friendly error, not a server problem. Surface
       // it inline.
-      const detail = e?.body?.detail ?? e?.message ?? '';
+      const eAny = e as { body?: { detail?: string }; message?: string };
+      const detail = eAny?.body?.detail ?? eAny?.message ?? '';
       if (typeof detail === 'string' && detail.includes('favourite')) {
         errorMsg = 'Like a few photos first to seed the taste signal.';
       } else {
@@ -181,7 +180,7 @@
       nextPage += 1;
       sessionId = res?.session_id ?? sessionId;
       hasMore = !!res?.has_more && more.length > 0;
-    } catch (e) {
+    } catch (_e) {
       if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
@@ -190,34 +189,45 @@
   }
 
   // Round-9 perf: O(1) item lookup + update via shadow Map.
-  let indexById = $state(new Map<string, number>());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned by $effect; SvelteMap alone doesn't track the variable reference
+  let indexById: SvelteMap<string, number> = $state(new SvelteMap());
 
   $effect(() => {
-    const m = new Map<string, number>();
+    const m = new SvelteMap<string, number>();
     for (let i = 0; i < items.length; i++) m.set(items[i].id, i);
     indexById = m;
   });
 
+  // Phase 3: usePhotoFeedback consolidates the like/unlike
+  // mutation pattern. for-you's dislike is 1-way (set the
+  // flag, no toggle, no rollback — the dislikes page is
+  // the only place to un-dislike), so the composable only
+  // handles the favourite toggle here.
+  const feedback = usePhotoFeedback({
+    get: (id) => {
+      const idx = indexById.get(id);
+      if (idx === undefined) return undefined;
+      const it = items[idx];
+      return { is_favorite: !!it.is_favorite, is_disliked: !!it.is_disliked };
+    },
+    set: (id, patch) => {
+      const idx = indexById.get(id);
+      if (idx === undefined) return;
+      items[idx] = { ...items[idx], ...patch };
+    },
+    onLike: (id) => likePoint(id),
+    onUnlike: (id) => unlikePoint(id)
+  });
+
   function onToggleFavorite(id: string) {
-    const idx = indexById.get(id);
-    if (idx === undefined) return;
-    const wasFavorite = !!items[idx].is_favorite;
-    items[idx] = { ...items[idx], is_favorite: !wasFavorite };
-    (async () => {
-      try {
-        if (wasFavorite) await unlikePoint(id);
-        else await likePoint(id);
-      } catch {
-        // rollback
-        items[idx] = { ...items[idx], is_favorite: wasFavorite };
-      }
-    })();
+    void feedback.toggleFavorite(id);
   }
 
   async function onDislike(id: string) {
     try {
       await dislikePoint(id);
     } catch {
+      /* noop: dislike failure is non-critical */
     }
   }
 </script>
@@ -264,7 +274,7 @@
     <input
       type="range"
       min="0"
-      max={POOL_STOPS.length - 1}
+      max={POOL_STOPS_FOR_YOU.length - 1}
       step="1"
       value={poolSizeIndex}
       oninput={(e) => onPoolIndexChange(parseInt((e.target as HTMLInputElement).value, 10))}
@@ -291,7 +301,7 @@
 
 {#if items.length > 0 || loading}
   <PhotoGrid
-    items={items as any}
+    {items}
     {hasMore}
     {loading}
     onLoadMore={loadMore}

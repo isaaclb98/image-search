@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
+        get: operations["album_download_zip_albums__album_id__download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_head"];
+        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -210,10 +210,10 @@ export interface paths {
             cookie?: never;
         };
         /** Api Cache Refresh */
-        get: operations["api_cache_refresh_api_cache_refresh_post"];
+        get: operations["api_cache_refresh_api_cache_refresh_get"];
         put?: never;
         /** Api Cache Refresh */
-        post: operations["api_cache_refresh_api_cache_refresh_post_1"];
+        post: operations["api_cache_refresh_api_cache_refresh_get_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -402,14 +402,26 @@ export interface paths {
         };
         /**
          * For You Feed
-         * @description Materialise the top `top_pct`% of library by taste,
-         *     uniformly shuffle, return `limit` ids starting at `page`.
+         * @description Walk through a Gumbel-sampled deck of photos in the user's
+         *     taste neighborhood.
          *
-         *     The shuffle is keyed by `(fav_ids, dis_ids, top_pct, seed)`.
-         *     A client that keeps all four stable across multiple `page`
-         *     values walks through the same shuffle. A new `seed` produces
-         *     a fresh shuffle. If no seed is supplied, all requests share
-         *     the same cached shuffle until the TTL expires.
+         *     The candidate pool is sourced from Qdrant
+         *     `recommend(positive=likes, negative=dislikes)`. The
+         *     recommend() results are ordered by score descending, and
+         *     the Gumbel draw biases the deck toward high scores by
+         *     the temperature. At T=0 the deck is the deterministic
+         *     top-K; at T=1.0 the deck is near-uniform random over the
+         *     pool.
+         *
+         *     Cache key: `compute_for_you_cache_key(fav_ids, dis_ids,
+         *     temperature, pool_size, seed)`. A client that keeps
+         *     these stable across multiple offsets walks through the
+         *     same deck. A new seed (or a new fav_ids/dis_ids after a
+         *     like/dislike) produces a fresh deck.
+         *
+         *     Cold start: 0 favourites returns 400. The /for-you page
+         *     surfaces a "Like a few photos to seed" empty state
+         *     before sending a request.
          */
         get: operations["for_you_feed_api_for_you_feed_get"];
         put?: never;
@@ -564,13 +576,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_head"];
+        get: operations["favorites_download_zip_favorites_download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -760,6 +772,66 @@ export interface components {
             albums: components["schemas"]["AlbumSummary"][];
         };
         /**
+         * CacheStatusResponse
+         * @description GET /api/cache/status — operator visibility into dual-store sync.
+         *
+         *     `drift` is the integer point-count gap between Qdrant and
+         *     IndexDB, or the string "unknown" when Qdrant is unreachable
+         *     (qdrant_count < 0). The string sentinel is intentional:
+         *     returning -1 or 0 would be misleading — a negative number
+         *     conflates "Qdrant down" with "0 drift", and 0 would imply
+         *     the stores are in sync when we don't actually know.
+         *
+         *     `path_liveness_cache_size` / `_max` are the runtime liveness
+         *     cache's current size and its eviction cap. These matter
+         *     because the cache lives in memory and a leak would
+         *     eventually OOM the container.
+         */
+        CacheStatusResponse: {
+            /** Drift */
+            drift: number | string;
+            /** Index Db Count */
+            index_db_count: number;
+            /** Last Refresh */
+            last_refresh: number | null;
+            /** Path Liveness Cache Max */
+            path_liveness_cache_max: number;
+            /** Path Liveness Cache Size */
+            path_liveness_cache_size: number;
+            /** Path Liveness Ttl Seconds */
+            path_liveness_ttl_seconds: number;
+            /** Qdrant Count */
+            qdrant_count: number;
+            /** Refresh Interval Seconds */
+            refresh_interval_seconds: number;
+        };
+        /**
+         * CentroidListResponse
+         * @description GET /api/centroids — static + dynamic centroid inventory.
+         *
+         *     `centroids` is the static (filesystem-backed) list.
+         *     `dynamic_centroids` is the runtime registry (favourites,
+         *     tag-based, custom). `expected_model` and
+         *     `expected_feature_dim` are None when the static store
+         *     isn't initialised; the frontend uses these to warn when
+         *     the user has a config that doesn't match the current
+         *     SigLIP2 model.
+         */
+        CentroidListResponse: {
+            /** Centroids */
+            centroids: {
+                [key: string]: unknown;
+            }[];
+            /** Dynamic Centroids */
+            dynamic_centroids: {
+                [key: string]: unknown;
+            }[];
+            /** Expected Feature Dim */
+            expected_feature_dim: number | null;
+            /** Expected Model */
+            expected_model: string | null;
+        };
+        /**
          * DiversityMetadata
          * @description What the search-side Diversity ranker actually did.
          */
@@ -776,7 +848,6 @@ export interface components {
             candidate_count: number;
             /**
              * Depth
-             * @description Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.
              * @default auto
              */
             depth: string;
@@ -792,7 +863,6 @@ export interface components {
             mode: string;
             /**
              * Pool Depth
-             * @description Number of candidates actually retrieved for the ranking pass.
              * @default 0
              */
             pool_depth: number;
@@ -828,6 +898,22 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HealthzResponse
+         * @description GET /healthz — operator + load-balancer probe.
+         *
+         *     Kept intentionally tiny: `qdrant` is the only required
+         *     dependency the LB cares about (the rest of the system can be
+         *     degraded without taking the container out of rotation). The
+         *     `test_mode` flag is informational — it tells operators
+         *     whether this is the prod-shaped config or a test fixture.
+         */
+        HealthzResponse: {
+            /** Qdrant */
+            qdrant: boolean;
+            /** Test Mode */
+            test_mode: boolean;
         };
         /**
          * IndexerLogResponse
@@ -899,6 +985,22 @@ export interface components {
             state: "idle" | "running" | "failed";
         };
         /**
+         * ReloadCentroidsResponse
+         * @description POST /api/centroids/reload — operator-initiated centroid refresh.
+         *
+         *     `count` is the number of centroids the store successfully
+         *     loaded. `centroids_dir` is the absolute filesystem path
+         *     the store scanned (or None when the store has no
+         *     configured directory — same shape as a config-disabled
+         *     store).
+         */
+        ReloadCentroidsResponse: {
+            /** Centroids Dir */
+            centroids_dir: string | null;
+            /** Count */
+            count: number;
+        };
+        /**
          * SavedSearch
          * @description One saved-search row, as returned by every saved-search
          *     endpoint. `positives` / `negatives` are always Python lists of
@@ -963,10 +1065,7 @@ export interface components {
         };
         /** SearchResponse */
         SearchResponse: {
-            /**
-             * Centroid
-             * @description First active centroid name, when any centroids are in play. Kept for backward compat with single-centroid clients; the full list lives in `centroids`. Mutually exclusive with q/positives/negatives.
-             */
+            /** Centroid */
             centroid?: string | null;
             /**
              * Centroids
@@ -975,7 +1074,6 @@ export interface components {
             centroids?: string[];
             /**
              * Diverse
-             * @description Backwards-compatible flag; true when search Diversity was applied.
              * @default false
              */
             diverse: boolean;
@@ -983,7 +1081,6 @@ export interface components {
             diversity?: components["schemas"]["DiversityMetadata"];
             /**
              * Has More
-             * @description True when more results likely exist on a subsequent page
              * @default false
              */
             has_more: boolean;
@@ -996,7 +1093,6 @@ export interface components {
             negatives?: string[];
             /**
              * Offset
-             * @description Offset of this page in the full result set
              * @default 0
              */
             offset: number;
@@ -1006,19 +1102,12 @@ export interface components {
             query: string;
             /** Results */
             results: components["schemas"]["SearchResult"][];
-            /**
-             * Session Id
-             * @description Opaque session id. For /api/random this identifies the shuffled deck; pass it back with an incremented `offset` to walk forward. None for non-session endpoints (search, similar, etc.) — those use offset/limit directly against Qdrant.
-             */
+            /** Session Id */
             session_id?: string | null;
-            /**
-             * Session Total
-             * @description Total photos in the session deck. Only set for /api/random. Use this with `offset` to know when you've walked everything.
-             */
+            /** Session Total */
             session_total?: number | null;
             /**
              * Surprise
-             * @description True when results were randomly sampled from a deep pool (Surprise Me mode).
              * @default false
              */
             surprise: boolean;
@@ -1026,27 +1115,17 @@ export interface components {
             took_ms: number;
             /**
              * View
-             * @description Result view requested: 'grid' (default) or 'feed' (single-column, full-width).
              * @default grid
              */
             view: string;
-            /**
-             * Weights
-             * @description Per-centroid weights, same order as `centroids`. None means all weights equal 1.0 (the default).
-             */
+            /** Weights */
             weights?: number[] | null;
         };
         /** SearchResult */
         SearchResult: {
-            /**
-             * Blurhash
-             * @description LQIP (low-quality image placeholder). Decoded client-side into a tinted background while the real image loads. None when the encoder failed or the point was indexed before the blurhash feature shipped.
-             */
+            /** Blurhash */
             blurhash?: string | null;
-            /**
-             * Height
-             * @description Photo height in pixels, when known. None for older rows that were indexed before width/height were recorded.
-             */
+            /** Height */
             height?: number | null;
             /**
              * Id
@@ -1055,13 +1134,11 @@ export interface components {
             id: string;
             /**
              * Is Disliked
-             * @description True when the image is marked as a dislike (hides it from future recommendations)
              * @default false
              */
             is_disliked: boolean;
             /**
              * Is Favorite
-             * @description True when the image is marked as a favourite
              * @default false
              */
             is_favorite: boolean;
@@ -1087,11 +1164,29 @@ export interface components {
              * @default
              */
             url: string;
-            /**
-             * Width
-             * @description Photo width in pixels, when known. None for older rows that were indexed before width/height were recorded.
-             */
+            /** Width */
             width?: number | null;
+        };
+        /**
+         * SystemStatusResponse
+         * @description GET /api/system/status — frontend dashboard telemetry.
+         *
+         *     The frontend's settings panel reads this to surface model
+         *     load state, point counts, and the last successful
+         *     indexer→IndexDB refresh. Field types are chosen so the
+         *     JS layer can `JSON.parse` and consume without coercion.
+         */
+        SystemStatusResponse: {
+            /** Index Db Count */
+            index_db_count: number;
+            /** Last Refresh */
+            last_refresh: number | null;
+            /** Model Status */
+            model_status: {
+                [key: string]: unknown;
+            };
+            /** Qdrant Count */
+            qdrant_count: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1115,7 +1210,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_head_1: {
+    album_download_zip_albums__album_id__download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1144,7 +1239,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_head: {
+    album_download_zip_albums__album_id__download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1524,9 +1619,12 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post: {
+    api_cache_refresh_api_cache_refresh_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted. */
+                full?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1542,11 +1640,23 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    api_cache_refresh_api_cache_refresh_post_1: {
+    api_cache_refresh_api_cache_refresh_get_1: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted. */
+                full?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1560,6 +1670,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1579,9 +1698,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CacheStatusResponse"];
                 };
             };
         };
@@ -1601,9 +1718,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CentroidListResponse"];
                 };
             };
         };
@@ -1623,9 +1738,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ReloadCentroidsResponse"];
                 };
             };
         };
@@ -1649,6 +1762,16 @@ export interface operations {
                 diversity?: string | null;
                 /** @description Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000 */
                 diversity_depth?: string | null;
+                /** @description Surprise Me — Gumbel-max over the top N candidates from this centroid. Mutually exclusive with mode=sample and with diversity. Same cache+session contract as /api/search?surprise=true. */
+                surprise?: boolean;
+                /** @description Gumbel noise scale for Surprise Me on centroid search. T=0 is deterministic top-K; higher = more variety. Ignored unless surprise=true. */
+                surprise_temperature?: number;
+                /** @description How many top candidates the Gumbel draw is taken from for centroid search. Larger = more variety, slower first page. Range 200..50000, default 5000. Ignored unless surprise=true. */
+                surprise_pool?: number;
+                /** @description Reseed knob for Surprise Me on centroid search. Pass a fresh random int for a new deck every request; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default. Ignored unless surprise=true. */
+                surprise_seed?: number | null;
+                /** @description Opaque session id from a prior Surprise Me response on this centroid. Pass back with offset to walk the cached deck without recomputing. Ignored unless surprise=true. */
+                surprise_session?: string | null;
             };
             header?: never;
             path: {
@@ -1893,14 +2016,18 @@ export interface operations {
     for_you_feed_api_for_you_feed_get: {
         parameters: {
             query?: {
-                /** @description Percentile of library to use as the random pool. Default 1.0 (1% → 8000 candidates at 800k library). No ceiling; large values fetch proportionally more. */
-                top_pct?: number;
+                /** @description Number of recommend() candidates the Gumbel draw is taken from. Default 2000. Range [200, 50000]. Higher = more variety, slower first page. */
+                pool_size?: number;
                 /** @description Photos per page. No upper bound. */
                 limit?: number;
-                /** @description Zero-based offset into the shuffled pool. */
-                page?: number;
-                /** @description Optional opaque string. Frontend passes a fresh random value on every page reload so the user sees a different shuffle each time; reuse the same value for paginated scroll calls within a single page-mount to walk through the same shuffle across page=0, page=1, ... Different seeds produce different shuffles (server-side cached keyed on this value). */
-                seed?: string | null;
+                /** @description Zero-based offset into the cached Gumbel deck. Pass the same `session` value to walk forward through the same deck without recomputing. */
+                offset?: number;
+                /** @description Gumbel noise scale. T=0 is deterministic top-K (curated). T=1.0 is near-uniform random over the pool. Default 0.05. */
+                temperature?: number;
+                /** @description Random seed for the Gumbel draw. Pass a fresh random int on every page reload so the user sees a different deck each time. Pass the same value for paginated scroll within a single page-mount to walk through the same deck. If omitted, the route generates a fresh random seed per request. */
+                seed?: number | null;
+                /** @description Opaque cache key from a prior /api/for-you/feed response. Pass back with offset=N to walk the same deck without recomputing. Server-cached for 30 minutes. */
+                session?: string | null;
             };
             header?: never;
             path?: never;
@@ -2147,6 +2274,14 @@ export interface operations {
                 diversity_depth?: string | null;
                 /** @description Surprise Me — random sample from deep pool */
                 surprise?: boolean;
+                /** @description Gumbel noise scale for Surprise Me. T=0 is deterministic; higher = more variety. */
+                surprise_temperature?: number;
+                /** @description How many top candidates the Gumbel draw is taken from. Larger = more variety, slower first page. */
+                surprise_pool?: number;
+                /** @description Reseed knob for Surprise Me. Omit (or pass a fresh random int) for a new deck every search; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default. */
+                surprise_seed?: number | null;
+                /** @description Opaque session id from a prior Surprise Me response. Pass back with offset to walk the cached deck without recomputing. */
+                surprise_session?: string | null;
             };
             header?: never;
             path?: never;
@@ -2225,14 +2360,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SystemStatusResponse"];
                 };
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head: {
+    favorites_download_zip_favorites_download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2250,7 +2383,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head_1: {
+    favorites_download_zip_favorites_download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2283,9 +2416,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["HealthzResponse"];
                 };
             };
         };

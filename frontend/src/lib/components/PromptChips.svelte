@@ -148,6 +148,11 @@
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-pill);
     padding: var(--s-0) var(--s-1) var(--s-0) var(--s-0);
+    /* Single-stop subtle shadow. --shadow-1 is two-stop and
+       would add an extra 1px halo that this element never
+       had. The literal value matches --shadow-1's first
+       stop exactly so it stays in lockstep if --shadow-1
+       ever changes. */
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
   .toggle {

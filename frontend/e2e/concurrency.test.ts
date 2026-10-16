@@ -259,9 +259,9 @@ test.describe('Network resilience', () => {
     await page.goto('http://127.0.0.1:8000/?positives=beach');
     await appReady(page);
 
-    // Search button should be disabled during the slow load
-    const searchBtn = page.getByRole('button', { name: 'Search', exact: true });
-    // It might already be disabled if the auto-search on mount is still in flight
+    // Search button should be disabled during the slow load.
+    // Note: not asserted directly — the grid appearance below
+    // proves the search eventually completed.
 
     // Wait for results to eventually appear
     await expect(page.locator('.grid-tile').first()).toBeVisible({ timeout: 15000 });

@@ -30,7 +30,14 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { SvelteSet } from 'svelte/reactivity';
   import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
+  import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
+  import { useSlideshow } from '$lib/composables/useSlideshow.svelte';
+  import { useKeyboardNav } from '$lib/composables/useKeyboardNav';
+  import { usePhotoPreloader } from '$lib/composables/usePhotoPreloader.svelte';
+  import { useBlurhashTint } from '$lib/composables/useBlurhashTint.svelte';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
@@ -42,9 +49,9 @@
     resolveStall
   } from './lightbox-pagination';
   import Dropdown from './Dropdown.svelte';
-  function goSimilar(id: string) {
+  async function goSimilar(id: string) {
     onClose();
-    goto(`/similar/${encodeURIComponent(id)}`);
+    await goto(resolve(`/similar/${encodeURIComponent(id)}`));
   }
 
   /**
@@ -95,6 +102,18 @@
     onLoadMore
   }: Props = $props();
 
+  // The lightbox manages its own cursor (`idx`) internally so
+  // that prev/next + the keyboard composable can mutate it
+  // without round-tripping through the parent. The `index`
+  // prop is the initial position (parent decides which photo
+  // to open first); the `index` prop is not expected to
+  // change after mount, so capturing the initial value
+  // here is the documented behaviour. (svelte-check would
+  // prefer a $derived; that would re-anchor the cursor to
+  // the prop every render, which is NOT what we want — the
+  // user's left/right keys must not snap back to the
+  // parent's `index` mid-browse.)
+  // svelte-ignore state_referenced_locally
   let idx = $state(index);
   // Infinite-nav bookkeeping (see lightbox-pagination.ts):
   // `requestedAtLen` dedupes lookahead prefetch requests per loaded
@@ -126,19 +145,16 @@
     pendingStall = r.stall;
   });
 
-  let tint = $state<string | null>(null);
-  // Crossfade gate for the .tint backdrop layer. See the template
-  // note above for why this needs to be rAF-deferred — without
-  // the gate the browser batches the style change and the
-  // transition never fires.
-  let tintReady = $state(false);
-  // Round-32: freeze the tint after the first decode of the
-  // lightbox session. Without this, every prev/next navigation
-  // re-decodes the photo's blurhash and the backdrop churns
-  // (felt as the tint jumping wildly between photos). Reset
-  // when the lightbox closes so the next open picks a fresh
-  // tint from the new first photo.
-  let tintFrozen = $state(false);
+  // Phase 6d: the blurhash decode + crossfade + freeze
+  // policy are extracted to useBlurhashTint. The composable
+  // owns the tint data URL, the crossfade gate (tintReady),
+  // and the session-freeze flag (tintFrozen). The template
+  // reads `tintLayer.tint` and `tintLayer.tintReady` (the
+  // CSS class for the crossfade).
+  const tintLayer = useBlurhashTint({
+    getBlurhash: () => current()?.blurhash,
+    decode: (blurhash, w, h) => blurhashToDataUrl(blurhash, w, h)
+  });
 
   // Photo-load state for crossfade. The lightbox used to flash on
   // every navigation because the `<img>` was inside `{#key it.id}`,
@@ -182,8 +198,6 @@
   // feature-detected; old browsers that lack them get the
   // default ±1 preload (a strict-power-user setting, but that's
   // the conservative default for a desktop-class lightbox).
-  let preloadedSrcs = $state<Set<string>>(new Set());
-
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
      to a different photo — re-syncing after every server response
@@ -203,6 +217,16 @@
     lastSyncedIdx = idx;
   });
 
+  // Phase 3 note: the Lightbox's toggle handlers (below) are
+  // intentionally NOT migrated to usePhotoFeedback. The
+  // composable assumes a stable photo id + a per-id state
+  // record; the Lightbox has its own bespoke pattern — two
+  // separate $state booleans synced from `items[idx]` via the
+  // `lastSyncedIdx` $effect, and it fires a parent-owned
+  // callback rather than calling the API itself. Forcing
+  // the composable onto this shape would either lose the
+  // idx-change sync semantics or add a wrapper indirection
+  // with no real win. The handlers stay as-is.
   function toggleFavorite() {
     const it = current();
     if (!it) return;
@@ -248,45 +272,38 @@
   // already belongs to. Loaded lazily when the user opens the
   // dropdown; reloaded after every add/remove so the visual
   // indicator stays in sync with the server.
-  let memberOf = $state<Set<number>>(new Set());
-  let membershipLoading = $state(false);
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned on refresh; SvelteSet alone doesn't track the variable reference
+  let memberOf: SvelteSet<number> = $state(new SvelteSet());
 
   async function refreshMembership() {
     const it = current();
     if (!it) return;
-    membershipLoading = true;
     try {
       const albumsForPhoto = await listAlbumsForFavorite(it.id);
-      memberOf = new Set(albumsForPhoto.map((a) => a.id));
+      // Phase 4: useAlbumMembership.setAll replaces the
+      // membership set in one place.
+      albumMembership.setAll(albumsForPhoto.map((a) => a.id));
     } catch {
       // Leave the previous Set in place — a transient failure
       // shouldn't blank out the indicator.
-    } finally {
-      membershipLoading = false;
     }
   }
 
+  // Phase 4: useAlbumMembership consolidates the add/remove
+  // photo-from-album mutation pattern (was duplicated
+  // verbatim here and in routes/photo/[id]/+page.svelte).
+  const albumMembership = useAlbumMembership({
+    getMemberOf: () => memberOf,
+    setMemberOf: (next) => {
+      memberOf = next;
+    },
+    getPointId: () => current()?.id,
+    onAdd: (albumId, pointId) => addPhotoToAlbum(albumId, pointId),
+    onRemove: (albumId, pointId) => removePhotoFromAlbum(albumId, pointId)
+  });
+
   async function toggleMembership(albumId: number, albumName: string) {
-    const it = current();
-    if (!it) return;
-    const inThisAlbum = memberOf.has(albumId);
-    // Optimistic toggle: flip the Set locally first so the
-    // checkmark updates instantly, then call the API. On
-    // failure, restore the previous Set.
-    const before = memberOf;
-    const next = new Set(memberOf);
-    if (inThisAlbum) next.delete(albumId);
-    else next.add(albumId);
-    memberOf = next;
-    try {
-      if (inThisAlbum) {
-        await removePhotoFromAlbum(albumId, it.id);
-      } else {
-        await addPhotoToAlbum(albumId, it.id);
-      }
-    } catch {
-      memberOf = before;
-    }
+    await albumMembership.toggle(albumId, albumName);
   }
 
   function current(): Item | null {
@@ -301,46 +318,60 @@
      own with no visual indicator until the timer first fires.
      Explicit Play also sidesteps prefers-reduced-motion entirely
      (the user who cares about motion sensitivity just won't hit
-     the button). `pausedByUser` tracks whether the user has
-     explicitly paused vs. the timer just being unstarted, which
-     is currently only used to keep the button label honest when
-     items shrink to a single entry mid-playback. */
-  let playing = $state(false);
-  let pausedByUser = $state(false);
+     the button).
 
-  // Stop the timer if there's nothing to advance through (single
-  // item or empty). Reactive on `items.length` so a re-load that
-  // shrinks the set gracefully settles into "no auto-advance".
-  $effect(() => {
-    if (items.length <= 1) playing = false;
+     Phase 6: the auto-advance timer + the items-length guard
+     are extracted to useSlideshow. The composable owns
+     `playing` + the setInterval effect; the Lightbox just
+     reads `slideshow.playing` and calls `slideshow.togglePlay`
+     from the action bar / keyboard handler. */
+  const slideshow = useSlideshow({
+    getItemsLength: () => items.length,
+    getIdx: () => idx,
+    setIdx: (next) => {
+      idx = next;
+    },
+    getIntervalMs: () => $preferences.slideshowIntervalMs
   });
 
-  // Auto-advance. Effect re-runs whenever `playing` flips or the
-  // cadence changes, so toggling Play/Pause restarts cleanly and
-  // the user can change the interval from Settings mid-playback
-  // (next tick picks it up). `idx` reads inside the tick because
-  // each fire advances the index; we don't want `idx` itself to
-  // be a dependency (that would re-create the interval every
-  // photo and never advance).
-  $effect(() => {
-    if (!playing) return;
-    const intervalMs = $preferences.slideshowIntervalMs;
-    const id = setInterval(() => {
-      if (items.length === 0) return;
-      idx = (idx + 1) % items.length;
-    }, intervalMs);
-    return () => clearInterval(id);
+  // Phase 6b: useKeyboardNav consolidates the keydown
+  // dispatch table (Escape, arrows, Home/End, PageUp/Down,
+  // 'f' for like, Space for slideshow). The composable
+  // owns the focus gates (button / text-input) and the
+  // boundary clamps (idx ∈ [0, items.length-1]).
+  const keyboard = useKeyboardNav({
+    getItemsLength: () => items.length,
+    getIdx: () => idx,
+    setIdx: (next) => {
+      idx = next;
+    },
+    onClose: () => onClose(),
+    onPrev: () => prev(),
+    onNext: () => next(),
+    onToggleFavorite: () => toggleFavorite(),
+    onToggleSlideshow: () => slideshow.togglePlay()
   });
 
-  function togglePlay() {
-    playing = !playing;
-    pausedByUser = !playing;
-  }
+  // Phase 6c: usePhotoPreloader owns the adjacent-photo
+  // preload effect. The composable reads `idx` /
+  // `slideshow.playing` / `items.length` / `photoSrc` and
+  // owns the SvelteSet of preloaded URLs. The template
+  // reads `preloader.preloadedSrcs` to render the hidden
+  // <img> nodes.
+  const preloader = usePhotoPreloader({
+    getItemsLength: () => items.length,
+    getCursor: () => idx,
+    getIsPlaying: () => slideshow.playing,
+    getPhotoSrc: () => photoSrc,
+    getItemUrl: (id: string) => photoUrl(id, lightboxWidth()),
+    getItemIdAt: (i: number) => items[i]?.id,
+    getWidth: () => lightboxWidth()
+  });
 
   // Re-run the photo-dependent effects whenever the current photo
-  // changes (lightbox navigation, photo prop change). Tint is the
-  // ambient background blur; memberOf is the add-to-album
-  // membership indicator on the dropdown.
+  // changes (lightbox navigation, photo prop change). Photo src +
+  // photoReady + membership refresh stay here; the tint is now
+  // owned by useBlurhashTint (Phase 6d).
   $effect(() => {
     const it = current();
     // Compute the next src. `lightboxWidth()` is called fresh so
@@ -355,132 +386,24 @@
       // still sees it and flips photoReady back on.
       photoReady = false;
     }
-    if (!it || !it.blurhash) {
-      tint = null;
-      tintReady = false;
-      // Reset the freeze too so the next lightbox session decodes
-      // the first photo of that session (round-32 UX: tint frozen
-      // for the session so prev/next doesn't churn the backdrop).
-      tintFrozen = false;
-      return;
-    }
-    // Freeze the tint after the first decode of the session.
-    // Navigating prev/next keeps the original photo's tint so the
-    // backdrop stays calm — a smooth crossfade on lightbox open,
-    // then stable for the duration of the session. The flag resets
-    // above when the lightbox closes (no photo) so the next open
-    // picks a fresh tint from the new first photo.
-    if (tintFrozen) return;
-    // Crossfade the backdrop. Drop tintReady immediately so the
-    // existing layer animates OUT (opacity 0.65 → 0), then on the
-    // next animation frame after the new blurhash resolves, flip
-    // tintReady back to true so the new layer animates IN.
-    //
-    // Without the rAF we get a hard cut: Svelte updates the inline
-    // `background-image` style synchronously, and the browser
-    // composites both the old class and the new bg in a single
-    // paint, skipping the transition entirely. The rAF forces a
-    // paint at opacity 0 first so the next state change has a
-    // transition to run.
-    tintReady = false;
-    blurhashToDataUrl(it.blurhash, 80, 50).then((u) => {
-      tint = u;
-      requestAnimationFrame(() => {
-        tintReady = true;
-        tintFrozen = true;
-      });
-    });
+    // Phase 6d: the tint decode / freeze / crossfade live in
+    // useBlurhashTint. The composable's $effect tracks the
+    // current photo's blurhash, so a no-photo / no-blurhash
+    // situation automatically clears the tint and unfreezes
+    // it. The membership refresh below is the only remaining
+    // side effect for the photo-change case.
     // Refresh the membership indicator for the new photo. Done
     // in the same effect so a single `idx` change triggers both
     // (one round trip, no flicker between the two updates).
     void refreshMembership();
   });
 
-  // Adjacent-photo preloader. Runs on every `idx` change so the
-  // preload window tracks the cursor. Reactive deps: `idx` (the
-  // cursor) and `playing` (window expands during slideshow). We
-  // deliberately do NOT track `photoUrl`'s width argument —
-  // `lightboxWidth()` reads `window.innerWidth`, which is reactive
-  // in Svelte 5 only via the `if (browser)` guard, so a resize
-  // mid-lightbox may briefly leave a stale preload at the old
-  // width until the next navigation; that's fine — the cache
-  // entry is shared across widths via the `?w=...` query.
-  $effect(() => {
-    // Touch the deps so Svelte tracks them.
-    const cursor = idx;
-    const isPlaying = playing;
-    void items.length;
-
-    // Skip on single-photo lightbox or when the user opted into
-    // data-saver mode. `saveData` is the Network Information API
-    // flag; `prefers-reduced-data: reduce` is the OS-level setting
-    // we honour via matchMedia. Both are optional — old browsers
-    // simply lack them and we fall back to the default preload.
-    if (items.length <= 1) {
-      // Evict any leftover preload entries from a previous
-      // multi-photo session. The Set is the source of truth that
-      // the hidden <img> nodes mirror, so clearing it tells the
-      // template to remove them on the next render.
-      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
-      return;
-    }
-    const conn =
-      typeof navigator !== 'undefined'
-        ? (navigator as Navigator & {
-            connection?: { saveData?: boolean };
-          }).connection
-        : undefined;
-    const saveData =
-      !!conn?.saveData ||
-      (typeof window !== 'undefined' &&
-        !!window.matchMedia?.('(prefers-reduced-data: reduce)').matches);
-    if (saveData) {
-      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
-      return;
-    }
-
-    // Distance: ±3 during slideshow so a 1s cadence doesn't
-    // race the network; ±1 otherwise.
-    const distance = isPlaying ? 3 : 1;
-    const want = new Set<string>();
-    for (let d = 1; d <= distance; d++) {
-      // Wrap-around only while the slideshow is running —
-      // manual prev at the first photo and next at the last
-      // are intentionally disabled, so preloading the wrap
-      // would be wasted bandwidth.
-      if (isPlaying) {
-        const nextIdx = (cursor + d) % items.length;
-        const prevIdx = (cursor - d + items.length) % items.length;
-        const nextIt = items[nextIdx];
-        const prevIt = items[prevIdx];
-        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
-        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
-      } else {
-        const nextIt = items[cursor + d];
-        const prevIt = items[cursor - d];
-        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
-        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
-      }
-    }
-
-    // Evict entries that fell out of the window. Without this,
-    // a fast scrub through a 1000-photo grid would mount 1000
-    // hidden <img> nodes; the browser would keep them all
-    // cached and we'd hold 1000 decoded bitmaps in memory.
-    let changed = false;
-    const next = new Set<string>();
-    for (const src of want) {
-      if (preloadedSrcs.has(src) || src === photoSrc) next.add(src);
-      else {
-        next.add(src);
-        changed = true;
-      }
-    }
-    for (const src of preloadedSrcs) {
-      if (!next.has(src)) changed = true;
-    }
-    if (changed) preloadedSrcs = next;
-  });
+  // Phase 6c: the 80-line preload $effect is now preloader
+  // (usePhotoPreloader). The distance / wrap-around / data-
+  // saver / eviction logic is all in the composable. The
+  // composable's own $effect tracks the same deps (idx,
+  // slideshow.playing, items.length, photoSrc) so no
+  // placeholder effect is needed here.
 
   function prev() {
     // Snapshot the playing flag before mutating it. We want
@@ -490,8 +413,8 @@
     // to the previous photo is the intuitive continuation.
     // Outside that window, respect the pre-slideshow boundary
     // (prev disabled at the first photo).
-    const wasPlaying = playing;
-    if (playing) playing = false;
+    const wasPlaying = slideshow.playing;
+    if (wasPlaying) slideshow.pause();
     if (!wasPlaying) {
       if (idx > 0) idx -= 1;
       return;
@@ -500,8 +423,8 @@
     idx = (idx - 1 + items.length) % items.length;
   }
   function next() {
-    const wasPlaying = playing;
-    if (playing) playing = false;
+    const wasPlaying = slideshow.playing;
+    if (wasPlaying) slideshow.pause();
     if (!wasPlaying) {
       if (canAdvance(idx, items.length)) {
         idx += 1;
@@ -529,84 +452,9 @@
     idx = (idx + 1) % items.length;
   }
 
-  function onKey(e: KeyboardEvent) {
-    // ArrowLeft/ArrowRight and Escape always run, regardless of
-    // what's focused — they're navigation, not activation.
-    if (e.key === 'Escape') onClose();
-    else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') prev();
-    else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
-    else if (e.key === 'Home') {
-      // Jump to first photo. Same button-focus caveat as Space —
-      // don't fight the browser's synthetic click on a focused
-      // button.
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = 0;
-      }
-    } else if (e.key === 'End') {
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = items.length - 1;
-      }
-    } else if (e.key === 'PageUp') {
-      // Skip back 10 — large-grid navigation. Bound to [0, N-1].
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = Math.max(0, idx - 10);
-      }
-    } else if (e.key === 'PageDown') {
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = Math.min(items.length - 1, idx + 10);
-      }
-    } else if (e.key === 'f' || e.key === 'F') {
-      // Like / Unlike shortcut. Disabled while typing in a
-      // text field so we don't steal keys from the rename
-      // input on the Add-to-album dialog, etc.
-      if (e.target instanceof HTMLElement) {
-        const tag = e.target.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      }
-      e.preventDefault();
-      toggleFavorite();
-    } else if (e.key === 'd' || e.key === 'D') {
-      // Wait — 'd' is already used for Next (alongside ArrowRight).
-      // Reuse the same key, but only when Shift is NOT held —
-      // Shift+D is a different gesture and shouldn't fire dislike.
-      // Actually, looking at the existing handler: 'd' (no Shift)
-      // calls next(). So we can't double-up on plain 'd' for
-      // dislike without breaking the existing shortcut. Users
-      // who want a keyboard shortcut for dislike can use the
-      // right-click context menu or the on-screen button.
-      // (Skip — see comment below.)
-    } else if (e.key === ' ' || e.code === 'Space') {
-      // Space natively activates focused buttons. If we also
-      // fire togglePlay() here, the synthetic click from the
-      // button + our handler would net out to no-op and the
-      // timer would never start. So skip our handler when a
-      // button is focused and let the browser fire the click
-      // naturally. ArrowLeft/Right don't have this issue since
-      // browsers don't fire synthetic clicks for them on
-      // buttons.
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') {
-        return;
-      }
-      // Toggle the slideshow. Only meaningful when there's more
-      // than one photo to cycle through (the same gate the
-      // button uses to render itself). preventDefault stops
-      // Space from also scrolling the page underneath the
-      // lightbox — body overflow is hidden anyway, but
-      // belt-and-braces against future layout changes.
-      if (items.length >= 2) {
-        e.preventDefault();
-        togglePlay();
-      }
-    }
-  }
+  // Phase 6b: the 75-line onKey handler is now keyboard.handleKey.
+  // The dispatch table, focus gates, and boundary clamps all live
+  // in useKeyboardNav; see that module for the test coverage.
   onMount(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -621,16 +469,18 @@
   });
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={keyboard.handleKey} />
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="overlay"
-  style={tint ? `--glass-tint: url(${tint})` : undefined}
+  style={tintLayer.tint ? `--glass-tint: url(${tintLayer.tint})` : undefined}
   onclick={onClose}
   role="dialog"
   aria-modal="true"
+  tabindex="-1"
 >
-  {#if tint}
+  {#if tintLayer.tint}
     <!-- Crossfade the tint layer when its background-image swaps.
          The opacity transition runs on the same axis as the photo
          crossfade (both 150 ms), so the user perceives a single
@@ -642,12 +492,15 @@
          paint the new one and animate down/up). -->
     <div
       class="tint"
-      class:tint-ready={tintReady}
+      class:tint-ready={tintLayer.tintReady}
       style:background-image="var(--glass-tint)"
       aria-hidden="true"
     ></div>
   {/if}
-  <div class="content" onclick={onClose} oncontextmenu={(e) => e.preventDefault()}>
+  <!-- role="presentation" — click-swallowing layer;
+       the real <button>s inside handle their own
+       keydown. -->
+  <div class="content" role="presentation" onclick={onClose} oncontextmenu={(e) => e.preventDefault()}>
     <button class="nav close" type="button" onclick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">
       <Icon name="close" size={20} />
     </button>
@@ -655,13 +508,12 @@
       class="nav prev"
       type="button"
       onclick={(e) => { e.stopPropagation(); prev(); }}
-      disabled={!playing && idx === 0}
+      disabled={!slideshow.playing && idx === 0}
       aria-label="Previous"
     >
       <Icon name="chevron-left" size={22} />
     </button>
     {#if current()}
-      {@const it = current()!}
       <!-- Single reusable <img>; src updates reactively when idx
            changes. Crossfade via .photo { opacity } tied to
            photoReady so the new image only fades in once the
@@ -697,7 +549,7 @@
          The Set is the source of truth — additions/removals
          drive mount/unmount. aria-hidden + tabindex=-1 so
          screen readers and keyboard focus skip them. -->
-    {#each [...preloadedSrcs] as preloadSrc (preloadSrc)}
+    {#each [...preloader.preloadedSrcs] as preloadSrc (preloadSrc)}
       <img
         class="preload"
         aria-hidden="true"
@@ -713,22 +565,25 @@
       class="nav next"
       type="button"
       onclick={(e) => { e.stopPropagation(); next(); }}
-      disabled={!playing && !canAdvance(idx, items.length) && !(hasMore && items.length > 0)}
+      disabled={!slideshow.playing && !canAdvance(idx, items.length) && !(hasMore && items.length > 0)}
       aria-label="Next"
     >
       <Icon name="chevron-right" size={22} />
     </button>
   </div>
 
-  <div class="bar glass-strong" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
+  <!-- role="presentation" — bottom bar that swallows
+       clicks (so the bar tap doesn't close the lightbox).
+       Real <button>s inside handle their own keydown. -->
+  <div class="bar glass-strong" role="presentation" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
       <span class="count">{idx + 1} / {items.length}</span>
       {#if items.length >= 2}
         <ActionButton
-          onclick={togglePlay}
-          title={playing ? 'Pause slideshow (Space)' : 'Play slideshow (Space)'}
-          ariaPressed={playing ? 'true' : 'false'}
+          onclick={slideshow.togglePlay}
+          title={slideshow.playing ? 'Pause slideshow (Space)' : 'Play slideshow (Space)'}
+          ariaPressed={slideshow.playing ? 'true' : 'false'}
         >
-          <Icon name={playing ? 'pause' : 'play'} size={14} />
+          <Icon name={slideshow.playing ? 'pause' : 'play'} size={14} />
         </ActionButton>
       {/if}
       <ActionButton

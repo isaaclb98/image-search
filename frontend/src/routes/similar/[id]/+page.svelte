@@ -45,8 +45,8 @@
       // vector top-k and there's no "next page" semantics.
       const res = await similarPhotos(id, MAX_TOTAL);
       items = (res?.results ?? []) as Item[];
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to load similar photos';
+    } catch (e: unknown) {
+      error = (e as Error).message ?? 'Failed to load similar photos';
     } finally {
       loading = false;
     }
@@ -62,6 +62,7 @@
         x.id === id ? { ...x, is_favorite: !liked } : x
       );
     } catch {
+      /* noop: like/unlike failure leaves state unchanged */
     }
   }
 
@@ -74,6 +75,7 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
+      /* noop: dislike failure leaves state unchanged */
     }
   }
 

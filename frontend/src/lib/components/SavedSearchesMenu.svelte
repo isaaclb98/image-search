@@ -8,7 +8,6 @@
    *
    * Surfaces a "save current search" action as well.
    */
-  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import {
     listSavedSearches,
@@ -35,7 +34,8 @@
     try {
       const res = (await listSavedSearches()) as { saved_searches: SavedSearch[] };
       items = res.saved_searches ?? [];
-    } catch (e) {
+    } catch (_e) {
+      /* noop: keep stale items visible on transient failure */
     } finally {
       loading = false;
     }
@@ -68,7 +68,8 @@
         negatives
       });
       await refresh();
-    } catch (e) {
+    } catch (_e) {
+      /* noop: dialog already surfaces nothing; refresh on next open */
     }
   }
 
@@ -90,6 +91,7 @@
       await deleteSavedSearch(id);
       items = items.filter((s) => s.id !== id);
     } catch {
+      /* noop: keep current list if delete fails */
     }
   }
 </script>

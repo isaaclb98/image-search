@@ -23,12 +23,15 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import {
     listAlbums,
     createAlbum,
     deleteAlbum,
     listFavorites,
     listDislikes,
+    getFavoriteCount,
+    getDislikeCount,
     thumbUrl
   } from '$lib/api/endpoints';
   import { dialog } from '$lib/components/Dialog.svelte';
@@ -43,8 +46,8 @@
   const LIKES_CENTROID = 'likes';
   const DISLIKES_CENTROID = 'dislikes';
 
-  function searchByAlbum(centroidName: string) {
-    goto(`/?centroid=${encodeURIComponent(centroidName)}`);
+  async function searchByAlbum(centroidName: string) {
+    await goto(resolve(`/?centroid=${encodeURIComponent(centroidName)}`));
   }
 
   function searchByUserAlbum(albumId: number) {
@@ -68,7 +71,8 @@
     try {
       const res = (await listAlbums()) as { albums: AlbumSummary[] };
       albums = res?.albums ?? [];
-    } catch (e: any) {
+    } catch {
+      /* noop: keep previous album list on transient failure */
     } finally {
       loading = false;
     }
@@ -76,14 +80,16 @@
 
   async function refreshSystemCounts() {
     try {
-      // Fetch from the raw endpoints (no `as_results=1`) because
-      // the SearchResponse wrapper doesn't carry a count.
-      const [favs, dis] = await Promise.all([
-        fetch('/api/favorites?limit=1').then((r) => r.json()),
-        fetch('/api/dislikes?limit=1').then((r) => r.json())
+      // Phase 2: getFavoriteCount / getDislikeCount wrap the
+      // raw `/api/favorites?limit=1` and `/api/dislikes?limit=1`
+      // endpoints with Zod validation. No need for a hand-rolled
+      // extractCount shim once the response is typed.
+      const [likes, dislikes] = await Promise.all([
+        getFavoriteCount(),
+        getDislikeCount()
       ]);
-      likesCount = extractCount(favs);
-      dislikesCount = extractCount(dis);
+      likesCount = likes;
+      dislikesCount = dislikes;
     } catch {
       // Counts are decorative; a 502 on count fetch shouldn't
       // blank the whole page.
@@ -113,27 +119,6 @@
     }
   }
 
-  // /api/favorites returns {favorites: [...], total: N}
-  // /api/dislikes returns {items: [...], count: N}
-  // Different shapes — handle both.
-  function extractCount(body: unknown): number {
-    if (Array.isArray(body)) return body.length;
-    if (body && typeof body === 'object') {
-      const o = body as Record<string, unknown>;
-      // /api/favorites uses `total`, /api/dislikes uses `count`.
-      if (typeof o.total === 'number') return o.total;
-      if (typeof o.count === 'number') return o.count;
-      // Fallback: length of the array under any key.
-      const list =
-        (o.favorites as unknown[]) ??
-        (o.dislikes as unknown[]) ??
-        (o.items as unknown[]) ??
-        [];
-      if (Array.isArray(list)) return list.length;
-    }
-    return 0;
-  }
-
   async function create() {
     const name = await dialog.prompt({
       title: 'Create album',
@@ -146,6 +131,7 @@
       await createAlbum({ name: name.trim() });
       await refresh();
     } catch {
+      /* noop: dialog handles user feedback; refresh on next open */
     }
   }
 
@@ -161,6 +147,7 @@
       await deleteAlbum(id);
       albums = albums.filter((a) => a.id !== id);
     } catch {
+      /* noop: keep current list if delete fails */
     }
   }
 
@@ -195,7 +182,7 @@
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
-    <a class="title" href="/albums/likes">
+    <a class="title" href={resolve('/albums/likes')}>
       <span>Likes</span>
     </a>
     <!-- Round-61: removed the description ("Photos you've liked.
@@ -234,7 +221,7 @@
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
-    <a class="title" href="/albums/dislikes">
+    <a class="title" href={resolve('/albums/dislikes')}>
       <span>Dislikes</span>
     </a>
     <!-- Round-61: removed the description ("Photos you've
@@ -266,7 +253,7 @@
         {:else}
           <div class="cover cover-empty" aria-hidden="true"></div>
         {/if}
-        <a class="title" href="/albums/{a.id}">{a.name}</a>
+        <a class="title" href={resolve(`/albums/${a.id}`)}>{a.name}</a>
         {#if a.description}<p class="desc">{a.description}</p>{/if}
         <footer>
           <span class="count">{a.member_count ?? 0} photos</span>
