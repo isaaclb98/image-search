@@ -20,21 +20,26 @@
  * is a nice-to-have, never a hard requirement.
  */
 import { writable } from 'svelte/store';
+import { SLIDESHOW_PRESETS_MS, DEFAULT_SLIDESHOW_MS } from '$lib/api/limits';
 
 const STORAGE_KEY = 'image-search:preferences';
 
-export type SlideshowPreset = 1000 | 3000 | 5000 | 10000 | 20000 | 30000;
+export type SlideshowPreset = (typeof SLIDESHOW_PRESETS_MS)[number];
 
-export const SLIDESHOW_PRESETS: { label: string; ms: SlideshowPreset }[] = [
-  { label: '1s', ms: 1000 },
-  { label: '3s', ms: 3000 },
-  { label: '5s', ms: 5000 },
-  { label: '10s', ms: 10000 },
-  { label: '20s', ms: 20000 },
-  { label: '30s', ms: 30000 }
-];
+// Phase 1: SLIDESHOW_PRESETS_MS is now the source of truth in
+// $lib/api/limits (mirrors the backend's slideshow cadence).
+// This module keeps the labelled UI version, derived from the
+// numeric preset list, so the Settings page can show "1s / 3s
+// / 5s / 10s / 20s / 30s" without duplicating the ms values.
+export const SLIDESHOW_PRESETS: { label: string; ms: SlideshowPreset }[] =
+  SLIDESHOW_PRESETS_MS.map((ms) => ({
+    label: ms < 1000 ? `${ms}ms` : `${Math.round(ms / 1000)}s`,
+    ms
+  }));
 
-export const DEFAULT_SLIDESHOW_MS: SlideshowPreset = 3000;
+// Re-exported for callers (e.g. preferences.test.ts) that
+// historically read DEFAULT_SLIDESHOW_MS from this module.
+export { DEFAULT_SLIDESHOW_MS };
 
 type Preferences = {
   slideshowIntervalMs: number;

@@ -37,7 +37,14 @@
    * controllable knob.
    */
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import {
+    GRID_PAGE_SIZE,
+    POOL_STOPS_FOR_YOU,
+    DEFAULT_POOL_INDEX_FOR_YOU,
+    DEFAULT_TEMPERATURE,
+    TEMPERATURE_MIN,
+    TEMPERATURE_MAX
+  } from '$lib/api/limits';
   import { SvelteMap } from 'svelte/reactivity';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -54,21 +61,12 @@
   };
 
   const PAGE = GRID_PAGE_SIZE;
-  // Round-88: temperature / pool bounds mirror the home-page
-  // Surprise Me sliders. Same Gumbel mechanism, so the user
-  // gets a consistent experience across the app.
-  const TEMPERATURE_MIN = 0;
-  const TEMPERATURE_MAX = 1;
-  // 6 log-spaced stops. The rightmost is the upper bound for
-  // the route. Log spacing because the taste pool can be much
-  // larger than the cosine pool (top-2k is already plenty).
-  const POOL_STOPS = [200, 500, 1_000, 2_000, 10_000, 50_000] as const;
-  // Default pool is index 3 = 2,000. Smaller than the home
-  // page's 5,000 default because the taste pool is denser
-  // (every photo has a strong relevance signal) so 2,000
-  // already covers the top of the curve.
-  const DEFAULT_POOL_INDEX = 3;
-  const DEFAULT_TEMPERATURE = 0.05;
+  // Phase 1: temperature / pool bounds now live in
+  // $lib/api/limits (POOL_STOPS_FOR_YOU, DEFAULT_POOL_INDEX_FOR_YOU,
+  // TEMPERATURE_MIN, TEMPERATURE_MAX, DEFAULT_TEMPERATURE) so the
+  // home page Surprise Me and the for-you Surprise Me read the
+  // same source of truth. The local POOL_STOPS / DEFAULT_POOL_INDEX
+  // / DEFAULT_TEMPERATURE / TEMPERATURE_* consts are gone.
 
   let items = $state<Item[]>([]);
   let loading = $state(false);
@@ -77,8 +75,8 @@
   // Sliders update these freely; the "Surprise me" button
   // is the only thing that commits them into a request.
   let temperature = $state(DEFAULT_TEMPERATURE);
-  let poolSizeIndex = $state(DEFAULT_POOL_INDEX);
-  let poolSize = $derived(POOL_STOPS[poolSizeIndex]);
+  let poolSizeIndex = $state(DEFAULT_POOL_INDEX_FOR_YOU);
+  let poolSize = $derived(POOL_STOPS_FOR_YOU[poolSizeIndex]);
   let sessionId = $state<string | null>(null);
   // The seed is set fresh on every "Surprise me" press.
   // Same seed within a deck → same first page; paginated
@@ -104,7 +102,7 @@
   }
 
   function onPoolIndexChange(idx: number) {
-    const clamped = Math.max(0, Math.min(idx, POOL_STOPS.length - 1));
+    const clamped = Math.max(0, Math.min(idx, POOL_STOPS_FOR_YOU.length - 1));
     if (clamped === poolSizeIndex) return;
     poolSizeIndex = clamped;
   }
@@ -115,7 +113,7 @@
   }
 
   function formatPool(idx: number): string {
-    return POOL_STOPS[idx].toLocaleString();
+    return POOL_STOPS_FOR_YOU[idx].toLocaleString();
   }
 
   async function onSurprise() {
@@ -266,7 +264,7 @@
     <input
       type="range"
       min="0"
-      max={POOL_STOPS.length - 1}
+      max={POOL_STOPS_FOR_YOU.length - 1}
       step="1"
       value={poolSizeIndex}
       oninput={(e) => onPoolIndexChange(parseInt((e.target as HTMLInputElement).value, 10))}

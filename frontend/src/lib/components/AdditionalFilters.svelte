@@ -21,6 +21,7 @@
    * its own complete UI).
    */
   import CollectionsChips from './CollectionsChips.svelte';
+  import { POOL_STOPS_HOME, POOL_SIZE_MAX } from '$lib/api/limits';
 
   type Props = {
     open: boolean;
@@ -60,20 +61,20 @@
     onSurprisePoolIndex
   }: Props = $props();
 
-  // Surprise me pool slider stops. Log-spaced so the wide
-  // range from 200 to 50_000 fits in 5 ticks. The rightmost
-  // is the upper bound for the route (see POOL_SIZE_MAX in
-  // search/surprise_deck.py for the Qdrant HNSW ceiling).
-  const POOL_STOPS = [200, 1_000, 5_000, 20_000, 50_000] as const;
-  const POOL_MAX = POOL_STOPS[POOL_STOPS.length - 1];
+  // Surprise me pool slider stops. Imported from $lib/api/limits
+  // so the home page, AdditionalFilters, and the for-you page
+  // all read the same list of legal values.
+  // Phase 1: replaced the local POOL_STOPS const with
+  // POOL_STOPS_HOME. The rightmost is the upper bound for the
+  // route (mirrors POOL_SIZE_MAX in search/surprise_deck.py).
 
   // Format the pool size for the slider label. The rightmost
   // position resolves to the corpus size if it's smaller than
   // the slider max (a fresh install), otherwise "Max".
   function formatPool(idx: number, total: number | null): string {
-    const size = POOL_STOPS[idx] ?? POOL_STOPS[POOL_STOPS.length - 1];
-    if (size >= POOL_MAX) {
-      return total !== null && total < POOL_MAX
+    const size = POOL_STOPS_HOME[idx] ?? POOL_STOPS_HOME[POOL_STOPS_HOME.length - 1];
+    if (size >= POOL_SIZE_MAX) {
+      return total !== null && total < POOL_SIZE_MAX
         ? `All (${total.toLocaleString()})`
         : 'Max';
     }
@@ -163,7 +164,7 @@
                 <input
                   type="range"
                   min="0"
-                  max={POOL_STOPS.length - 1}
+                  max={POOL_STOPS_HOME.length - 1}
                   step="1"
                   value={surprisePoolIndex}
                   oninput={(e) =>

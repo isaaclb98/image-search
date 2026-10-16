@@ -33,7 +33,11 @@
     dislikePoint
   } from '$lib/api/endpoints';
   import type { SavedSearch } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import {
+    GRID_PAGE_SIZE,
+    POOL_STOPS_HOME,
+    DEFAULT_POOL_INDEX_HOME
+  } from '$lib/api/limits';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -104,14 +108,16 @@
   // Round-90: POOL_STOPS also lives in AdditionalFilters (the
   // Surprise section is rendered there now) so the slider
   // markup and the size-array stay in sync.
-  const POOL_STOPS = [200, 1_000, 5_000, 20_000, 50_000] as const;
-  let surprisePoolIndex = $state(2); // default = 5_000
-  let surprisePool = $derived(POOL_STOPS[surprisePoolIndex]);
+  // Phase 1: now imported from $lib/api/limits so the home page,
+  // AdditionalFilters, and the for-you page all read the same
+  // list of legal values. The local POOL_STOPS const is gone.
+  let surprisePoolIndex = $state(DEFAULT_POOL_INDEX_HOME);
+  let surprisePool = $derived(POOL_STOPS_HOME[surprisePoolIndex]);
   let surpriseSession = $state<string | null>(null);
   let surpriseTotal = $state<number | null>(null);
 
   function onPoolIndexChange(idx: number) {
-    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_STOPS.length - 1));
+    surprisePoolIndex = Math.max(0, Math.min(idx, POOL_STOPS_HOME.length - 1));
   }
 
   function readFromUrl() {
