@@ -31,10 +31,10 @@
    * Dimensions + Size.
    */
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import type { PageData } from './$types';
   import {
     photoUrl,
-    thumbUrl,
     likePoint,
     unlikePoint,
     dislikePoint,
@@ -84,7 +84,6 @@
   let photo = $state<PhotoMeta | null>(
     (data.photo as PhotoMeta | null) ?? null
   );
-  let loading = $state(false);
   let errorMsg = $state<string | null>(data.error ?? null);
   let actionInFlight = $state(false);
   // Albums for the "Add to album" dropdown. Lazy-loaded on first
@@ -95,7 +94,8 @@
   // already in. Loaded lazily on first dropdown open; refreshed
   // every time the dropdown opens so the indicator stays in
   // sync with the server.
-  let memberOf = $state<Set<number>>(new Set());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned on refresh; SvelteSet alone doesn't track the variable reference
+  let memberOf: SvelteSet<number> = $state(new SvelteSet());
   // Blurhash placeholder — async-decoded from the photo's blurhash
   // field after the metadata loads. Falls back to a dark surface
   // if decoding fails (no blurhash, malformed, etc.).
@@ -188,14 +188,14 @@
     }
   }
 
-  async function addPhotoToAlbumAction(albumId: number, albumName: string) {
+  async function addPhotoToAlbumAction(albumId: number, _albumName: string) {
     if (!photo) return;
     const inThisAlbum = memberOf.has(albumId);
     // Optimistic toggle: flip the Set locally so the
     // checkmark updates instantly, then call the API. On
     // failure, restore the previous Set.
     const before = memberOf;
-    const next = new Set(memberOf);
+    const next = new SvelteSet(memberOf);
     if (inThisAlbum) next.delete(albumId);
     else next.add(albumId);
     memberOf = next;
@@ -214,17 +214,18 @@
     if (!photo) return;
     try {
       const albumsForPhoto = await listAlbumsForFavorite(photo.id);
-      memberOf = new Set(albumsForPhoto.map((a) => a.id));
+      memberOf = new SvelteSet(albumsForPhoto.map((a) => a.id));
     } catch {
       // Leave the previous Set — a transient failure shouldn't
       // blank out the indicator.
     }
   }
 
-  async function copyText(value: string, label: string) {
+  async function copyText(value: string, _label: string) {
     try {
       await navigator.clipboard.writeText(value);
     } catch {
+      /* noop: clipboard write may fail in non-secure contexts */
     }
   }
 

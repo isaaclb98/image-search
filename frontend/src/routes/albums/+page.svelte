@@ -23,6 +23,7 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import {
     listAlbums,
     createAlbum,
@@ -43,8 +44,8 @@
   const LIKES_CENTROID = 'likes';
   const DISLIKES_CENTROID = 'dislikes';
 
-  function searchByAlbum(centroidName: string) {
-    goto(`/?centroid=${encodeURIComponent(centroidName)}`);
+  async function searchByAlbum(centroidName: string) {
+    await goto(resolve(`/?centroid=${encodeURIComponent(centroidName)}`));
   }
 
   function searchByUserAlbum(albumId: number) {
@@ -68,7 +69,8 @@
     try {
       const res = (await listAlbums()) as { albums: AlbumSummary[] };
       albums = res?.albums ?? [];
-    } catch (e: any) {
+    } catch {
+      /* noop: keep previous album list on transient failure */
     } finally {
       loading = false;
     }
@@ -146,6 +148,7 @@
       await createAlbum({ name: name.trim() });
       await refresh();
     } catch {
+      /* noop: dialog handles user feedback; refresh on next open */
     }
   }
 
@@ -161,6 +164,7 @@
       await deleteAlbum(id);
       albums = albums.filter((a) => a.id !== id);
     } catch {
+      /* noop: keep current list if delete fails */
     }
   }
 
@@ -195,7 +199,7 @@
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
-    <a class="title" href="/albums/likes">
+    <a class="title" href={resolve('/albums/likes')}>
       <span>Likes</span>
     </a>
     <!-- Round-61: removed the description ("Photos you've liked.
@@ -234,7 +238,7 @@
     {:else}
       <div class="cover cover-empty" aria-hidden="true"></div>
     {/if}
-    <a class="title" href="/albums/dislikes">
+    <a class="title" href={resolve('/albums/dislikes')}>
       <span>Dislikes</span>
     </a>
     <!-- Round-61: removed the description ("Photos you've
@@ -266,7 +270,7 @@
         {:else}
           <div class="cover cover-empty" aria-hidden="true"></div>
         {/if}
-        <a class="title" href="/albums/{a.id}">{a.name}</a>
+        <a class="title" href={resolve(`/albums/${a.id}`)}>{a.name}</a>
         {#if a.description}<p class="desc">{a.description}</p>{/if}
         <footer>
           <span class="count">{a.member_count ?? 0} photos</span>

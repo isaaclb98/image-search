@@ -93,6 +93,7 @@
       // paging through photos with arrow keys. The visual feedback
       // (filled heart) is enough.
     } catch {
+      /* intentional: keep lightbox open even if like fails */
     }
   }
 
@@ -105,15 +106,12 @@
       // Round‑28: same — keep the lightbox open. The user can close
       // it themselves or page to the next photo.
     } catch {
+      /* intentional: keep lightbox open even if dislike fails */
     }
   }
 
   function onPhotoOpen(item: Tile) {
     lightboxIndex = items.findIndex((x) => x.id === item.id);
-  }
-
-  function onClose() {
-    lightboxIndex = null;
   }
 
   onMount(() => {

@@ -30,6 +30,8 @@
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { SvelteSet } from 'svelte/reactivity';
   import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
@@ -42,9 +44,9 @@
     resolveStall
   } from './lightbox-pagination';
   import Dropdown from './Dropdown.svelte';
-  function goSimilar(id: string) {
+  async function goSimilar(id: string) {
     onClose();
-    goto(`/similar/${encodeURIComponent(id)}`);
+    await goto(resolve(`/similar/${encodeURIComponent(id)}`));
   }
 
   /**
@@ -182,7 +184,8 @@
   // feature-detected; old browsers that lack them get the
   // default ±1 preload (a strict-power-user setting, but that's
   // the conservative default for a desktop-class lightbox).
-  let preloadedSrcs = $state<Set<string>>(new Set());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned by $effect; SvelteSet alone doesn't track the variable reference
+  let preloadedSrcs: SvelteSet<string> = $state(new SvelteSet());
 
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
@@ -248,25 +251,22 @@
   // already belongs to. Loaded lazily when the user opens the
   // dropdown; reloaded after every add/remove so the visual
   // indicator stays in sync with the server.
-  let memberOf = $state<Set<number>>(new Set());
-  let membershipLoading = $state(false);
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned on refresh; SvelteSet alone doesn't track the variable reference
+  let memberOf: SvelteSet<number> = $state(new SvelteSet());
 
   async function refreshMembership() {
     const it = current();
     if (!it) return;
-    membershipLoading = true;
     try {
       const albumsForPhoto = await listAlbumsForFavorite(it.id);
-      memberOf = new Set(albumsForPhoto.map((a) => a.id));
+      memberOf = new SvelteSet(albumsForPhoto.map((a) => a.id));
     } catch {
       // Leave the previous Set in place — a transient failure
       // shouldn't blank out the indicator.
-    } finally {
-      membershipLoading = false;
     }
   }
 
-  async function toggleMembership(albumId: number, albumName: string) {
+  async function toggleMembership(albumId: number, _albumName: string) {
     const it = current();
     if (!it) return;
     const inThisAlbum = memberOf.has(albumId);
@@ -274,7 +274,7 @@
     // checkmark updates instantly, then call the API. On
     // failure, restore the previous Set.
     const before = memberOf;
-    const next = new Set(memberOf);
+    const next = new SvelteSet(memberOf);
     if (inThisAlbum) next.delete(albumId);
     else next.add(albumId);
     memberOf = next;
@@ -301,12 +301,8 @@
      own with no visual indicator until the timer first fires.
      Explicit Play also sidesteps prefers-reduced-motion entirely
      (the user who cares about motion sensitivity just won't hit
-     the button). `pausedByUser` tracks whether the user has
-     explicitly paused vs. the timer just being unstarted, which
-     is currently only used to keep the button label honest when
-     items shrink to a single entry mid-playback. */
+     the button). */
   let playing = $state(false);
-  let pausedByUser = $state(false);
 
   // Stop the timer if there's nothing to advance through (single
   // item or empty). Reactive on `items.length` so a re-load that
@@ -334,7 +330,6 @@
 
   function togglePlay() {
     playing = !playing;
-    pausedByUser = !playing;
   }
 
   // Re-run the photo-dependent effects whenever the current photo
@@ -421,7 +416,7 @@
       // multi-photo session. The Set is the source of truth that
       // the hidden <img> nodes mirror, so clearing it tells the
       // template to remove them on the next render.
-      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
+      if (preloadedSrcs.size > 0) preloadedSrcs = new SvelteSet();
       return;
     }
     const conn =
@@ -435,14 +430,14 @@
       (typeof window !== 'undefined' &&
         !!window.matchMedia?.('(prefers-reduced-data: reduce)').matches);
     if (saveData) {
-      if (preloadedSrcs.size > 0) preloadedSrcs = new Set();
+      if (preloadedSrcs.size > 0) preloadedSrcs = new SvelteSet();
       return;
     }
 
     // Distance: ±3 during slideshow so a 1s cadence doesn't
     // race the network; ±1 otherwise.
     const distance = isPlaying ? 3 : 1;
-    const want = new Set<string>();
+    const want = new SvelteSet<string>();
     for (let d = 1; d <= distance; d++) {
       // Wrap-around only while the slideshow is running —
       // manual prev at the first photo and next at the last
@@ -468,7 +463,7 @@
     // hidden <img> nodes; the browser would keep them all
     // cached and we'd hold 1000 decoded bitmaps in memory.
     let changed = false;
-    const next = new Set<string>();
+    const next = new SvelteSet<string>();
     for (const src of want) {
       if (preloadedSrcs.has(src) || src === photoSrc) next.add(src);
       else {
@@ -661,7 +656,6 @@
       <Icon name="chevron-left" size={22} />
     </button>
     {#if current()}
-      {@const it = current()!}
       <!-- Single reusable <img>; src updates reactively when idx
            changes. Crossfade via .photo { opacity } tied to
            photoReady so the new image only fades in once the

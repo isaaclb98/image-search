@@ -14,6 +14,7 @@
    * to PhotoGrid's intersection-observer sentinel.
    */
   import { onMount } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import {
     listFavorites,
     unlikePoint
@@ -49,8 +50,8 @@
       offset = items.length;
       hasMore = !!res?.has_more && items.length >= PAGE;
       error = null;
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to load likes';
+    } catch (e: unknown) {
+      error = (e as Error).message ?? 'Failed to load likes';
     } finally {
       loading = false;
     }
@@ -68,7 +69,7 @@
       items = [...items, ...more];
       offset += more.length;
       hasMore = !!res?.has_more && more.length >= PAGE;
-    } catch (e) {
+    } catch (_e) {
       // Leave the existing list intact; the user can keep paging
       // — losing scroll progress on a transient error is worse
       // than a stuck spinner. A clean cancel from the pre-fetch
@@ -84,9 +85,10 @@
   // for a 50-item list but noticeable at 1000+ items on a power
   // user's Likes album. The Map mirrors `items`; removals use
   // `splice(idx, 1)` for true O(1).
-  let indexById = $state(new Map<string, number>());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned by $effect; SvelteMap alone doesn't track the variable reference
+  let indexById: SvelteMap<string, number> = $state(new SvelteMap());
   $effect(() => {
-    const map = new Map<string, number>();
+    const map = new SvelteMap<string, number>();
     for (let i = 0; i < items.length; i++) {
       map.set(items[i].id, i);
     }
@@ -106,7 +108,7 @@
     items = next;
     try {
       await unlikePoint(id);
-    } catch (e: any) {
+    } catch {
       items = before;
     }
   }

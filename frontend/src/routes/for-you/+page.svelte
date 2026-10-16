@@ -38,6 +38,7 @@
    */
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import { SvelteMap } from 'svelte/reactivity';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Button from '$lib/components/Button.svelte';
@@ -58,8 +59,6 @@
   // gets a consistent experience across the app.
   const TEMPERATURE_MIN = 0;
   const TEMPERATURE_MAX = 1;
-  const POOL_SIZE_MIN = 200;
-  const POOL_SIZE_MAX = 50_000;
   // 6 log-spaced stops. The rightmost is the upper bound for
   // the route. Log spacing because the taste pool can be much
   // larger than the cosine pool (top-2k is already plenty).
@@ -145,12 +144,13 @@
       nextPage = 1;
       sessionId = res?.session_id ?? null;
       hasMore = !!res?.has_more && items.length > 0;
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (ctrl.signal.aborted) return;
       // 400 with "for-you requires at least one favourite"
       // is a friendly error, not a server problem. Surface
       // it inline.
-      const detail = e?.body?.detail ?? e?.message ?? '';
+      const eAny = e as { body?: { detail?: string }; message?: string };
+      const detail = eAny?.body?.detail ?? eAny?.message ?? '';
       if (typeof detail === 'string' && detail.includes('favourite')) {
         errorMsg = 'Like a few photos first to seed the taste signal.';
       } else {
@@ -181,7 +181,7 @@
       nextPage += 1;
       sessionId = res?.session_id ?? sessionId;
       hasMore = !!res?.has_more && more.length > 0;
-    } catch (e) {
+    } catch (_e) {
       if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
@@ -190,10 +190,11 @@
   }
 
   // Round-9 perf: O(1) item lookup + update via shadow Map.
-  let indexById = $state(new Map<string, number>());
+  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned by $effect; SvelteMap alone doesn't track the variable reference
+  let indexById: SvelteMap<string, number> = $state(new SvelteMap());
 
   $effect(() => {
-    const m = new Map<string, number>();
+    const m = new SvelteMap<string, number>();
     for (let i = 0; i < items.length; i++) m.set(items[i].id, i);
     indexById = m;
   });
@@ -218,6 +219,7 @@
     try {
       await dislikePoint(id);
     } catch {
+      /* noop: dislike failure is non-critical */
     }
   }
 </script>
@@ -291,7 +293,7 @@
 
 {#if items.length > 0 || loading}
   <PhotoGrid
-    items={items as any}
+    {items}
     {hasMore}
     {loading}
     onLoadMore={loadMore}

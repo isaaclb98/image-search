@@ -108,8 +108,8 @@ describe('continuous navigation walk', () => {
   });
 
   it('walk to the true end of data stops cleanly (no dead-end error, press dropped)', () => {
-    let len = 24;
-    let idx = 23;
+    const len = 24;
+    const idx = 23;
     const hasMore = () => false;
     const stall = stallForMore(idx, len, hasMore());
     expect(stall).toBeNull(); // press is simply dropped at end of data

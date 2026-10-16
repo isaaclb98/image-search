@@ -50,8 +50,8 @@
       offset = items.length;
       hasMore = !!res?.has_more && items.length >= PAGE;
       error = null;
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to load dislikes';
+    } catch (e: unknown) {
+      error = (e as Error).message ?? 'Failed to load dislikes';
     } finally {
       loading = false;
     }
@@ -69,7 +69,7 @@
       items = [...items, ...more];
       offset += more.length;
       hasMore = !!res?.has_more && more.length >= PAGE;
-    } catch (e) {
+    } catch (_e) {
       // Leave the existing list intact; the user can keep paging
       // — losing scroll progress on a transient error is worse
       // than a stuck spinner. A clean cancel from the pre-fetch
@@ -88,7 +88,7 @@
     items = items.filter((it) => it.id !== id);
     try {
       await undislikePoint(id);
-    } catch (e: any) {
+    } catch {
       items = before;
     }
   }

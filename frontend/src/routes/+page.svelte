@@ -20,6 +20,8 @@
   import { page } from '$app/stores';
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
+  import { resolve } from '$app/paths';
+  import { SvelteURLSearchParams } from 'svelte/reactivity';
   import PromptChips from '$lib/components/PromptChips.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
   import AdditionalFilters from '$lib/components/AdditionalFilters.svelte';
@@ -136,7 +138,7 @@
     // running a centroid search — that would cause the URL to
     // flicker and could re-trigger reload via onMount.
     if (activeCentroid) return;
-    const qs = new URLSearchParams();
+    const qs = new SvelteURLSearchParams();
     positives.forEach((p) => qs.append('positives', p));
     negatives.forEach((n) => qs.append('negatives', n));
     if (filename) qs.set('filename', filename);
@@ -284,7 +286,7 @@
         const total = (res as { session_total?: number | null })?.session_total;
         surpriseTotal = total ?? null;
       }
-    } catch (e) {
+    } catch (_e) {
       if (signal?.aborted) return; // clean cancel from pre-fetch retrigger
       hasMore = false;
     } finally {
@@ -302,6 +304,7 @@
         x.id === id ? { ...x, is_favorite: !liked } : x
       );
     } catch {
+      /* noop: like/unlike failure leaves state unchanged */
     }
   }
 
@@ -312,6 +315,7 @@
         x.id === id ? { ...x, is_disliked: true } : x
       );
     } catch {
+      /* noop: dislike failure leaves state unchanged */
     }
   }
 
@@ -398,7 +402,7 @@
          it by going to Settings → Index (or by closing it manually). -->
     <div class="empty-prompt" role="status">
       <span>No photos indexed yet.</span>
-      <a href="/settings">Go to Settings → Index</a>
+      <a href={resolve('/settings')}>Go to Settings → Index</a>
       <button class="dismiss" onclick={() => (indexIsEmpty = false)} aria-label="Dismiss">×</button>
     </div>
   {/if}

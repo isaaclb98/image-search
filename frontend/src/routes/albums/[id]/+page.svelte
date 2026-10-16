@@ -12,6 +12,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { getAlbum, removePhotoFromAlbum, deleteAlbum } from '$lib/api/endpoints';
   import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
@@ -61,8 +62,8 @@
       const total = res.member_total ?? members.length;
       hasMore = offset < total && members.length >= PAGE;
       error = null;
-    } catch (e: any) {
-      error = e?.message ?? 'Failed to load album';
+    } catch (e: unknown) {
+      error = (e as Error).message ?? 'Failed to load album';
     } finally {
       loading = false;
     }
@@ -83,7 +84,7 @@
       offset = members.length;
       const total = res.member_total ?? members.length;
       hasMore = offset < total && more.length >= PAGE;
-    } catch (e) {
+    } catch (_e) {
       // Leave the existing list intact; the user can keep paging
       // — losing scroll progress on a transient error is worse
       // than a stuck spinner. A clean cancel from the pre-fetch
@@ -130,7 +131,7 @@
     }
     try {
       await removePhotoFromAlbum(Number(albumId), pointId);
-    } catch (e: any) {
+    } catch {
       // Restore the previous state.
       members = before;
       if (detail && typeof detail.member_total === 'number') {
@@ -156,8 +157,9 @@
     if (!ok) return;
     try {
       await deleteAlbum(detail.id);
-      goto('/albums');
-    } catch (e: any) {
+      await goto(resolve('/albums'));
+    } catch (_e) {
+      /* noop: deletion succeeded but navigation may fail */
     }
   }
 </script>

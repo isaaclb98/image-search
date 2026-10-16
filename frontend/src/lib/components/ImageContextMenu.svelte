@@ -120,10 +120,11 @@
     if (path) navigator.clipboard?.writeText(path);
     onClose();
   }
-  async function addToAlbum(albumId: number, name: string) {
+  async function addToAlbum(albumId: number, _name: string) {
     try {
       await addPhotoToAlbum(albumId, pointId);
     } catch {
+      /* intentional: album add may fail if photo already in album */
     }
     onClose();
   }
