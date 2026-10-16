@@ -32,7 +32,7 @@ function makeController(opts: {
   });
   const onRemove = opts.onRemove ?? vi.fn().mockResolvedValue(undefined);
   return usePagedAlbumList<Item>({
-    pageSize: 3,
+    pageSize: () => 3,
     fetchPage,
     onRemove,
     useIndexMap: opts.useIndexMap
@@ -50,7 +50,7 @@ describe('usePagedAlbumList', () => {
 
   it('load: error path leaves a useful error string', async () => {
     const c = usePagedAlbumList<Item>({
-      pageSize: 3,
+      pageSize: () => 3,
       fetchPage: vi.fn().mockRejectedValue(new Error('boom')),
       onRemove: vi.fn()
     });
@@ -69,7 +69,7 @@ describe('usePagedAlbumList', () => {
 
   it('loadMore: abort signal is non-fatal', async () => {
     const c = usePagedAlbumList<Item>({
-      pageSize: 3,
+      pageSize: () => 3,
       fetchPage: vi
         .fn()
         .mockResolvedValueOnce({ results: [{ id: 'a' }], has_more: true })
@@ -94,7 +94,7 @@ describe('usePagedAlbumList', () => {
   it('loadMore: hasMore false → no fetch', async () => {
     const fetchPage = vi.fn();
     const c = usePagedAlbumList<Item>({
-      pageSize: 3,
+      pageSize: () => 3,
       fetchPage: fetchPage.mockResolvedValueOnce({
         results: [{ id: 'a' }],
         has_more: false

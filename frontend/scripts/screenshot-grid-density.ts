@@ -19,11 +19,6 @@ import * as path from 'node:path';
 const OUT_DIR = '/home/isaac/.hermes/cache/scratch/grid-density';
 const PREVIEW_URL = 'http://127.0.0.1:5173';
 const VIEWPORT = { width: 1600, height: 1000 };
-// A search query known to return plenty of results in the fixture
-// data. "cat" is a good neutral choice that works against the
-// SigLIP2 text encoder even on a generic K-pop dataset — it
-// tends to surface colorful/staged shots.
-const SEARCH_QUERY = 'cat';
 
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });

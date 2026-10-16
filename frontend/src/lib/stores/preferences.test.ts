@@ -188,4 +188,26 @@ describe('GRID_SIZE_CONFIG', () => {
     expect(large.maxCols).toBeLessThan(medium.maxCols);
     expect(medium.maxCols).toBeLessThan(small.maxCols);
   });
+
+  it('scales pageSize with maxCols so every size fills ~4 rows on first load', async () => {
+    const { GRID_SIZE_CONFIG } = await loadStore();
+    // Design intent: first-page result count = 4 rows × maxCols.
+    // This keeps every size at a clean multiple of the column
+    // count (no trailing partial row) and gives the user a
+    // viewport-filling initial grid. Pinned numbers, not just
+    // a ratio, so a future tweak that breaks the "no partial
+    // trailing row" promise will fail this test.
+    expect(GRID_SIZE_CONFIG.large.pageSize).toBe(24);
+    expect(GRID_SIZE_CONFIG.medium.pageSize).toBe(32);
+    expect(GRID_SIZE_CONFIG.small.pageSize).toBe(40);
+
+    // Cross-check: every pageSize is a multiple of maxCols and
+    // corresponds to 4 full rows. If a future preset adds a 5th
+    // col-count, this loop will catch the off-by-one.
+    for (const s of ['large', 'medium', 'small'] as const) {
+      const c = GRID_SIZE_CONFIG[s];
+      expect(c.pageSize % c.maxCols).toBe(0);
+      expect(c.pageSize / c.maxCols).toBe(4);
+    }
+  });
 });

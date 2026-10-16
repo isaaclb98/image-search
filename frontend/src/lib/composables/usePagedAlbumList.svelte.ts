@@ -23,8 +23,11 @@
 import { SvelteMap } from 'svelte/reactivity';
 
 export type PagedAlbumOptions = {
-  /** First page size. */
-  pageSize: number;
+  /** First page size, evaluated on every load/loadMore call so
+   *  a Settings → Grid size change applies on the next fetch.
+   *  Pass a getter (`() => PAGE`) so the value is read each
+   *  time, not captured once at composable init. */
+  pageSize: () => number;
   /** Fetch a single page. The endpoint is `as_results=1` —
    * the backend returns a SearchResponse envelope with
    * `results` + `has_more`. */
@@ -73,11 +76,12 @@ export function usePagedAlbumList<T extends { id: string }>(
   async function load() {
     loading = true;
     try {
-      const res = await opts.fetchPage(opts.pageSize, 0);
+      const pageSize = opts.pageSize();
+      const res = await opts.fetchPage(pageSize, 0);
       const fresh = (res.results ?? []) as T[];
       items = fresh;
       offset = fresh.length;
-      hasMore = !!res.has_more && fresh.length >= opts.pageSize;
+      hasMore = !!res.has_more && fresh.length >= pageSize;
       rebuildIndex();
       error = null;
     } catch (e: unknown) {
@@ -91,11 +95,12 @@ export function usePagedAlbumList<T extends { id: string }>(
     if (loading || loadingMore || !hasMore) return;
     loadingMore = true;
     try {
-      const res = await opts.fetchPage(opts.pageSize, offset, signal);
+      const pageSize = opts.pageSize();
+      const res = await opts.fetchPage(pageSize, offset, signal);
       const more = (res.results ?? []) as T[];
       items = [...items, ...more];
       offset += more.length;
-      hasMore = !!res.has_more && more.length >= opts.pageSize;
+      hasMore = !!res.has_more && more.length >= pageSize;
       rebuildIndex();
     } catch {
       // Leave the existing list intact; the user can keep

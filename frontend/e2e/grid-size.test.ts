@@ -114,6 +114,48 @@ test.describe('Grid size preference', () => {
     }
   });
 
+  test('/random fetches a per-grid-size page (Large=24, Medium=32, Small=40)', async ({ page }) => {
+    // Per-grid-size page size: 4 rows × maxCols. /random is
+    // the cleanest page to test this on because the grid IS
+    // the page (no hero) and the first load fires
+    // automatically on mount.
+    //
+    // Strategy: intercept the first /api/random?limit= call
+    // and assert the limit value matches the per-grid-size
+    // pageSize. This is the most direct test of the behavior
+    // (vs. counting DOM tiles, which is fragile because of
+    // virtualizer row-recycling).
+    const limits: Record<'large' | 'medium' | 'small', number> = {
+      large: 24,
+      medium: 32,
+      small: 40
+    };
+    for (const [size, expectedLimit] of Object.entries(limits) as Array<['large' | 'medium' | 'small', number]>) {
+      // Set the preference in localStorage before the page
+      // mounts. Going through localStorage is faster than
+      // clicking through the Settings page between every
+      // fetch.
+      await page.goto('/');
+      await page.evaluate((s) => {
+        const raw = localStorage.getItem('image-search:preferences');
+        const obj = raw ? JSON.parse(raw) : {};
+        obj.gridSize = s;
+        localStorage.setItem('image-search:preferences', JSON.stringify(obj));
+      }, size);
+      // Capture the first /api/random?limit= call. Wait for
+      // the request to fire after navigation.
+      const requestPromise = page.waitForRequest(
+        (req) => req.url().includes('/api/random') && !req.url().includes('offset='),
+        { timeout: 10000 }
+      );
+      await page.goto('/random', { waitUntil: 'domcontentloaded' });
+      const req = await requestPromise;
+      const url = new URL(req.url());
+      const limit = Number(url.searchParams.get('limit'));
+      expect(limit).toBe(expectedLimit);
+    }
+  });
+
   test('The CSS vars on :root reflect the chosen size', async ({ page }) => {
     // Pick Medium on Settings.
     await gotoSettings(page);

@@ -71,12 +71,23 @@ export interface GridSizeConfig {
   tile: number;
   gap: number;
   maxCols: number;
+  // First-page result count for infinite-scrolled grids
+  // (home search, /random). Scales with the grid so every
+  // size fills ~4 rows on initial load, matching the Large
+  // preset's historical "fills the viewport" target. Sized
+  // as a multiple of maxCols so the last row is always full
+  // — no awkward trailing partial row.
+  //
+  // 4 rows × N cols is the design intent. Large stays at 24
+  // (no behavior change for users who never touch the
+  // setting), Medium gets 32 (8×4), Small gets 40 (10×4).
+  pageSize: number;
 }
 
 export const GRID_SIZE_CONFIG: Record<GridSize, GridSizeConfig> = {
-  large: { tile: 240, gap: 14, maxCols: 6 },
-  medium: { tile: 192, gap: 8, maxCols: 8 },
-  small: { tile: 144, gap: 4, maxCols: 10 }
+  large: { tile: 240, gap: 14, maxCols: 6, pageSize: 24 },
+  medium: { tile: 192, gap: 8, maxCols: 8, pageSize: 32 },
+  small: { tile: 144, gap: 4, maxCols: 10, pageSize: 40 }
 };
 
 export const DEFAULT_GRID_SIZE: GridSize = 'large';

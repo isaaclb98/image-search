@@ -39,13 +39,13 @@
   import { forYouFeed, likePoint, unlikePoint, dislikePoint } from '$lib/api/endpoints';
   import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
   import {
-    GRID_PAGE_SIZE,
     POOL_STOPS_FOR_YOU,
     DEFAULT_POOL_INDEX_FOR_YOU,
     DEFAULT_TEMPERATURE,
     TEMPERATURE_MIN,
     TEMPERATURE_MAX
   } from '$lib/api/limits';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
   import { SvelteMap } from 'svelte/reactivity';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -61,7 +61,10 @@
     is_disliked?: boolean;
   };
 
-  const PAGE = GRID_PAGE_SIZE;
+  // Same per-grid-size scaling as home and /random: 4 rows ×
+  // maxCols at every size, so the first page fills the viewport
+  // regardless of which density the user picked.
+  const PAGE = $derived(GRID_SIZE_CONFIG[$preferences.gridSize].pageSize);
   // Phase 1: temperature / pool bounds now live in
   // $lib/api/limits (POOL_STOPS_FOR_YOU, DEFAULT_POOL_INDEX_FOR_YOU,
   // TEMPERATURE_MIN, TEMPERATURE_MAX, DEFAULT_TEMPERATURE) so the
