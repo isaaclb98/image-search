@@ -104,3 +104,88 @@ describe('preferences store', () => {
     }
   });
 });
+
+describe('grid size', () => {
+  it('starts at the default (Large) when localStorage is empty', async () => {
+    const { preferences: store, DEFAULT_GRID_SIZE } = await loadStore();
+    expect(get(store).gridSize).toBe('large');
+    expect(DEFAULT_GRID_SIZE).toBe('large');
+  });
+
+  it('persists grid size changes to localStorage', async () => {
+    const { preferences: store, setGridSize } = await loadStore();
+    setGridSize('small');
+    const raw = localStorage.getItem('image-search:preferences');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw ?? '{}');
+    expect(parsed.gridSize).toBe('small');
+    expect(get(store).gridSize).toBe('small');
+  });
+
+  it('rejects invalid grid size values', async () => {
+    const { preferences: store, setGridSize } = await loadStore();
+    setGridSize('medium');
+    expect(get(store).gridSize).toBe('medium');
+
+    // String outside the allowed union. The setGridSize guard
+    // is a runtime check, not a type-level one — the test
+    // exercises the runtime path by passing a typed cast
+    // that bypasses the union.
+    setGridSize('huge' as unknown as 'large' | 'medium' | 'small');
+    expect(get(store).gridSize).toBe('medium');
+
+    // Empty string.
+    setGridSize('' as unknown as 'large' | 'medium' | 'small');
+    expect(get(store).gridSize).toBe('medium');
+  });
+
+  it('falls back to default when localStorage has a tampered grid size', async () => {
+    localStorage.setItem(
+      'image-search:preferences',
+      JSON.stringify({ gridSize: 'huge' })
+    );
+    const { preferences: store, DEFAULT_GRID_SIZE } = await loadStore();
+    expect(get(store).gridSize).toBe(DEFAULT_GRID_SIZE);
+  });
+
+  it('loads a previously-saved grid size', async () => {
+    localStorage.setItem(
+      'image-search:preferences',
+      JSON.stringify({ gridSize: 'medium' })
+    );
+    const { preferences: store } = await loadStore();
+    expect(get(store).gridSize).toBe('medium');
+  });
+});
+
+describe('GRID_SIZE_CONFIG', () => {
+  it('exposes one entry per GridSize with sane numeric values', async () => {
+    const { GRID_SIZE_CONFIG, DEFAULT_GRID_SIZE } = await loadStore();
+    // Every key in the config must be one of the three valid
+    // GridSize values.
+    const configKeys = Object.keys(GRID_SIZE_CONFIG).sort();
+    expect(configKeys).toEqual(['large', 'medium', 'small']);
+    // The default must be one of the configured sizes.
+    expect(configKeys).toContain(DEFAULT_GRID_SIZE);
+    // Sanity-check the per-size numbers: tile + gap + maxCols
+    // are all positive integers, and the column density scales
+    // monotonically with the tile (smaller tile → more cols).
+    const sizes = ['large', 'medium', 'small'] as const;
+    for (const s of sizes) {
+      const c = GRID_SIZE_CONFIG[s];
+      expect(c.tile).toBeGreaterThan(0);
+      expect(c.gap).toBeGreaterThan(0);
+      expect(c.maxCols).toBeGreaterThan(0);
+      expect(Number.isInteger(c.tile)).toBe(true);
+      expect(Number.isInteger(c.gap)).toBe(true);
+      expect(Number.isInteger(c.maxCols)).toBe(true);
+    }
+    const large = GRID_SIZE_CONFIG.large;
+    const medium = GRID_SIZE_CONFIG.medium;
+    const small = GRID_SIZE_CONFIG.small;
+    expect(large.tile).toBeGreaterThan(medium.tile);
+    expect(medium.tile).toBeGreaterThan(small.tile);
+    expect(large.maxCols).toBeLessThan(medium.maxCols);
+    expect(medium.maxCols).toBeLessThan(small.maxCols);
+  });
+});

@@ -20,8 +20,20 @@
   import {
     preferences,
     SLIDESHOW_PRESETS,
-    setSlideshowInterval
+    setSlideshowInterval,
+    setGridSize,
+    type GridSize
   } from '$lib/stores/preferences';
+
+  // Grid size — three user-facing labels, single knob. The
+  // CSS/JS derive tile size, gap, and max columns from the
+  // choice via GRID_SIZE_CONFIG. Order matters: rendered
+  // left-to-right in the settings row.
+  const GRID_SIZE_PRESETS: { label: string; value: GridSize }[] = [
+    { label: 'Large', value: 'large' },
+    { label: 'Medium', value: 'medium' },
+    { label: 'Small', value: 'small' }
+  ];
 
   type IndexerStatusResponse = components['schemas']['IndexerStatusResponse'];
   type IndexerLogResponse = components['schemas']['IndexerLogResponse'];
@@ -202,6 +214,34 @@
           aria-checked={$preferences.slideshowIntervalMs === preset.ms}
           data-active={$preferences.slideshowIntervalMs === preset.ms}
           onclick={() => setSlideshowInterval(preset.ms)}
+        >
+          {preset.label}
+        </button>
+      {/each}
+    </div>
+  </section>
+
+  <section class="card glass">
+    <h2 class="card-title">Grid size</h2>
+    <p class="card-desc">
+      How dense the photo grid renders. Larger tiles are easier to
+      scan one at a time; smaller tiles pack more photos per row
+      and work better on wide monitors. Applies to every page that
+      shows the photo grid (home, /random, /for-you, /albums).
+    </p>
+    <div
+      class="preset-row"
+      role="radiogroup"
+      aria-label="Grid size"
+    >
+      {#each GRID_SIZE_PRESETS as preset (preset.value)}
+        <button
+          type="button"
+          class="preset"
+          role="radio"
+          aria-checked={$preferences.gridSize === preset.value}
+          data-active={$preferences.gridSize === preset.value}
+          onclick={() => setGridSize(preset.value)}
         >
           {preset.label}
         </button>
