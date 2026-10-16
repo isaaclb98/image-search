@@ -36,7 +36,6 @@ import secrets
 import time
 from typing import Any
 
-import numpy as np
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
@@ -47,6 +46,7 @@ from search._indexed_helpers import (
     resolve_filename_filter,
     results_from_hits,
 )
+from search._logging import log_qdrant_error, log_qdrant_timeout
 from search._result_helpers import (
     bad_request,
     coerce_view,
@@ -59,9 +59,9 @@ from search._result_helpers import (
     qdrant_unreachable,
 )
 from search.diversity import resolve_depth, resolve_mode
-from search.models import DiversityMetadata, SearchResponse
+from search.models import DiversityMetadata, SearchResponse, SearchResult
+from search.qdrant_client import SearchHit
 from search.surprise_deck import (
-    DEFAULT_DECK_SIZE,
     DEFAULT_POOL_SIZE,
     DEFAULT_TEMPERATURE,
     POOL_SIZE_MAX,
@@ -69,99 +69,11 @@ from search.surprise_deck import (
     TEMPERATURE_MAX,
     TEMPERATURE_MIN,
     SurpriseDeckCache,
+    build_surprise_deck,
     compute_cache_key,
-    gumbel_top_k,
 )
 
 logger = logging.getLogger(__name__)
-
-
-async def _build_surprise_deck(
-    *,
-    qdrant: Any,
-    vec: list[float],
-    collections: list[str],
-    surprise_allowed_ids: list[str] | None,
-    surprise_pool: int,
-    surprise_temperature: float,
-    surprise_seed: int,
-    surprise_session: str | None,
-    surprise_cache_key: str,
-    surprise_deck_cache: SurpriseDeckCache,
-    effective_limit: int,
-    offset: int,
-    exclude_ids: list[str] | None = None,
-) -> tuple[list, bool, list[str]]:
-    """
-    Build or fetch the Gumbel-sampled Surprise Me deck and return
-    the requested page.
-
-    The cache key doubles as the session id: same params → same
-    key → same deck. On a cache hit, no Qdrant search and no
-    Gumbel draw happen — we just slice the cached deck.
-
-    Returns `(hits_for_this_page, has_more, full_deck_ids)`.
-    `full_deck_ids` is the entire deck (not just this page) so
-    the caller can compute `session_total` for the response.
-    """
-    cached = (
-        surprise_deck_cache.get(surprise_cache_key)
-        if surprise_session and surprise_session == surprise_cache_key
-        else None
-    )
-    if cached is not None:
-        _, entry = cached
-        deck_ids = list(entry.point_ids)
-        deck_scores = list(entry.scores)
-    else:
-        pool_hits, _ = await asyncio.to_thread(
-            qdrant.search,
-            vec,
-            surprise_pool,
-            0,
-            collections or None,
-            surprise_allowed_ids,
-            exclude_ids,
-        )
-        scores = [h.score for h in pool_hits]
-        picked_indices = gumbel_top_k(
-            scores,
-            k=min(DEFAULT_DECK_SIZE, len(pool_hits)),
-            temperature=surprise_temperature,
-            rng=np.random.default_rng(surprise_seed),
-        )
-        deck_ids = [pool_hits[i].id for i in picked_indices]
-        # Capture the raw cosine of each picked photo. The hydration
-        # path (qdrant.retrieve_batch) doesn't compute scores — it
-        # only returns id+payload — so we need to set them here
-        # otherwise the UI shows 0.0 on hover.
-        deck_scores = [float(scores[i]) for i in picked_indices]
-        surprise_deck_cache.put(surprise_cache_key, deck_ids, deck_scores)
-
-    start = offset
-    end = start + effective_limit
-    page_ids = deck_ids[start:end]
-    has_more = end < len(deck_ids)
-    if not page_ids:
-        return [], has_more, deck_ids
-    hydrated = await asyncio.to_thread(qdrant.retrieve_batch, page_ids)
-    by_id = {h.id: h for h in hydrated}
-    # Use the deck order so a refresh of the same query+seed
-    # gives the same page. Override the (zeroed) score with the
-    # value captured during the pool search so the UI sees the
-    # real cosine similarity.
-    page_score_by_id = {
-        deck_ids[i]: deck_scores[i]
-        for i in range(start, min(end, len(deck_ids)))
-    }
-    hits: list = []
-    for pid in page_ids:
-        h = by_id.get(pid)
-        if h is None:
-            continue
-        h.score = page_score_by_id[pid]
-        hits.append(h)
-    return hits, has_more, deck_ids
 
 
 def build_search_router(
@@ -236,13 +148,13 @@ def build_search_router(
         try:
             diversity_mode, diversity_strength = resolve_mode(diversity, diverse)
         except ValueError as exc:
-            return bad_request(str(exc))  # type: ignore[return-value]
+            return bad_request(str(exc))
         try:
             diversity_depth_mode, diversity_pool_depth = resolve_depth(
                 diversity_depth, diversity_mode,
             )
         except ValueError as exc:
-            return bad_request(str(exc))  # type: ignore[return-value]
+            return bad_request(str(exc))
         diverse = diversity_mode != "off"
         if surprise and diverse:
             return bad_request(
@@ -275,15 +187,15 @@ def build_search_router(
         try:
             limit = int(limit)
         except (TypeError, ValueError):
-            return bad_request("limit must be an integer")  # type: ignore[return-value]
+            return bad_request("limit must be an integer")
         if not (1 <= limit <= cfg.top_k_max):
-            return bad_request(f"limit must be in [1, {cfg.top_k_max}]")  # type: ignore[return-value]
+            return bad_request(f"limit must be in [1, {cfg.top_k_max}]")
         try:
             offset = int(offset)
         except (TypeError, ValueError):
-            return bad_request("offset must be an integer")  # type: ignore[return-value]
+            return bad_request("offset must be an integer")
         if offset < 0:
-            return bad_request("offset must be >= 0")  # type: ignore[return-value]
+            return bad_request("offset must be >= 0")
         if offset >= cfg.max_results_total:
             return JSONResponse(
                 content=SearchResponse(
@@ -316,9 +228,9 @@ def build_search_router(
             try:
                 surprise_temperature_parsed = float(surprise_temperature)
             except (TypeError, ValueError):
-                return bad_request("surprise_temperature must be a number")  # type: ignore[return-value]
+                return bad_request("surprise_temperature must be a number")
             if not (TEMPERATURE_MIN <= surprise_temperature_parsed <= TEMPERATURE_MAX):
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"surprise_temperature must be in "
                     f"[{TEMPERATURE_MIN}, {TEMPERATURE_MAX}]; "
                     f"got {surprise_temperature_parsed}"
@@ -326,9 +238,9 @@ def build_search_router(
             try:
                 surprise_pool_parsed = int(surprise_pool)
             except (TypeError, ValueError):
-                return bad_request("surprise_pool must be an integer")  # type: ignore[return-value]
+                return bad_request("surprise_pool must be an integer")
             if not (POOL_SIZE_MIN <= surprise_pool_parsed <= POOL_SIZE_MAX):
-                return bad_request(  # type: ignore[return-value]
+                return bad_request(
                     f"surprise_pool must be in "
                     f"[{POOL_SIZE_MIN}, {POOL_SIZE_MAX}]; "
                     f"got {surprise_pool_parsed}"
@@ -341,7 +253,7 @@ def build_search_router(
                 try:
                     surprise_seed_parsed = int(surprise_seed)
                 except (TypeError, ValueError):
-                    return bad_request("surprise_seed must be an integer")  # type: ignore[return-value]
+                    return bad_request("surprise_seed must be an integer")
             # Cap pool to actual corpus size when oversized.
             try:
                 corpus_size = await asyncio.to_thread(qdrant.count_points)
@@ -351,6 +263,7 @@ def build_search_router(
 
         collections = parse_collections(request)
 
+        fav_task: asyncio.Task[set[str]] | None = None
         if surprise and not prompt_state.positives and not active_centroids:
             # Surprise with no query: use zero vector so Qdrant
             # returns results from the whole collection.
@@ -372,9 +285,9 @@ def build_search_router(
                 collections=collections,
             )
             if vec_err == "centroid_not_found":
-                return bad_request(vec_detail or f"centroid {active_centroid!r} not loaded")  # type: ignore[return-value]
+                return bad_request(vec_detail or f"centroid {active_centroid!r} not loaded")
             if vec_err == "empty":
-                return bad_request(vec_detail or "at least one positive prompt is required")  # type: ignore[return-value]
+                return bad_request(vec_detail or "at least one positive prompt is required")
 
         t0 = time.time()
         # If the client didn't pass a seed, generate a fresh random
@@ -386,10 +299,11 @@ def build_search_router(
         # type narrows to int and downstream callers see a real int.
         if surprise and surprise_seed_parsed is None:
             surprise_seed_parsed = secrets.randbelow(2**31)
-        # If the client is paginating an existing session, we don't
-        # need (or want) a fresh seed — the original request's seed
-        # is encoded in the session id. Use 0 as a placeholder; the
-        # session-id branch below skips compute_cache_key entirely.
+        # At this point, if `surprise` is True, `surprise_seed_parsed`
+        # is guaranteed non-None (either user-supplied or generated).
+        # Materialise the narrowed-typed values so downstream callers
+        # (build_surprise_deck) see `int` and `str` rather than
+        # `int | None` / `str | None`.
         seed_for_cache_key: int = (
             surprise_seed_parsed if surprise_seed_parsed is not None else 0
         )
@@ -432,11 +346,11 @@ def build_search_router(
         # `allowed_ids == []` short-circuit: skip the Qdrant round-trip
         # and return zero hits. See the matching block in `/` for why
         # we can't pass `has_id=[]` directly to HasIdCondition.
-        deck_ids: list = []  # populated by the surprise branch; empty otherwise
+        deck_ids: list[str] = []  # populated by the surprise branch; empty otherwise
         if allowed_ids is not None and not allowed_ids:
-            hits: list = []
+            hits: list[SearchHit] = []
             has_more = False
-            favorite_ids = set()
+            favorite_ids: set[str] = set()
             diversity_meta = DiversityMetadata(
                 requested=diverse,
                 applied=False,
@@ -448,7 +362,15 @@ def build_search_router(
         else:
             try:
                 if diverse:
-                    favorite_ids = await fav_task if fav_task is not None else None
+                    if fav_task is not None:
+                        favorite_ids = await fav_task
+                    else:
+                        # No favorites filter requested — pass None
+                        # to diversity_page so it takes the request's
+                        # search_allowed_ids verbatim (not an empty
+                        # allowed_ids, which would short-circuit to
+                        # zero hits).
+                        favorite_ids = None  # type: ignore[assignment]
                     hits, has_more, diversity_meta = diversity_page(
                         cfg, qdrant, diversity_cache,
                         vector=vec,
@@ -470,10 +392,19 @@ def build_search_router(
                     # set, run the Gumbel deck flow over the
                     # favorites-restricted pool; otherwise the
                     # plain page-through-the-pool flow.
-                    favorite_ids = await fav_task
+                    if fav_task is not None:
+                        favorite_ids = await fav_task
+                    else:
+                        favorite_ids = set()
                     fav_allowed = list(favorite_ids)
                     if surprise:
-                        hits, has_more, deck_ids = await _build_surprise_deck(
+                        assert surprise_seed_parsed is not None, (  # noqa: S101
+                            "surprise_seed_parsed must be set when surprise=True"
+                        )
+                        assert surprise_cache_key is not None, (  # noqa: S101
+                            "surprise_cache_key must be set when surprise=True"
+                        )
+                        hits, has_more, deck_ids = await build_surprise_deck(
                             qdrant=qdrant,
                             vec=vec,
                             collections=collections,
@@ -499,7 +430,13 @@ def build_search_router(
                     diversity_meta = DiversityMetadata()
                 elif surprise:
                     # Pure surprise (no favorites filter).
-                    hits, has_more, deck_ids = await _build_surprise_deck(
+                    assert surprise_seed_parsed is not None, (  # noqa: S101
+                        "surprise_seed_parsed must be set when surprise=True"
+                    )
+                    assert surprise_cache_key is not None, (  # noqa: S101
+                        "surprise_cache_key must be set when surprise=True"
+                    )
+                    hits, has_more, deck_ids = await build_surprise_deck(
                         qdrant=qdrant,
                         vec=vec,
                         collections=collections,
@@ -533,19 +470,24 @@ def build_search_router(
                     )
                     diversity_meta = DiversityMetadata()
             except (ConnectionError, OSError) as e:
-                logger.warning("Qdrant unreachable for /api/search: %s", e)
-                return qdrant_unreachable(str(e))  # type: ignore[return-value]
-            except Exception as e:
+                log_qdrant_error(logger, endpoint="/api/search", error=e, op="search")
+                return qdrant_unreachable(str(e))
+            except Exception as e:  # noqa: BLE001
                 if "timeout" in type(e).__name__.lower() or "Timeout" in str(e):
-                    logger.warning("Qdrant timeout: %s", e)
-                    return qdrant_timeout(str(e))  # type: ignore[return-value]
-                logger.exception("search failed")
-                return internal_error(str(e))  # type: ignore[return-value]
+                    log_qdrant_timeout(
+                        logger, endpoint="/api/search", op="search",
+                        timeout_ms=cfg.query_timeout_ms,
+                    )
+                    return qdrant_timeout(str(e))
+                log_qdrant_error(
+                    logger, endpoint="/api/search", error=e, op="search",
+                )
+                return internal_error(str(e))
         took_ms = int((time.time() - t0) * 1000)
         # Resolve fav/dis for the SearchResult list via the indexed
         # helper. The diversity path already pulled the favorite set;
         # this is the parallel lookup against the IndexDB cache.
-        results: list = await results_from_hits(
+        results: list[SearchResult] = await results_from_hits(
             index_db, cfg=cfg, hits=hits,
             favorite_ids=favorite_ids if favorites else None,
         )

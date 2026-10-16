@@ -43,7 +43,7 @@ def fake_index_db():
     db = MagicMock()
     db.qdrant_point_count.return_value = 42
     db.count_images.return_value = 40
-    db.last_refresh_time.return_value = "2026-08-22T00:00:00Z"
+    db.last_refresh_time.return_value = 1724280000.0  # 2024-08-22T00:00:00Z as epoch float
     return db
 
 

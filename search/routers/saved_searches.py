@@ -92,7 +92,7 @@ def build_saved_searches_router(
 
     @router.get(
         "/api/saved-searches",
-        response_model=SavedSearchListResponse,
+        response_model=None,
     )
     async def list_saved_searches(
         limit: int = Query(
@@ -101,7 +101,7 @@ def build_saved_searches_router(
         offset: int = Query(
             0, description="offset into saved searches",
         ),
-    ) -> SavedSearchListResponse:
+    ) -> JSONResponse | SavedSearchListResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         try:
             limit = int(limit)

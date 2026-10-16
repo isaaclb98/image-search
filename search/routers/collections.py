@@ -24,7 +24,7 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from search.models import ErrorResponse
+from search.models import CollectionsListResponse, ErrorResponse
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +33,13 @@ def build_collections_router(*, qdrant: Any) -> APIRouter:
     """Build the collections router with the live Qdrant client."""
     router = APIRouter()
 
-    @router.get("/api/collections")
-    async def list_collections():
+    @router.get("/api/collections", response_model=None)
+    async def list_collections() -> JSONResponse | CollectionsListResponse:
         """List distinct library collections with point counts."""
         try:
-            return {"collections": qdrant.list_collections_with_counts()}
+            return CollectionsListResponse(
+                collections=qdrant.list_collections_with_counts(),
+            )
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for /api/collections: %s", e)
             return JSONResponse(

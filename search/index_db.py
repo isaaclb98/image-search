@@ -833,7 +833,7 @@ class IndexDB:
                 ).fetchall()
         return [str(row["id"]) for row in rows]
 
-    def rows_by_ids(self, ids: list[str]) -> list[dict]:
+    def rows_by_ids(self, ids: list[str]) -> list[dict[str, Any]]:
         """Look up full row dicts for a list of point ids.
 
         Returns one row per id that exists in the cache. Order of
@@ -962,7 +962,7 @@ class IndexDB:
             ).fetchall()
         return [str(r["id"]) for r in rows]
 
-    def list_favorites(self, limit: int = 200, offset: int = 0) -> list[dict]:
+    def list_favorites(self, limit: int = 200, offset: int = 0) -> list[dict[str, Any]]:
         limit = max(0, int(limit))
         offset = max(0, int(offset))
         # INNER JOIN — a favourite whose photo id is no longer in the
@@ -1064,7 +1064,7 @@ class IndexDB:
             ).fetchall()
         return {row["id"] for row in rows}
 
-    def list_dislikes(self, limit: int = 200, offset: int = 0) -> list[dict]:
+    def list_dislikes(self, limit: int = 200, offset: int = 0) -> list[dict[str, Any]]:
         """Same JOIN shape as `list_favorites` so the dislike gallery
         page can reuse the result-grid partial without changes."""
         with self._lock:
@@ -1219,6 +1219,8 @@ class IndexDB:
                 self._conn.commit()
             except sqlite3.IntegrityError as e:
                 raise ValueError(f"album name already exists: {name!r}") from e
+        if cur.lastrowid is None:
+            raise RuntimeError("sqlite INSERT did not return lastrowid")
         return int(cur.lastrowid)
 
     def rename_album(
@@ -1275,7 +1277,7 @@ class IndexDB:
             self._conn.commit()
         return cur.rowcount > 0
 
-    def get_album(self, album_id: int) -> dict | None:
+    def get_album(self, album_id: int) -> dict[str, Any] | None:
         """Return one album row by id, or None if not found."""
         with self._lock:
             row = self._conn.execute(
@@ -1288,7 +1290,7 @@ class IndexDB:
             ).fetchone()
         return dict(row) if row else None
 
-    def list_albums(self) -> list[dict]:
+    def list_albums(self) -> list[dict[str, Any]]:
         """Return every album with its member count + first member.
 
         Ordered by name asc so the UI list is stable. Member
@@ -1401,7 +1403,7 @@ class IndexDB:
 
     def list_album_members(
         self, album_id: int, limit: int = 200, offset: int = 0,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Return paginated members of `album_id` with photo metadata.
 
         INNER JOIN against `images` so orphan memberships are
@@ -1447,7 +1449,7 @@ class IndexDB:
 
     def list_albums_for_favorite(
         self, favorite_id: str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Return every album containing `favorite_id`.
 
         Used by the per-favourite "in album X" UI badge so the
@@ -1511,7 +1513,7 @@ class IndexDB:
 
     def create_saved_search(
         self, name: str, positives: list[str], negatives: list[str],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Insert a new saved search. Returns the row as a dict.
 
         Raises ValueError on UNIQUE-name conflict (routes map this
@@ -1539,11 +1541,13 @@ class IndexDB:
                 self._conn.commit()
             except sqlite3.IntegrityError as e:
                 raise ValueError(f"saved search name already exists: {name!r}") from e
+        if cur.lastrowid is None:
+            raise RuntimeError("sqlite INSERT did not return lastrowid")
         return self.get_saved_search(int(cur.lastrowid)) or {}
 
     def list_saved_searches(
         self, limit: int = 200, offset: int = 0,
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[dict[str, Any]], int]:
         """Return (rows, total). Ordered by created_at DESC — newest
         saved searches surface at the top of the UI dropdown. Limit
         and offset are clamped to non-negative ints so callers don't
@@ -1564,12 +1568,14 @@ class IndexDB:
             total = self._conn.execute(
                 "SELECT COUNT(*) AS n FROM saved_searches"
             ).fetchone()
+        rows_typed = (_deserialize_saved_search_row(r) for r in rows)
+        deserialized = [r for r in rows_typed if r is not None]
         return (
-            [_deserialize_saved_search_row(r) for r in rows],
+            deserialized,
             int(total["n"] if total else 0),
         )
 
-    def get_saved_search(self, saved_id: int) -> dict | None:
+    def get_saved_search(self, saved_id: int) -> dict[str, Any] | None:
         """Return one saved search by id, or None if missing."""
         with self._lock:
             row = self._conn.execute(
@@ -1593,7 +1599,7 @@ class IndexDB:
             self._conn.commit()
         return cur.rowcount > 0
 
-    def get_by_id(self, point_id: str) -> dict | None:
+    def get_by_id(self, point_id: str) -> dict[str, Any] | None:
         # LEFT JOIN: photo metadata always returned, favourite info
         # filled in when present. (f.id IS NOT NULL) becomes the
         # boolean `is_favorite` field.
@@ -1669,7 +1675,7 @@ class IndexDB:
         ).fetchone()
         return row is not None
 
-    def _row_from_point(self, point: dict) -> dict:
+    def _row_from_point(self, point: dict[str, Any]) -> dict[str, Any]:
         payload = point.get("payload") or {}
         point_id = str(point.get("id") or payload.get("id") or "")
         path = str(payload.get("path") or "")
@@ -1686,7 +1692,7 @@ class IndexDB:
             "blurhash": str(payload.get("blurhash") or ""),
         }
 
-    def upsert_records(self, points) -> int:
+    def upsert_records(self, points: Any) -> int:
         """Round‑21: insert or replace rows in the local SQLite cache.
 
         Used by the SyncManager after moving points from
@@ -1765,7 +1771,7 @@ class IndexDB:
 
     def pick_random_rows(
         self, n: int, collections: list[str] | None = None
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Sample N rows from the cache, optionally filtered by collection.
 
         Returns a list of row dicts (id, path, shard, collection, mtime,
@@ -1823,7 +1829,7 @@ class IndexDB:
             # budget is `n * 25` picks — still O(n log N) for the
             # rowid lookups, still much cheaper than ORDER BY RANDOM().
             import random
-            results: list = []
+            results: list[dict[str, Any]] = []
             seen_ids: set[str] = set()
             attempts = 0
             while len(results) < n and attempts < 3:
@@ -1836,7 +1842,7 @@ class IndexDB:
                     continue
                 rid_placeholders = ",".join("?" for _ in picked)
                 where_parts = [f"i.rowid IN ({rid_placeholders})"]
-                params: list = [*picked]
+                params: list[Any] = [*picked]
                 if collections:
                     coll_placeholders = ",".join("?" for _ in collections)
                     where_parts.append(f"i.collection IN ({coll_placeholders})")
@@ -1891,7 +1897,7 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
-def _deserialize_saved_search_row(row: sqlite3.Row | dict | None) -> dict | None:
+def _deserialize_saved_search_row(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
     """Convert a saved_searches row into a JSON-friendly dict.
 
     `positives` and `negatives` are stored as JSON-encoded strings in

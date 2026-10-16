@@ -7,6 +7,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from fastapi import FastAPI
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -49,14 +51,14 @@ def _make_demo_images(root: Path, count: int) -> list[Path]:
     repo_root = Path(__file__).resolve().parent.parent
     if str(repo_root) not in _sys.path:
         _sys.path.insert(0, str(repo_root))
-    from scripts.synth_photos import generate as synth_generate  # type: ignore[import-not-found]
+    from scripts.synth_photos import generate as synth_generate
 
     root.mkdir(parents=True, exist_ok=True)
     result = synth_generate(root, count=count, prefix="demo", seed=42)
     return [Path(item["path"]) for item in result.index]
 
 
-def _build_demo_app(count: int):
+def _build_demo_app(count: int) -> FastAPI:
     """Build the real app against an in-memory Qdrant with local demo photos."""
     from qdrant_client import QdrantClient
     from qdrant_client.http import models as qmodels

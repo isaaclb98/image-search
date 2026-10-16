@@ -162,7 +162,7 @@ def parse_centroids(request: Request) -> list[str]:
     ]
 
 
-def parse_weights(request: Request, n: int):
+def parse_weights(request: Request, n: int) -> list[float] | None:
     """
     Parse `?weights=` from the request, returning a list of
     length `n` or None to mean "use defaults (all 1.0)".
@@ -226,3 +226,21 @@ def parse_weights(request: Request, n: int):
             detail=f"weights must be positive (got {out})",
         )
     return out
+
+
+
+# Public surface — explicit so `from search._result_helpers import *`
+# has a deterministic set and the docstring is one stop for
+# "what's in this module?".
+__all__ = [
+    "bad_request",
+    "coerce_view",
+    "diversity_metadata",
+    "internal_error",
+    "parse_centroids",
+    "parse_collections",
+    "parse_filename",
+    "parse_weights",
+    "qdrant_timeout",
+    "qdrant_unreachable",
+]

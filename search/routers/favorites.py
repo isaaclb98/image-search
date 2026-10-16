@@ -32,9 +32,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from search._result_helpers import bad_request as _bad_request_json
 from search.image_resolver import resolve_url
 from search.models import (
-    ErrorResponse,
+    FavoriteItem,
     FavoritesListResponse,
     FavoriteToggleResponse,
     SearchResponse,
@@ -42,18 +43,8 @@ from search.models import (
 )
 
 
-def _bad_request_json(detail: str) -> JSONResponse:
-    """Build a 400 JSONResponse with the documented error envelope."""
-    return JSONResponse(
-        status_code=400,
-        content=ErrorResponse(
-            error="bad_request", detail=detail, code="bad_request",
-        ).model_dump(),
-    )
-
-
 def _favorite_rows_to_results(
-    rows: list[dict], *, web_ui_url: str,
+    rows: list[dict[str, Any]], *, web_ui_url: str,
 ) -> list[SearchResult]:
     """Convert a list of favourite DB rows to SearchResult entries.
 
@@ -129,7 +120,7 @@ def build_favorites_router(
         invalidate_likes_centroid()
         invalidate_for_you()
 
-    @router.get("/api/favorites")
+    @router.get("/api/favorites", response_model=None)
     async def api_favorites(
         limit: int = Query(
             cfg.top_k_default, description="max favourites",
@@ -140,7 +131,7 @@ def build_favorites_router(
         as_results: bool = Query(
             False, description="return SearchResponse-compatible shape",
         ),
-    ):
+    ) -> SearchResponse | FavoritesListResponse | JSONResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         # No upper cap on limit — Likes albums can grow arbitrarily
         # large and the caller (frontend) walks them via
@@ -176,11 +167,11 @@ def build_favorites_router(
             )
         return FavoritesListResponse(
             favorites=[
-                {
-                    "id": str(row["id"]),
-                    "path": str(row["path"]),
-                    "favorited_at": str(row["favorited_at"] or ""),
-                }
+                FavoriteItem(
+                    id=str(row["id"]),
+                    path=str(row["path"]),
+                    favorited_at=str(row["favorited_at"] or ""),
+                )
                 for row in rows
             ],
             total=total,

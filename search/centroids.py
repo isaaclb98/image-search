@@ -38,6 +38,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import torch
 
@@ -46,12 +47,19 @@ import torch
 # helpers live in the dedicated compute module (B3 step 43) and are
 # surfaced here for backward compat with internal callers that import
 # them from `search.centroids` directly.
-from search.centroids_compute import (  # noqa: F401
+from search.centroids_compute import (
     blend_centroids,
     calibrate_near_dup_threshold,
     composite_centroid_name,
     filter_near_duplicates,
 )
+
+__all__ = [
+    "blend_centroids",
+    "calibrate_near_dup_threshold",
+    "composite_centroid_name",
+    "filter_near_duplicates",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +86,7 @@ class CentroidSpec:
     extracted_at: str
     source_path: Path
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """Public-facing summary for the JSON list endpoint."""
         return {
             "name": self.name,
@@ -246,7 +254,7 @@ class CentroidStore:
 
     # ----------------- public read API -----------------
 
-    def list(self) -> list[CentroidSpec]:
+    def list_all(self) -> list[CentroidSpec]:
         """Return all loaded centroids sorted by name."""
         return [self._by_name[n] for n in sorted(self._by_name)]
 
@@ -367,7 +375,7 @@ class DynamicCentroidSpec:
         "Not enough data yet — keep using the app and check back."
     )
 
-    def public_dict(self, n_images: int | None = None) -> dict:
+    def public_dict(self, n_images: int | None = None) -> dict[str, Any]:
         """JSON shape for /api/centroids. `n_images` is the count from
         the most recent successful compute, or None when nothing has
         been computed yet (cold cache).
@@ -500,7 +508,7 @@ class DynamicCentroidRegistry:
                 self._cache[name] = result
         return self._cache.get(name)
 
-    def list(self) -> list[DynamicCentroidSpec]:
+    def list_all(self) -> list[DynamicCentroidSpec]:
         with self._lock:
             return [self._by_name[n] for n in sorted(self._by_name)]
 

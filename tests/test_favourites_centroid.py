@@ -179,7 +179,7 @@ def test_registry_list_returns_sorted():
             name=name, label=name, description="", source="x",
             compute_fn=lambda: ([1.0], 1, ["s"]),
         ))
-    assert [s.name for s in reg.list()] == ["a", "b", "c"]
+    assert [s.name for s in reg.list_all()] == ["a", "b", "c"]
 
 
 @pytest.fixture

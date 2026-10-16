@@ -40,22 +40,13 @@ from typing import Any
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
+from search._result_helpers import bad_request as _bad_request_json
 from search.image_resolver import resolve_url
-from search.models import ErrorResponse, SearchResponse, SearchResult
-
-
-def _bad_request_json(detail: str) -> JSONResponse:
-    """Build a 400 JSONResponse with the documented error envelope."""
-    return JSONResponse(
-        status_code=400,
-        content=ErrorResponse(
-            error="bad_request", detail=detail, code="bad_request",
-        ).model_dump(),
-    )
+from search.models import SearchResponse, SearchResult
 
 
 def _dislike_rows_to_results(
-    rows: list[dict], *, web_ui_url: str, favorite_ids: set[str],
+    rows: list[dict[str, Any]], *, web_ui_url: str, favorite_ids: set[str],
 ) -> list[SearchResult]:
     """Convert dislike DB rows to SearchResult entries.
 
@@ -121,14 +112,14 @@ def build_dislikes_router(
         if invalidate_for_you is not None:
             invalidate_for_you()
 
-    @router.get("/api/dislikes")
+    @router.get("/api/dislikes", response_model=None)
     async def list_dislikes(
         limit: int = Query(cfg.top_k_default, description="max dislikes"),
         offset: int = Query(0, description="offset into dislikes"),
         as_results: bool = Query(
             False, description="return SearchResponse-compatible shape",
         ),
-    ):
+    ) -> SearchResponse | dict[str, Any] | JSONResponse:
         # Manual validation so we return 400 (not 422) for bad input.
         # No upper cap on limit — Dislikes albums can grow arbitrarily
         # large and the caller (frontend) walks them via

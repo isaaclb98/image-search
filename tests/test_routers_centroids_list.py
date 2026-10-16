@@ -44,7 +44,7 @@ def test_list_with_static_store_includes_metadata():
     store = MagicMock()
     spec = MagicMock()
     spec.as_dict.return_value = {"name": "kpop_vibes", "model": "siglip2", "dim": 1536}
-    store.list.return_value = [spec]
+    store.list_all.return_value = [spec]
     store.expected_model.return_value = "ViT-L-16-SigLIP2-256"
     store.expected_feature_dim.return_value = 1536
 
@@ -65,7 +65,7 @@ def test_list_with_dynamic_registry_includes_n_images_count():
     spec = MagicMock()
     spec.name = "favourites"
     spec.public_dict.return_value = {"name": "favourites", "n_images": 5}
-    dyn.list.return_value = [spec]
+    dyn.list_all.return_value = [spec]
     dyn.cached_n_images.return_value = 5
     # Trigger compute (cached) — get_vector is called once during the
     # response build to ensure n_images is populated.
@@ -86,7 +86,7 @@ def test_list_with_both_static_and_dynamic_returns_both_sections():
     store = MagicMock()
     static_spec = MagicMock()
     static_spec.as_dict.return_value = {"name": "album_X"}
-    store.list.return_value = [static_spec]
+    store.list_all.return_value = [static_spec]
     store.expected_model.return_value = "m"
     store.expected_feature_dim.return_value = 1536
 
@@ -94,7 +94,7 @@ def test_list_with_both_static_and_dynamic_returns_both_sections():
     dyn_spec = MagicMock()
     dyn_spec.name = "favourites"
     dyn_spec.public_dict.return_value = {"name": "favourites", "n_images": 10}
-    dyn.list.return_value = [dyn_spec]
+    dyn.list_all.return_value = [dyn_spec]
     dyn.cached_n_images.return_value = 10
     dyn.get_vector.return_value = [0.0] * 1536
 

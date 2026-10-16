@@ -18,6 +18,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import Any, cast
 
 import zipstream  # streaming ZIP writer for /favorites/download.zip
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -27,6 +28,7 @@ from qdrant_client import QdrantClient
 
 from image_search_kernel.qdrant_url import client_kwargs as _qdrant_client_kwargs
 from search import config, text_encoder
+from search._result_helpers import internal_error, qdrant_unreachable
 from search.centroids import (
     CentroidStore,
     DynamicCentroidRegistry,
@@ -41,10 +43,10 @@ from search.image_resolver import guess_content_type, resolve_local, resolve_url
 from search.index_db import DEFAULT_INDEX_DB_PATH, IndexDB
 from search.models import (
     DiversityMetadata,
-    ErrorResponse,
+    PromptState,
     SearchResult,
 )
-from search.qdrant_client import QdrantSearch
+from search.qdrant_client import QdrantSearch, SearchHit
 from search.random import RandomPicker
 from search.routers.for_you import invalidate_for_you_cache as _for_you_invalidate_deck
 from search.search_snapshot import SearchSnapshotCache
@@ -108,7 +110,13 @@ def _is_path_alive(path: str) -> bool:
         # so the caller skips it. The periodic refresh + scheduled
         # prune will eventually clean up the IndexDB row.
         exists = False
-    ttl = _cfg.path_liveness_ttl_seconds
+    if _cfg is None:  # noqa: SIM108 — if/else is clearer than ternary here
+        # Defensive: if config isn't loaded yet, fall back to a
+        # conservative TTL. The real TTL gets applied once create_app
+        # finishes wiring things up.
+        ttl = 60.0
+    else:
+        ttl = _cfg.path_liveness_ttl_seconds
     _path_liveness_cache[path] = (exists, now + ttl)
     # Evict the oldest 10% if we've blown past the cap. Cheap;
     # re-stats on next read. Defends against pathological workloads
@@ -123,7 +131,7 @@ def _is_path_alive(path: str) -> bool:
     return exists
 
 
-def _is_row_alive(row: dict | None) -> bool:
+def _is_row_alive(row: dict[str, Any] | None) -> bool:
     """True if the row's `path` field is currently alive on disk.
 
     Defensive wrapper: a None row is dead. Otherwise delegates to
@@ -208,11 +216,11 @@ def _resize_cached(point_id: str, width: int, source: Path) -> Path:
             # landscape with a rotation flag rather than the
             # rotated pixels. Without this fix-up, a portrait
             # shot would display sideways in the lightbox.
-            im = ImageOps.exif_transpose(im)
+            im = cast(Any, ImageOps.exif_transpose(im))
             im.load()  # force decode so resize sees real pixels
             # Convert non-JPEG sources to RGB for JPEG output.
             if im.mode not in ("RGB", "L"):
-                im = im.convert("RGB")
+                im = cast(Any, im.convert("RGB"))
             # Only downscale; never upscale. If the source is
             # smaller than the requested width, copy through.
             if im.width > width:
@@ -240,13 +248,15 @@ def _resize_cached(point_id: str, width: int, source: Path) -> Path:
 
 def _coerce_view(raw: str | None) -> str:
     """Return 'grid' or 'feed' from a query-param value; fallback to default."""
+    if _cfg is None:
+        return "grid"
     if raw and raw in _cfg.valid_views:
         return raw
     return _cfg.default_view
 
 
 def _make_favourites_centroid_spec(
-    qdrant, index_db,
+    qdrant: Any, index_db: Any,
 ) -> DynamicCentroidSpec:
     """Build the registration spec for the favourites dynamic centroid.
 
@@ -295,7 +305,7 @@ def _make_favourites_centroid_spec(
 
 
 def _make_likes_centroid_spec(
-    qdrant, index_db,
+    qdrant: Any, index_db: Any,
 ) -> DynamicCentroidSpec:
     """Build the registration spec for the likes dynamic centroid.
 
@@ -344,7 +354,7 @@ def _make_likes_centroid_spec(
 
 
 def _make_dislikes_centroid_spec(
-    qdrant, index_db,
+    qdrant: Any, index_db: Any,
 ) -> DynamicCentroidSpec:
     """Build the registration spec for the dislikes dynamic centroid.
 
@@ -436,7 +446,7 @@ def _album_centroid_name(album_id: int) -> str:
 
 
 def _make_album_centroid_spec(
-    qdrant, index_db, album_id: int,
+    qdrant: Any, index_db: Any, album_id: int,
 ) -> DynamicCentroidSpec:
     """Build a DynamicCentroidSpec for an album.
 
@@ -788,7 +798,7 @@ def create_app(
             except Exception as e:  # noqa: BLE001
                 logger.warning("index cache background warm-up failed: %s", e)
 
-        refresh_task: asyncio.Task | None = None
+        refresh_task: asyncio.Task[None] | None = None
         # Log a warning immediately if Qdrant is unreachable so the
         # issue is visible in pod logs even before init_from_qdrant
         # completes. healthz() is sync but cheap (<10 ms typical) so
@@ -1093,10 +1103,11 @@ def create_app(
             value = raw.strip()
             if value:
                 return value
+        return None
 
     def _resolve_query_vector(
         centroid_names: list[str] | None,
-        prompt_state: PromptState,  # noqa: F821
+        prompt_state: PromptState,
         weights: list[float] | None = None,
         filename_pattern: str = "",
         centroid_specs: list[DynamicCentroidSpec] | None = None,
@@ -1311,7 +1322,7 @@ def create_app(
         return await asyncio.to_thread(_favorite_id_set_sync, point_ids)
 
     async def _results_from_hits(
-        hits: list,
+        hits: list[SearchHit],
         favorite_ids: set[str] | None = None,
         dislike_ids: set[str] | None = None,
     ) -> list[SearchResult]:
@@ -1376,31 +1387,6 @@ def create_app(
             semantic_groups_covered=stats.semantic_groups_covered,
             depth=stats.depth,
             pool_depth=stats.pool_depth,
-        )
-
-
-    def _bad_request(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=400,
-            content=ErrorResponse(error="bad_request", detail=detail, code="bad_request").model_dump(),
-        )
-
-    def _qdrant_unreachable(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=502,
-            content=ErrorResponse(error="qdrant_unreachable", detail=detail, code="qdrant_unreachable").model_dump(),
-        )
-
-    def _qdrant_timeout(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=504,
-            content=ErrorResponse(error="qdrant_timeout", detail=detail, code="qdrant_timeout").model_dump(),
-        )
-
-    def _internal_error(detail: str) -> JSONResponse:
-        return JSONResponse(
-            status_code=500,
-            content=ErrorResponse(error="internal_error", detail=detail, code="internal_error").model_dump(),
         )
 
     @app.get("/api/photo/{point_id}")
@@ -1510,8 +1496,10 @@ def create_app(
             lambda p: local is not None and _is_path_alive(p),
             str(local) if local is not None else "",
         )
-        if not is_alive:
+        if not is_alive or local is None:
             raise HTTPException(status_code=404, detail="File not found on disk")
+        # After this point mypy can narrow `local: Path` (not `Path | None`).
+        local_path: Path = local
 
         # ---- Resize branch ----
         # Only JPEG/PNG/WebP/HEIF are supported by PIL out of the box
@@ -1520,7 +1508,7 @@ def create_app(
         # resize fails for any reason, fall back to the original file.
         if w is not None:
             try:
-                cached = await asyncio.to_thread(_resize_cached, point_id, w, local)
+                cached = await asyncio.to_thread(_resize_cached, point_id, w, local_path)
             except _ResizeError as e:
                 logger.warning("Resize failed for %s @ w=%d: %s", point_id, w, e)
             else:
@@ -1550,7 +1538,7 @@ def create_app(
                     },
                 )
 
-        stat = await asyncio.to_thread(local.stat)
+        stat = await asyncio.to_thread(local_path.stat)
         etag = hashlib.md5(f"{stat.st_mtime_ns}-{stat.st_size}".encode()).hexdigest()  # noqa: S324
 
         # Per-spec If-None-Match: respond 304 with no body if the
@@ -1568,10 +1556,10 @@ def create_app(
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers=cache_headers)
 
-        filename = local.name
+        filename = local_path.name
         return FileResponse(
-            local,
-            media_type=guess_content_type(local),
+            local_path,
+            media_type=guess_content_type(local_path),
             filename=filename,
             content_disposition_type="inline",
             headers=cache_headers,
@@ -1582,8 +1570,8 @@ def create_app(
 
     # ---------------------- Favourites ----------------------
 
-    def _favorite_rows_to_results(rows: list[dict]) -> list[SearchResult]:
-        def _maybe_int(v):
+    def _favorite_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
+        def _maybe_int(v: Any) -> int | None:
             try:
                 iv = int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1604,10 +1592,10 @@ def create_app(
         ]
 
 
-    def _dislike_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _dislike_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Same shape as `_favorite_rows_to_results`; is_favorite comes
         from a fresh favourites lookup so tiles show true heart state."""
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 return int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1627,7 +1615,7 @@ def create_app(
             for row in rows
         ]
 
-    def _album_member_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _album_member_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Same shape as `_favorite_rows_to_results` but does NOT
         hardcode is_favorite=True — album membership is independent
         of favourites status, so the favourite state on the tile
@@ -1655,7 +1643,7 @@ def create_app(
                 len(rows) - len(alive), len(rows),
             )
         rows = alive
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 iv = int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1675,7 +1663,7 @@ def create_app(
             for row in rows
         ]
 
-    def _random_rows_to_results(rows: list[dict]) -> list[SearchResult]:
+    def _random_rows_to_results(rows: list[dict[str, Any]]) -> list[SearchResult]:
         """Build SearchResult objects from SQLite random-sample rows.
 
         Mirrors `_favorite_rows_to_results` but reads is_favorite from
@@ -1690,7 +1678,7 @@ def create_app(
         in `_favorite_rows_to_results` (album view) stays on because
         that path can't over-fetch and broken tiles there are jarring.
         """
-        def _maybe_int(v):
+        def _maybe_int(v: Any) -> int | None:
             try:
                 iv = int(v) if v is not None else None
             except (TypeError, ValueError):
@@ -1932,7 +1920,7 @@ def create_app(
     # refresh runs at a time; the other short-circuits with a
     # clear log message.
 
-    @app.api_route("/api/cache/refresh", methods=["GET", "POST"])
+    @app.api_route("/api/cache/refresh", methods=["GET", "POST"], response_model=None)
     async def api_cache_refresh(
         request: Request,
         full: bool = Query(
@@ -1947,7 +1935,7 @@ def create_app(
                                 "actually drifted."
                             ),
         ),
-    ):
+    ) -> dict[str, Any] | JSONResponse:
         # Round-35: refuse a manual rebuild while the indexer is
         # actively writing. The wipe+rebuild here races the
         # indexer's INSERTs and would lose any Qdrant points
@@ -2026,24 +2014,10 @@ def create_app(
             }
         except (ConnectionError, OSError) as e:
             logger.warning("Qdrant unreachable for cache refresh: %s", e)
-            return JSONResponse(
-                status_code=502,
-                content=ErrorResponse(
-                    error="qdrant_unreachable",
-                    detail=str(e),
-                    code="qdrant_unreachable",
-                ).model_dump(),
-            )
+            return qdrant_unreachable(str(e))
         except Exception as e:
             logger.exception("cache refresh failed")
-            return JSONResponse(
-                status_code=500,
-                content=ErrorResponse(
-                    error="internal_error",
-                    detail=str(e),
-                    code="internal_error",
-                ).model_dump(),
-            )
+            return internal_error(str(e))
         finally:
             await asyncio.to_thread(index_db.release_refresh_lock)
 
@@ -2082,7 +2056,7 @@ def create_app(
                 response, including /_app/immutable/.../LICENSES.txt.
                 """
 
-                def file_response(self, *args, **kwargs):
+                def file_response(self, *args: Any, **kwargs: Any) -> Response:
                     resp = super().file_response(*args, **kwargs)
                     resp.headers["Cache-Control"] = (
                         "public, max-age=31536000, immutable"
@@ -2101,7 +2075,7 @@ def create_app(
         # index.html. API routes get proper 404 JSON instead of
         # being silently swallowed by the SPA catch-all.
         @app.get("/{full_path:path}", include_in_schema=False)
-        async def spa_shell(full_path: str):
+        async def spa_shell(full_path: str) -> FileResponse:
             # Never serve SPA HTML for /api/* — those should 404
             # with a proper JSON detail so API clients can
             # distinguish "endpoint doesn't exist" from "got HTML".

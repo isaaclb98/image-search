@@ -19,7 +19,8 @@ import asyncio
 import logging
 import random
 import threading
-from typing import Any
+from collections.abc import Iterable
+from typing import Any, cast
 from urllib.parse import urlencode
 
 from search.image_resolver import resolve_url
@@ -38,12 +39,12 @@ def favorite_id_set_sync(index_db: Any, point_ids: list[str]) -> set[str]:
     Single IN-clause query (Phase C1): was N individual get_by_id
     calls, now 1. ~10× faster on a 20-tile result page.
     """
-    return index_db.favorite_id_set(point_ids)
+    return cast(set[str], index_db.favorite_id_set(point_ids))
 
 
 async def favorite_id_set(index_db: Any, point_ids: list[str]) -> set[str]:
     """Async wrapper: SQLite read off the event loop."""
-    return await asyncio.to_thread(favorite_id_set_sync, index_db, point_ids)
+    return cast(set[str], await asyncio.to_thread(favorite_id_set_sync, index_db, point_ids))
 
 
 async def results_from_hits(
@@ -259,7 +260,7 @@ def normalize_prompt_state(
     q: str,
     positives_raw: list[str],
     negatives_raw: list[str],
-):
+) -> Any:
     """
     Normalize q/positive/negative prompt inputs for search.
 
@@ -339,7 +340,7 @@ def diversity_page(
     strength: float,
     depth: str,
     pool_depth: int,
-) -> tuple[list, bool, Any]:
+) -> tuple[list[SearchHit], bool, Any]:
     """Build or retrieve one complete, stable Diversity ordering.
 
     Wraps the closure that was previously in `create_app`. The
@@ -476,7 +477,7 @@ def _pool_depth_for(cfg: Any, mode: str, requested: int) -> int:
     explicitly request one (pool_depth <= 0). Falls back to the
     raw `requested` for unknown modes.
     """
-    overrides = getattr(cfg, "diversity_pool_depths", {}) or {}
+    overrides = cast(dict[str, int], getattr(cfg, "diversity_pool_depths", {}) or {})
     if requested > 0:
         return requested
     return overrides.get(mode, requested or 500)
@@ -497,7 +498,7 @@ def centroid_diversity_page(
     strength: float,
     depth: str,
     pool_depth: int,
-) -> tuple[list, bool, Any]:
+) -> tuple[list[SearchHit], bool, Any]:
     """Diversity ranking for centroid/album search — the Layer-2-aware
     analogue of `diversity_page`.
 
@@ -597,7 +598,7 @@ def centroid_diversity_page(
     return page, len(ranking.hits) > offset + effective_limit, _diversity_metadata(ranking.stats)
 
 
-def _digest_values(values) -> str:
+def _digest_values(values: Iterable[str] | None) -> str:
     """SHA-256 digest of a list/set/None of strings — used to hash
     request-shape inputs into the diversity cache key.
 
@@ -659,7 +660,7 @@ async def materialize_search_page(
     collections: list[str],
     allowed_ids: list[str] | None,
     favorite_ids: set[str] | None,
-) -> tuple[list, bool]:
+) -> tuple[list[SearchHit], bool]:
     """Return one page of a *stable* ranking, plus `has_more`.
 
     Drop-in replacement for the plain-search call
@@ -759,7 +760,7 @@ async def materialize_search_page(
     # a dead tile from rendering, and has_more is computed from the
     # snapshot rather than the hydrated length so one dropped id can't
     # make the client think the result set ended.
-    hits_out: list = []
+    hits_out: list[SearchHit] = []
     for pid in page_ids:
         hit = by_id.get(pid)
         if hit is None:

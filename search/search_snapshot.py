@@ -71,7 +71,12 @@ import hashlib
 import logging
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from search.qdrant_client import SearchHit
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +130,7 @@ class SearchSnapshot:
         with self._flag_lock:
             self.prefetch_inflight = False
 
-    def extend(self, hits: list, band_size: int) -> None:
+    def extend(self, hits: list[SearchHit], band_size: int) -> None:
         """Append a band of hits, dropping any id already frozen.
 
         The exclusion filter should already have removed them
@@ -256,7 +261,7 @@ def snapshot_key(
     ))
 
 
-def _digest(values) -> str:
+def _digest(values: Iterable[str] | None) -> str:
     """Stable digest of a list/set/None of strings.
 
     Sorted + UTF-8 with replacement, so equivalent inputs in any

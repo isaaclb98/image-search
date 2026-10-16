@@ -56,7 +56,7 @@ def _save_centroid(
 def test_load_empty_dir(tmp_path: Path) -> None:
     s = CentroidStore(tmp_path, expected_model="siglip2", expected_feature_dim=1536)
     assert s.load() == 0
-    assert s.list() == []
+    assert s.list_all() == []
     assert s.count() == 0
 
 
@@ -65,7 +65,7 @@ def test_load_missing_dir(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist"
     s = CentroidStore(missing, expected_model="siglip2", expected_feature_dim=1536)
     assert s.load() == 0
-    assert s.list() == []
+    assert s.list_all() == []
 
 
 def test_load_none_dir() -> None:
@@ -193,7 +193,7 @@ def test_list_sorted_by_name(tmp_path: Path) -> None:
     _save_centroid(tmp_path / "c.pt", "gamma")
     s = CentroidStore(tmp_path, expected_model="siglip2", expected_feature_dim=1536)
     s.load()
-    assert [c.name for c in s.list()] == ["alpha", "beta", "gamma"]
+    assert [c.name for c in s.list_all()] == ["alpha", "beta", "gamma"]
 
 
 def test_as_dict_has_public_fields(tmp_path: Path) -> None:
@@ -203,7 +203,7 @@ def test_as_dict_has_public_fields(tmp_path: Path) -> None:
     )
     s = CentroidStore(tmp_path, expected_model="siglip2", expected_feature_dim=1536)
     s.load()
-    d = s.list()[0].as_dict()
+    d = s.list_all()[0].as_dict()
     assert d["name"] == "wuxia"
     assert d["model"] == "siglip2"
     assert d["model_type"] == "ensemble"

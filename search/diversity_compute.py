@@ -21,8 +21,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any, cast
 
 import numpy as np
+
+from search.qdrant_client import SearchHit
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -82,7 +85,7 @@ class DiversityStats:
 class DiversityRanking:
     """Ordered hits plus diagnostics for a complete candidate pool."""
 
-    hits: list
+    hits: list[SearchHit]
     stats: DiversityStats
 
 
@@ -91,23 +94,23 @@ class DiversityRanking:
 # ---------------------------------------------------------------------------
 
 
-def _normalise_vector(vector):
+def _normalise_vector(vector: np.ndarray) -> np.ndarray:
     norm = float(np.linalg.norm(vector))
     if norm <= 1e-12:
         return np.zeros_like(vector)
     return vector / norm
 
 
-def _normalise_matrix(matrix):
+def _normalise_matrix(matrix: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    return matrix / np.maximum(norms, 1e-12)
+    return cast(np.ndarray, matrix / np.maximum(norms, 1e-12))
 
 
 def _cosine_sim(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=True))
 
 
-def _as_float_list(v) -> list[float]:
+def _as_float_list(v: Any) -> list[float]:
     if v is None:
         return []
     if isinstance(v, list):
@@ -116,9 +119,9 @@ def _as_float_list(v) -> list[float]:
 
 
 def _collapse_duplicate_indices(
-    hits: list,
+    hits: list[SearchHit],
     *,
-    query_scores,
+    query_scores: list[float],
     duplicate_hamming_distance: int,
 ) -> list[int]:
     """Keep the highest-relevance representative of fingerprint groups.
@@ -237,11 +240,11 @@ def _collapse_duplicate_indices(
     representatives.sort()
     return representatives
 def mmr_rerank(
-    hits_with_vectors: list[tuple],
+    hits_with_vectors: list[tuple[SearchHit, list[float]]],
     query_vector: list[float],
     k: int,
     lambda_: float = 0.5,
-) -> list:
+) -> list[SearchHit]:
     """Backwards-compatible MMR helper retained for existing callers/tests.
 
     ``lambda_`` keeps the historical meaning here: 1.0 is pure relevance,
@@ -290,28 +293,32 @@ def mmr_rerank(
     except ImportError:
         # Keep the pure-Python fallback for unusual deployments and make the
         # failure explicit rather than returning a partially ranked result.
-        selected: list[tuple] = []
+        # NOTE: the numpy branch above already declared `selected: list[int]`
+        # (numpy int indices into hits_with_vectors). The fallback stores
+        # full (hit, vec) tuples instead because there's no ndarray to index
+        # into. Renamed to `selected_fallback` to avoid shadowing.
+        selected_fallback: list[tuple[SearchHit, list[float]]] = []
         candidates = list(hits_with_vectors)
-        while len(selected) < min(k, len(hits_with_vectors)) and candidates:
+        while len(selected_fallback) < min(k, len(hits_with_vectors)) and candidates:
             best_idx = 0
             best_score = -float("inf")
             for i, (_hit, vec) in enumerate(candidates):
                 q_sim = _cosine_sim(query_vector, vec)
                 max_sim = max(
-                    (_cosine_sim(vec, selected_vec) for _hit, selected_vec in selected),
+                    (_cosine_sim(vec, selected_vec) for _hit, selected_vec in selected_fallback),
                     default=0.0,
                 )
                 score = lambda_ * q_sim - (1.0 - lambda_) * max_sim
                 if score > best_score:
                     best_score = score
                     best_idx = i
-            selected.append(candidates.pop(best_idx))
-        return [h for h, _v in selected]
+            selected_fallback.append(candidates.pop(best_idx))
+        return [h for h, _v in selected_fallback]
 
 
 def rank_diverse(
-    hits_with_vectors,
-    query_vector,
+    hits_with_vectors: tuple[list[SearchHit], np.ndarray] | list[tuple[SearchHit, list[float]]],
+    query_vector: list[float] | np.ndarray,
     *,
     mode: str = "balanced",
     strength: float | None = None,
@@ -356,11 +363,13 @@ def rank_diverse(
         raise ValueError(f"unknown diversity mode: {mode!r}")
     if mode == "off":
         if is_fast_path:
-            hits_for_off = hits_with_vectors[0][:max_results]
-            cand_count = len(hits_with_vectors[0])
+            fp_hits, _fp_vecs = cast(tuple[list[SearchHit], np.ndarray], hits_with_vectors)
+            hits_for_off = fp_hits[:max_results]
+            cand_count = len(fp_hits)
         else:
-            hits_for_off = [h for h, _v in hits_with_vectors[:max_results]]
-            cand_count = len(hits_with_vectors)
+            leg_hv = cast(list[tuple[SearchHit, list[float]]], hits_with_vectors)
+            hits_for_off = [h for h, _v in leg_hv[:max_results]]
+            cand_count = len(leg_hv)
         return DiversityRanking(
             hits=hits_for_off,
             stats=DiversityStats(
@@ -385,13 +394,14 @@ def rank_diverse(
         raise ValueError("pool_depth must be >= 0")
 
     if is_fast_path:
-        hits = list(hits_with_vectors[0])
-        vectors = hits_with_vectors[1]
+        fp_hits, vectors = cast(tuple[list[SearchHit], np.ndarray], hits_with_vectors)
+        hits = list(fp_hits)
         query = query_vector if isinstance(query_vector, np.ndarray) else np.asarray(query_vector, dtype=np.float32)
         candidate_count = len(hits)
     else:
-        hits = [h for h, _v in hits_with_vectors]
-        vectors = np.asarray([_as_float_list(v) for _h, v in hits_with_vectors], dtype=np.float32)
+        leg_hv = cast(list[tuple[SearchHit, list[float]]], hits_with_vectors)
+        hits = [h for h, _v in leg_hv]
+        vectors = np.asarray([_as_float_list(v) for _h, v in leg_hv], dtype=np.float32)
         query = np.asarray(_as_float_list(query_vector), dtype=np.float32)
         candidate_count = len(hits_with_vectors)
 

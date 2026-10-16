@@ -21,6 +21,7 @@ local_sync --rebuild subprocess.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -39,7 +40,7 @@ from search.models import (
 logger = logging.getLogger(__name__)
 
 
-def _status_to_response(status, *, points_count: int | None = None) -> IndexerStatusResponse:
+def _status_to_response(status: Any, *, points_count: int | None = None) -> IndexerStatusResponse:
     """Translate the runner's internal `IndexerStatus` to the wire model.
 
     `points_count` defaults to the runner's own snapshot, but

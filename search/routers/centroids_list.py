@@ -31,6 +31,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
+from search.models import CentroidListResponse
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,20 +50,20 @@ def build_centroids_list_router(
     """
     router = APIRouter()
 
-    @router.get("/api/centroids")
-    async def list_centroids() -> dict:
+    @router.get("/api/centroids", response_model=CentroidListResponse)
+    async def list_centroids() -> CentroidListResponse:
         """List static + dynamic centroids with metadata."""
         if centroid_store is None:
-            static: list = []
+            static: list[dict[str, Any]] = []
             expected_model = None
             expected_feature_dim = None
         else:
-            static = [c.as_dict() for c in centroid_store.list()]
+            static = [c.as_dict() for c in centroid_store.list_all()]
             expected_model = centroid_store.expected_model()
             expected_feature_dim = centroid_store.expected_feature_dim()
-        dynamic: list = []
+        dynamic: list[dict[str, Any]] = []
         if dynamic_centroids is not None:
-            for spec in dynamic_centroids.list():
+            for spec in dynamic_centroids.list_all():
                 # Trigger a compute (cached) so the API response
                 # includes the real n_images count rather than None.
                 dynamic_centroids.get_vector(spec.name)
@@ -70,11 +72,11 @@ def build_centroids_list_router(
                         dynamic_centroids.cached_n_images(spec.name),
                     )
                 )
-        return {
-            "centroids": static,
-            "dynamic_centroids": dynamic,
-            "expected_model": expected_model,
-            "expected_feature_dim": expected_feature_dim,
-        }
+        return CentroidListResponse(
+            centroids=static,
+            dynamic_centroids=dynamic,
+            expected_model=expected_model,
+            expected_feature_dim=expected_feature_dim,
+        )
 
     return router

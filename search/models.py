@@ -5,7 +5,7 @@ search/models.py — Pydantic response models for /api/search.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -19,26 +19,11 @@ class SearchResult(BaseModel):
                        "Computed server-side so SSR + JS render identically."
     )
     url: str = Field("", description="Public URL for the /photo/{id}/raw endpoint")
-    is_favorite: bool = Field(False, description="True when the image is marked as a favourite")
-    is_disliked: bool = Field(False, description="True when the image is marked as a dislike (hides it from future recommendations)")
-    blurhash: str | None = Field(
-        None,
-        description=(
-            "LQIP (low-quality image placeholder). Decoded client-side into a tinted"
-            " background while the real image loads. None when the encoder failed"
-            " or the point was indexed before the blurhash feature shipped."
-        ),
-    )
-    width: int | None = Field(
-        None,
-        description="Photo width in pixels, when known. None for older rows that"
-                    " were indexed before width/height were recorded.",
-    )
-    height: int | None = Field(
-        None,
-        description="Photo height in pixels, when known. None for older rows that"
-                    " were indexed before width/height were recorded.",
-    )
+    is_favorite: bool = False
+    is_disliked: bool = False
+    blurhash: str | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 class DiversityMetadata(BaseModel):
@@ -52,45 +37,22 @@ class DiversityMetadata(BaseModel):
     result_count: int = 0
     duplicate_images_collapsed: int = 0
     semantic_groups_covered: int = 0
-    depth: str = Field(
-        "auto",
-        description="Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.",
-    )
-    pool_depth: int = Field(
-        0,
-        description="Number of candidates actually retrieved for the ranking pass.",
-    )
+    depth: str = "auto"
+    pool_depth: int = 0
 
 
 class SearchResponse(BaseModel):
     query: str
     positives: list[str] = Field(default_factory=list)
     negatives: list[str] = Field(default_factory=list)
-    diverse: bool = Field(
-        False,
-        description="Backwards-compatible flag; true when search Diversity was applied.",
-    )
+    diverse: bool = False
     diversity: DiversityMetadata = Field(
         default_factory=DiversityMetadata,
         description="Diagnostics for the search-only Diversity ranking pass.",
     )
-    surprise: bool = Field(
-        False,
-        description="True when results were randomly sampled from a deep pool (Surprise Me mode).",
-    )
-    view: str = Field(
-        "grid",
-        description="Result view requested: 'grid' (default) or 'feed' (single-column, full-width).",
-    )
-    centroid: str | None = Field(
-        None,
-        description=(
-            "First active centroid name, when any centroids are in play. "
-            "Kept for backward compat with single-centroid clients; the "
-            "full list lives in `centroids`. Mutually exclusive with "
-            "q/positives/negatives."
-        ),
-    )
+    surprise: bool = False
+    view: str = "grid"
+    centroid: str | None = None
     centroids: list[str] = Field(
         default_factory=list,
         description=(
@@ -98,37 +60,14 @@ class SearchResponse(BaseModel):
             "search is in play. One or more names blends via weighted mean."
         ),
     )
-    weights: list[float] | None = Field(
-        None,
-        description=(
-            "Per-centroid weights, same order as `centroids`. None means "
-            "all weights equal 1.0 (the default)."
-        ),
-    )
+    weights: list[float] | None = None
     results: list[SearchResult]
     took_ms: int
-    offset: int = Field(0, description="Offset of this page in the full result set")
+    offset: int = 0
     limit: int = Field(..., description="Max results requested for this page")
-    has_more: bool = Field(
-        False,
-        description="True when more results likely exist on a subsequent page",
-    )
-    session_id: str | None = Field(
-        None,
-        description=(
-            "Opaque session id. For /api/random this identifies the "
-            "shuffled deck; pass it back with an incremented `offset` "
-            "to walk forward. None for non-session endpoints (search, "
-            "similar, etc.) — those use offset/limit directly against Qdrant."
-        ),
-    )
-    session_total: int | None = Field(
-        None,
-        description=(
-            "Total photos in the session deck. Only set for /api/random. "
-            "Use this with `offset` to know when you've walked everything."
-        ),
-    )
+    has_more: bool = False
+    session_id: str | None = None
+    session_total: int | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -292,23 +231,104 @@ class SavedSearchListResponse(BaseModel):
     offset: int
 
 
-class PromptState:
-    """Normalized q/positive/negative prompt state for search.
+# ---------------------- System / Health / Cache ----------------------
 
-    Plain dataclass (not a Pydantic BaseModel) because it's an
-    internal value object — it's only ever passed around between
-    the prompt-normalisation helper and the search route, never
-    serialised to JSON.
+class HealthzResponse(BaseModel):
+    """GET /healthz — operator + load-balancer probe.
+
+    Kept intentionally tiny: `qdrant` is the only required
+    dependency the LB cares about (the rest of the system can be
+    degraded without taking the container out of rotation). The
+    `test_mode` flag is informational — it tells operators
+    whether this is the prod-shaped config or a test fixture.
     """
-    q: str
-    positives: list[str]
-    negatives: list[str]
-    positive_chips: list[str]
-    negative_chips: list[str]
+    qdrant: bool
+    test_mode: bool
+
+
+class SystemStatusResponse(BaseModel):
+    """GET /api/system/status — frontend dashboard telemetry.
+
+    The frontend's settings panel reads this to surface model
+    load state, point counts, and the last successful
+    indexer→IndexDB refresh. Field types are chosen so the
+    JS layer can `JSON.parse` and consume without coercion.
+    """
+    model_status: dict[str, Any]
+    qdrant_count: int
+    index_db_count: int
+    last_refresh: float | None
+
+
+class CacheStatusResponse(BaseModel):
+    """GET /api/cache/status — operator visibility into dual-store sync.
+
+    `drift` is the integer point-count gap between Qdrant and
+    IndexDB, or the string "unknown" when Qdrant is unreachable
+    (qdrant_count < 0). The string sentinel is intentional:
+    returning -1 or 0 would be misleading — a negative number
+    conflates "Qdrant down" with "0 drift", and 0 would imply
+    the stores are in sync when we don't actually know.
+
+    `path_liveness_cache_size` / `_max` are the runtime liveness
+    cache's current size and its eviction cap. These matter
+    because the cache lives in memory and a leak would
+    eventually OOM the container.
+    """
+    last_refresh: float | None
+    qdrant_count: int
+    index_db_count: int
+    drift: int | str  # "unknown" when qdrant is unreachable
+    refresh_interval_seconds: float
+    path_liveness_ttl_seconds: float
+    path_liveness_cache_size: int
+    path_liveness_cache_max: int
+
+
+class CollectionsListResponse(BaseModel):
+    """GET /api/collections — list of Qdrant collections with point counts.
+
+    `collections` is the raw shape `qdrant.list_collections_with_counts()`
+    returns. Each entry is a dict; the exact keys are the
+    qdrant-client stub's responsibility (currently `name` +
+    `points_count`), and we keep the dict shape so the frontend
+    stays forward-compatible when qdrant-client adds fields.
+    """
+    collections: list[dict[str, Any]]
+
+
+class ReloadCentroidsResponse(BaseModel):
+    """POST /api/centroids/reload — operator-initiated centroid refresh.
+
+    `count` is the number of centroids the store successfully
+    loaded. `centroids_dir` is the absolute filesystem path
+    the store scanned (or None when the store has no
+    configured directory — same shape as a config-disabled
+    store).
+    """
+    count: int
+    centroids_dir: str | None
+
+
+class CentroidListResponse(BaseModel):
+    """GET /api/centroids — static + dynamic centroid inventory.
+
+    `centroids` is the static (filesystem-backed) list.
+    `dynamic_centroids` is the runtime registry (favourites,
+    tag-based, custom). `expected_model` and
+    `expected_feature_dim` are None when the static store
+    isn't initialised; the frontend uses these to warn when
+    the user has a config that doesn't match the current
+    SigLIP2 model.
+    """
+    centroids: list[dict[str, Any]]
+    dynamic_centroids: list[dict[str, Any]]
+    expected_model: str | None
+    expected_feature_dim: int | None
 
 
 @dataclass(frozen=True)
-class PromptState:  # noqa: F811
+class PromptState:
     """Normalized q/positive/negative prompt state for search.
 
     Plain dataclass (not a Pydantic BaseModel) because it's an
