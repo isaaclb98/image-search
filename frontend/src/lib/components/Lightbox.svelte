@@ -34,6 +34,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
   import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
+  import { useSlideshow } from '$lib/composables/useSlideshow.svelte';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
@@ -308,36 +309,21 @@
      own with no visual indicator until the timer first fires.
      Explicit Play also sidesteps prefers-reduced-motion entirely
      (the user who cares about motion sensitivity just won't hit
-     the button). */
-  let playing = $state(false);
+     the button).
 
-  // Stop the timer if there's nothing to advance through (single
-  // item or empty). Reactive on `items.length` so a re-load that
-  // shrinks the set gracefully settles into "no auto-advance".
-  $effect(() => {
-    if (items.length <= 1) playing = false;
+     Phase 6: the auto-advance timer + the items-length guard
+     are extracted to useSlideshow. The composable owns
+     `playing` + the setInterval effect; the Lightbox just
+     reads `slideshow.playing` and calls `slideshow.togglePlay`
+     from the action bar / keyboard handler. */
+  const slideshow = useSlideshow({
+    getItemsLength: () => items.length,
+    getIdx: () => idx,
+    setIdx: (next) => {
+      idx = next;
+    },
+    getIntervalMs: () => $preferences.slideshowIntervalMs
   });
-
-  // Auto-advance. Effect re-runs whenever `playing` flips or the
-  // cadence changes, so toggling Play/Pause restarts cleanly and
-  // the user can change the interval from Settings mid-playback
-  // (next tick picks it up). `idx` reads inside the tick because
-  // each fire advances the index; we don't want `idx` itself to
-  // be a dependency (that would re-create the interval every
-  // photo and never advance).
-  $effect(() => {
-    if (!playing) return;
-    const intervalMs = $preferences.slideshowIntervalMs;
-    const id = setInterval(() => {
-      if (items.length === 0) return;
-      idx = (idx + 1) % items.length;
-    }, intervalMs);
-    return () => clearInterval(id);
-  });
-
-  function togglePlay() {
-    playing = !playing;
-  }
 
   // Re-run the photo-dependent effects whenever the current photo
   // changes (lightbox navigation, photo prop change). Tint is the
@@ -410,7 +396,7 @@
   $effect(() => {
     // Touch the deps so Svelte tracks them.
     const cursor = idx;
-    const isPlaying = playing;
+    const isPlaying = slideshow.playing;
     void items.length;
 
     // Skip on single-photo lightbox or when the user opted into
@@ -492,8 +478,8 @@
     // to the previous photo is the intuitive continuation.
     // Outside that window, respect the pre-slideshow boundary
     // (prev disabled at the first photo).
-    const wasPlaying = playing;
-    if (playing) playing = false;
+    const wasPlaying = slideshow.playing;
+    if (wasPlaying) slideshow.pause();
     if (!wasPlaying) {
       if (idx > 0) idx -= 1;
       return;
@@ -502,8 +488,8 @@
     idx = (idx - 1 + items.length) % items.length;
   }
   function next() {
-    const wasPlaying = playing;
-    if (playing) playing = false;
+    const wasPlaying = slideshow.playing;
+    if (wasPlaying) slideshow.pause();
     if (!wasPlaying) {
       if (canAdvance(idx, items.length)) {
         idx += 1;
@@ -605,7 +591,7 @@
       // belt-and-braces against future layout changes.
       if (items.length >= 2) {
         e.preventDefault();
-        togglePlay();
+        slideshow.togglePlay();
       }
     }
   }
@@ -657,7 +643,7 @@
       class="nav prev"
       type="button"
       onclick={(e) => { e.stopPropagation(); prev(); }}
-      disabled={!playing && idx === 0}
+      disabled={!slideshow.playing && idx === 0}
       aria-label="Previous"
     >
       <Icon name="chevron-left" size={22} />
@@ -714,7 +700,7 @@
       class="nav next"
       type="button"
       onclick={(e) => { e.stopPropagation(); next(); }}
-      disabled={!playing && !canAdvance(idx, items.length) && !(hasMore && items.length > 0)}
+      disabled={!slideshow.playing && !canAdvance(idx, items.length) && !(hasMore && items.length > 0)}
       aria-label="Next"
     >
       <Icon name="chevron-right" size={22} />
@@ -725,11 +711,11 @@
       <span class="count">{idx + 1} / {items.length}</span>
       {#if items.length >= 2}
         <ActionButton
-          onclick={togglePlay}
-          title={playing ? 'Pause slideshow (Space)' : 'Play slideshow (Space)'}
-          ariaPressed={playing ? 'true' : 'false'}
+          onclick={slideshow.togglePlay}
+          title={slideshow.playing ? 'Pause slideshow (Space)' : 'Play slideshow (Space)'}
+          ariaPressed={slideshow.playing ? 'true' : 'false'}
         >
-          <Icon name={playing ? 'pause' : 'play'} size={14} />
+          <Icon name={slideshow.playing ? 'pause' : 'play'} size={14} />
         </ActionButton>
       {/if}
       <ActionButton
