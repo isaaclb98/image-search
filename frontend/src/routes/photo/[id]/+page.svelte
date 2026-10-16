@@ -83,9 +83,19 @@
   // when the API 404s or errors. The placeholder.error block
   // below handles that case; the rest of the component only
   // runs when `photo` is non-null.
+  // svelte-ignore state_referenced_locally
+  // The page reads its initial photo from the load
+  // function's `data.photo`. The photo never changes
+  // while this page is open (the route is the photo ID
+  // itself, so navigating to a different photo unmounts
+  // this page). Capturing the initial value is the
+  // documented behaviour; using $derived would re-read
+  // `data` on every change but `data` is the SvelteKit
+  // load result, not a reactive source.
   let photo = $state<PhotoMeta | null>(
     (data.photo as PhotoMeta | null) ?? null
   );
+  // svelte-ignore state_referenced_locally
   let errorMsg = $state<string | null>(data.error ?? null);
   let actionInFlight = $state(false);
   // Albums for the "Add to album" dropdown. Lazy-loaded on first
@@ -358,19 +368,6 @@
     box-sizing: border-box;
   }
 
-  .placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--s-3);
-    min-height: 50vh;
-    color: var(--fg-2);
-  }
-  .placeholder.error {
-    color: var(--negative);
-  }
-
   .layout {
     display: grid;
     /* Round-55: width matches --grid-width (1216px) so the
@@ -503,15 +500,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--s-1);
-  }
-
-  .meta h3 {
-    margin: 0 0 var(--s-1) 0;
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-medium);
-    text-transform: uppercase;
-    letter-spacing: var(--ls-widest);
-    color: var(--fg-3);
   }
 
   .meta dl {

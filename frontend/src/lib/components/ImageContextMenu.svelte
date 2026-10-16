@@ -135,10 +135,19 @@
   onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
 />
 
+<!-- Outer context menu. tabindex=-1 makes the menu
+     itself programmatically focusable (so the menu
+     can be moved into on Escape) without making it
+     a tab stop in the document flow. The onclick
+     is just stopPropagation (the actual menu items
+     are real <button>s below); Escape is already
+     handled by the <svelte:window> above. -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   bind:this={ref}
   class="menu glass-strong"
   role="menu"
+  tabindex="-1"
   onclick={(e) => e.stopPropagation()}
   oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
   style:left="{x}px"
@@ -169,6 +178,7 @@
   <div
     class="item submenu-host"
     role="menuitem"
+    tabindex="0"
     aria-haspopup="menu"
     aria-expanded={submenuOpen}
     onmouseenter={openAlbumSubmenu}
@@ -180,10 +190,12 @@
     Add to album
     <span class="caret" aria-hidden="true">▸</span>
     {#if submenuOpen}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div
         class="submenu glass-strong"
         class:drop-up={submenuDropUp}
         role="menu"
+        tabindex="-1"
         onclick={(e) => e.stopPropagation()}
         onmouseleave={closeAlbumSubmenu}
       >

@@ -77,6 +77,13 @@
 
   // Pre-computed data URL takes priority (caller already decoded
   // the blurhash), otherwise we resolve it lazily on mount.
+  // `dataUrlProp` is read once on init; tiles don't swap
+  // their blurhash prop after mount, so the initial-value
+  // capture is the documented behaviour. (svelte-check
+  // would prefer a $derived; the difference is
+  // "react to prop changes" which we deliberately don't
+  // do here.)
+  // svelte-ignore state_referenced_locally
   let dataUrl = $state<string | null>(dataUrlProp ?? null);
   let loaded = $state(false);
   let imgEl: HTMLImageElement | undefined = $state();

@@ -82,6 +82,7 @@
 </script>
 
 {#if href}
+  <!-- svelte-ignore a11y_role_supports_aria_props_implicit -->
   <a
     class="btn {variant} {size} {extraClass ?? ''}"
     class:danger

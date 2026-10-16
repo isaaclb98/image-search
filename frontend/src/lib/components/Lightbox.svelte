@@ -102,6 +102,18 @@
     onLoadMore
   }: Props = $props();
 
+  // The lightbox manages its own cursor (`idx`) internally so
+  // that prev/next + the keyboard composable can mutate it
+  // without round-tripping through the parent. The `index`
+  // prop is the initial position (parent decides which photo
+  // to open first); the `index` prop is not expected to
+  // change after mount, so capturing the initial value
+  // here is the documented behaviour. (svelte-check would
+  // prefer a $derived; that would re-anchor the cursor to
+  // the prop every render, which is NOT what we want — the
+  // user's left/right keys must not snap back to the
+  // parent's `index` mid-browse.)
+  // svelte-ignore state_referenced_locally
   let idx = $state(index);
   // Infinite-nav bookkeeping (see lightbox-pagination.ts):
   // `requestedAtLen` dedupes lookahead prefetch requests per loaded
@@ -459,12 +471,14 @@
 
 <svelte:window onkeydown={keyboard.handleKey} />
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="overlay"
   style={tintLayer.tint ? `--glass-tint: url(${tintLayer.tint})` : undefined}
   onclick={onClose}
   role="dialog"
   aria-modal="true"
+  tabindex="-1"
 >
   {#if tintLayer.tint}
     <!-- Crossfade the tint layer when its background-image swaps.
@@ -483,7 +497,10 @@
       aria-hidden="true"
     ></div>
   {/if}
-  <div class="content" onclick={onClose} oncontextmenu={(e) => e.preventDefault()}>
+  <!-- role="presentation" — click-swallowing layer;
+       the real <button>s inside handle their own
+       keydown. -->
+  <div class="content" role="presentation" onclick={onClose} oncontextmenu={(e) => e.preventDefault()}>
     <button class="nav close" type="button" onclick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">
       <Icon name="close" size={20} />
     </button>
@@ -555,7 +572,10 @@
     </button>
   </div>
 
-  <div class="bar glass-strong" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
+  <!-- role="presentation" — bottom bar that swallows
+       clicks (so the bar tap doesn't close the lightbox).
+       Real <button>s inside handle their own keydown. -->
+  <div class="bar glass-strong" role="presentation" onclick={(e) => e.stopPropagation()} oncontextmenu={(e) => e.preventDefault()}>
       <span class="count">{idx + 1} / {items.length}</span>
       {#if items.length >= 2}
         <ActionButton

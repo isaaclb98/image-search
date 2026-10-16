@@ -388,25 +388,6 @@
     font-size: var(--fs-sm);
     text-align: right;
   }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: var(--s-2);
-  }
-  select {
-    height: 36px;
-    border-radius: var(--r-pill);
-    background: var(--bg-1);
-    color: var(--fg-1);
-    border: 1px solid var(--glass-edge);
-    padding: 0 var(--s-2);
-    /* Fill the grid cell so dropdowns match the text input width
-       in their row. Without this, the <select> shrinks to fit
-       its current value (e.g. "Balanced") and looks pinched
-       next to the wider text input. */
-    width: 100%;
-    box-sizing: border-box;
-  }
   input[type='range'] {
     flex: 1;
     accent-color: var(--accent);
