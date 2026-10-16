@@ -21,7 +21,6 @@
   import { onMount, tick } from 'svelte';
   import { browser } from '$app/environment';
   import { resolve } from '$app/paths';
-  import { SvelteURLSearchParams } from 'svelte/reactivity';
   import PromptChips from '$lib/components/PromptChips.svelte';
   import SavedSearchesMenu from '$lib/components/SavedSearchesMenu.svelte';
   import AdditionalFilters from '$lib/components/AdditionalFilters.svelte';
@@ -35,6 +34,7 @@
     getAdminIndexStatus
   } from '$lib/api/endpoints';
   import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
+  import { readUrl, writeUrl, pushUrlSearch } from '$lib/state/urlState';
   import type { SavedSearch } from '$lib/api/endpoints';
   import {
     GRID_PAGE_SIZE,
@@ -123,14 +123,38 @@
     surprisePoolIndex = Math.max(0, Math.min(idx, POOL_STOPS_HOME.length - 1));
   }
 
+  // Phase 7: bindToUrl-style helpers in $lib/state/urlState
+  // replace the hand-rolled readFromUrl / writeToUrl pair.
+  // The schema declares which fields the URL carries and
+  // what kind (array vs string). Defaults are the empty
+  // state — any field at its default is elided from the
+  // URL.
+  const urlSchema = {
+    positives: { kind: 'array' as const, param: 'positives' },
+    negatives: { kind: 'array' as const, param: 'negatives' },
+    filename: { kind: 'string' as const, param: 'filename' },
+    collections: { kind: 'array' as const, param: 'collection' }
+  };
+  const urlDefaults = {
+    positives: [] as string[],
+    negatives: [] as string[],
+    filename: '',
+    collections: [] as string[]
+  };
+
   function readFromUrl() {
-    const q = $page.url.searchParams;
-    positives = q.getAll('positives');
-    negatives = q.getAll('negatives');
-    filename = q.get('filename') ?? '';
-    collections = q.getAll('collection');
+    const r = readUrl($page.url.search, urlSchema);
+    positives = r.positives;
+    negatives = r.negatives;
+    filename = r.filename;
+    collections = r.collections;
+    // activeCentroid isn't part of the writable schema —
+    // it's read once on mount but never written back
+    // (writeToUrl bails out while it's set, see the
+    // centroid-search comment below). Read it separately
+    // so deep links like /?centroid=album_2 still work.
+    activeCentroid = $page.url.searchParams.get('centroid');
     filtersOpen = !!filename || collections.length > 0;
-    activeCentroid = q.get('centroid');
     // Round-92: removed the `mode=sample` URL param. The
     // per-card "Surprise" button on /albums that wrote it was
     // removed because the in-panel Surprise toggle is now
@@ -147,15 +171,12 @@
     // running a centroid search — that would cause the URL to
     // flicker and could re-trigger reload via onMount.
     if (activeCentroid) return;
-    const qs = new SvelteURLSearchParams();
-    positives.forEach((p) => qs.append('positives', p));
-    negatives.forEach((n) => qs.append('negatives', n));
-    if (filename) qs.set('filename', filename);
-    collections.forEach((c) => qs.append('collection', c));
-    const next = qs.toString();
-    if ($page.url.search.replace(/^\?/, '') !== next) {
-      history.replaceState(history.state, '', `/${next ? '?' + next : ''}`);
-    }
+    const next = writeUrl(
+      { positives, negatives, filename, collections },
+      urlSchema,
+      urlDefaults
+    );
+    pushUrlSearch($page.url.search, next);
   }
 
   function addPrompt(text: string, kind: 'pos' | 'neg') {

@@ -53,7 +53,10 @@ docker-compose.override.yml
 
 # Indexer cache (per-collection JSON of "what's already indexed").
 # Lives next to the indexer, rebuilt on demand via --refresh-cache.
-state/
+# Anchored to the repo root so it doesn't accidentally swallow
+# frontend/src/lib/state/ (url state binder added in the
+# frontend refactor).
+/state/
 
 # Test fixtures
 tests/fixtures/images/
