@@ -12,8 +12,10 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { forYouFeed, likePoint, unlikePoint, dislikePoint, listAlbums } from '$lib/api/endpoints';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
 
   type Tile = {
     id: string;
@@ -38,13 +40,18 @@
       // full (no awkward partial-row of clustered tiles on the
       // left).
       //
-      // CSS: `grid-template-columns: repeat(auto-fill, 384px)`
-      // (fixed tiles, not minmax) — see PhotoGrid. With gap=4:
-      //   cols = floor((wrapperW + 4) / (384 + 4))
-      // .shell is capped at 2400px (Round‑36), so the wrapper
+      // CSS: `grid-template-columns: repeat(auto-fit,
+      // var(--grid-tile-size))` — see PhotoGrid. With the
+      // active gap:
+      //   cols = floor((wrapperW + GAP) / (TILE + GAP))
+      // .shell is capped at 2400px (Round-36), so the wrapper
       // width is min(viewport - 48, 2352).
-      const TILE = 384;
-      const GAP = 4; // matches --grid-gutter
+      // Read the current preference value at the moment load()
+      // runs — the next load() will pick up a new value if the
+      // user changed grid size in Settings between fetches.
+      const config = GRID_SIZE_CONFIG[get(preferences).gridSize];
+      const TILE = config.tile;
+      const GAP = config.gap;
       const MAIN_PAD = 48; // 24px each side, matches `.shell`
       const MAIN_MAX = 2352; // 2400px cap minus padding
       const wrapperW = Math.min(window.innerWidth - MAIN_PAD, MAIN_MAX);

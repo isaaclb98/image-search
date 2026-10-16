@@ -6,6 +6,7 @@
   import Dialog from '$lib/components/Dialog.svelte';
   import { onNavigate } from '$app/navigation';
   import { onMount } from 'svelte';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
 
   let { children } = $props();
 
@@ -79,24 +80,25 @@
   // row) via --grid-width, so changing TILE here also resizes the
   // chrome on every page.
   //
-  // 240px tiles at 6 cols gives a 1460px content width. With the
-  // 384px source WebP, that's a 0.96× downscale at dpr 1.53 —
-  // essentially 1:1 device-pixel mapping, which is the crispest
-  // the single-variant setup gets without going to larger source
-  // files. Round-36 had 384px tiles (1.53× upscale on Isaac's
-  // 4K monitor) which read as soft. Going smaller below 240
-  // starts trading crispness for over-density (12+ cols at 220px).
-  const MAX_COLS = 6;
-  const TILE = 240;
-  // Round-55: GAP must match the actual CSS gap on .grid-row
-  // which is var(--grid-gutter) = 14. Previously GAP was 4 here
-  // while the CSS rendered 14, so the math said 5 cols fit in
-  // 1216px but the grid actually only fit 4 (because the 14px
-  // gap pushed the 5th col out). Math and render now agree at
-  // GAP=14 → 5 cols × 240 + 4 × 14 = 1256px fits, and --grid-
-  // width = 1256 (was 1216) so every chrome surface aligns to
-  // a true 5-tile row.
-  const GAP = 14;
+  // Round-83: tile, gap, and max-cols now come from the user's
+  // grid-size preference via GRID_SIZE_CONFIG. The numbers below
+  // are derived so the ResizeObserver and any other reader see
+  // the same values as PhotoGrid. Single source of truth.
+  //
+  // Large is 240px tiles at 6 cols, 14px gap → a 1460px content
+  // width. The 384px source WebP is downscaled to 240 at dpr
+  // 1.53 — essentially 1:1 device-pixel mapping, which is the
+  // crispest the single-variant setup gets without going to
+  // larger source files.
+  const config = $derived(GRID_SIZE_CONFIG[$preferences.gridSize]);
+  const TILE = $derived(config.tile);
+  const GAP = $derived(config.gap);
+  const MAX_COLS = $derived(config.maxCols);
+  // Max row width = MAX_COLS * TILE + (MAX_COLS - 1) * GAP. Used
+  // as `--grid-row-max-width` so the CSS grid's max-width clamp
+  // matches the JS math — without it, auto-fit would let tracks
+  // grow past the cap and the row would fill the viewport.
+  const ROW_MAX_WIDTH = $derived(MAX_COLS * TILE + (MAX_COLS - 1) * GAP);
 
   // Compute and publish `--grid-width` on :root so any page
   // element (header bar, filters panel, etc.) can size to match
@@ -110,12 +112,36 @@
   // Math mirrors PhotoGrid's column calculation:
   //   N = min(MAX_COLS, floor((containerWidth + GAP) / (TILE + GAP)))
   //   gridWidth = N * TILE + (N - 1) * GAP
+  //
+  // The three new vars (--grid-tile-size, --grid-gutter-size,
+  // --grid-row-max-width) come straight from the config so the
+  // CSS can read them without needing its own preference
+  // subscription. The ResizeObserver re-publishes them on every
+  // container-width tick AND on every gridSize change.
   onMount(() => {
     if (typeof ResizeObserver === 'undefined') return;
+    // Publish the size-driven CSS vars on mount and on every
+    // gridSize change. The vars are derived from the current
+    // preference, so changing the choice in Settings immediately
+    // flows through to the CSS. The ResizeObserver below also
+    // re-publishes them on width changes for symmetry, but the
+    // var values don't depend on container width.
+    const publishSizeVars = () => {
+      document.documentElement.style.setProperty('--grid-tile-size', TILE + 'px');
+      document.documentElement.style.setProperty('--grid-gutter-size', GAP + 'px');
+      document.documentElement.style.setProperty('--grid-row-max-width', ROW_MAX_WIDTH + 'px');
+    };
+    publishSizeVars();
+    const unsub = preferences.subscribe(() => publishSizeVars());
+
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const containerWidth = entry.contentRect.width;
         if (containerWidth <= 0) continue;
+        // Re-publish size-driven vars on every width tick so a
+        // gridSize change that happens to coincide with a width
+        // change can't get out of sync.
+        publishSizeVars();
         const cols = Math.max(
           1,
           Math.min(MAX_COLS, Math.floor((containerWidth + GAP) / (TILE + GAP)))
@@ -126,7 +152,10 @@
     });
     const main = document.querySelector('.shell');
     if (main) ro.observe(main);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      unsub();
+    };
   });
 
   // Round-6: View Transitions API crossfade between routes.
