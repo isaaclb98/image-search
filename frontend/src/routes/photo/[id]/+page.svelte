@@ -45,6 +45,7 @@
     listAlbumsForFavorite
   } from '$lib/api/endpoints';
   import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
+  import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
   import Button from '$lib/components/Button.svelte';
   import ActionButton from '$lib/components/ActionButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';
@@ -174,33 +175,31 @@
     }
   }
 
-  async function addPhotoToAlbumAction(albumId: number, _albumName: string) {
-    if (!photo) return;
-    const inThisAlbum = memberOf.has(albumId);
-    // Optimistic toggle: flip the Set locally so the
-    // checkmark updates instantly, then call the API. On
-    // failure, restore the previous Set.
-    const before = memberOf;
-    const next = new SvelteSet(memberOf);
-    if (inThisAlbum) next.delete(albumId);
-    else next.add(albumId);
-    memberOf = next;
-    try {
-      if (inThisAlbum) {
-        await removePhotoFromAlbum(albumId, photo.id);
-      } else {
-        await addPhotoToAlbum(albumId, photo.id);
-      }
-    } catch {
-      memberOf = before;
-    }
+  // Phase 4: useAlbumMembership consolidates the add/remove
+  // photo-from-album mutation pattern (was duplicated
+  // verbatim in the Lightbox's toggleMembership and here).
+  const albumMembership = useAlbumMembership({
+    getMemberOf: () => memberOf,
+    setMemberOf: (next) => {
+      memberOf = next;
+    },
+    getPointId: () => photo?.id,
+    onAdd: (albumId, pointId) => addPhotoToAlbum(albumId, pointId),
+    onRemove: (albumId, pointId) => removePhotoFromAlbum(albumId, pointId)
+  });
+
+  function addPhotoToAlbumAction(albumId: number, albumName: string) {
+    return albumMembership.toggle(albumId, albumName);
   }
 
   async function refreshMembership() {
     if (!photo) return;
     try {
       const albumsForPhoto = await listAlbumsForFavorite(photo.id);
-      memberOf = new SvelteSet(albumsForPhoto.map((a) => a.id));
+      // Phase 4: useAlbumMembership.setAll replaces the
+      // membership set in one place. Same SvelteSet identity
+      // pattern as the toggle path.
+      albumMembership.setAll(albumsForPhoto.map((a) => a.id));
     } catch {
       // Leave the previous Set — a transient failure shouldn't
       // blank out the indicator.

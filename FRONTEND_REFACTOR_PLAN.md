@@ -358,10 +358,25 @@ The breakdown:
 
 ### Phase 4: Composable — `useAlbumMembership`
 
-- New `lib/composables/albumMembership.ts` exporting
-  `useAlbumMembership(pointId, albums)` that returns
-  `{ memberOf, ensureLoaded, toggle, refresh }`.
-- Migrate the 3 sites identified in #3.
+- New `lib/composables/useAlbumMembership.ts` exporting
+  `useAlbumMembership({ getMemberOf, setMemberOf, getPointId, onAdd, onRemove })`
+  that returns `{ toggle, setAll }`.
+- The composable owns the optimistic-with-rollback
+  add/remove pattern + the SvelteSet identity-preservation
+  convention (a new Set on every change, restore the
+  prior reference on rollback).
+- Migrate the 2 sites that share the toggle-with-rollback
+  shape: `Lightbox.svelte` (toggleMembership) and
+  `routes/photo/[id]/+page.svelte` (addPhotoToAlbumAction).
+  Both also have a `refreshMembership` function that
+  re-seeds the Set from the server's album list — these
+  now go through `setAll`.
+- **ImageContextMenu NOT migrated.** It has a different
+  shape: add-only, no toggle, no rollback, no memberOf
+  tracking. The current behaviour ("add to album, ignore
+  failures, close menu") is intentional. Forcing the
+  composable onto it would either add unused state or
+  change behaviour. Documented in the file.
 - Unit test the composable.
 - Commit + push, wait CI.
 

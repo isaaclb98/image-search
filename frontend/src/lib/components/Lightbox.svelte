@@ -33,6 +33,7 @@
   import { resolve } from '$app/paths';
   import { SvelteSet } from 'svelte/reactivity';
   import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
+  import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
@@ -269,34 +270,30 @@
     if (!it) return;
     try {
       const albumsForPhoto = await listAlbumsForFavorite(it.id);
-      memberOf = new SvelteSet(albumsForPhoto.map((a) => a.id));
+      // Phase 4: useAlbumMembership.setAll replaces the
+      // membership set in one place.
+      albumMembership.setAll(albumsForPhoto.map((a) => a.id));
     } catch {
       // Leave the previous Set in place — a transient failure
       // shouldn't blank out the indicator.
     }
   }
 
-  async function toggleMembership(albumId: number, _albumName: string) {
-    const it = current();
-    if (!it) return;
-    const inThisAlbum = memberOf.has(albumId);
-    // Optimistic toggle: flip the Set locally first so the
-    // checkmark updates instantly, then call the API. On
-    // failure, restore the previous Set.
-    const before = memberOf;
-    const next = new SvelteSet(memberOf);
-    if (inThisAlbum) next.delete(albumId);
-    else next.add(albumId);
-    memberOf = next;
-    try {
-      if (inThisAlbum) {
-        await removePhotoFromAlbum(albumId, it.id);
-      } else {
-        await addPhotoToAlbum(albumId, it.id);
-      }
-    } catch {
-      memberOf = before;
-    }
+  // Phase 4: useAlbumMembership consolidates the add/remove
+  // photo-from-album mutation pattern (was duplicated
+  // verbatim here and in routes/photo/[id]/+page.svelte).
+  const albumMembership = useAlbumMembership({
+    getMemberOf: () => memberOf,
+    setMemberOf: (next) => {
+      memberOf = next;
+    },
+    getPointId: () => current()?.id,
+    onAdd: (albumId, pointId) => addPhotoToAlbum(albumId, pointId),
+    onRemove: (albumId, pointId) => removePhotoFromAlbum(albumId, pointId)
+  });
+
+  async function toggleMembership(albumId: number, albumName: string) {
+    await albumMembership.toggle(albumId, albumName);
   }
 
   function current(): Item | null {
