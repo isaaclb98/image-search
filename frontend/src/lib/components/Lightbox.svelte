@@ -37,6 +37,7 @@
   import { useSlideshow } from '$lib/composables/useSlideshow.svelte';
   import { useKeyboardNav } from '$lib/composables/useKeyboardNav';
   import { usePhotoPreloader } from '$lib/composables/usePhotoPreloader.svelte';
+  import { useBlurhashTint } from '$lib/composables/useBlurhashTint.svelte';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
@@ -132,19 +133,16 @@
     pendingStall = r.stall;
   });
 
-  let tint = $state<string | null>(null);
-  // Crossfade gate for the .tint backdrop layer. See the template
-  // note above for why this needs to be rAF-deferred — without
-  // the gate the browser batches the style change and the
-  // transition never fires.
-  let tintReady = $state(false);
-  // Round-32: freeze the tint after the first decode of the
-  // lightbox session. Without this, every prev/next navigation
-  // re-decodes the photo's blurhash and the backdrop churns
-  // (felt as the tint jumping wildly between photos). Reset
-  // when the lightbox closes so the next open picks a fresh
-  // tint from the new first photo.
-  let tintFrozen = $state(false);
+  // Phase 6d: the blurhash decode + crossfade + freeze
+  // policy are extracted to useBlurhashTint. The composable
+  // owns the tint data URL, the crossfade gate (tintReady),
+  // and the session-freeze flag (tintFrozen). The template
+  // reads `tintLayer.tint` and `tintLayer.tintReady` (the
+  // CSS class for the crossfade).
+  const tintLayer = useBlurhashTint({
+    getBlurhash: () => current()?.blurhash,
+    decode: (blurhash, w, h) => blurhashToDataUrl(blurhash, w, h)
+  });
 
   // Photo-load state for crossfade. The lightbox used to flash on
   // every navigation because the `<img>` was inside `{#key it.id}`,
@@ -359,9 +357,9 @@
   });
 
   // Re-run the photo-dependent effects whenever the current photo
-  // changes (lightbox navigation, photo prop change). Tint is the
-  // ambient background blur; memberOf is the add-to-album
-  // membership indicator on the dropdown.
+  // changes (lightbox navigation, photo prop change). Photo src +
+  // photoReady + membership refresh stay here; the tint is now
+  // owned by useBlurhashTint (Phase 6d).
   $effect(() => {
     const it = current();
     // Compute the next src. `lightboxWidth()` is called fresh so
@@ -376,41 +374,12 @@
       // still sees it and flips photoReady back on.
       photoReady = false;
     }
-    if (!it || !it.blurhash) {
-      tint = null;
-      tintReady = false;
-      // Reset the freeze too so the next lightbox session decodes
-      // the first photo of that session (round-32 UX: tint frozen
-      // for the session so prev/next doesn't churn the backdrop).
-      tintFrozen = false;
-      return;
-    }
-    // Freeze the tint after the first decode of the session.
-    // Navigating prev/next keeps the original photo's tint so the
-    // backdrop stays calm — a smooth crossfade on lightbox open,
-    // then stable for the duration of the session. The flag resets
-    // above when the lightbox closes (no photo) so the next open
-    // picks a fresh tint from the new first photo.
-    if (tintFrozen) return;
-    // Crossfade the backdrop. Drop tintReady immediately so the
-    // existing layer animates OUT (opacity 0.65 → 0), then on the
-    // next animation frame after the new blurhash resolves, flip
-    // tintReady back to true so the new layer animates IN.
-    //
-    // Without the rAF we get a hard cut: Svelte updates the inline
-    // `background-image` style synchronously, and the browser
-    // composites both the old class and the new bg in a single
-    // paint, skipping the transition entirely. The rAF forces a
-    // paint at opacity 0 first so the next state change has a
-    // transition to run.
-    tintReady = false;
-    blurhashToDataUrl(it.blurhash, 80, 50).then((u) => {
-      tint = u;
-      requestAnimationFrame(() => {
-        tintReady = true;
-        tintFrozen = true;
-      });
-    });
+    // Phase 6d: the tint decode / freeze / crossfade live in
+    // useBlurhashTint. The composable's $effect tracks the
+    // current photo's blurhash, so a no-photo / no-blurhash
+    // situation automatically clears the tint and unfreezes
+    // it. The membership refresh below is the only remaining
+    // side effect for the photo-change case.
     // Refresh the membership indicator for the new photo. Done
     // in the same effect so a single `idx` change triggers both
     // (one round trip, no flicker between the two updates).
@@ -492,12 +461,12 @@
 
 <div
   class="overlay"
-  style={tint ? `--glass-tint: url(${tint})` : undefined}
+  style={tintLayer.tint ? `--glass-tint: url(${tintLayer.tint})` : undefined}
   onclick={onClose}
   role="dialog"
   aria-modal="true"
 >
-  {#if tint}
+  {#if tintLayer.tint}
     <!-- Crossfade the tint layer when its background-image swaps.
          The opacity transition runs on the same axis as the photo
          crossfade (both 150 ms), so the user perceives a single
@@ -509,7 +478,7 @@
          paint the new one and animate down/up). -->
     <div
       class="tint"
-      class:tint-ready={tintReady}
+      class:tint-ready={tintLayer.tintReady}
       style:background-image="var(--glass-tint)"
       aria-hidden="true"
     ></div>
