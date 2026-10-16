@@ -15,7 +15,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        get: operations["album_download_zip_albums__album_id__download_zip_head_1"];
+        get: operations["album_download_zip_albums__album_id__download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
          *     can't resolve on disk are skipped and recorded in
          *     `_missing.txt`. Album id with no row → 404.
          */
-        head: operations["album_download_zip_albums__album_id__download_zip_head"];
+        head: operations["album_download_zip_albums__album_id__download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -210,10 +210,10 @@ export interface paths {
             cookie?: never;
         };
         /** Api Cache Refresh */
-        get: operations["api_cache_refresh_api_cache_refresh_post_1"];
+        get: operations["api_cache_refresh_api_cache_refresh_get"];
         put?: never;
         /** Api Cache Refresh */
-        post: operations["api_cache_refresh_api_cache_refresh_post"];
+        post: operations["api_cache_refresh_api_cache_refresh_get_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -576,13 +576,13 @@ export interface paths {
             cookie?: never;
         };
         /** Favorites Download Zip */
-        get: operations["favorites_download_zip_favorites_download_zip_head"];
+        get: operations["favorites_download_zip_favorites_download_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         /** Favorites Download Zip */
-        head: operations["favorites_download_zip_favorites_download_zip_head_1"];
+        head: operations["favorites_download_zip_favorites_download_zip_get_1"];
         patch?: never;
         trace?: never;
     };
@@ -1044,6 +1044,25 @@ export interface components {
              */
             positives: string[];
         };
+        /**
+         * SavedSearchListResponse
+         * @description Paginated list response for GET /api/saved-searches.
+         *
+         *     Newest-first ordering matches the dropdown UX (most recently
+         *     saved at the top of the list). `total` is the unpaginated row
+         *     count so the UI can show a "showing N of M" hint if it ever
+         *     wants to.
+         */
+        SavedSearchListResponse: {
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Saved Searches */
+            saved_searches: components["schemas"]["SavedSearch"][];
+            /** Total */
+            total: number;
+        };
         /** SearchResponse */
         SearchResponse: {
             /** Centroid */
@@ -1191,7 +1210,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    album_download_zip_albums__album_id__download_zip_head_1: {
+    album_download_zip_albums__album_id__download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1220,7 +1239,7 @@ export interface operations {
             };
         };
     };
-    album_download_zip_albums__album_id__download_zip_head: {
+    album_download_zip_albums__album_id__download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1600,7 +1619,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post_1: {
+    api_cache_refresh_api_cache_refresh_get: {
         parameters: {
             query?: {
                 /** @description Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted. */
@@ -1632,7 +1651,7 @@ export interface operations {
             };
         };
     };
-    api_cache_refresh_api_cache_refresh_post: {
+    api_cache_refresh_api_cache_refresh_get_1: {
         parameters: {
             query?: {
                 /** @description Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted. */
@@ -2127,7 +2146,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SavedSearchListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2346,7 +2365,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head: {
+    favorites_download_zip_favorites_download_zip_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2364,7 +2383,7 @@ export interface operations {
             };
         };
     };
-    favorites_download_zip_favorites_download_zip_head_1: {
+    favorites_download_zip_favorites_download_zip_get_1: {
         parameters: {
             query?: never;
             header?: never;

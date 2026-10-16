@@ -759,6 +759,38 @@
         "title": "SavedSearchCreateRequest",
         "type": "object"
       },
+      "SavedSearchListResponse": {
+        "description": "Paginated list response for GET /api/saved-searches.\n\nNewest-first ordering matches the dropdown UX (most recently\nsaved at the top of the list). `total` is the unpaginated row\ncount so the UI can show a \"showing N of M\" hint if it ever\nwants to.",
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "saved_searches": {
+            "items": {
+              "$ref": "#/components/schemas/SavedSearch"
+            },
+            "title": "Saved Searches",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "saved_searches",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "SavedSearchListResponse",
+        "type": "object"
+      },
       "SearchResponse": {
         "properties": {
           "centroid": {
@@ -1058,7 +1090,7 @@
     "/albums/{album_id}/download.zip": {
       "get": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head_1",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get",
         "parameters": [
           {
             "in": "path",
@@ -1089,7 +1121,7 @@
       },
       "head": {
         "description": "Stream an album's photos as a zip \u2014 same shape and rules\nas `/favorites/download.zip`. Membership comes from\n`index_db.list_album_members` (INNER JOIN against the cache,\nso orphan rows are hidden from the archive too). Files we\ncan't resolve on disk are skipped and recorded in\n`_missing.txt`. Album id with no row \u2192 404.",
-        "operationId": "album_download_zip_albums__album_id__download_zip_head",
+        "operationId": "album_download_zip_albums__album_id__download_zip_get_1",
         "parameters": [
           {
             "in": "path",
@@ -1563,7 +1595,7 @@
     },
     "/api/cache/refresh": {
       "get": {
-        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
+        "operationId": "api_cache_refresh_api_cache_refresh_get",
         "parameters": [
           {
             "description": "Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted.",
@@ -1601,7 +1633,7 @@
         "summary": "Api Cache Refresh"
       },
       "post": {
-        "operationId": "api_cache_refresh_api_cache_refresh_post",
+        "operationId": "api_cache_refresh_api_cache_refresh_get_1",
         "parameters": [
           {
             "description": "Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted.",
@@ -2498,7 +2530,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSearchListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2920,7 +2954,7 @@
     },
     "/favorites/download.zip": {
       "get": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head",
+        "operationId": "favorites_download_zip_favorites_download_zip_get",
         "responses": {
           "200": {
             "description": "Successful Response"
@@ -2929,7 +2963,7 @@
         "summary": "Favorites Download Zip"
       },
       "head": {
-        "operationId": "favorites_download_zip_favorites_download_zip_head_1",
+        "operationId": "favorites_download_zip_favorites_download_zip_get_1",
         "responses": {
           "200": {
             "description": "Successful Response"
