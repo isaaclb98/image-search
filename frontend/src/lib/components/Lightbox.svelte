@@ -35,6 +35,7 @@
   import { photoUrl, addPhotoToAlbum, removePhotoFromAlbum, listAlbums, listAlbumsForFavorite } from '$lib/api/endpoints';
   import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
   import { useSlideshow } from '$lib/composables/useSlideshow.svelte';
+  import { useKeyboardNav } from '$lib/composables/useKeyboardNav';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
@@ -325,6 +326,24 @@
     getIntervalMs: () => $preferences.slideshowIntervalMs
   });
 
+  // Phase 6b: useKeyboardNav consolidates the keydown
+  // dispatch table (Escape, arrows, Home/End, PageUp/Down,
+  // 'f' for like, Space for slideshow). The composable
+  // owns the focus gates (button / text-input) and the
+  // boundary clamps (idx ∈ [0, items.length-1]).
+  const keyboard = useKeyboardNav({
+    getItemsLength: () => items.length,
+    getIdx: () => idx,
+    setIdx: (next) => {
+      idx = next;
+    },
+    onClose: () => onClose(),
+    onPrev: () => prev(),
+    onNext: () => next(),
+    onToggleFavorite: () => toggleFavorite(),
+    onToggleSlideshow: () => slideshow.togglePlay()
+  });
+
   // Re-run the photo-dependent effects whenever the current photo
   // changes (lightbox navigation, photo prop change). Tint is the
   // ambient background blur; memberOf is the add-to-album
@@ -517,84 +536,9 @@
     idx = (idx + 1) % items.length;
   }
 
-  function onKey(e: KeyboardEvent) {
-    // ArrowLeft/ArrowRight and Escape always run, regardless of
-    // what's focused — they're navigation, not activation.
-    if (e.key === 'Escape') onClose();
-    else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') prev();
-    else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
-    else if (e.key === 'Home') {
-      // Jump to first photo. Same button-focus caveat as Space —
-      // don't fight the browser's synthetic click on a focused
-      // button.
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = 0;
-      }
-    } else if (e.key === 'End') {
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = items.length - 1;
-      }
-    } else if (e.key === 'PageUp') {
-      // Skip back 10 — large-grid navigation. Bound to [0, N-1].
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = Math.max(0, idx - 10);
-      }
-    } else if (e.key === 'PageDown') {
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return;
-      if (items.length > 0) {
-        e.preventDefault();
-        idx = Math.min(items.length - 1, idx + 10);
-      }
-    } else if (e.key === 'f' || e.key === 'F') {
-      // Like / Unlike shortcut. Disabled while typing in a
-      // text field so we don't steal keys from the rename
-      // input on the Add-to-album dialog, etc.
-      if (e.target instanceof HTMLElement) {
-        const tag = e.target.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      }
-      e.preventDefault();
-      toggleFavorite();
-    } else if (e.key === 'd' || e.key === 'D') {
-      // Wait — 'd' is already used for Next (alongside ArrowRight).
-      // Reuse the same key, but only when Shift is NOT held —
-      // Shift+D is a different gesture and shouldn't fire dislike.
-      // Actually, looking at the existing handler: 'd' (no Shift)
-      // calls next(). So we can't double-up on plain 'd' for
-      // dislike without breaking the existing shortcut. Users
-      // who want a keyboard shortcut for dislike can use the
-      // right-click context menu or the on-screen button.
-      // (Skip — see comment below.)
-    } else if (e.key === ' ' || e.code === 'Space') {
-      // Space natively activates focused buttons. If we also
-      // fire togglePlay() here, the synthetic click from the
-      // button + our handler would net out to no-op and the
-      // timer would never start. So skip our handler when a
-      // button is focused and let the browser fire the click
-      // naturally. ArrowLeft/Right don't have this issue since
-      // browsers don't fire synthetic clicks for them on
-      // buttons.
-      if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') {
-        return;
-      }
-      // Toggle the slideshow. Only meaningful when there's more
-      // than one photo to cycle through (the same gate the
-      // button uses to render itself). preventDefault stops
-      // Space from also scrolling the page underneath the
-      // lightbox — body overflow is hidden anyway, but
-      // belt-and-braces against future layout changes.
-      if (items.length >= 2) {
-        e.preventDefault();
-        slideshow.togglePlay();
-      }
-    }
-  }
+  // Phase 6b: the 75-line onKey handler is now keyboard.handleKey.
+  // The dispatch table, focus gates, and boundary clamps all live
+  // in useKeyboardNav; see that module for the test coverage.
   onMount(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -609,7 +553,7 @@
   });
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={keyboard.handleKey} />
 
 <div
   class="overlay"
