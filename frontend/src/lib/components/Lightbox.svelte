@@ -36,6 +36,7 @@
   import { useAlbumMembership } from '$lib/composables/useAlbumMembership';
   import { useSlideshow } from '$lib/composables/useSlideshow.svelte';
   import { useKeyboardNav } from '$lib/composables/useKeyboardNav';
+  import { usePhotoPreloader } from '$lib/composables/usePhotoPreloader.svelte';
   import { preferences } from '$lib/stores/preferences';
   import Icon from './Icon.svelte';
   import { blurhashToDataUrl } from './blurhash-bg';
@@ -187,9 +188,6 @@
   // feature-detected; old browsers that lack them get the
   // default ±1 preload (a strict-power-user setting, but that's
   // the conservative default for a desktop-class lightbox).
-  // eslint-disable-next-line svelte/no-unnecessary-state-wrap -- reassigned by $effect; SvelteSet alone doesn't track the variable reference
-  let preloadedSrcs: SvelteSet<string> = $state(new SvelteSet());
-
   /* Local "pressed" state for the Like / Dislike action buttons.
      Synced from the current photo only when the user navigates
      to a different photo — re-syncing after every server response
@@ -344,6 +342,22 @@
     onToggleSlideshow: () => slideshow.togglePlay()
   });
 
+  // Phase 6c: usePhotoPreloader owns the adjacent-photo
+  // preload effect. The composable reads `idx` /
+  // `slideshow.playing` / `items.length` / `photoSrc` and
+  // owns the SvelteSet of preloaded URLs. The template
+  // reads `preloader.preloadedSrcs` to render the hidden
+  // <img> nodes.
+  const preloader = usePhotoPreloader({
+    getItemsLength: () => items.length,
+    getCursor: () => idx,
+    getIsPlaying: () => slideshow.playing,
+    getPhotoSrc: () => photoSrc,
+    getItemUrl: (id: string) => photoUrl(id, lightboxWidth()),
+    getItemIdAt: (i: number) => items[i]?.id,
+    getWidth: () => lightboxWidth()
+  });
+
   // Re-run the photo-dependent effects whenever the current photo
   // changes (lightbox navigation, photo prop change). Tint is the
   // ambient background blur; memberOf is the add-to-album
@@ -403,91 +417,12 @@
     void refreshMembership();
   });
 
-  // Adjacent-photo preloader. Runs on every `idx` change so the
-  // preload window tracks the cursor. Reactive deps: `idx` (the
-  // cursor) and `playing` (window expands during slideshow). We
-  // deliberately do NOT track `photoUrl`'s width argument —
-  // `lightboxWidth()` reads `window.innerWidth`, which is reactive
-  // in Svelte 5 only via the `if (browser)` guard, so a resize
-  // mid-lightbox may briefly leave a stale preload at the old
-  // width until the next navigation; that's fine — the cache
-  // entry is shared across widths via the `?w=...` query.
-  $effect(() => {
-    // Touch the deps so Svelte tracks them.
-    const cursor = idx;
-    const isPlaying = slideshow.playing;
-    void items.length;
-
-    // Skip on single-photo lightbox or when the user opted into
-    // data-saver mode. `saveData` is the Network Information API
-    // flag; `prefers-reduced-data: reduce` is the OS-level setting
-    // we honour via matchMedia. Both are optional — old browsers
-    // simply lack them and we fall back to the default preload.
-    if (items.length <= 1) {
-      // Evict any leftover preload entries from a previous
-      // multi-photo session. The Set is the source of truth that
-      // the hidden <img> nodes mirror, so clearing it tells the
-      // template to remove them on the next render.
-      if (preloadedSrcs.size > 0) preloadedSrcs = new SvelteSet();
-      return;
-    }
-    const conn =
-      typeof navigator !== 'undefined'
-        ? (navigator as Navigator & {
-            connection?: { saveData?: boolean };
-          }).connection
-        : undefined;
-    const saveData =
-      !!conn?.saveData ||
-      (typeof window !== 'undefined' &&
-        !!window.matchMedia?.('(prefers-reduced-data: reduce)').matches);
-    if (saveData) {
-      if (preloadedSrcs.size > 0) preloadedSrcs = new SvelteSet();
-      return;
-    }
-
-    // Distance: ±3 during slideshow so a 1s cadence doesn't
-    // race the network; ±1 otherwise.
-    const distance = isPlaying ? 3 : 1;
-    const want = new SvelteSet<string>();
-    for (let d = 1; d <= distance; d++) {
-      // Wrap-around only while the slideshow is running —
-      // manual prev at the first photo and next at the last
-      // are intentionally disabled, so preloading the wrap
-      // would be wasted bandwidth.
-      if (isPlaying) {
-        const nextIdx = (cursor + d) % items.length;
-        const prevIdx = (cursor - d + items.length) % items.length;
-        const nextIt = items[nextIdx];
-        const prevIt = items[prevIdx];
-        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
-        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
-      } else {
-        const nextIt = items[cursor + d];
-        const prevIt = items[cursor - d];
-        if (nextIt) want.add(photoUrl(nextIt.id, lightboxWidth()));
-        if (prevIt) want.add(photoUrl(prevIt.id, lightboxWidth()));
-      }
-    }
-
-    // Evict entries that fell out of the window. Without this,
-    // a fast scrub through a 1000-photo grid would mount 1000
-    // hidden <img> nodes; the browser would keep them all
-    // cached and we'd hold 1000 decoded bitmaps in memory.
-    let changed = false;
-    const next = new SvelteSet<string>();
-    for (const src of want) {
-      if (preloadedSrcs.has(src) || src === photoSrc) next.add(src);
-      else {
-        next.add(src);
-        changed = true;
-      }
-    }
-    for (const src of preloadedSrcs) {
-      if (!next.has(src)) changed = true;
-    }
-    if (changed) preloadedSrcs = next;
-  });
+  // Phase 6c: the 80-line preload $effect is now preloader
+  // (usePhotoPreloader). The distance / wrap-around / data-
+  // saver / eviction logic is all in the composable. The
+  // composable's own $effect tracks the same deps (idx,
+  // slideshow.playing, items.length, photoSrc) so no
+  // placeholder effect is needed here.
 
   function prev() {
     // Snapshot the playing flag before mutating it. We want
@@ -628,7 +563,7 @@
          The Set is the source of truth — additions/removals
          drive mount/unmount. aria-hidden + tabindex=-1 so
          screen readers and keyboard focus skip them. -->
-    {#each [...preloadedSrcs] as preloadSrc (preloadSrc)}
+    {#each [...preloader.preloadedSrcs] as preloadSrc (preloadSrc)}
       <img
         class="preload"
         aria-hidden="true"
