@@ -382,11 +382,26 @@ The breakdown:
 
 ### Phase 5: Likes / Dislikes page consolidation
 
-- Extract a shared `lib/components/BuiltinAlbumPage.svelte`
-  (or a `routes/albums/builtin-album.ts` loader +
-  `builtin-album-template.svelte`) for the like/dislike
-  pages.
-- Reduce each page to ~30 lines (state + config).
+- New `lib/composables/usePagedAlbumList.svelte.ts`
+  exporting `usePagedAlbumList({ pageSize, fetchPage, onRemove, useIndexMap })`
+  that returns `{ items, loading, loadingMore, error, hasMore, indexById, load, loadMore, remove }`.
+- The composable owns the load/loadMore/remove pattern
+  (loading state, pagination, optimistic-remove with
+  rollback). Lives in a `.svelte.ts` file because it
+  uses `$state` runes.
+- An optional `useIndexMap: true` rebuilds an O(1)
+  SvelteMap<id,index> shadow of items on every change.
+  Worth it on Likes at 1000+ items; the dislikes
+  list is sparser in practice, so it uses a simple
+  filter.
+- Migrate `routes/albums/likes/+page.svelte` and
+  `routes/albums/dislikes/+page.svelte` — both pages
+  were 80% identical, with only the endpoint wiring
+  and copy strings differing.
+- ESLint config: add a parser block for `**/*.svelte.ts`
+  / `**/*.svelte.js` so the runes (`$state`, `$derived`)
+  parse cleanly.
+- Unit test the composable.
 - Commit + push, wait CI.
 
 ### Phase 6: Lightbox decomposition (largest single change)

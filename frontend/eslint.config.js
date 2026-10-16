@@ -80,6 +80,21 @@ export default [
     }
   },
 
+  // Svelte TS modules — `.svelte.ts` / `.svelte.js` files
+  // participate in Svelte 5's reactivity model (runes) and
+  // use the TypeScript parser. Without this block, ESLint
+  // reports "Unexpected token type" on `$state(...)` and
+  // friends.
+  {
+    files: ['**/*.svelte.ts', '**/*.svelte.js'],
+    languageOptions: {
+      parser: ts.parser,
+      parserOptions: {
+        parser: ts.parser
+      }
+    }
+  },
+
   // Svelte config — preprocessors (we use vitePreprocess which
   // strips TS from <script lang="ts"> blocks).
   {
