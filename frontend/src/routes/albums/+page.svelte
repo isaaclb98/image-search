@@ -30,6 +30,8 @@
     deleteAlbum,
     listFavorites,
     listDislikes,
+    getFavoriteCount,
+    getDislikeCount,
     thumbUrl
   } from '$lib/api/endpoints';
   import { dialog } from '$lib/components/Dialog.svelte';
@@ -78,14 +80,16 @@
 
   async function refreshSystemCounts() {
     try {
-      // Fetch from the raw endpoints (no `as_results=1`) because
-      // the SearchResponse wrapper doesn't carry a count.
-      const [favs, dis] = await Promise.all([
-        fetch('/api/favorites?limit=1').then((r) => r.json()),
-        fetch('/api/dislikes?limit=1').then((r) => r.json())
+      // Phase 2: getFavoriteCount / getDislikeCount wrap the
+      // raw `/api/favorites?limit=1` and `/api/dislikes?limit=1`
+      // endpoints with Zod validation. No need for a hand-rolled
+      // extractCount shim once the response is typed.
+      const [likes, dislikes] = await Promise.all([
+        getFavoriteCount(),
+        getDislikeCount()
       ]);
-      likesCount = extractCount(favs);
-      dislikesCount = extractCount(dis);
+      likesCount = likes;
+      dislikesCount = dislikes;
     } catch {
       // Counts are decorative; a 502 on count fetch shouldn't
       // blank the whole page.
@@ -113,27 +117,6 @@
     } catch {
       return '';
     }
-  }
-
-  // /api/favorites returns {favorites: [...], total: N}
-  // /api/dislikes returns {items: [...], count: N}
-  // Different shapes — handle both.
-  function extractCount(body: unknown): number {
-    if (Array.isArray(body)) return body.length;
-    if (body && typeof body === 'object') {
-      const o = body as Record<string, unknown>;
-      // /api/favorites uses `total`, /api/dislikes uses `count`.
-      if (typeof o.total === 'number') return o.total;
-      if (typeof o.count === 'number') return o.count;
-      // Fallback: length of the array under any key.
-      const list =
-        (o.favorites as unknown[]) ??
-        (o.dislikes as unknown[]) ??
-        (o.items as unknown[]) ??
-        [];
-      if (Array.isArray(list)) return list.length;
-    }
-    return 0;
   }
 
   async function create() {

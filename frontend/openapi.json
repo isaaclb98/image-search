@@ -232,6 +232,120 @@
         "title": "AlbumsListResponse",
         "type": "object"
       },
+      "CacheStatusResponse": {
+        "description": "GET /api/cache/status \u2014 operator visibility into dual-store sync.\n\n`drift` is the integer point-count gap between Qdrant and\nIndexDB, or the string \"unknown\" when Qdrant is unreachable\n(qdrant_count < 0). The string sentinel is intentional:\nreturning -1 or 0 would be misleading \u2014 a negative number\nconflates \"Qdrant down\" with \"0 drift\", and 0 would imply\nthe stores are in sync when we don't actually know.\n\n`path_liveness_cache_size` / `_max` are the runtime liveness\ncache's current size and its eviction cap. These matter\nbecause the cache lives in memory and a leak would\neventually OOM the container.",
+        "properties": {
+          "drift": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Drift"
+          },
+          "index_db_count": {
+            "title": "Index Db Count",
+            "type": "integer"
+          },
+          "last_refresh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Refresh"
+          },
+          "path_liveness_cache_max": {
+            "title": "Path Liveness Cache Max",
+            "type": "integer"
+          },
+          "path_liveness_cache_size": {
+            "title": "Path Liveness Cache Size",
+            "type": "integer"
+          },
+          "path_liveness_ttl_seconds": {
+            "title": "Path Liveness Ttl Seconds",
+            "type": "number"
+          },
+          "qdrant_count": {
+            "title": "Qdrant Count",
+            "type": "integer"
+          },
+          "refresh_interval_seconds": {
+            "title": "Refresh Interval Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "last_refresh",
+          "qdrant_count",
+          "index_db_count",
+          "drift",
+          "refresh_interval_seconds",
+          "path_liveness_ttl_seconds",
+          "path_liveness_cache_size",
+          "path_liveness_cache_max"
+        ],
+        "title": "CacheStatusResponse",
+        "type": "object"
+      },
+      "CentroidListResponse": {
+        "description": "GET /api/centroids \u2014 static + dynamic centroid inventory.\n\n`centroids` is the static (filesystem-backed) list.\n`dynamic_centroids` is the runtime registry (favourites,\ntag-based, custom). `expected_model` and\n`expected_feature_dim` are None when the static store\nisn't initialised; the frontend uses these to warn when\nthe user has a config that doesn't match the current\nSigLIP2 model.",
+        "properties": {
+          "centroids": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Centroids",
+            "type": "array"
+          },
+          "dynamic_centroids": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Dynamic Centroids",
+            "type": "array"
+          },
+          "expected_feature_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Feature Dim"
+          },
+          "expected_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Model"
+          }
+        },
+        "required": [
+          "centroids",
+          "dynamic_centroids",
+          "expected_model",
+          "expected_feature_dim"
+        ],
+        "title": "CentroidListResponse",
+        "type": "object"
+      },
       "DiversityMetadata": {
         "description": "What the search-side Diversity ranker actually did.",
         "properties": {
@@ -247,7 +361,6 @@
           },
           "depth": {
             "default": "auto",
-            "description": "Requested candidate-pool depth: auto, 500, 1000, 2000, 5000, or 10000.",
             "title": "Depth",
             "type": "string"
           },
@@ -263,7 +376,6 @@
           },
           "pool_depth": {
             "default": 0,
-            "description": "Number of candidates actually retrieved for the ranking pass.",
             "title": "Pool Depth",
             "type": "integer"
           },
@@ -320,6 +432,25 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthzResponse": {
+        "description": "GET /healthz \u2014 operator + load-balancer probe.\n\nKept intentionally tiny: `qdrant` is the only required\ndependency the LB cares about (the rest of the system can be\ndegraded without taking the container out of rotation). The\n`test_mode` flag is informational \u2014 it tells operators\nwhether this is the prod-shaped config or a test fixture.",
+        "properties": {
+          "qdrant": {
+            "title": "Qdrant",
+            "type": "boolean"
+          },
+          "test_mode": {
+            "title": "Test Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "qdrant",
+          "test_mode"
+        ],
+        "title": "HealthzResponse",
         "type": "object"
       },
       "IndexerLogResponse": {
@@ -532,6 +663,32 @@
         "title": "IndexerStatusResponse",
         "type": "object"
       },
+      "ReloadCentroidsResponse": {
+        "description": "POST /api/centroids/reload \u2014 operator-initiated centroid refresh.\n\n`count` is the number of centroids the store successfully\nloaded. `centroids_dir` is the absolute filesystem path\nthe store scanned (or None when the store has no\nconfigured directory \u2014 same shape as a config-disabled\nstore).",
+        "properties": {
+          "centroids_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Centroids Dir"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "centroids_dir"
+        ],
+        "title": "ReloadCentroidsResponse",
+        "type": "object"
+      },
       "SavedSearch": {
         "description": "One saved-search row, as returned by every saved-search\nendpoint. `positives` / `negatives` are always Python lists of\nstrings on the wire \u2014 the IndexDB serialises JSON on disk and\ndeserialises on read so callers don't need to think about the\non-disk shape.",
         "properties": {
@@ -602,38 +759,6 @@
         "title": "SavedSearchCreateRequest",
         "type": "object"
       },
-      "SavedSearchListResponse": {
-        "description": "Paginated list response for GET /api/saved-searches.\n\nNewest-first ordering matches the dropdown UX (most recently\nsaved at the top of the list). `total` is the unpaginated row\ncount so the UI can show a \"showing N of M\" hint if it ever\nwants to.",
-        "properties": {
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "saved_searches": {
-            "items": {
-              "$ref": "#/components/schemas/SavedSearch"
-            },
-            "title": "Saved Searches",
-            "type": "array"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "saved_searches",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "SavedSearchListResponse",
-        "type": "object"
-      },
       "SearchResponse": {
         "properties": {
           "centroid": {
@@ -645,7 +770,6 @@
                 "type": "null"
               }
             ],
-            "description": "First active centroid name, when any centroids are in play. Kept for backward compat with single-centroid clients; the full list lives in `centroids`. Mutually exclusive with q/positives/negatives.",
             "title": "Centroid"
           },
           "centroids": {
@@ -658,7 +782,6 @@
           },
           "diverse": {
             "default": false,
-            "description": "Backwards-compatible flag; true when search Diversity was applied.",
             "title": "Diverse",
             "type": "boolean"
           },
@@ -668,7 +791,6 @@
           },
           "has_more": {
             "default": false,
-            "description": "True when more results likely exist on a subsequent page",
             "title": "Has More",
             "type": "boolean"
           },
@@ -686,7 +808,6 @@
           },
           "offset": {
             "default": 0,
-            "description": "Offset of this page in the full result set",
             "title": "Offset",
             "type": "integer"
           },
@@ -717,7 +838,6 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque session id. For /api/random this identifies the shuffled deck; pass it back with an incremented `offset` to walk forward. None for non-session endpoints (search, similar, etc.) \u2014 those use offset/limit directly against Qdrant.",
             "title": "Session Id"
           },
           "session_total": {
@@ -729,12 +849,10 @@
                 "type": "null"
               }
             ],
-            "description": "Total photos in the session deck. Only set for /api/random. Use this with `offset` to know when you've walked everything.",
             "title": "Session Total"
           },
           "surprise": {
             "default": false,
-            "description": "True when results were randomly sampled from a deep pool (Surprise Me mode).",
             "title": "Surprise",
             "type": "boolean"
           },
@@ -744,7 +862,6 @@
           },
           "view": {
             "default": "grid",
-            "description": "Result view requested: 'grid' (default) or 'feed' (single-column, full-width).",
             "title": "View",
             "type": "string"
           },
@@ -760,7 +877,6 @@
                 "type": "null"
               }
             ],
-            "description": "Per-centroid weights, same order as `centroids`. None means all weights equal 1.0 (the default).",
             "title": "Weights"
           }
         },
@@ -784,7 +900,6 @@
                 "type": "null"
               }
             ],
-            "description": "LQIP (low-quality image placeholder). Decoded client-side into a tinted background while the real image loads. None when the encoder failed or the point was indexed before the blurhash feature shipped.",
             "title": "Blurhash"
           },
           "height": {
@@ -796,7 +911,6 @@
                 "type": "null"
               }
             ],
-            "description": "Photo height in pixels, when known. None for older rows that were indexed before width/height were recorded.",
             "title": "Height"
           },
           "id": {
@@ -806,13 +920,11 @@
           },
           "is_disliked": {
             "default": false,
-            "description": "True when the image is marked as a dislike (hides it from future recommendations)",
             "title": "Is Disliked",
             "type": "boolean"
           },
           "is_favorite": {
             "default": false,
-            "description": "True when the image is marked as a favourite",
             "title": "Is Favorite",
             "type": "boolean"
           },
@@ -847,7 +959,6 @@
                 "type": "null"
               }
             ],
-            "description": "Photo width in pixels, when known. None for older rows that were indexed before width/height were recorded.",
             "title": "Width"
           }
         },
@@ -857,6 +968,43 @@
           "score"
         ],
         "title": "SearchResult",
+        "type": "object"
+      },
+      "SystemStatusResponse": {
+        "description": "GET /api/system/status \u2014 frontend dashboard telemetry.\n\nThe frontend's settings panel reads this to surface model\nload state, point counts, and the last successful\nindexer\u2192IndexDB refresh. Field types are chosen so the\nJS layer can `JSON.parse` and consume without coercion.",
+        "properties": {
+          "index_db_count": {
+            "title": "Index Db Count",
+            "type": "integer"
+          },
+          "last_refresh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Refresh"
+          },
+          "model_status": {
+            "additionalProperties": true,
+            "title": "Model Status",
+            "type": "object"
+          },
+          "qdrant_count": {
+            "title": "Qdrant Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_status",
+          "qdrant_count",
+          "index_db_count",
+          "last_refresh"
+        ],
+        "title": "SystemStatusResponse",
         "type": "object"
       },
       "ValidationError": {
@@ -1415,7 +1563,21 @@
     },
     "/api/cache/refresh": {
       "get": {
-        "operationId": "api_cache_refresh_api_cache_refresh_post",
+        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
+        "parameters": [
+          {
+            "description": "Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted.",
+            "in": "query",
+            "name": "full",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted.",
+              "title": "Full",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1424,12 +1586,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Api Cache Refresh"
       },
       "post": {
-        "operationId": "api_cache_refresh_api_cache_refresh_post_1",
+        "operationId": "api_cache_refresh_api_cache_refresh_post",
+        "parameters": [
+          {
+            "description": "Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted.",
+            "in": "query",
+            "name": "full",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Round-35: when true, do the legacy wipe+rebuild (init_from_qdrant force=True). Default false uses the new diff-based refresh_incremental which preserves concurrent indexer writes and only touches rows that actually drifted.",
+              "title": "Full",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1438,6 +1624,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Api Cache Refresh"
@@ -1452,9 +1648,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Cache Status Api Cache Status Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CacheStatusResponse"
                 }
               }
             },
@@ -1473,9 +1667,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Centroids Api Centroids Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CentroidListResponse"
                 }
               }
             },
@@ -1493,9 +1685,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reload Centroids Api Centroids Reload Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ReloadCentroidsResponse"
                 }
               }
             },
@@ -1625,6 +1815,78 @@
               ],
               "description": "Diversity candidate depth: auto, 500, 1000, 2000, 5000, or 10000",
               "title": "Diversity Depth"
+            }
+          },
+          {
+            "description": "Surprise Me \u2014 Gumbel-max over the top N candidates from this centroid. Mutually exclusive with mode=sample and with diversity. Same cache+session contract as /api/search?surprise=true.",
+            "in": "query",
+            "name": "surprise",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Surprise Me \u2014 Gumbel-max over the top N candidates from this centroid. Mutually exclusive with mode=sample and with diversity. Same cache+session contract as /api/search?surprise=true.",
+              "title": "Surprise",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Gumbel noise scale for Surprise Me on centroid search. T=0 is deterministic top-K; higher = more variety. Ignored unless surprise=true.",
+            "in": "query",
+            "name": "surprise_temperature",
+            "required": false,
+            "schema": {
+              "default": 0.05,
+              "description": "Gumbel noise scale for Surprise Me on centroid search. T=0 is deterministic top-K; higher = more variety. Ignored unless surprise=true.",
+              "title": "Surprise Temperature",
+              "type": "number"
+            }
+          },
+          {
+            "description": "How many top candidates the Gumbel draw is taken from for centroid search. Larger = more variety, slower first page. Range 200..50000, default 5000. Ignored unless surprise=true.",
+            "in": "query",
+            "name": "surprise_pool",
+            "required": false,
+            "schema": {
+              "default": 5000,
+              "description": "How many top candidates the Gumbel draw is taken from for centroid search. Larger = more variety, slower first page. Range 200..50000, default 5000. Ignored unless surprise=true.",
+              "title": "Surprise Pool",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Reseed knob for Surprise Me on centroid search. Pass a fresh random int for a new deck every request; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default. Ignored unless surprise=true.",
+            "in": "query",
+            "name": "surprise_seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reseed knob for Surprise Me on centroid search. Pass a fresh random int for a new deck every request; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default. Ignored unless surprise=true.",
+              "title": "Surprise Seed"
+            }
+          },
+          {
+            "description": "Opaque session id from a prior Surprise Me response on this centroid. Pass back with offset to walk the cached deck without recomputing. Ignored unless surprise=true.",
+            "in": "query",
+            "name": "surprise_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque session id from a prior Surprise Me response on this centroid. Pass back with offset to walk the cached deck without recomputing. Ignored unless surprise=true.",
+              "title": "Surprise Session"
             }
           }
         ],
@@ -1941,21 +2203,21 @@
     },
     "/api/for-you/feed": {
       "get": {
-        "description": "Materialise the top `top_pct`% of library by taste,\nuniformly shuffle, return `limit` ids starting at `page`.\n\nThe shuffle is keyed by `(fav_ids, dis_ids, top_pct, seed)`.\nA client that keeps all four stable across multiple `page`\nvalues walks through the same shuffle. A new `seed` produces\na fresh shuffle. If no seed is supplied, all requests share\nthe same cached shuffle until the TTL expires.",
+        "description": "Walk through a Gumbel-sampled deck of photos in the user's\ntaste neighborhood.\n\nThe candidate pool is sourced from Qdrant\n`recommend(positive=likes, negative=dislikes)`. The\nrecommend() results are ordered by score descending, and\nthe Gumbel draw biases the deck toward high scores by\nthe temperature. At T=0 the deck is the deterministic\ntop-K; at T=1.0 the deck is near-uniform random over the\npool.\n\nCache key: `compute_for_you_cache_key(fav_ids, dis_ids,\ntemperature, pool_size, seed)`. A client that keeps\nthese stable across multiple offsets walks through the\nsame deck. A new seed (or a new fav_ids/dis_ids after a\nlike/dislike) produces a fresh deck.\n\nCold start: 0 favourites returns 400. The /for-you page\nsurfaces a \"Like a few photos to seed\" empty state\nbefore sending a request.",
         "operationId": "for_you_feed_api_for_you_feed_get",
         "parameters": [
           {
-            "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
+            "description": "Number of recommend() candidates the Gumbel draw is taken from. Default 2000. Range [200, 50000]. Higher = more variety, slower first page.",
             "in": "query",
-            "name": "top_pct",
+            "name": "pool_size",
             "required": false,
             "schema": {
-              "default": 1.0,
-              "description": "Percentile of library to use as the random pool. Default 1.0 (1% \u2192 8000 candidates at 800k library). No ceiling; large values fetch proportionally more.",
-              "maximum": 100.0,
-              "minimum": 0.001,
-              "title": "Top Pct",
-              "type": "number"
+              "default": 2000,
+              "description": "Number of recommend() candidates the Gumbel draw is taken from. Default 2000. Range [200, 50000]. Higher = more variety, slower first page.",
+              "maximum": 50000,
+              "minimum": 200,
+              "title": "Pool Size",
+              "type": "integer"
             }
           },
           {
@@ -1972,22 +2234,54 @@
             }
           },
           {
-            "description": "Zero-based offset into the shuffled pool.",
+            "description": "Zero-based offset into the cached Gumbel deck. Pass the same `session` value to walk forward through the same deck without recomputing.",
             "in": "query",
-            "name": "page",
+            "name": "offset",
             "required": false,
             "schema": {
               "default": 0,
-              "description": "Zero-based offset into the shuffled pool.",
+              "description": "Zero-based offset into the cached Gumbel deck. Pass the same `session` value to walk forward through the same deck without recomputing.",
               "minimum": 0,
-              "title": "Page",
+              "title": "Offset",
               "type": "integer"
             }
           },
           {
-            "description": "Optional opaque string. Frontend passes a fresh random value on every page reload so the user sees a different shuffle each time; reuse the same value for paginated scroll calls within a single page-mount to walk through the same shuffle across page=0, page=1, ... Different seeds produce different shuffles (server-side cached keyed on this value).",
+            "description": "Gumbel noise scale. T=0 is deterministic top-K (curated). T=1.0 is near-uniform random over the pool. Default 0.05.",
+            "in": "query",
+            "name": "temperature",
+            "required": false,
+            "schema": {
+              "default": 0.05,
+              "description": "Gumbel noise scale. T=0 is deterministic top-K (curated). T=1.0 is near-uniform random over the pool. Default 0.05.",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Temperature",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Random seed for the Gumbel draw. Pass a fresh random int on every page reload so the user sees a different deck each time. Pass the same value for paginated scroll within a single page-mount to walk through the same deck. If omitted, the route generates a fresh random seed per request.",
             "in": "query",
             "name": "seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Random seed for the Gumbel draw. Pass a fresh random int on every page reload so the user sees a different deck each time. Pass the same value for paginated scroll within a single page-mount to walk through the same deck. If omitted, the route generates a fresh random seed per request.",
+              "title": "Seed"
+            }
+          },
+          {
+            "description": "Opaque cache key from a prior /api/for-you/feed response. Pass back with offset=N to walk the same deck without recomputing. Server-cached for 30 minutes.",
+            "in": "query",
+            "name": "session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -1998,8 +2292,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional opaque string. Frontend passes a fresh random value on every page reload so the user sees a different shuffle each time; reuse the same value for paginated scroll calls within a single page-mount to walk through the same shuffle across page=0, page=1, ... Different seeds produce different shuffles (server-side cached keyed on this value).",
-              "title": "Seed"
+              "description": "Opaque cache key from a prior /api/for-you/feed response. Pass back with offset=N to walk the same deck without recomputing. Server-cached for 30 minutes.",
+              "title": "Session"
             }
           }
         ],
@@ -2204,9 +2498,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SavedSearchListResponse"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -2453,6 +2745,66 @@
               "title": "Surprise",
               "type": "boolean"
             }
+          },
+          {
+            "description": "Gumbel noise scale for Surprise Me. T=0 is deterministic; higher = more variety.",
+            "in": "query",
+            "name": "surprise_temperature",
+            "required": false,
+            "schema": {
+              "default": 0.05,
+              "description": "Gumbel noise scale for Surprise Me. T=0 is deterministic; higher = more variety.",
+              "title": "Surprise Temperature",
+              "type": "number"
+            }
+          },
+          {
+            "description": "How many top candidates the Gumbel draw is taken from. Larger = more variety, slower first page.",
+            "in": "query",
+            "name": "surprise_pool",
+            "required": false,
+            "schema": {
+              "default": 5000,
+              "description": "How many top candidates the Gumbel draw is taken from. Larger = more variety, slower first page.",
+              "title": "Surprise Pool",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Reseed knob for Surprise Me. Omit (or pass a fresh random int) for a new deck every search; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default.",
+            "in": "query",
+            "name": "surprise_seed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reseed knob for Surprise Me. Omit (or pass a fresh random int) for a new deck every search; pass the same value across requests for a shareable deterministic URL. The route generates a random int when this is absent so each new search gives a different deck by default.",
+              "title": "Surprise Seed"
+            }
+          },
+          {
+            "description": "Opaque session id from a prior Surprise Me response. Pass back with offset to walk the cached deck without recomputing.",
+            "in": "query",
+            "name": "surprise_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque session id from a prior Surprise Me response. Pass back with offset to walk the cached deck without recomputing.",
+              "title": "Surprise Session"
+            }
           }
         ],
         "responses": {
@@ -2556,9 +2908,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response System Status Api System Status Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SystemStatusResponse"
                 }
               }
             },
@@ -2596,9 +2946,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Healthz Healthz Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HealthzResponse"
                 }
               }
             },

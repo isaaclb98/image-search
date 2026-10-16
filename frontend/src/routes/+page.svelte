@@ -30,7 +30,9 @@
     search,
     likePoint,
     unlikePoint,
-    dislikePoint
+    dislikePoint,
+    getSystemStatus,
+    getAdminIndexStatus
   } from '$lib/api/endpoints';
   import type { SavedSearch } from '$lib/api/endpoints';
   import {
@@ -338,12 +340,13 @@
     // request fails. The route clamps the pool to the corpus
     // at request time so any UI/server drift is handled
     // gracefully.
-    void fetch("/api/system/status", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
+    // Phase 2: uses getSystemStatus() instead of a raw
+    // fetch(). The endpoint wrapper handles credentials,
+    // dev-mode Zod validation, and timeout/abort plumbing
+    // uniformly with the rest of the app.
+    void getSystemStatus()
       .then((d) => {
-        if (d && typeof d.qdrant_count === "number" && d.qdrant_count > 0) {
-          corpusSize = d.qdrant_count;
-        }
+        if (d.qdrant_count > 0) corpusSize = d.qdrant_count;
       })
       .catch(() => {
         /* leave corpusSize null */
@@ -370,16 +373,11 @@
     // (unknown): false-negatives on this banner are much less
     // annoying than false-positives, so we assume "not empty"
     // when we can't tell.
+    // Phase 2: getAdminIndexStatus() handles credentials and
+    // dev-mode Zod validation. Schema is on Z.IndexerStatus.
     try {
-      const s = await fetch('/api/admin/index/status', {
-        credentials: 'include'
-      });
-      if (s.ok) {
-        const body = await s.json();
-        if (typeof body.points_count === 'number' && body.points_count === 0) {
-          indexIsEmpty = true;
-        }
-      }
+      const body = await getAdminIndexStatus();
+      if (body.points_count === 0) indexIsEmpty = true;
     } catch {
       // ignore — admin endpoint may be unavailable in tests
     }

@@ -154,6 +154,60 @@ const CentroidList = z.object({
   }).passthrough())
 }).passthrough();
 
+// ---- system / admin telemetry (Phase 2) ----
+// Mirror the Pydantic models in search/models.py. Used by the
+// home page (corpus size for the Surprise Me pool label) and
+// the empty-index banner.
+const SystemStatus = z.object({
+  model_status: z.record(z.string(), z.unknown()),
+  qdrant_count: z.number().int(),
+  index_db_count: z.number().int(),
+  last_refresh: z.number().nullable()
+}).passthrough();
+
+const IndexerProgress = z.object({
+  indexed: z.number().int().optional(),
+  total: z.number().int().optional(),
+  current_file: z.string().optional(),
+  eta_seconds: z.number().optional()
+}).passthrough();
+
+const IndexerStatus = z.object({
+  state: z.enum(['idle', 'running', 'failed']),
+  mode: z.enum(['incremental', 'rebuild']).nullable().optional(),
+  job_id: z.string().nullable().optional(),
+  pid: z.number().int().nullable().optional(),
+  started_at: z.string().nullable().optional(),
+  finished_at: z.string().nullable().optional(),
+  last_run_at: z.string().nullable().optional(),
+  last_error: z.string().nullable().optional(),
+  progress: IndexerProgress,
+  points_count: z.number().int().nullable().optional()
+}).passthrough();
+
+// ---- count shapes (Phase 2) ----
+// /api/favorites (without as_results=1) and /api/dislikes each
+// return a list envelope with a total/count field. Used by the
+// Albums page header to display Likes / Dislikes counts.
+const FavoritesList = z.object({
+  favorites: z.array(z.object({
+    id: z.string(),
+    path: z.string(),
+    favorited_at: z.string().optional()
+  }).passthrough()),
+  total: z.number().int(),
+  limit: z.number().int().optional(),
+  offset: z.number().int().optional()
+}).passthrough();
+
+const DislikesList = z.object({
+  items: z.array(z.unknown()),
+  count: z.number().int(),
+  limit: z.number().int().optional(),
+  offset: z.number().int().optional(),
+  has_more: z.boolean().optional()
+}).passthrough();
+
 // ---- helpers ----
 
 /** Throws a helpful Error if data doesn't match the schema. */
@@ -188,5 +242,9 @@ export const Z = {
   CentroidList,
   ForYouFeedItem,
   ForYouFeedResponse,
-  ForYouState
+  ForYouState,
+  SystemStatus,
+  IndexerStatus,
+  FavoritesList,
+  DislikesList
 };
