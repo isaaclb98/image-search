@@ -63,6 +63,12 @@ def _status_to_response(status: Any, *, points_count: int | None = None) -> Inde
             reembedded=status.progress.reembedded,
             skipped=status.progress.skipped,
             errors=status.progress.errors,
+            # Round-50: pass through thumb_regens. Default 0 on
+            # the wire model makes the field optional from the
+            # UI's perspective (the type is non-optional but the
+            # default makes the field backward-compatible with
+            # older runner responses).
+            thumb_regens=status.progress.thumb_regens,
         ),
         points_count=(
             points_count if points_count is not None else status.points_count

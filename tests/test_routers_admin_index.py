@@ -93,7 +93,15 @@ def test_initial_status_is_idle(client):
     body = r.json()
     assert body["state"] == "idle"
     assert body["job_id"] is None
-    assert body["progress"] == {"indexed": 0, "reembedded": 0, "skipped": 0, "errors": 0}
+    # Round-50: thumb_regens added to the progress model. Default 0
+    # is the same as the rest of the progress counters on init.
+    assert body["progress"] == {
+        "indexed": 0,
+        "reembedded": 0,
+        "skipped": 0,
+        "errors": 0,
+        "thumb_regens": 0,
+    }
 
 
 def test_post_starts_job_and_returns_202(client):

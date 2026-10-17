@@ -364,6 +364,10 @@ class IndexerProgressModel(BaseModel):
     reembedded: int
     skipped: int
     errors: int
+    # Round-50: count of thumbnails regenerated for files whose
+    # embed was skipped but whose on-disk thumb was missing.
+    # Optional because older indexer binaries don't emit it.
+    thumb_regens: int = 0
 
 
 class IndexerStatusResponse(BaseModel):

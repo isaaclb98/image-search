@@ -164,7 +164,7 @@
             {:else if status.phase === 'scanning'}
               Scanning…
             {:else}
-              Running · {status.progress.indexed} indexed, {status.progress.reembedded} re-embedded
+              Running · {status.progress.indexed} indexed, {status.progress.reembedded} re-embedded{#if status.progress.thumb_regens}, {status.progress.thumb_regens} thumbs regenerated{/if}
             {/if}
           {:else}
             Failed{status.last_error ? ` — ${status.last_error}` : ''}
