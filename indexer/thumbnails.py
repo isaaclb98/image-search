@@ -47,6 +47,16 @@ THUMBNAIL_SIZE = (384, 384)  # matches the so400m model input res
 # but crushed detail — every tile looked like a watercolor when
 # viewed on a HiDPI display.
 THUMBNAIL_QUALITY = 80
+# Force 4:4:4 chroma subsampling on the WebP encode. PIL's
+# default for quality<95 is 4:2:0, which subsamples the chroma
+# channels and visibly mutes saturated colors at high-contrast
+# edges (lips, fabric folds, neon signs). libvips/sharp
+# (Immich, PhotoPrism) force 4:4:4 at quality>=80; we adopt the
+# same threshold for parity with the libvips pipeline. Output
+# bytes grow ~10-20% per file; visual gain is concentrated on
+# already-saturated content (skin tones and low-saturation
+# backgrounds are unaffected).
+CHROMA_SUBSAMPLING = "4:4:4"
 # Sized variants the frontend srcset advertises. Post-migration
 # this is empty: a single 384px asset covers the common rendering
 # sizes (up to 192 CSS px at 2× DPR = 384 px at the bitmap level)
@@ -102,7 +112,23 @@ def compute_thumbnail(image: Image.Image, point_id: str) -> Path | None:
         top = (h - side) // 2
         thumb = thumb.crop((left, top, left + side, top + side))
         thumb = thumb.resize(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
-        thumb.save(out_path, "WEBP", quality=THUMBNAIL_QUALITY, method=4)
+        # Force 4:4:4 chroma subsampling on the WebP encode. PIL's
+        # default for quality<95 is 4:2:0, which subsamples the
+        # chroma channels and visibly mutes saturated colors at
+        # high-contrast edges (lips, fabric folds, neon signs).
+        # libvips/sharp (Immich, PhotoPrism) force 4:4:4 at
+        # quality>=80; we adopt the same threshold for parity with
+        # the libvips pipeline. Output bytes grow ~10-20% per
+        # file; visual gain is concentrated on already-saturated
+        # content (skin tones and low-saturation backgrounds are
+        # unaffected).
+        thumb.save(
+            out_path,
+            "WEBP",
+            quality=THUMBNAIL_QUALITY,
+            method=4,
+            chroma_subsampling=CHROMA_SUBSAMPLING,
+        )
 
         # Round-perf (issue #2): write the downscaled siblings for the
         # frontend srcset. The 256-px canonical is always written
@@ -120,7 +146,17 @@ def compute_thumbnail(image: Image.Image, point_id: str) -> Path | None:
                 continue
             variant = thumb.resize((size, size), Image.Resampling.LANCZOS)
             variant_path = sized_thumbnail_path(point_id, size)
-            variant.save(variant_path, "WEBP", quality=THUMBNAIL_QUALITY, method=4)
+            # Same 4:4:4 chroma as the canonical; sized variants
+            # are an edge case (THUMBNAIL_SIZES is currently empty)
+            # but the encode should match the canonical for
+            # consistent color rendering across the srcset.
+            variant.save(
+                variant_path,
+                "WEBP",
+                quality=THUMBNAIL_QUALITY,
+                method=4,
+                chroma_subsampling=CHROMA_SUBSAMPLING,
+            )
 
         return out_path
     except (OSError, ValueError, RuntimeError) as e:

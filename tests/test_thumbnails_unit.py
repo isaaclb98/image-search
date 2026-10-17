@@ -20,6 +20,7 @@ from indexer.thumbnails import (
     THUMBNAIL_QUALITY,
     THUMBNAIL_SIZE,
     THUMBNAIL_SIZES,
+    CHROMA_SUBSAMPLING,
     compute_thumbnail,
     generate_thumbnail_for_path,
     sized_thumbnail_path,
@@ -263,6 +264,14 @@ class TestThumbnailConstants:
         # (commit 44bac8c deleted docs/archive/thumbnail-pipeline.md
         # which had argued for q50). Current prod code uses q80.
         assert THUMBNAIL_QUALITY == 80
+
+    def test_chroma_subsampling_is_4_4_4(self):
+        # Forced 4:4:4 chroma for the libvips/Immich parity reason:
+        # PIL's default at q<95 is 4:2:0, which subsamples the
+        # chroma channels and mutes saturated color edges. Pin
+        # the value so a future maintainer doesn't regress to
+        # the PIL default.
+        assert CHROMA_SUBSAMPLING == "4:4:4"
 
     def test_thumbnail_dir_uses_env_or_default(self, monkeypatch):
         monkeypatch.delenv("THUMBNAIL_DIR", raising=False)
