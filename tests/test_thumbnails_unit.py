@@ -21,6 +21,7 @@ from indexer.thumbnails import (
     THUMBNAIL_SIZE,
     THUMBNAIL_SIZES,
     CHROMA_SUBSAMPLING,
+    _SRGB_PROFILE_BYTES,
     compute_thumbnail,
     generate_thumbnail_for_path,
     sized_thumbnail_path,
@@ -272,6 +273,40 @@ class TestThumbnailConstants:
         # the value so a future maintainer doesn't regress to
         # the PIL default.
         assert CHROMA_SUBSAMPLING == "4:4:4"
+
+    def test_srgb_profile_is_embedded(self, tmp_path, monkeypatch):
+        """The output WebP must carry the sRGB ICC profile so color-
+        managed browsers and tools render with explicit sRGB
+        intent. PIL strips ICC profiles on crop/resize by default;
+        this test pins the embed behavior."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (256, 256), color="red")
+        result = compute_thumbnail(img, "iccembed1")
+        assert result is not None
+        with Image.open(result) as thumb:
+            assert "icc_profile" in thumb.info
+            # Same 588-byte sRGB blob the module cached at load.
+            assert thumb.info["icc_profile"] == _SRGB_PROFILE_BYTES
+
+    def test_linear_light_resize_preserves_extremes(self, tmp_path, monkeypatch):
+        """Linear-light resize is mathematically correct but the
+        gamma round-trip on solid colors must NOT shift them. A
+        solid-red 256x256 should round-trip to solid red (255,0,0)
+        within 1 unit per channel — anything more means the
+        gamma conversion or the uint8 clip is broken."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        # 2x2 solid red, upscaled to a real photo-like size so the
+        # resize has meaningful content to work with.
+        src = Image.new("RGB", (2, 2), color=(255, 0, 0))
+        src = src.resize((512, 512), Image.Resampling.NEAREST)
+        result = compute_thumbnail(src, "linrsz001")
+        assert result is not None
+        with Image.open(result) as thumb:
+            # Sample the center — should still be solid red.
+            r, g, b = thumb.getpixel((192, 192))
+            assert r == 255
+            assert g <= 1
+            assert b <= 1
 
     def test_thumbnail_dir_uses_env_or_default(self, monkeypatch):
         monkeypatch.delenv("THUMBNAIL_DIR", raising=False)
