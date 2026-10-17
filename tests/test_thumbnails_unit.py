@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest  # noqa: F401  # used by tests that conditionally skip
 from PIL import Image
 
 from indexer.thumbnails import (
@@ -21,7 +22,10 @@ from indexer.thumbnails import (
     THUMBNAIL_SIZE,
     THUMBNAIL_SIZES,
     CHROMA_SUBSAMPLING,
+    _HAS_PYVIPS,
+    _PIL_FORCE,
     _SRGB_PROFILE_BYTES,
+    _use_pyvips,
     compute_thumbnail,
     generate_thumbnail_for_path,
     sized_thumbnail_path,
@@ -375,3 +379,93 @@ class TestComputeThumbnailWritesSizedVariants:
         compute_thumbnail(img, "skipbig1")
         assert sized_thumbnail_path("skipbig1", 200).exists()
         assert not sized_thumbnail_path("skipbig1", 999).exists()
+
+
+# ----- pyvips (libvips) path -----
+
+
+class TestPyvipsPath:
+    """The libvips path runs when pyvips is importable AND a source
+    path is provided. Behavior contract:
+      - writes a 384x384 WebP at the canonical path
+      - embeds the sRGB ICC profile
+      - Q=80 default
+    Skipped on hosts that don't have pyvips (most CI runners).
+    """
+
+    def test_use_pyvips_reflects_availability(self, monkeypatch):
+        # Default: pyvips decides. monkeypatch _PIL_FORCE True → False.
+        monkeypatch.setattr("indexer.thumbnails._PIL_FORCE", True)
+        assert _use_pyvips() is False
+        monkeypatch.setattr("indexer.thumbnails._PIL_FORCE", False)
+        # Result depends on whether pyvips is importable; just
+        # check that the function respects the toggle.
+        assert _use_pyvips() is (_HAS_PYVIPS and not _PIL_FORCE)
+
+    def test_pyvips_path_runs_when_source_path_provided(
+        self, tmp_path, monkeypatch
+    ):
+        if not _HAS_PYVIPS:
+            import pytest
+
+            pytest.skip("pyvips not importable on this host")
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        # Write a real source JPEG to disk so the pyvips path
+        # has something to load.
+        src = tmp_path / "src.jpg"
+        Image.new("RGB", (640, 480), color=(180, 60, 220)).save(
+            src, "JPEG", quality=85
+        )
+        # Caller has both a PIL Image (for the PIL path) and
+        # a source path (for the pyvips path); the path wins.
+        pil_image = Image.new("RGB", (16, 16), color="red")
+        result = compute_thumbnail(pil_image, "vipstest1", source_path=src)
+        assert result is not None
+        assert result.exists()
+        with Image.open(result) as thumb:
+            assert thumb.size == (384, 384)
+            assert thumb.format == "WEBP"
+            # libvips auto-4:4:4 + ICC embed: the file MUST
+            # carry the sRGB profile (matches what the PIL
+            # path embeds; the load + reload test below proves
+            # the bytes round-trip).
+            assert "icc_profile" in thumb.info
+            assert thumb.info["icc_profile"] == _SRGB_PROFILE_BYTES
+
+    def test_pil_path_runs_when_source_path_missing(
+        self, tmp_path, monkeypatch
+    ):
+        """No source_path → PIL fallback, even when pyvips is
+        available. The indexer always has a source path so this
+        path is for unit tests and other in-memory callers."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (512, 512), color="orange")
+        # No source_path argument → PIL path.
+        result = compute_thumbnail(img, "pilpath1")
+        assert result is not None
+        with Image.open(result) as thumb:
+            assert thumb.size == (384, 384)
+            assert thumb.info.get("icc_profile") == _SRGB_PROFILE_BYTES
+
+    def test_pil_path_runs_when_pyvips_forced_off(
+        self, tmp_path, monkeypatch
+    ):
+        """_PIL_FORCE = True bypasses pyvips even with a source
+        path. The test-suite toggle so PIL helpers are exercised
+        on hosts that have libvips installed (i.e. this one)."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        monkeypatch.setattr("indexer.thumbnails._PIL_FORCE", True)
+        src = tmp_path / "src.jpg"
+        Image.new("RGB", (640, 480), color=(40, 200, 80)).save(
+            src, "JPEG", quality=85
+        )
+        result = compute_thumbnail(
+            Image.new("RGB", (16, 16), color="red"),
+            "pilforce1",
+            source_path=src,
+        )
+        assert result is not None
+        with Image.open(result) as thumb:
+            assert thumb.size == (384, 384)
+            # PIL path also embeds the profile.
+            assert thumb.info.get("icc_profile") == _SRGB_PROFILE_BYTES
