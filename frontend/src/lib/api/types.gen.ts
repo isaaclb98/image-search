@@ -937,6 +937,11 @@ export interface components {
             reembedded: number;
             /** Skipped */
             skipped: number;
+            /**
+             * Thumb Regens
+             * @default 0
+             */
+            thumb_regens: number;
         };
         /**
          * IndexerRunRequest

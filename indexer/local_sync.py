@@ -42,7 +42,7 @@ from indexer import upsert
 from indexer.image_loader import letterbox_resize, load_image_pil, peek_source_dims
 from indexer.retry import RetryExhausted, retry_with_backoff
 from indexer.scan import ScanCancelled
-from indexer.thumbnails import generate_thumbnail_for_path
+from indexer.thumbnails import generate_thumbnail_for_path, thumbnail_path
 from indexer.vision_encoder import VisionEncoder
 
 load_dotenv()
@@ -487,6 +487,15 @@ def main(argv=None):
     last_written_ids: list = []
     total_skipped = 0
     total_errors = 0
+    # Round-50: count of thumbnails regenerated for files whose
+    # embed was skipped (mtime/size match → up-to-date) but whose
+    # thumb was missing on disk. This is the "I deleted all the
+    # thumbs, click Index, and the site comes back" self-heal
+    # path. The count is surfaced in the progress events so the
+    # UI can show it; it's also a way to detect disk-level
+    # corruption (a spike means thumbs are being lost between
+    # runs).
+    total_thumb_regens = 0
     # Diagnostic for the "indexer re-embeds everything on no-op runs"
     # investigation. When the indexer treats a file as new (id not in
     # source_meta) but the same path resolves to an id that IS in the
@@ -637,6 +646,7 @@ def main(argv=None):
                 "reembedded": total_reembedded,
                 "skipped": total_skipped,
                 "errors": total_errors,
+                "thumb_regens": total_thumb_regens,
                 "duration_s": time.time() - t0,
             })
             return 130
@@ -660,9 +670,19 @@ def main(argv=None):
                     "reembedded": total_reembedded,
                     "skipped": total_skipped,
                     "errors": total_errors,
+                    "thumb_regens": total_thumb_regens,
                     "duration_s": time.time() - t0,
                 })
                 return 130
+
+            # Round-50: files that are up-to-date (mtime/size
+            # match, no re-embed needed) but whose thumbnail is
+            # missing on disk. We regen the thumb without
+            # re-embedding. Built inside the per-file loop in the
+            # non-rebuild branch; initialised here so the regen
+            # block below is bound in rebuild mode too (where it's
+            # always empty because every file is in to_embed).
+            to_thumb: list = []
 
             # Skip the change-detection scroll entirely in --rebuild
             # mode. We just wiped the collection, so every existing id
@@ -779,6 +799,21 @@ def main(argv=None):
                         n_changed += 1
                     else:
                         total_skipped += 1
+                        # Round-50: self-heal. The file's embedding
+                        # is up-to-date but the on-disk thumb is
+                        # gone (operator deleted the thumb dir, NFS
+                        # hiccup, partial restore, etc.). Regen the
+                        # thumb without re-embedding. One
+                        # os.path.exists call per up-to-date file
+                        # per batch — negligible cost.
+                        #
+                        # The check is on the canonical thumb path
+                        # only: generate_thumbnail_for_path writes
+                        # the canonical + all sized variants in one
+                        # call, so a missing canonical is sufficient
+                        # evidence the whole set is gone.
+                        if not (thumbnail_path(upsert.id_for(path, ""))).exists():
+                            to_thumb.append(path)
 
             logger.info(
                 "batch %d: %d new, %d changed, %d up-to-date, %d id_mismatch",
@@ -787,7 +822,7 @@ def main(argv=None):
                 n_id_mismatch,
             )
 
-            if not to_embed:
+            if not to_embed and not to_thumb:
                 continue
 
             if args.dry_run:
@@ -795,6 +830,11 @@ def main(argv=None):
                     "dry-run: would embed %d file(s) (%d new, %d changed)",
                     len(to_embed), n_new, n_changed,
                 )
+                if to_thumb:
+                    logger.info(
+                        "dry-run: would regen %d missing thumb(s)",
+                        len(to_thumb),
+                    )
                 total_indexed += n_new
                 total_reembedded += n_changed
                 continue
@@ -803,122 +843,168 @@ def main(argv=None):
             # thread pool (size = min(cpu_count, 8), env-tunable
             # via IMAGE_LOAD_POOL_SIZE). PIL releases the GIL on
             # libjpeg/libpng/WebP/HEIF, so this gives real
-            # parallelism without process overhead. On an 8-core
-            # host this typically cuts the load phase from
-            # batch_size × 25ms to ~batch_size × 4ms.
-            to_embed_paths = [p for p, _reason in to_embed]
-            raw_loaded = _load_batch_concurrent(to_embed_paths)
-            loaded = []
-            for entry in raw_loaded:
-                if entry is None:
+            # parallelism without the cost of spawning processes.
+            # On an 8-core host this typically cuts the load phase
+            # from batch_size × 25ms to ~batch_size × 4ms.
+            #
+            # Skipped when the batch is thumb-only (to_thumb
+            # non-empty, to_embed empty) — those files are
+            # up-to-date and don't need an embed, so we save
+            # the encoder's time and the round trip.
+            loaded: list = []
+            if to_embed:
+                to_embed_paths = [p for p, _reason in to_embed]
+                raw_loaded = _load_batch_concurrent(to_embed_paths)
+                for entry in raw_loaded:
+                    if entry is None:
+                        continue
+                    _p, _img, _sw, _sh = entry
+                    if _img is None:
+                        # _load_batch_concurrent logged + counted this one
+                        total_errors += 1
+                        continue
+                    loaded.append(entry)
+                if not loaded and any(e is None or e[1] is None for e in raw_loaded):
                     continue
-                _p, _img, _sw, _sh = entry
-                if _img is None:
-                    # _load_batch_concurrent logged + counted this one
-                    total_errors += 1
+                if not loaded:
                     continue
-                loaded.append(entry)
-            if not loaded and any(e is None or e[1] is None for e in raw_loaded):
-                continue
-            if not loaded:
-                continue
 
-            try:
-                if encoder is None:
-                    # First-batch model load. Downloading the SigLIP2
-                    # weights from HF Hub takes 30-60s on a fresh
-                    # install; without this event the UI sits at
-                    # "Running · 0 indexed" the whole time and looks
-                    # frozen. Emitting "warming_up" before the load
-                    # starts gives the UI a clear state.
-                    _emit_progress({"event": "warming_up", "model": args.model})
-                    encoder = VisionEncoder(arch=args.model, device=args.device)
-
-                vecs = encoder.embed_batch([letterbox_resize(img) for (_, img, _sw, _sh) in loaded])
-            except Exception:
-                logger.exception("embed failed")
-                total_errors += len(loaded)
-                continue
-
-            items = []
-            for (path, img, source_w, source_h), vec in zip(
-                loaded, vecs, strict=False,
-            ):
-                # Generate thumbnail (best-effort, non-fatal)
+            if loaded:
                 try:
-                    upsert.id_for(path, "")
-                    thumb_path = generate_thumbnail_for_path(img, path, "")
-                    if thumb_path:
-                        logger.debug(f"Generated thumbnail: {thumb_path}")
-                except (OSError, ValueError, RuntimeError) as e:
-                    # Thumbnail generation can fail on corrupt JPEGs,
-                    # PIL decode errors, or filesystem issues. The
-                    # caller wants the index to continue regardless;
-                    # narrow to the realistic failure modes rather than
-                    # a blind `Exception` catch.
-                    logger.warning(f"Failed to generate thumbnail for {path}: {e}")
+                    if encoder is None:
+                        # First-batch model load. Downloading the SigLIP2
+                        # weights from HF Hub takes 30-60s on a fresh
+                        # install; without this event the UI sits at
+                        # "Running · 0 indexed" the whole time and looks
+                        # frozen. Emitting "warming_up" before the load
+                        # starts gives the UI a clear state.
+                        _emit_progress({"event": "warming_up", "model": args.model})
+                        encoder = VisionEncoder(arch=args.model, device=args.device)
 
-                payload = upsert.build_payload(
-                    path, "", args.model, "", src_name,
-                    width=source_w, height=source_h,
-                )
-                payload["path"] = path
-                # Record the SigLIP variant shorthand (e.g.
-                # "so400m/16-384") on each point so the search backend's
-                # startup reconciler can detect variant mismatches against
-                # Qdrant instead of a redundant on-disk JSON file.
-                _variant = _active_variant()
-                if _variant is not None:
-                    payload["model_variant"] = _variant
-                items.append((upsert.id_for(path, ""), vec, payload))
+                    vecs = encoder.embed_batch([letterbox_resize(img) for (_, img, _sw, _sh) in loaded])
+                except Exception:
+                    logger.exception("embed failed")
+                    total_errors += len(loaded)
+                    continue
 
-            try:
-                # Wrap the upsert in retry-with-backoff. A single transient
-                # Qdrant failure (5xx, network blip) must not abort the
-                # whole job — 3 attempts, 2s/4s/8s between, then fail.
-                retry_with_backoff(
-                    lambda items=items: upsert.upsert_batch(
-                        client,
-                        args.qdrant_collection,
-                        [(pid, v, pl) for pid, v, pl in items],
-                        wait=False,
-                        sqlite_conn=sqlite_conn,  # round-35: mirror to images.db
-                    ),
-                    max_attempts=3,
-                    base_delay_s=2.0,
-                )
-                total_indexed += sum(1 for (_p, r) in to_embed if r == "new")
-                total_reembedded += sum(1 for (_p, r) in to_embed if r == "changed")
-                last_written_ids = [iid for (iid, _v, _pl) in items]
-                # Emit per-batch progress so the runner can show live counts.
-                _emit_progress({
-                    "event": "batch",
-                    "batch_index": i // args.batch_size + 1,
-                    "indexed": total_indexed,
-                    "reembedded": total_reembedded,
-                    "skipped": total_skipped,
-                    "errors": total_errors,
-                })
-            except RetryExhausted as exc:
-                # All retries failed — surface to the runner via a final
-                # "failed" event and exit non-zero. The runner records
-                # `last_error` from the event payload.
-                logger.exception("upsert failed after retries")
-                total_errors += len(items)
-                _emit_progress({
-                    "event": "failed",
-                    "stage": "upsert",
-                    "error": f"{type(exc.last_exc).__name__}: {exc.last_exc}",
-                    "indexed": total_indexed,
-                    "reembedded": total_reembedded,
-                    "skipped": total_skipped,
-                    "errors": total_errors,
-                    "duration_s": time.time() - t0,
-                })
-                return 1
-            except Exception:
-                logger.exception("upsert failed")
-                total_errors += len(items)
+                items = []
+                for (path, img, source_w, source_h), vec in zip(
+                    loaded, vecs, strict=False,
+                ):
+                    # Generate thumbnail (best-effort, non-fatal)
+                    try:
+                        upsert.id_for(path, "")
+                        thumb_path = generate_thumbnail_for_path(img, path, "")
+                        if thumb_path:
+                            logger.debug(f"Generated thumbnail: {thumb_path}")
+                    except (OSError, ValueError, RuntimeError) as e:
+                        # Thumbnail generation can fail on corrupt JPEGs,
+                        # PIL decode errors, or filesystem issues. The
+                        # caller wants the index to continue regardless;
+                        # narrow to the realistic failure modes rather than
+                        # a blind `Exception` catch.
+                        logger.warning(f"Failed to generate thumbnail for {path}: {e}")
+
+                    payload = upsert.build_payload(
+                        path, "", args.model, "", src_name,
+                        width=source_w, height=source_h,
+                    )
+                    payload["path"] = path
+                    # Record the SigLIP variant shorthand (e.g.
+                    # "so400m/16-384") on each point so the search backend's
+                    # startup reconciler can detect variant mismatches against
+                    # Qdrant instead of a redundant on-disk JSON file.
+                    _variant = _active_variant()
+                    if _variant is not None:
+                        payload["model_variant"] = _variant
+                    items.append((upsert.id_for(path, ""), vec, payload))
+
+                try:
+                    # Wrap the upsert in retry-with-backoff. A single transient
+                    # Qdrant failure (5xx, network blip) must not abort the
+                    # whole job — 3 attempts, 2s/4s/8s between, then fail.
+                    retry_with_backoff(
+                        lambda items=items: upsert.upsert_batch(
+                            client,
+                            args.qdrant_collection,
+                            [(pid, v, pl) for pid, v, pl in items],
+                            wait=False,
+                            sqlite_conn=sqlite_conn,  # round-35: mirror to images.db
+                        ),
+                        max_attempts=3,
+                        base_delay_s=2.0,
+                    )
+                    total_indexed += sum(1 for (_p, r) in to_embed if r == "new")
+                    total_reembedded += sum(1 for (_p, r) in to_embed if r == "changed")
+                    last_written_ids = [iid for (iid, _v, _pl) in items]
+                    # Emit per-batch progress so the runner can show live counts.
+                    _emit_progress({
+                        "event": "batch",
+                        "batch_index": i // args.batch_size + 1,
+                        "indexed": total_indexed,
+                        "reembedded": total_reembedded,
+                        "skipped": total_skipped,
+                        "errors": total_errors,
+                        "thumb_regens": total_thumb_regens,
+                    })
+                except RetryExhausted as exc:
+                    # All retries failed — surface to the runner via a final
+                    # "failed" event and exit non-zero. The runner records
+                    # `last_error` from the event payload.
+                    logger.exception("upsert failed after retries")
+                    total_errors += len(items)
+                    _emit_progress({
+                        "event": "failed",
+                        "stage": "upsert",
+                        "error": f"{type(exc.last_exc).__name__}: {exc.last_exc}",
+                        "indexed": total_indexed,
+                        "reembedded": total_reembedded,
+                        "skipped": total_skipped,
+                        "errors": total_errors,
+                        "thumb_regens": total_thumb_regens,
+                        "duration_s": time.time() - t0,
+                    })
+                    return 1
+                except Exception:
+                    logger.exception("upsert failed")
+                    total_errors += len(items)
+
+            # Round-50: regenerate thumbnails for files whose embed
+            # was skipped but whose on-disk thumb is missing. Runs
+            # after the embed block (which may have created thumbs
+            # for the to_embed paths) so we don't double-work any
+            # path. Uses the same _load_batch_concurrent helper as
+            # the embed path so the threading is consistent; the
+            # throughput on libvips is high enough that the cost
+            # here is dominated by the JPEG decode, not the encode.
+            if to_thumb:
+                raw_thumb_loaded = _load_batch_concurrent(to_thumb)
+                for entry, path in zip(
+                    raw_thumb_loaded, to_thumb, strict=False
+                ):
+                    if entry is None:
+                        total_errors += 1
+                        continue
+                    _p, _img, _sw, _sh = entry
+                    if _img is None:
+                        # _load_batch_concurrent logged + counted this one
+                        total_errors += 1
+                        continue
+                    try:
+                        out = generate_thumbnail_for_path(_img, path, "")
+                        if out:
+                            total_thumb_regens += 1
+                    except (OSError, ValueError, RuntimeError) as e:
+                        logger.warning(
+                            "Failed to regen thumb for %s: %s", path, e
+                        )
+                        total_errors += 1
+                if total_thumb_regens:
+                    logger.info(
+                        "thumb-regen: %d up-to-date files were missing "
+                        "their on-disk thumb; regenerated",
+                        total_thumb_regens,
+                    )
 
     # Visibility guarantee: batched upserts go out wait=False for
 
@@ -966,7 +1052,8 @@ def main(argv=None):
     dt = time.time() - t0
     print(
         f"Done indexed={total_indexed} re-embedded={total_reembedded} "
-        f"skipped={total_skipped} errors={total_errors} "
+        f"skipped={total_skipped} thumb_regens={total_thumb_regens} "
+        f"errors={total_errors} "
         f"id_mismatch={total_id_mismatch} ({dt:.1f}s)"
     )
     _emit_progress({
@@ -974,6 +1061,7 @@ def main(argv=None):
         "indexed": total_indexed,
         "reembedded": total_reembedded,
         "skipped": total_skipped,
+        "thumb_regens": total_thumb_regens,
         "errors": total_errors,
         # Diagnostic for path-normalisation regressions: when the
         # indexer re-embeds a file that's already in the collection

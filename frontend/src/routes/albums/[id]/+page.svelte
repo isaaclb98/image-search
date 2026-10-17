@@ -14,7 +14,7 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { getAlbum, removePhotoFromAlbum, deleteAlbum } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import { dialog } from '$lib/components/Dialog.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -37,7 +37,8 @@
     is_favorite?: boolean;
   };
 
-  const PAGE = GRID_PAGE_SIZE;
+  // Per-grid-size page size — same as home and /random.
+  const PAGE = $derived(GRID_SIZE_CONFIG[$preferences.gridSize].pageSize);
 
   let detail = $state<AlbumDetail | null>(null);
   // Accumulated members across paged /api/albums/{id} responses.

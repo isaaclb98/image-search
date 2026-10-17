@@ -16,8 +16,8 @@
     listDislikes,
     undislikePoint
   } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
   import { usePagedAlbumList } from '$lib/composables/usePagedAlbumList.svelte';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -28,10 +28,11 @@
     is_favorite?: boolean;
   };
 
-  const PAGE = GRID_PAGE_SIZE;
+  // Per-grid-size page size — same as home and /random.
+  const PAGE = $derived(GRID_SIZE_CONFIG[$preferences.gridSize].pageSize);
 
   const list = usePagedAlbumList<Item>({
-    pageSize: PAGE,
+    pageSize: () => PAGE,
     fetchPage: (limit, offset, signal) =>
       listDislikes(limit, offset, signal) as unknown as Promise<{
         results?: Item[];

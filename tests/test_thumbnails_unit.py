@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest  # noqa: F401  # used by tests that conditionally skip
 from PIL import Image
 
 from indexer.thumbnails import (
@@ -20,6 +21,11 @@ from indexer.thumbnails import (
     THUMBNAIL_QUALITY,
     THUMBNAIL_SIZE,
     THUMBNAIL_SIZES,
+    CHROMA_SUBSAMPLING,
+    _HAS_PYVIPS,
+    _PIL_FORCE,
+    _SRGB_PROFILE_BYTES,
+    _use_pyvips,
     compute_thumbnail,
     generate_thumbnail_for_path,
     sized_thumbnail_path,
@@ -264,6 +270,48 @@ class TestThumbnailConstants:
         # which had argued for q50). Current prod code uses q80.
         assert THUMBNAIL_QUALITY == 80
 
+    def test_chroma_subsampling_is_4_4_4(self):
+        # Forced 4:4:4 chroma for the libvips/Immich parity reason:
+        # PIL's default at q<95 is 4:2:0, which subsamples the
+        # chroma channels and mutes saturated color edges. Pin
+        # the value so a future maintainer doesn't regress to
+        # the PIL default.
+        assert CHROMA_SUBSAMPLING == "4:4:4"
+
+    def test_srgb_profile_is_embedded(self, tmp_path, monkeypatch):
+        """The output WebP must carry the sRGB ICC profile so color-
+        managed browsers and tools render with explicit sRGB
+        intent. PIL strips ICC profiles on crop/resize by default;
+        this test pins the embed behavior."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (256, 256), color="red")
+        result = compute_thumbnail(img, "iccembed1")
+        assert result is not None
+        with Image.open(result) as thumb:
+            assert "icc_profile" in thumb.info
+            # Same 588-byte sRGB blob the module cached at load.
+            assert thumb.info["icc_profile"] == _SRGB_PROFILE_BYTES
+
+    def test_linear_light_resize_preserves_extremes(self, tmp_path, monkeypatch):
+        """Linear-light resize is mathematically correct but the
+        gamma round-trip on solid colors must NOT shift them. A
+        solid-red 256x256 should round-trip to solid red (255,0,0)
+        within 1 unit per channel — anything more means the
+        gamma conversion or the uint8 clip is broken."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        # 2x2 solid red, upscaled to a real photo-like size so the
+        # resize has meaningful content to work with.
+        src = Image.new("RGB", (2, 2), color=(255, 0, 0))
+        src = src.resize((512, 512), Image.Resampling.NEAREST)
+        result = compute_thumbnail(src, "linrsz001")
+        assert result is not None
+        with Image.open(result) as thumb:
+            # Sample the center — should still be solid red.
+            r, g, b = thumb.getpixel((192, 192))
+            assert r == 255
+            assert g <= 1
+            assert b <= 1
+
     def test_thumbnail_dir_uses_env_or_default(self, monkeypatch):
         monkeypatch.delenv("THUMBNAIL_DIR", raising=False)
         # Default is /app/data/thumbnails (container path)
@@ -331,3 +379,93 @@ class TestComputeThumbnailWritesSizedVariants:
         compute_thumbnail(img, "skipbig1")
         assert sized_thumbnail_path("skipbig1", 200).exists()
         assert not sized_thumbnail_path("skipbig1", 999).exists()
+
+
+# ----- pyvips (libvips) path -----
+
+
+class TestPyvipsPath:
+    """The libvips path runs when pyvips is importable AND a source
+    path is provided. Behavior contract:
+      - writes a 384x384 WebP at the canonical path
+      - embeds the sRGB ICC profile
+      - Q=80 default
+    Skipped on hosts that don't have pyvips (most CI runners).
+    """
+
+    def test_use_pyvips_reflects_availability(self, monkeypatch):
+        # Default: pyvips decides. monkeypatch _PIL_FORCE True → False.
+        monkeypatch.setattr("indexer.thumbnails._PIL_FORCE", True)
+        assert _use_pyvips() is False
+        monkeypatch.setattr("indexer.thumbnails._PIL_FORCE", False)
+        # Result depends on whether pyvips is importable; just
+        # check that the function respects the toggle.
+        assert _use_pyvips() is (_HAS_PYVIPS and not _PIL_FORCE)
+
+    def test_pyvips_path_runs_when_source_path_provided(
+        self, tmp_path, monkeypatch
+    ):
+        if not _HAS_PYVIPS:
+            import pytest
+
+            pytest.skip("pyvips not importable on this host")
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        # Write a real source JPEG to disk so the pyvips path
+        # has something to load.
+        src = tmp_path / "src.jpg"
+        Image.new("RGB", (640, 480), color=(180, 60, 220)).save(
+            src, "JPEG", quality=85
+        )
+        # Caller has both a PIL Image (for the PIL path) and
+        # a source path (for the pyvips path); the path wins.
+        pil_image = Image.new("RGB", (16, 16), color="red")
+        result = compute_thumbnail(pil_image, "vipstest1", source_path=src)
+        assert result is not None
+        assert result.exists()
+        with Image.open(result) as thumb:
+            assert thumb.size == (384, 384)
+            assert thumb.format == "WEBP"
+            # libvips auto-4:4:4 + ICC embed: the file MUST
+            # carry the sRGB profile (matches what the PIL
+            # path embeds; the load + reload test below proves
+            # the bytes round-trip).
+            assert "icc_profile" in thumb.info
+            assert thumb.info["icc_profile"] == _SRGB_PROFILE_BYTES
+
+    def test_pil_path_runs_when_source_path_missing(
+        self, tmp_path, monkeypatch
+    ):
+        """No source_path → PIL fallback, even when pyvips is
+        available. The indexer always has a source path so this
+        path is for unit tests and other in-memory callers."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        img = Image.new("RGB", (512, 512), color="orange")
+        # No source_path argument → PIL path.
+        result = compute_thumbnail(img, "pilpath1")
+        assert result is not None
+        with Image.open(result) as thumb:
+            assert thumb.size == (384, 384)
+            assert thumb.info.get("icc_profile") == _SRGB_PROFILE_BYTES
+
+    def test_pil_path_runs_when_pyvips_forced_off(
+        self, tmp_path, monkeypatch
+    ):
+        """_PIL_FORCE = True bypasses pyvips even with a source
+        path. The test-suite toggle so PIL helpers are exercised
+        on hosts that have libvips installed (i.e. this one)."""
+        monkeypatch.setattr("indexer.thumbnails.THUMBNAIL_DIR", str(tmp_path))
+        monkeypatch.setattr("indexer.thumbnails._PIL_FORCE", True)
+        src = tmp_path / "src.jpg"
+        Image.new("RGB", (640, 480), color=(40, 200, 80)).save(
+            src, "JPEG", quality=85
+        )
+        result = compute_thumbnail(
+            Image.new("RGB", (16, 16), color="red"),
+            "pilforce1",
+            source_path=src,
+        )
+        assert result is not None
+        with Image.open(result) as thumb:
+            assert thumb.size == (384, 384)
+            # PIL path also embeds the profile.
+            assert thumb.info.get("icc_profile") == _SRGB_PROFILE_BYTES

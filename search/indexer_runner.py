@@ -62,6 +62,12 @@ class IndexerProgress:
     reembedded: int = 0
     skipped: int = 0
     errors: int = 0
+    # Round-50: count of thumbnails regenerated for files whose
+    # embed was skipped (mtime/size match → up-to-date) but whose
+    # on-disk thumb was missing. See indexer/local_sync.py for
+    # the producer side. Older indexer binaries (pre-Round-50)
+    # don't emit this field; default 0 is the safe fallback.
+    thumb_regens: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,6 +75,7 @@ class IndexerProgress:
             "reembedded": self.reembedded,
             "skipped": self.skipped,
             "errors": self.errors,
+            "thumb_regens": self.thumb_regens,
         }
 
 
@@ -308,10 +315,11 @@ class IndexerRunner:
                     reembedded=self._progress.reembedded,
                     skipped=self._progress.skipped,
                     errors=self._progress.errors,
+                    thumb_regens=self._progress.thumb_regens,
                 ),
                 points_count=self._points_count,
                 phase=self._phase,
-            )
+                )
 
     def log(self, *, since_line: int = 0) -> dict[str, Any]:
         """Return log lines after `since_line` (0-based, exclusive).
@@ -380,6 +388,11 @@ class IndexerRunner:
                 reembedded=int(event.get("reembedded", 0)),
                 skipped=int(event.get("skipped", 0)),
                 errors=int(event.get("errors", 0)),
+                # Round-50: older indexer binaries don't emit this
+                # field; default 0 (the dataclass default) is the
+                # safe fallback so the runner doesn't break when
+                # pointed at a pre-Round-50 image.
+                thumb_regens=int(event.get("thumb_regens", 0)),
             )
             self._phase = "embedding"
         elif kind in ("done", "cancelled", "failed"):
@@ -388,6 +401,7 @@ class IndexerRunner:
                 reembedded=int(event.get("reembedded", 0)),
                 skipped=int(event.get("skipped", 0)),
                 errors=int(event.get("errors", 0)),
+                thumb_regens=int(event.get("thumb_regens", 0)),
             )
             self._phase = None
 
