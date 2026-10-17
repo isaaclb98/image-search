@@ -36,11 +36,8 @@
   import { usePhotoFeedback } from '$lib/composables/usePhotoFeedback';
   import { readUrl, writeUrl, pushUrlSearch } from '$lib/state/urlState';
   import type { SavedSearch } from '$lib/api/endpoints';
-  import {
-    GRID_PAGE_SIZE,
-    POOL_STOPS_HOME,
-    DEFAULT_POOL_INDEX_HOME
-  } from '$lib/api/limits';
+  import { POOL_STOPS_HOME, DEFAULT_POOL_INDEX_HOME } from '$lib/api/limits';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
   import Button from '$lib/components/Button.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -54,7 +51,19 @@
     is_disliked?: boolean;
   };
 
-  const PAGE = GRID_PAGE_SIZE;
+  // Per-grid-size page size — drives both the initial search
+  // limit and every loadMore() call. Scales with the grid so
+  // every size fills ~4 rows on first load: Large 24 (6×4),
+  // Medium 32 (8×4), Small 40 (10×4). Reads from the same
+  // GRID_SIZE_CONFIG the virtualizer + CSS use, so a Settings
+  // → Grid size change applies to page size too.
+  //
+  // GRID_PAGE_SIZE in $lib/api/limits is now a back-compat
+  // export for callers that don't have a gridSize preference
+  // (the For You page uses its own sampling math). Keep the
+  // constant there as the documented default (24 = Large's
+  // pageSize).
+  const PAGE = $derived(GRID_SIZE_CONFIG[$preferences.gridSize].pageSize);
 
   // Composer state (hoisted from PromptChips).
   let positives = $state<string[]>([]);

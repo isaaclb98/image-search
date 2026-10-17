@@ -383,12 +383,15 @@ test('Random page walks through the full session without duplicates', async ({ p
 
 test('Search page infinite-scrolls: scrolls append a second page', async ({ page }) => {
   // / IS the search route now (the /search route was removed).
-  // Initial page size is 28 (see GRID_PAGE_SIZE constant; was 20
-  // before the centralisation). Scope the tile count to the search
-  // results section so the home page's For You row tiles don't
-  // contaminate the count. Use a generic prompt that's likely to
-  // match many photos — "photo" matches all images in the dev
-  // library of 182 K-pop photos, so the second page will load.
+  // Initial page size is 24 (see GRID_SIZE_CONFIG.large.pageSize;
+  // was a global GRID_PAGE_SIZE=24 before the per-grid-size
+  // scaling landed — same value for the Large default, just
+  // sourced from a different constant). Scope the tile count
+  // to the search results section so the home page's For You
+  // row tiles don't contaminate the count. Use a generic
+  // prompt that's likely to match many photos — "photo"
+  // matches all images in the dev library of 182 K-pop
+  // photos, so the second page will load.
   await page.goto(APP + '/?positives=photo');
   await searchPageReady(page);
   await waitFor(page, 'section.results .grid-tile', 10000);
@@ -399,7 +402,7 @@ test('Search page infinite-scrolls: scrolls append a second page', async ({ page
   await page.waitForTimeout(1500);
 
   const initial = await page.locator('section.results .grid-tile').count();
-  expect(initial).toBe(28);
+  expect(initial).toBe(24);
 
   // Scroll the sentinel into view to trigger the next-page load.
 // The sentinel lives inside section.results; the page has other
@@ -413,5 +416,5 @@ test('Search page infinite-scrolls: scrolls append a second page', async ({ page
   }
 
   const final = await page.locator('section.results .grid-tile').count();
-  expect(final).toBeGreaterThan(28);
+  expect(final).toBeGreaterThan(24);
 });

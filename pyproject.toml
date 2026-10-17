@@ -30,6 +30,16 @@ dependencies = [
     "pillow>=10",
     "pillow-heif>=0.16",
     "blurhash>=1.0",  # LQIP placeholders — computed at index time, decoded client-side
+    # libvips (via pyvips) — primary thumbnail encoder. libvips
+    # is the C library that does 4:4:4 chroma + linear-light
+    # resize + ICC profile embed + WebP encode as a single fast
+    # pipeline. pyvips is the thin Python binding. The system
+    # needs libvips installed (apt: libvips-tools); see
+    # docker/Dockerfile.search for the install line. If libvips
+    # is missing at runtime the indexer falls back to a slower
+    # PIL+numpy path that does the same four behaviors — see
+    # indexer/thumbnails.py:_use_pyvips().
+    "pyvips>=2.2",
     "tqdm>=4.66",
     # Streaming ZIP archive for /favorites/download.zip — doesn't
     # buffer the whole archive in memory.

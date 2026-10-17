@@ -28,6 +28,7 @@
   import PhotoTile from './PhotoTile.svelte';
   import ImageContextMenu from './ImageContextMenu.svelte';
   import Lightbox from './Lightbox.svelte';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
 
   // Use the generated SearchResult shape so `url`, `width`,
   // `height`, `is_disliked` etc. stay in lockstep with the
@@ -85,53 +86,47 @@
 
   // Grid config
   //
-  // GAP is the row-to-row vertical spacing used by the virtualizer
-  // (rowHeight = tileSize + GAP). It MUST match the CSS `gap` on
-  // `.grid-row` (--grid-gutter) so horizontal and vertical gutters
-  // read as the same thickness — otherwise tiles look balanced
-  // side-to-side but cramped top-to-bottom.
+  // All three numbers (tile, gap, maxCols) come from the user's
+  // grid-size preference via GRID_SIZE_CONFIG. Single source of
+  // truth — Settings page, the layout-level ResizeObserver, and
+  // this component all read the same record so they cannot drift.
   //
-  // Round‑36: tightened from 20 to 4 so the grid reads as a dense
-  // wall of photos instead of an airy card layout. ESTIMATED_ROW_HEIGHT
-  // stays at 280 since it was already larger than tileSize + GAP — the
-  // estimate just gets more accurate.
-  // Round-55: was hardcoded 4 while the CSS gap (--grid-gutter)
-  // renders 14. Math/render mismatch → only 4 cols fit in the
-  // 1216px chrome instead of the intended 5. Now matches --grid-
-  // gutter at 14. Affects rowHeight (tileSize + GAP) for the
-  // virtualizer; horizontal gutters are unchanged at 14px.
-  const GAP = 14;
-
-  // Mirrors +layout.svelte's TILE constant. We need it here so
-  // the column count math agrees with the layout-level --grid-width
-  // computation. Changing this requires changing both files.
-  const TILE = 240;
-  // Cap on the number of columns regardless of viewport size. Keeps
-  // /random, /albums, /for-you etc. at the same density on huge
-  // monitors (no 9-10-col wall at 2510px) and lets the per-page
-  // chrome (header, filters, action row) stay a reasonable width
-  // instead of stretching to fill the whole screen.
-  const MAX_COLS = 6;
+  // The +layout.svelte onMount writes the active config to
+  // `--grid-tile-size`, `--grid-gutter-size`, and
+  // `--grid-row-max-width` on `:root`. The CSS uses those vars;
+  // the virtualizer uses the JS derived values directly.
+  const config = $derived(GRID_SIZE_CONFIG[$preferences.gridSize]);
+  const TILE = $derived(config.tile);
+  const GAP = $derived(config.gap);
+  const MAX_COLS = $derived(config.maxCols);
 
   // Number of skeleton placeholder rows rendered while a fetch
   // is in flight. Sized to roughly one viewport at the typical
-  // rowHeight (388px = 384 tile + 4 gap): 3 rows ≈ 1164px, which
-  // covers a 1080p viewport's bottom-band plus a small buffer
-  // below the fold. Any less and the placeholder band is shorter
+  // rowHeight. Any less and the placeholder band is shorter
   // than the visible area below the last real row, so the user
   // sees a gap between tiles and skeleton. Any more and the
   // skeleton forces the page to grow when the next page arrives,
   // causing a tiny layout jump.
   const SKELETON_ROWS = 3;
-  const ESTIMATED_ROW_HEIGHT = 280; // px, approximate tile height + gap
+  // Estimated row height — used by the virtualizer before the
+  // first measurement lands. The actual rowHeight is
+  // tileSize + GAP, but the virtualizer only needs a sane
+  // starting value; the ResizeObserver and the $effect below
+  // correct to the real value within one frame. Round-36
+  // commented 280 as the previous "approximate tile height +
+  // gap" — derived now so a different gridSize (which changes
+  // the row height) gets a sensible default.
+  const ESTIMATED_ROW_HEIGHT = $derived(TILE + GAP);
 
   // Sensible floor before we know the wrapper width — used on the
   // very first render when both containerWidth and tileSize are 0.
-  // Round‑36: bumped from 5 to 6 — at the 2400px container cap the
+  // Round-36: bumped from 5 to 6 — at the 2400px container cap the
   // new fixed 384px tiles give 6 cols. The ResizeObserver fires
   // within one frame and corrects to the real value before the
-  // user notices.
-  const ESTIMATED_COLUMNS = 6;
+  // user notices. Round-83: now derived from MAX_COLS so a
+  // smaller gridSize choice (max 10 cols) gets a proportionally
+  // larger initial estimate instead of guessing 6.
+  const ESTIMATED_COLUMNS = $derived(Math.min(MAX_COLS, 6));
 
   // State
   let contextMenu = $state<{ x: number; y: number; item: Item } | null>(null);
@@ -256,16 +251,22 @@
   // any search runs) still have the var set. PhotoGrid's
   // measurement is the source of truth when mounted; the layout
   // fallback handles the empty-items case.
-  // Re-measure the rendered tile whenever items change OR the
-  // container width changes. The CSS grid uses auto-fill, so the
-  // number of columns (and therefore the tile width) depends on
+  // Re-measure the rendered tile whenever items change, the
+  // container width changes, OR the grid size preference
+  // changes. The CSS grid uses auto-fill, so the number of
+  // columns (and therefore the tile width) depends on
   // `containerWidth`. The ResizeObserver may fire before the
   // first row renders, so we read the tile on every items change
-  // too.
+  // too. When the user changes grid size in Settings, the CSS
+  // var update flows through the layout's onMount (which writes
+  // the new tile size to :root), then the grid re-flows, then
+  // we re-measure so the virtualizer's rowHeight matches the
+  // new tile size.
   $effect(() => {
     // Track dependencies.
     void items.length;
     void containerWidth;
+    void $preferences.gridSize;
     if (!gridWrapper) return;
     // Defer one tick so the DOM has rendered the new tiles.
     queueMicrotask(() => {
@@ -386,7 +387,7 @@
 {:else if items.length === 0 && !loading}
   <div class="empty">No results</div>
 {:else}
-  <div class="grid-wrapper" bind:this={gridWrapper}>
+  <div class="grid-wrapper" data-grid-size={$preferences.gridSize} bind:this={gridWrapper}>
     <div
       class="grid-virtual"
       style="height: {totalSize}px; position: relative;"
@@ -512,27 +513,38 @@
 
   .grid-row {
     display: grid;
-    /* Round‑36: fixed 240px tiles (was auto-fill minmax(180, 1fr)
-       → 8 cols at ~183px). Fixed 240 matches the thumbnail source
-       1:1 — no upscale, no downscale. auto-fit (not auto-fill)
-       collapses empty tracks when the item count is below the
-       column count, so sparse pages (For You with 2 photos)
-       center the filled tiles rather than leaving an empty band
-       on the right. Dense pages (Random with 40+ photos) hit
-       auto-fill's full-track behavior because all tracks are
-       occupied — same look as before. */
-    grid-template-columns: repeat(auto-fit, 240px);
+    /* Round-36: fixed-tile-width grid (was auto-fill minmax(180, 1fr)
+       → 8 cols at ~183px). The tile size comes from the user's
+       grid-size preference (--grid-tile-size written by
+       +layout.svelte's ResizeObserver from GRID_SIZE_CONFIG).
+       auto-fit (not auto-fill) collapses empty tracks when the
+       item count is below the column count, so sparse pages
+       (For You with 2 photos) center the filled tiles rather
+       than leaving an empty band on the right. Dense pages
+       (Random with 40+ photos) hit auto-fill's full-track
+       behavior because all tracks are occupied — same look as
+       before. */
+    grid-template-columns: repeat(auto-fit, var(--grid-tile-size, 240px));
     /* Center the row when the container is wider than the tile
        grid (the common case on viewports >1548px). Without this,
        CSS Grid's default `justify-content: start` packs cols to
        the left and leaves an empty band on the right — looks like
        a layout bug. Centering reads as deliberate. */
     justify-content: center;
-    /* Round‑36: tightened from 20px to 4px. A dense wall-of-photos
-       reads as a real gallery; the old 20px gap looked like a
-       card grid. Keep this in sync with the JS-side `GAP`
-       constant above so virtualizer row-height math is exact. */
-    gap: var(--grid-gutter, 4px);
+    /* Gap follows the same preference as the tile size — see
+       GRID_SIZE_CONFIG. Larger photos get a larger gap (the
+       Round-38 design intent: 14px reads as 'personal photo
+       library', tighter gaps read as utilitarian). The JS-side
+       GAP constant in this file's <script> matches this value
+       exactly so the virtualizer's rowHeight math is right. */
+    gap: var(--grid-gutter-size, 14px);
+    /* Cap the row at the max-cols width. Without this, on a 2400px
+       viewport with the small setting (10 cols × 144 + 9 × 4 =
+       1476px), the row would expand to fill the available width
+       because the `auto-fit` tracks grow with `1fr`. The cap
+       forces the row to stay at its natural width and the
+       `justify-content: center` above centers it. */
+    max-width: var(--grid-row-max-width, 1548px);
     /* No horizontal padding here — `.shell` already provides
        24px of side padding, and the row belongs to the wrapper
        which fills main's content area. Adding more here would
@@ -613,8 +625,10 @@
   }
   .skeleton-row {
     /* Inherits .grid-row's grid-template-columns, gap, and
-       justify-content. No additional sizing needed. */
-    margin-bottom: var(--grid-gutter, 4px);
+       justify-content. No additional sizing needed. The
+       margin-bottom matches the row gap so the shimmer
+       band has the same vertical rhythm as the real grid. */
+    margin-bottom: var(--grid-gutter-size, 14px);
     pointer-events: none;
   }
   .skeleton-tile {

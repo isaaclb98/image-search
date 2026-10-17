@@ -20,7 +20,7 @@
     unlikePoint,
     dislikePoint
   } from '$lib/api/endpoints';
-  import { GRID_PAGE_SIZE } from '$lib/api/limits';
+  import { preferences, GRID_SIZE_CONFIG } from '$lib/stores/preferences';
   import PhotoGrid from '$lib/components/PhotoGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -34,7 +34,11 @@
     is_disliked?: boolean;
   };
 
-  const PAGE = GRID_PAGE_SIZE;
+  // Per-grid-size page size — same logic as the home page.
+  // 4 rows × maxCols, so Large 24, Medium 32, Small 40. A
+  // Settings → Grid size change takes effect on the next
+  // refresh() / loadMore() call.
+  const PAGE = $derived(GRID_SIZE_CONFIG[$preferences.gridSize].pageSize);
   let items = $state<Item[]>([]);
   let loading = $state(false);
   let hasMore = $state(true);
